@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { execFileSync } from 'node:child_process'
-import { projectRoot, excludeFile, ensureExcluded, stamp, writeReport, latestSummary } from '../hooks/lib/paths.mjs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { projectRoot, excludeFile, ensureExcluded, stamp, writeReport, latestSummary, readStdinJson } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -84,4 +84,23 @@ test('latestSummary picks the newest summary across days', () => {
   writeReport(dir, 'backend', 'not a summary', new Date(2026, 9, 12, 23, 0, 0))
   same(latestSummary(dir), newest)
   assert.ok(existsSync(newest))
+})
+
+const STDIN_CHILD = `const { readStdinJson } = await import(${JSON.stringify(new URL('../hooks/lib/paths.mjs', import.meta.url).href)}); const e = await readStdinJson(); if (e === null) process.stderr.write('NULL'); else process.stdout.write(e.text)`
+const runStdin = input => spawnSync(process.execPath, ['--input-type=module', '-e', STDIN_CHILD], { input, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+
+test('stdin JSON keeps multi-byte UTF-8 intact across chunk boundaries', () => {
+  const line = 'Job: توثيق واجهة الدخول ✓\n'
+  let text = ''
+  while (Buffer.byteLength(text) <= 200 * 1024) text += line
+  const r = runStdin(JSON.stringify({ text }))
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout, text)
+})
+
+test('malformed stdin resolves to null', () => {
+  const r = runStdin('{ not json')
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.equal(r.stderr, 'NULL')
 })

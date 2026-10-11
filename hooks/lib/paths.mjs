@@ -70,10 +70,10 @@ export function latestSummary(root) {
 }
 
 export async function readStdinJson() {
-  let raw = ''
-  for await (const chunk of process.stdin) raw += chunk
+  const chunks = []
+  for await (const chunk of process.stdin) chunks.push(chunk)
   try {
-    return JSON.parse(raw)
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
   } catch {
     return null
   }

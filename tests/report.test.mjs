@@ -64,3 +64,11 @@ test('missing fields stay empty strings', () => {
   assert.equal(r.job, '')
   assert.equal(parseReport(undefined).status, '')
 })
+
+test('keeps fenced code blocks inside the report', () => {
+  const text = '## REPORT · backend\nStatus: partial\nProblems:\n```js\nconst x = 1\n```\nNext: deploy\n'
+  const block = extractReport(text)
+  assert.ok(block.includes('```js\nconst x = 1\n```\n'))
+  assert.ok(block.includes('Next: deploy'))
+  assert.equal(parseReport(block).next, 'deploy')
+})

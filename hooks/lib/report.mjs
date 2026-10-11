@@ -9,13 +9,20 @@ export function sectionIdFromType(type) {
   return SECTION_IDS.includes(id) ? id : null
 }
 
+const isFenceLine = line => /^[ \t]*(```|~~~)/.test(line)
+
 export function extractReport(text) {
   if (typeof text !== 'string') return null
   const lf = text.replace(/\r\n?/g, '\n')
   const heading = /^[ \t]*#{1,6}[ \t]*REPORT\b.*$/m.exec(lf)
   if (!heading) return null
-  const block = lf.slice(heading.index).replace(/^[ \t]+/, '').replace(/\n[ \t]*```[\s\S]*$/, '')
-  return block.trimEnd() + '\n'
+  let lines = lf.slice(heading.index).replace(/^[ \t]+/, '').split('\n')
+  const fencesBefore = lf.slice(0, heading.index).split('\n').filter(isFenceLine).length
+  if (fencesBefore % 2 === 1) {
+    const close = lines.findIndex(isFenceLine)
+    if (close > 0) lines = lines.slice(0, close)
+  }
+  return lines.join('\n').trimEnd() + '\n'
 }
 
 const FIELDS = {
