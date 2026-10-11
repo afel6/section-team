@@ -660,7 +660,7 @@ git commit -m "feat: report parsing and project path helpers"
 - Modify: `hooks/hooks.json` (or `.claude-plugin/plugin.json` if D6 = `split`)
 
 **Interfaces:**
-- Consumes: `projectRoot`, `ensureExcluded`, `latestSummary`, `readStdinJson` from Task 3; D2 `messaging`, D3 `reuse` from Task 2.
+- Consumes: `projectRoot`, `ensureExcluded`, `latestSummary`, `readStdinJson` from Task 3; Phase 0 results (`docs/phase0-results.md`): the Agent tool has no `name`, sections are addressed by the agent id their spawn returned, messaging between sections is relayed by the supervisor, reuse by SendMessage works.
 - Produces: `buildContext(cwd: string): string` exported from `hooks/session-start.mjs`; the hook prints `{ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext } }`.
 
 - [ ] **Step 1: Write the failing test**
@@ -727,7 +727,7 @@ Expected: FAIL — module or brief not found.
 
 - [ ] **Step 3: Write the brief**
 
-`brief/supervisor.md` (if D2 = `relay`, replace the line starting `- Sections talk directly` with `- Sections cannot message each other directly: when a section sends you (\`main\`) a request for another section, forward it with SendMessage to that section and pass the answer back.`; if D3 = `respawn`, replace the line starting `- Spawn each name once` with `- Every job is a fresh spawn: for a second job to the same section use name \`<id>-2\`, \`<id>-3\`, … and include the previous REPORT in the job.`):
+`brief/supervisor.md` (already reflects Phase 0: no agent names, agent-id map, relay messaging):
 ```markdown
 [section-team supervisor]
 You are the SUPERVISOR of section-team. The user talks only to you. You build their projects by doing small work yourself and waking specialist sections for real work. Sections sleep until you wake them.
@@ -745,18 +745,18 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - 3 or more distinct builders needed (advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
 
 ## How to wake a section
-- Agent call: `subagent_type: "section-team:<id>"`, `name: "<id>"`. Never pass `model`; sections run on Opus 5.5 from their own files.
-- Spawn sections that must talk to each other before giving either a job that needs the other.
-- Spawn each name once per session. A later job for the same section goes by SendMessage to its name, so it keeps its context.
-- Sections talk directly to each other with SendMessage by name.
-- Every job message contains: the goal; relevant files and decisions so far; the skills or commands to use; what "done" means; the names of sections that are awake and which ones to coordinate with; "End with your REPORT block."
+- Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files) and never `name` (not available).
+- Keep a list of awake sections and the agent id each spawn returned. Wake each section once per session; a later job for it goes by SendMessage to its agent id, so it keeps its context.
+- Sections cannot message each other. When a section sends you (`main`) a request for another section, forward it with SendMessage to that section's agent id (wake it first if asleep) and pass the answer back.
+- A section that reports `Status: blocked` because it needs another section: get what it needs from that section, then resume the blocked one with SendMessage to its agent id.
+- Every job message contains: the goal; relevant files and decisions so far; the skills or commands to use; what "done" means; which sections are awake and which ones to coordinate with (their requests go through you); "End with your REPORT block."
 
 ## Reports
 - Every section ends with a `## REPORT` block. A hook saves it to `.team/reports/<date>/`. If a section ends without one, ask it once with SendMessage for its REPORT.
 - After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
 
 ## Failures
-- A section that fails or stops on an error: resume it once with SendMessage. If it fails again, tell the user what failed and the error text.
+- A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text.
 
 ## Rules that win inside section-team
 - For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers.
@@ -833,7 +833,7 @@ git commit -m "feat: supervisor brief injected at session start"
 - Conditional (C3 fable missing): `agents/fable-consultant.md` via the generator's `CONSULTANT` flag.
 
 **Interfaces:**
-- Consumes: `BUILDER_IDS`, `ADVISOR_IDS` from `hooks/lib/report.mjs`; D2 `messaging`, D4 `skillsPreload` from Task 2.
+- Consumes: `BUILDER_IDS`, `ADVISOR_IDS` from `hooks/lib/report.mjs`; Phase 0: relay messaging, D4 `skillsPreload` = works, Fable helpers work.
 - Produces: `ROSTER`, `render(section): string`, `renderAll(): Record<string, string>` from `scripts/gen-agents.mjs`; files `agents/<id>.md` with `name: <id>`.
 
 - [ ] **Step 1: Write the failing test**
@@ -898,15 +898,15 @@ Expected: FAIL — `Cannot find module ... scripts/gen-agents.mjs`.
 
 - [ ] **Step 3: Write the generator**
 
-`scripts/gen-agents.mjs` (set `MESSAGING` from D2; if D4 = `drop`, set `PRELOAD = false`; if C3 showed no Fable helper, set `CONSULTANT = true`):
+`scripts/gen-agents.mjs` (Phase 0: D4 = works → `PRELOAD = true`; Fable helpers ran → `CONSULTANT = false`):
 ```js
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const MODEL = 'claude-opus-5-5'
-export const MESSAGING = 'direct' // Phase 0 D2: 'direct' | 'relay'
-export const PRELOAD = true // Phase 0 D4: false when preloaded skills do not load
-export const CONSULTANT = false // Phase 0 C3: true when helpers cannot run on fable
+export const RELAY = 'To reach another section, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it and passes the answer back. If you cannot reach the supervisor, finish with `Status: blocked` and say what you need from which section.'
+export const PRELOAD = true // Phase 0 D4: preloaded skills load
+export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
 
@@ -924,11 +924,6 @@ export const ROSTER = [
   { id: 'ai-engineer', kind: 'advisor', color: 'cyan', description: 'AI engineer ADVISOR (read-only): advises the supervisor on model choice, prompts, RAG and agent design. Never changes project files.', role: 'You advise the supervisor on AI decisions: which model, how to prompt, retrieval design, agent architecture, evaluation.', skills: ['claude-api', 'council', 'architecture-decision-records'], goto: [], helpers: ['architect', 'Explore'] },
   { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], goto: [], helpers: ['Explore'] },
 ]
-
-const MESSAGES = {
-  direct: 'Talk to other sections directly with SendMessage using their name (for example `backend`). The job lists which sections are awake. If a section you need is not awake, ask the supervisor (SendMessage to `main`) to wake it.',
-  relay: 'To reach another section, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it and passes the answer back.',
-}
 
 const REPORT = (id) => `## REPORT · ${id} · <YYYY-MM-DD HH:MM>
 Status:       done | partial | blocked
@@ -954,7 +949,7 @@ export function render(s) {
     '1. Read the goal, files, skills to use, definition of done and who to coordinate with.',
     `2. Use the skills and commands the job names${goTo.length > 0 ? `, plus your go-to ones: ${goTo.join(', ')}` : ''}.`,
     `3. Helpers: delegate with the Agent tool and ALWAYS pass \`model\` explicitly — haiku for lookups, file search, formatting and mechanical edits; sonnet for routine code, tests and standard reviews; opus for tricky bugs and design calls; fable${CONSULTANT ? ' (subagent_type `section-team:fable-consultant`)' : ''} as a consultant only for the hardest problems (stuck after 2 attempts, major architecture, security-critical reasoning). If Fable is declined or unavailable, use opus and say so under Problems. Suggested helper types: ${s.helpers.join(', ')}. Tell every helper it must not spawn agents. Check helper output, merge it, and own the result.`,
-    `4. ${MESSAGES[MESSAGING]} Record every agreement in your REPORT's Coordination line.`,
+    `4. ${RELAY} Record every agreement in your REPORT's Coordination line.`,
     isAdvisor
       ? '5. You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (Explore, Plan, architect).'
       : '5. Follow the project\'s rules. When the job says the testing section owns review, skip a separate full review pass of your own.',
@@ -1030,7 +1025,7 @@ git commit -m "feat: 12 generated section agent files"
 
 **Interfaces:**
 - Consumes: `extractReport`, `sectionIdFromType` (Task 3); `projectRoot`, `writeReport`, `readStdinJson` (Task 3).
-- Produces: `lastAssistantText(path: string | undefined): string`, `saveFromEvent(e: object, now?: Date): string | null` (written file path or null).
+- Produces: `finalAgentText(path: string | undefined): string` (the last `SubagentHandback` tool_use `input.message` in the transcript, else the last assistant text), `saveFromEvent(e: object, now?: Date): string | null` (written file path or null). Phase 0: SubagentStop carries no `last_assistant_message` in this build; it is still used first if present.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1043,7 +1038,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { saveFromEvent, lastAssistantText } from '../hooks/subagent-stop.mjs'
+import { saveFromEvent, finalAgentText } from '../hooks/subagent-stop.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/subagent-stop.mjs', import.meta.url))
 const tempDir = () => {
@@ -1069,19 +1064,32 @@ test('ignores non-team agents, empty types and messages without a REPORT', () =>
   assert.equal(existsSync(join(dir, '.team')), false)
 })
 
-test('falls back to the transcript when the last message is empty', () => {
+test('reads the SubagentHandback message from the transcript (no last_assistant_message)', () => {
   const dir = tempDir()
   const transcript = join(dir, 'agent.jsonl')
   writeFileSync(transcript, [
     JSON.stringify({ type: 'user', message: { content: 'job' } }),
-    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: REPORT }] } }),
-    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read' }] } }),
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'working notes' }] } }),
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }, { type: 'tool_use', name: 'SubagentHandback', input: { message: `notes\n${REPORT}` } }] } }),
+    JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'ok' }] } }),
     '',
   ].join('\n'))
-  assert.equal(lastAssistantText(transcript), REPORT)
-  assert.equal(lastAssistantText(join(dir, 'missing.jsonl')), '')
-  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: '', agent_transcript_path: transcript }, NOW)
+  assert.equal(finalAgentText(transcript), `notes\n${REPORT}`)
+  assert.equal(finalAgentText(join(dir, 'missing.jsonl')), '')
+  assert.equal(finalAgentText(undefined), '')
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW)
   assert.equal(readFileSync(file, 'utf8'), REPORT)
+})
+
+test('without a handback, the last assistant text is used', () => {
+  const dir = tempDir()
+  const transcript = join(dir, 'agent.jsonl')
+  writeFileSync(transcript, [
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: REPORT }] } }),
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: {} }] } }),
+    'not json',
+  ].join('\n'))
+  assert.equal(finalAgentText(transcript), REPORT)
 })
 
 test('hook end to end, and malformed stdin exits 0 silently', () => {
@@ -1112,9 +1120,10 @@ import { pathToFileURL } from 'node:url'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
 import { projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
-export function lastAssistantText(transcriptPath) {
+export function finalAgentText(transcriptPath) {
   if (typeof transcriptPath !== 'string' || !existsSync(transcriptPath)) return ''
   const rows = readFileSync(transcriptPath, 'utf8').split(/\r?\n/).filter(Boolean)
+  let lastText = ''
   for (let i = rows.length - 1; i >= 0; i--) {
     let row
     try {
@@ -1123,16 +1132,18 @@ export function lastAssistantText(transcriptPath) {
       continue
     }
     if (row.type !== 'assistant' || !Array.isArray(row.message?.content)) continue
+    const handback = row.message.content.find(part => part.type === 'tool_use' && part.name === 'SubagentHandback')
+    if (typeof handback?.input?.message === 'string') return handback.input.message
     const text = row.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
-    if (text !== '') return text
+    if (lastText === '' && text !== '') lastText = text
   }
-  return ''
+  return lastText
 }
 
 export function saveFromEvent(e, now = new Date()) {
   const id = sectionIdFromType(e?.agent_type)
   if (!id || typeof e.cwd !== 'string') return null
-  const block = extractReport(e.last_assistant_message || lastAssistantText(e.agent_transcript_path))
+  const block = extractReport(e.last_assistant_message || finalAgentText(e.agent_transcript_path))
   return block ? writeReport(projectRoot(e.cwd), id, block, now) : null
 }
 
@@ -1725,10 +1736,10 @@ Expected: prints the env object containing `CLAUDE_CODE_PLUGIN_DIRS`.
 ACC="$(mktemp -d)/section-team acceptance"
 mkdir -p "$ACC" && cd "$ACC" && git init -q && git commit -q --allow-empty -m init
 claude -p --allowedTools "Agent,SendMessage,Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npm *),Bash(date *),Bash(mkdir *)" \
-  "Build a tiny Node project here: an Express-free HTTP server in server.mjs with GET /api/hello returning {msg:'hi'}, a static index.html that fetches it and shows the message, and tests with node:test. Use your sections. The plan is approved in advance: OK." > acc-output.txt
+  "Build a tiny Node project here: an Express-free HTTP server in server.mjs with GET /api/hello returning {msg:'hi'}, a static index.html that fetches it and shows the message, and tests with node:test. Use your sections; the frontend section must get the exact API response shape from the backend section through you. The plan is approved in advance: OK." > acc-output.txt
 ls -R .team/reports; cat .git/info/exclude
 ```
-Expected: `.team/reports/<today>/` holds a REPORT file for each woken section (at least backend, frontend, testing) and one `*-supervisor-summary.md`; `.git/info/exclude` contains `.team/`; `git status --porcelain` does not list `.team/`. Grep the section transcripts for a SendMessage between two sections (or, with D2 = `relay`, via `main`).
+Expected: `.team/reports/<today>/` holds a REPORT file for each woken section (at least backend, frontend, testing) and one `*-supervisor-summary.md`; `.git/info/exclude` contains `.team/`; `git status --porcelain` does not list `.team/`. Relay check: grep the section transcripts for a SendMessage to `main` that the supervisor then forwarded to another section. In `-p` mode sections may run in the foreground and cannot reach `main`; then the expected path is frontend reporting `Status: blocked` and the supervisor resuming it with the answer. Record which path happened. The desktop run (Step 3) must show the relay.
 
 - [ ] **Step 3: Desktop acceptance with the user**
 

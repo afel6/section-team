@@ -1,6 +1,6 @@
 # section-team — Design
 
-Date: 2026-10-12 · Status: v3 — review fixes applied, user decisions recorded; awaiting spec approval · Owner: Asus (personal tool)
+Date: 2026-10-12 · Status: v4 — approved; Phase 0 results applied (no agent names → agentId map + relay; reports read from transcript) · Owner: Asus (personal tool)
 
 ## 1. Intent
 
@@ -24,8 +24,8 @@ Date: 2026-10-12 · Status: v3 — review fixes applied, user decisions recorded
 **Success criteria**
 1. In any project, a new Code-tab session has the supervisor brief in context (marker line `[section-team supervisor]` visible in `/context`), also after `/clear` and after compaction.
 2. A task needing 3+ builder sections: the supervisor shows a plan and wakes no section before the user says OK.
-3. Sections are woken by name, each job names its skills, and heads pass an explicit model to every helper.
-4. Two section heads exchange at least one direct message during the acceptance task (or, if Phase 0 selects the relay fallback, via the supervisor; see §3.5).
+3. Sections are woken by agent type, each job names its skills, and heads pass an explicit model to every helper.
+4. A section's request for another section reaches that section through the supervisor relay during the acceptance task (§3.5).
 5. Every section and advisor ends with a REPORT; it reaches the supervisor and is saved under `.team/reports/`; the supervisor's summary is saved too.
 6. Team Board shows each section's state within ~2 s with the colours in §3.4.
 7. Advisors cannot change project files (Write/Edit outside their memory folder, shell, and write-capable helpers are blocked).
@@ -60,17 +60,17 @@ You ──► SUPERVISOR (main session; brief injected by SessionStart)
           ├─ small task → does it itself
           ├─ AI/data decision → asks advisor (ai-engineer / data-scientist), then decides
           ├─ 3+ builder sections → plan in chat → waits for OK
-          └─ spawns heads: Agent(subagent_type "section-team:<id>", name "<id>", no model arg)
+          └─ spawns heads: Agent(subagent_type "section-team:<id>", no model arg) → keeps id ↔ agentId map
                 head (Opus 5.5, own context, own memory)
                   ├─ helpers: Agent(model haiku|sonnet|opus|fable) — helpers are leaves
-                  └─ SendMessage ⇄ other heads by name (§3.5)
+                  └─ needs another section → SendMessage main → supervisor relays (§3.5)
                 head ends with REPORT ──► supervisor (completion notification)
                                      ├─► SubagentStop hook → .team/reports/<date>/<HHMMSS>-<id>.md
                                      └─► Team Board box
 You ◄── combined summary (also saved)
 ```
 
-**Identifiers.** The authoritative section id is the agent type with the `section-team:` prefix stripped (`section-team:frontend` → `frontend`). The spawn `name` equals the id and is used only as the SendMessage address. The saver and the board key on agent type, never on the REPORT header text.
+**Identifiers.** The authoritative section id is the agent type with the `section-team:` prefix stripped (`section-team:frontend` → `frontend`). The Agent tool has no `name` parameter in this build (Phase 0): the supervisor addresses a section only by the agentId its spawn returned, and keeps a section id → agentId map. The saver and the board key on agent type, never on the REPORT header text.
 
 **Loading.** `CLAUDE_CODE_PLUGIN_DIRS=C:\Users\Asus\claude-team` in the `env` block of `~/.claude/settings.json` (Windows separator `;` if more paths are added). The plugin appears as `section-team@inline`; edits apply on `/reload-plugins` or next session. Phase 0 confirms the desktop app honours it. Fallback only if it does not: local marketplace in this repo with a relative `"./"` source, installed with `--scope user` (loads in place, no reinstall after edits). Never both at once.
 
@@ -93,7 +93,7 @@ You ◄── combined summary (also saved)
 | 3+ distinct **builder** sections (advisors not counted), or a task grows to need a 3rd | Show a short plan (who, what, order) in chat; wake nothing until the user says OK |
 
 - **Job message** contains: goal · relevant files and prior decisions · skills/commands to use · definition of done · the full roster of section names currently awake and which to coordinate with · "end with REPORT".
-- **Spawning**: `subagent_type: "section-team:<id>"`, `name: "<id>"`, never a `model` argument. Spawn heads that must talk to each other before sending either one a job that needs the other. Spawn each name once per session; later jobs to the same section go by SendMessage (keeps its context).
+- **Spawning**: `subagent_type: "section-team:<id>"`, never a `model` argument, never a `name` (not available). Record the agentId each spawn returns. Wake each section once per session; later jobs for it go by SendMessage to its agentId (keeps its context; a second SubagentStop fires — Phase 0 C5).
 - **Retry**: on failure, SendMessage the same section once to resume; if that fails, tell the user with the error.
 - **Missing REPORT**: ask the section once for it.
 - **Precedence over global rules**: in supervisor mode, sections do the delegated work; ECC agents (planner, code-reviewer, tdd-guide, …) are used as helpers *inside* sections, not spawned directly by the supervisor for section work. For a multi-section task the testing section owns final review and verification; other heads skip a separate full review pass. (Confirmed by user — §9.1.)
@@ -113,7 +113,7 @@ Common body (short shared text + a role paragraph):
 - You are the `<id>` section head. The supervisor sends you jobs.
 - Go-to skills and commands for your role are listed below; use those named in the job too.
 - **Helpers**: always pass `model` explicitly on the Agent call — `haiku` lookups/search/formatting/mechanical edits · `sonnet` routine code, tests, standard reviews · `opus` tricky bugs, design calls · `fable` consultant for the hardest problems (stuck after 2 attempts, major architecture, security-critical reasoning). Helpers do not spawn agents. You split work, check helper output, merge it, and own the result; your REPORT's "Helpers used" line covers them.
-- Talk to other sections directly by name with SendMessage; record agreements in your REPORT's Coordination line. If a needed section is not awake, ask the supervisor to wake it.
+- To reach another section, SendMessage the supervisor (`main`) naming the section and the request; the supervisor forwards it and passes the answer back. If you cannot reach the supervisor, finish with `Status: blocked` and say what you need from which section. Record agreements in your REPORT's Coordination line.
 - End with the REPORT block (§3.3). Nothing after it.
 
 Roster (preloaded = verified skills; go-to = listed in body text):
@@ -151,7 +151,7 @@ Problems:     <or "none">
 Next:         <or "none">
 ```
 - Delivery to supervisor: automatic (completion notification).
-- Saver: classic `SubagentStop` hook. Ignore events whose `agent_type` does not start with `section-team:` (this also skips empty types from internal agents). Take text from `last_assistant_message`; if empty, read the last assistant message from `agent_transcript_path`. Find the `## REPORT` block; none → write nothing. Id = agent type minus prefix.
+- Saver: classic `SubagentStop` hook. Ignore events whose `agent_type` does not start with `section-team:` (this also skips empty types from internal agents). The payload carries no final text in this build (Phase 0 C2): read `agent_transcript_path` and take the last `SubagentHandback` tool_use `input.message`, else the last assistant text; use `last_assistant_message` first if a future build sends it. Find the `## REPORT` block; none → write nothing. Id = agent type minus prefix.
 - Path: project root = main checkout (`git rev-parse --path-format=absolute --git-common-dir` → its parent; worktree-safe), else `cwd`. File `.team/reports/<YYYY-MM-DD>/<HHMMSS>-<id>.md`, local time; if it exists, append `-2`, `-3`… Never overwrite. Create folders as needed.
 - Any error → log to stderr, exit 0. Never blocks the session.
 
@@ -174,7 +174,7 @@ Next:         <or "none">
 - Layout: supervisor card on top; sections 3 per row when `bodyColumns ≥ 90`, else 2; advisors in their own row; legend line.
 
 ### 3.5 Section-to-section messaging
-Primary: SendMessage by name between heads (documented: named subagents can message each other; a completed one resumes when messaged). Phase 0 tests it with agent teams off: (a) both running, (b) target completed. Fallback if it fails: heads send cross-section requests to the supervisor, which forwards them by SendMessage; criterion 4 then reads "via the supervisor" and the user is told.
+Decided by Phase 0 (C4): **relay**. Sections cannot address each other (no names; sibling agentIds unknown to them). A section sends its request to the supervisor (`main`, available to background subagents); the supervisor forwards it by SendMessage to the target section's agentId (waking it if asleep) and returns the answer. Criterion 4 tests this path.
 
 ## 4. Error handling
 | Failure | Behaviour |
@@ -228,7 +228,7 @@ Agent teams; a browser web app; separate desktop sessions per section; messaging
 1. Precedence over global rules (§3.1): **yes** — sections do delegated work and use ECC agents as helpers; testing owns final review for multi-section tasks.
 2. Fable (§5): **keep** for hard cases, with the consent prompt; opus fallback.
 3. Board (§3.4): opens **only on `/team` or when the first section wakes**, not at every session start.
-4. Messaging (§3.5): supervisor relay is **acceptable** if direct section messaging fails Phase 0.
+4. Messaging (§3.5): supervisor relay is **acceptable** if direct section messaging fails Phase 0. Phase 0 result: relay is in use.
 
 ## 10. Risks
 - Mods are new; API may shift → board logic in a pure function with tests.
