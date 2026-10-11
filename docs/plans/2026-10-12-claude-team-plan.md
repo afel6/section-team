@@ -1,4 +1,4 @@
-# claude-team Implementation Plan
+# section-team Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,12 +15,12 @@
 - Platform: native Windows 11, Claude desktop app Code tab; not WSL.
 - Claude Code: CLI ≥ 2.1.295 here; desktop app bundled copy ≥ 2.1.289.
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` stays unset.
-- Plugin name `claude-team`; agent types `claude-team:<id>`; section id = agent type with `claude-team:` stripped (a bare id is accepted too).
+- Plugin name `section-team`; agent types `section-team:<id>`; section id = agent type with `section-team:` stripped (a bare id is accepted too).
 - Builder ids: `frontend backend database testing security devops uiux docs ai-llm mobile`. Advisor ids: `ai-engineer data-scientist`.
 - Every section file: `model: claude-opus-5-5`, `memory: user`, `color` ∈ red, blue, green, yellow, purple, orange, pink, cyan.
 - Reports: `.team/reports/<YYYY-MM-DD>/<HHMMSS>-<id>.md`, local time, never overwrite (`-2`, `-3`…), project root = main checkout of the git repo, else `cwd`.
 - `.team/` is added to the repo's `info/exclude` at session start unless `.team/keep-in-git` exists.
-- Supervisor brief < 10,000 characters and starts with the marker line `[claude-team supervisor]`.
+- Supervisor brief < 10,000 characters and starts with the marker line `[section-team supervisor]`.
 - Hook scripts never fail a session: errors go to stderr, exit code 0. Only the advisor guard emits a deny.
 - No new npm dependencies. Commits are local only; never push.
 
@@ -54,9 +54,10 @@ Expected: Node ≥ v22.18, git ≥ 2.31, Claude Code ≥ 2.1.295. Stop and repor
 `.claude-plugin/plugin.json`:
 ```json
 {
-  "name": "claude-team",
+  "name": "section-team",
   "version": "0.1.0",
-  "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board"
+  "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board",
+  "author": { "name": "Asus" }
 }
 ```
 
@@ -81,7 +82,7 @@ export const register: Register = () => {}
 `package.json`:
 ```json
 {
-  "name": "claude-team",
+  "name": "section-team",
   "private": true,
   "type": "module",
   "scripts": {
@@ -127,7 +128,7 @@ Verifies the platform behaviour the design rests on, headless, with `claude -p -
 **Interfaces:**
 - Consumes: Task 1 skeleton.
 - Produces: `docs/phase0-results.md` with decisions D1–D6 that later tasks read:
-  - D1 `agentTypeForm`: exact `agent_type` string for a plugin agent (e.g. `claude-team:spike-a`).
+  - D1 `agentTypeForm`: exact `agent_type` string for a plugin agent (e.g. `section-team:spike-a`).
   - D2 `messaging`: `direct` or `relay`.
   - D3 `reuse`: `message` or `respawn`.
   - D4 `skillsPreload`: `works` or `drop`.
@@ -140,7 +141,7 @@ Verifies the platform behaviour the design rests on, headless, with `claude -p -
 ```markdown
 ---
 name: spike-a
-description: Phase 0 spike agent A. Only used by the claude-team spike test.
+description: Phase 0 spike agent A. Only used by the section-team spike test.
 model: claude-opus-5-5
 memory: user
 skills:
@@ -153,7 +154,7 @@ You are spike agent A in an automated test. Follow the job message exactly, step
 ```markdown
 ---
 name: spike-b
-description: Phase 0 spike agent B. Only used by the claude-team spike test.
+description: Phase 0 spike agent B. Only used by the section-team spike test.
 model: haiku
 ---
 You are spike agent B in an automated test. Follow the job message exactly. End your final message with the line DONE-B.
@@ -222,7 +223,7 @@ Expected: valid.
 - [ ] **Step 5: Create a throwaway git repo and run the spike**
 
 ```bash
-SPIKE="$(mktemp -d)/claude-team spike"
+SPIKE="$(mktemp -d)/section-team spike"
 mkdir -p "$SPIKE" && cd "$SPIKE" && git init -q && git commit -q --allow-empty -m init
 claude -p --plugin-dir "C:/Users/Asus/claude-team" \
   --allowedTools "Agent,SendMessage,Read,Write,Bash(sleep *)" \
@@ -230,8 +231,8 @@ claude -p --plugin-dir "C:/Users/Asus/claude-team" \
   "AUTOMATED TEST. Do exactly these steps. Do not invoke skills, do not plan, do not use other agents.
 1. Write on line 1 of your answer every bracketed marker in your context that starts with [spike-marker.
 2. In ONE message, make two Agent calls in parallel:
-   (a) subagent_type claude-team:spike-b, name beta, prompt: 'Run Bash sleep 45. Then print verbatim every message you received from other agents. End with DONE-B.'
-   (b) subagent_type claude-team:spike-a, name alpha, prompt: '(1) Use SendMessage to beta with text PING-RUNNING-123 and say whether it was delivered. (2) Spawn a general-purpose helper with model haiku and prompt Reply OK-HAIKU. (3) Spawn a general-purpose helper with model fable and prompt Reply OK-FABLE. (4) List the names of skills whose full instructions are already in your context, and the folder of your persistent memory if you have one. End with DONE-A.'
+   (a) subagent_type section-team:spike-b, name beta, prompt: 'Run Bash sleep 45. Then print verbatim every message you received from other agents. End with DONE-B.'
+   (b) subagent_type section-team:spike-a, name alpha, prompt: '(1) Use SendMessage to beta with text PING-RUNNING-123 and say whether it was delivered. (2) Spawn a general-purpose helper with model haiku and prompt Reply OK-HAIKU. (3) Spawn a general-purpose helper with model fable and prompt Reply OK-FABLE. (4) List the names of skills whose full instructions are already in your context, and the folder of your persistent memory if you have one. End with DONE-A.'
 3. When both have finished, use SendMessage to alpha with text: 'Use SendMessage to beta with text PING-COMPLETED-456 and report its reply. Then write SECOND-JOB-789. End with DONE-A.' Wait for the answer.
 4. Print every result you received, verbatim." > spike-output.json
 echo "SPIKE=$SPIKE"
@@ -288,7 +289,7 @@ Expected: a JSON report. Read helper models from the transcripts as well: `grep 
 | Check | Observed | Decision |
 |---|---|---|
 | C1 SessionStart additionalContext reaches the model | true/false | if false: stop, report to user |
-| C2 agent_type form | e.g. claude-team:spike-a | D1 agentTypeForm = <observed> |
+| C2 agent_type form | e.g. section-team:spike-a | D1 agentTypeForm = <observed> |
 | C2 last_assistant_message present | true/false | if false: saver relies on transcript fallback (already built in Task 6) |
 | C3 head model | e.g. claude-opus-5-5 | if not Opus 5.5: check CLAUDE_CODE_SUBAGENT_MODEL / ANTHROPIC_DEFAULT_OPUS_MODEL, report to user |
 | C3 helper models | haiku id, fable id | if fable missing: Task 5 adds agents/fable-consultant.md (model: fable) |
@@ -350,9 +351,9 @@ Next:         rate limiting
 `
 
 test('section id from prefixed and bare types', () => {
-  assert.equal(sectionIdFromType('claude-team:frontend'), 'frontend')
+  assert.equal(sectionIdFromType('section-team:frontend'), 'frontend')
   assert.equal(sectionIdFromType('ai-llm'), 'ai-llm')
-  assert.equal(sectionIdFromType('claude-team:data-scientist'), 'data-scientist')
+  assert.equal(sectionIdFromType('section-team:data-scientist'), 'data-scientist')
   assert.equal(sectionIdFromType('general-purpose'), null)
   assert.equal(sectionIdFromType(''), null)
   assert.equal(sectionIdFromType(undefined), null)
@@ -409,7 +410,7 @@ Expected: FAIL — `Cannot find module ... hooks/lib/report.mjs`.
 
 `hooks/lib/report.mjs`:
 ```js
-export const PREFIX = 'claude-team:'
+export const PREFIX = 'section-team:'
 export const BUILDER_IDS = ['frontend', 'backend', 'database', 'testing', 'security', 'devops', 'uiux', 'docs', 'ai-llm', 'mobile']
 export const ADVISOR_IDS = ['ai-engineer', 'data-scientist']
 export const SECTION_IDS = [...BUILDER_IDS, ...ADVISOR_IDS]
@@ -613,7 +614,7 @@ export function writeReport(root, id, text, now = new Date()) {
       if (err.code !== 'EEXIST') throw err
     }
   }
-  throw new Error(`claude-team: over 999 reports for ${id} in one second`)
+  throw new Error(`section-team: over 999 reports for ${id} in one second`)
 }
 
 export function latestSummary(root) {
@@ -688,7 +689,7 @@ const run = input => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'u
 
 test('brief starts with the marker and fits the limit', () => {
   const brief = readFileSync(BRIEF, 'utf8')
-  assert.ok(brief.startsWith('[claude-team supervisor]'))
+  assert.ok(brief.startsWith('[section-team supervisor]'))
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
@@ -696,7 +697,7 @@ test('context names the latest summary and excludes .team/', () => {
   const dir = repo()
   const summary = writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const context = buildContext(dir)
-  assert.ok(context.startsWith('[claude-team supervisor]'))
+  assert.ok(context.startsWith('[section-team supervisor]'))
   assert.ok(context.includes(summary))
   assert.ok(readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
 })
@@ -707,7 +708,7 @@ test('hook prints SessionStart additionalContext', () => {
   assert.equal(result.status, 0)
   const out = JSON.parse(result.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart')
-  assert.ok(out.hookSpecificOutput.additionalContext.startsWith('[claude-team supervisor]'))
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith('[section-team supervisor]'))
 })
 
 test('empty or malformed stdin: exit 0, no output', () => {
@@ -728,10 +729,10 @@ Expected: FAIL — module or brief not found.
 
 `brief/supervisor.md` (if D2 = `relay`, replace the line starting `- Sections talk directly` with `- Sections cannot message each other directly: when a section sends you (\`main\`) a request for another section, forward it with SendMessage to that section and pass the answer back.`; if D3 = `respawn`, replace the line starting `- Spawn each name once` with `- Every job is a fresh spawn: for a second job to the same section use name \`<id>-2\`, \`<id>-3\`, … and include the previous REPORT in the job.`):
 ```markdown
-[claude-team supervisor]
-You are the SUPERVISOR of claude-team. The user talks only to you. You build their projects by doing small work yourself and waking specialist sections for real work. Sections sleep until you wake them.
+[section-team supervisor]
+You are the SUPERVISOR of section-team. The user talks only to you. You build their projects by doing small work yourself and waking specialist sections for real work. Sections sleep until you wake them.
 
-## Sections (agent type `claude-team:<id>`)
+## Sections (agent type `section-team:<id>`)
 Builders: frontend · backend · database · testing · security · devops · uiux · docs · ai-llm · mobile
 Advisors (read-only, advise only you): ai-engineer (models, prompts, RAG, agent design) · data-scientist (data, metrics, analytics, ML, experiments)
 ai-engineer advises on AI decisions; ai-llm builds AI features.
@@ -744,7 +745,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - 3 or more distinct builders needed (advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
 
 ## How to wake a section
-- Agent call: `subagent_type: "claude-team:<id>"`, `name: "<id>"`. Never pass `model`; sections run on Opus 5.5 from their own files.
+- Agent call: `subagent_type: "section-team:<id>"`, `name: "<id>"`. Never pass `model`; sections run on Opus 5.5 from their own files.
 - Spawn sections that must talk to each other before giving either a job that needs the other.
 - Spawn each name once per session. A later job for the same section goes by SendMessage to its name, so it keeps its context.
 - Sections talk directly to each other with SendMessage by name.
@@ -757,7 +758,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 ## Failures
 - A section that fails or stops on an error: resume it once with SendMessage. If it fails again, tell the user what failed and the error text.
 
-## Rules that win inside claude-team
+## Rules that win inside section-team
 - For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers.
 - For a multi-section task the testing section owns final review and verification; tell the other sections to skip a separate full review pass.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
@@ -793,7 +794,7 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(err => process.stderr.write(`claude-team session-start: ${err.message}\n`))
+  main().catch(err => process.stderr.write(`section-team session-start: ${err.message}\n`))
 }
 ```
 
@@ -947,12 +948,12 @@ export function render(s) {
   lines.push('---')
   const goTo = [...(PRELOAD ? [] : s.skills), ...s.goto]
   const body = [
-    `You are the **${s.id}** ${isAdvisor ? 'advisor' : 'section head'} of claude-team. ${s.role}`,
+    `You are the **${s.id}** ${isAdvisor ? 'advisor' : 'section head'} of section-team. ${s.role}`,
     '',
     'The supervisor sends you jobs. For each job:',
     '1. Read the goal, files, skills to use, definition of done and who to coordinate with.',
     `2. Use the skills and commands the job names${goTo.length > 0 ? `, plus your go-to ones: ${goTo.join(', ')}` : ''}.`,
-    `3. Helpers: delegate with the Agent tool and ALWAYS pass \`model\` explicitly — haiku for lookups, file search, formatting and mechanical edits; sonnet for routine code, tests and standard reviews; opus for tricky bugs and design calls; fable${CONSULTANT ? ' (subagent_type `claude-team:fable-consultant`)' : ''} as a consultant only for the hardest problems (stuck after 2 attempts, major architecture, security-critical reasoning). If Fable is declined or unavailable, use opus and say so under Problems. Suggested helper types: ${s.helpers.join(', ')}. Tell every helper it must not spawn agents. Check helper output, merge it, and own the result.`,
+    `3. Helpers: delegate with the Agent tool and ALWAYS pass \`model\` explicitly — haiku for lookups, file search, formatting and mechanical edits; sonnet for routine code, tests and standard reviews; opus for tricky bugs and design calls; fable${CONSULTANT ? ' (subagent_type `section-team:fable-consultant`)' : ''} as a consultant only for the hardest problems (stuck after 2 attempts, major architecture, security-critical reasoning). If Fable is declined or unavailable, use opus and say so under Problems. Suggested helper types: ${s.helpers.join(', ')}. Tell every helper it must not spawn agents. Check helper output, merge it, and own the result.`,
     `4. ${MESSAGES[MESSAGING]} Record every agreement in your REPORT's Coordination line.`,
     isAdvisor
       ? '5. You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (Explore, Plan, architect).'
@@ -972,7 +973,7 @@ model: fable
 color: purple
 tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
-You are a consultant to a claude-team section head. Answer the question you are given as well as you can, with reasoning and a clear recommendation. Do not change files and do not spawn agents.
+You are a consultant to a section-team section head. Answer the question you are given as well as you can, with reasoning and a clear recommendation. Do not change files and do not spawn agents.
 `
 
 export function renderAll() {
@@ -1055,7 +1056,7 @@ const REPORT = '## REPORT · backend · 2026-10-12 14:32\nStatus: done\nJob: log
 
 test('saves the REPORT of a team section', () => {
   const dir = tempDir()
-  const file = saveFromEvent({ agent_type: 'claude-team:backend', cwd: dir, last_assistant_message: `notes\n${REPORT}` }, NOW)
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: `notes\n${REPORT}` }, NOW)
   assert.ok(file.endsWith(join('.team', 'reports', '2026-10-12', '143205-backend.md')))
   assert.equal(readFileSync(file, 'utf8'), REPORT)
 })
@@ -1064,7 +1065,7 @@ test('ignores non-team agents, empty types and messages without a REPORT', () =>
   const dir = tempDir()
   assert.equal(saveFromEvent({ agent_type: 'general-purpose', cwd: dir, last_assistant_message: REPORT }, NOW), null)
   assert.equal(saveFromEvent({ agent_type: '', cwd: dir, last_assistant_message: REPORT }, NOW), null)
-  assert.equal(saveFromEvent({ agent_type: 'claude-team:backend', cwd: dir, last_assistant_message: 'no report here' }, NOW), null)
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: 'no report here' }, NOW), null)
   assert.equal(existsSync(join(dir, '.team')), false)
 })
 
@@ -1079,13 +1080,13 @@ test('falls back to the transcript when the last message is empty', () => {
   ].join('\n'))
   assert.equal(lastAssistantText(transcript), REPORT)
   assert.equal(lastAssistantText(join(dir, 'missing.jsonl')), '')
-  const file = saveFromEvent({ agent_type: 'claude-team:backend', cwd: dir, last_assistant_message: '', agent_transcript_path: transcript }, NOW)
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: '', agent_transcript_path: transcript }, NOW)
   assert.equal(readFileSync(file, 'utf8'), REPORT)
 })
 
 test('hook end to end, and malformed stdin exits 0 silently', () => {
   const dir = tempDir()
-  const ok = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'claude-team:docs', cwd: dir, last_assistant_message: '## REPORT · docs\nStatus: done\n' }), encoding: 'utf8' })
+  const ok = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:docs', cwd: dir, last_assistant_message: '## REPORT · docs\nStatus: done\n' }), encoding: 'utf8' })
   assert.equal(ok.status, 0)
   assert.equal(ok.stdout, '')
   assert.ok(existsSync(join(dir, '.team', 'reports')))
@@ -1138,7 +1139,7 @@ export function saveFromEvent(e, now = new Date()) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   readStdinJson()
     .then(e => saveFromEvent(e))
-    .catch(err => process.stderr.write(`claude-team subagent-stop: ${err.message}\n`))
+    .catch(err => process.stderr.write(`section-team subagent-stop: ${err.message}\n`))
 }
 ```
 
@@ -1193,37 +1194,37 @@ const MEMORY = join(HOME, '.claude', 'agent-memory', 'ai-engineer', 'MEMORY.md')
 const ev = (agent_type, tool_name, tool_input = {}) => ({ agent_type, tool_name, tool_input, cwd: PROJECT })
 
 test('builders and the main session are never blocked', () => {
-  assert.equal(decide(ev('claude-team:backend', 'Bash', { command: 'rm -rf x' }), HOME), null)
+  assert.equal(decide(ev('section-team:backend', 'Bash', { command: 'rm -rf x' }), HOME), null)
   assert.equal(decide(ev(undefined, 'Write', { file_path: 'a.txt' }), HOME), null)
 })
 
 test('advisors cannot use shell or notebook tools', () => {
-  for (const tool of ['Bash', 'PowerShell', 'NotebookEdit']) assert.match(decide(ev('claude-team:ai-engineer', tool), HOME), /read-only/)
+  for (const tool of ['Bash', 'PowerShell', 'NotebookEdit']) assert.match(decide(ev('section-team:ai-engineer', tool), HOME), /read-only/)
 })
 
 test('advisors may write only inside their own memory folder', () => {
-  assert.equal(decide(ev('claude-team:ai-engineer', 'Write', { file_path: MEMORY }), HOME), null)
-  assert.equal(decide(ev('claude-team:ai-engineer', 'Edit', { file_path: join(HOME, '.claude', 'agent-memory', 'claude-team-ai-engineer', 'x.md') }), HOME), null)
-  assert.match(decide(ev('claude-team:ai-engineer', 'Write', { file_path: join(PROJECT, 'src', 'a.ts') }), HOME), /memory folder/)
-  assert.match(decide(ev('claude-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'data-scientist', 'x.md') }), HOME), /memory folder/)
-  assert.match(decide(ev('claude-team:data-scientist', 'Edit', { file_path: join(HOME, '.claude', 'agent-memory', '..', 'settings.json') }), HOME), /memory folder/)
-  assert.match(decide(ev('claude-team:data-scientist', 'Write', {}), HOME), /memory folder/)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Write', { file_path: MEMORY }), HOME), null)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Edit', { file_path: join(HOME, '.claude', 'agent-memory', 'section-team-ai-engineer', 'x.md') }), HOME), null)
+  assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(PROJECT, 'src', 'a.ts') }), HOME), /memory folder/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'data-scientist', 'x.md') }), HOME), /memory folder/)
+  assert.match(decide(ev('section-team:data-scientist', 'Edit', { file_path: join(HOME, '.claude', 'agent-memory', '..', 'settings.json') }), HOME), /memory folder/)
+  assert.match(decide(ev('section-team:data-scientist', 'Write', {}), HOME), /memory folder/)
 })
 
 test('advisors may only spawn read-only helper types', () => {
-  assert.equal(decide(ev('claude-team:data-scientist', 'Agent', { subagent_type: 'Explore' }), HOME), null)
-  assert.equal(decide(ev('claude-team:ai-engineer', 'Agent', { subagent_type: 'architect' }), HOME), null)
-  assert.match(decide(ev('claude-team:ai-engineer', 'Agent', { subagent_type: 'general-purpose' }), HOME), /read-only helpers/)
-  assert.match(decide(ev('claude-team:ai-engineer', 'Agent', {}), HOME), /read-only helpers/)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'Explore' }), HOME), null)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'architect' }), HOME), null)
+  assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'general-purpose' }), HOME), /read-only helpers/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Agent', {}), HOME), /read-only helpers/)
 })
 
 test('hook prints a deny decision, and stays silent otherwise', () => {
-  const deny = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'PreToolUse', ...ev('claude-team:ai-engineer', 'Bash', { command: 'ls' }) }), encoding: 'utf8' })
+  const deny = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'PreToolUse', ...ev('section-team:ai-engineer', 'Bash', { command: 'ls' }) }), encoding: 'utf8' })
   assert.equal(deny.status, 0)
   const out = JSON.parse(deny.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
-  for (const input of ['', 'not json', JSON.stringify(ev('claude-team:backend', 'Bash'))]) {
+  for (const input of ['', 'not json', JSON.stringify(ev('section-team:backend', 'Bash'))]) {
     const quiet = spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
     assert.equal(quiet.status, 0)
     assert.equal(quiet.stdout, '')
@@ -1262,12 +1263,12 @@ export function decide(e, home = homedir()) {
   const id = sectionIdFromType(e?.agent_type)
   if (!id || !ADVISOR_IDS.includes(id)) return null
   const tool = e.tool_name
-  if (SHELL_TOOLS.has(tool)) return `claude-team: the ${id} advisor is read-only; ${tool} is not allowed.`
+  if (SHELL_TOOLS.has(tool)) return `section-team: the ${id} advisor is read-only; ${tool} is not allowed.`
   if (WRITE_TOOLS.has(tool)) {
-    return isInMemory(e.tool_input?.file_path, id, e.cwd, home) ? null : `claude-team: the ${id} advisor may only write inside its memory folder.`
+    return isInMemory(e.tool_input?.file_path, id, e.cwd, home) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
   }
   if (tool === 'Agent') {
-    return READ_ONLY_HELPERS.has(e.tool_input?.subagent_type) ? null : `claude-team: the ${id} advisor may only use read-only helpers (Explore, Plan, architect).`
+    return READ_ONLY_HELPERS.has(e.tool_input?.subagent_type) ? null : `section-team: the ${id} advisor may only use read-only helpers (Explore, Plan, architect).`
   }
   return null
 }
@@ -1280,7 +1281,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }))
       }
     })
-    .catch(err => process.stderr.write(`claude-team pre-tool-use: ${err.message}\n`))
+    .catch(err => process.stderr.write(`section-team pre-tool-use: ${err.message}\n`))
 }
 ```
 
@@ -1317,7 +1318,7 @@ git commit -m "feat: read-only guard for advisor sections"
 - Consumes: `BUILDER_IDS`, `ADVISOR_IDS`, `sectionIdFromType`, `parseReport` (Task 3); C7 agent-list shape (`id, type, status, description, name?`).
 - Produces:
   - `board-model.mjs`: `emptyBoard(): BoardData`, `cardState(agentStatus?: string, reportStatus?: string): CardState`, `cardLine(state, agent?, report?): string`, `boardModel({ agents, reports, request, lastSummary }): BoardData`, `latestReportFiles(entries: { name: string }[]): { byId: Record<string, string>, summary: string | null }`.
-  - `board-state.ts`: `board` atom keyed `{ plugin: 'claude-team', key: 'board' }`.
+  - `board-state.ts`: `board` atom keyed `{ plugin: 'section-team', key: 'board' }`.
   - Pane id `team-board`, command `/team`.
 
 - [ ] **Step 1: Write the failing model test**
@@ -1345,9 +1346,9 @@ test('agent status and report status map to card states', () => {
 test('board has 10 builders then 2 advisors and counts states', () => {
   const data = boardModel({
     agents: [
-      { id: '1', type: 'claude-team:frontend', status: 'running', description: 'login form' },
-      { id: '2', type: 'claude-team:backend', status: 'completed', description: 'api' },
-      { id: '3', type: 'claude-team:devops', status: 'failed', description: 'docker' },
+      { id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' },
+      { id: '2', type: 'section-team:backend', status: 'completed', description: 'api' },
+      { id: '3', type: 'section-team:devops', status: 'failed', description: 'docker' },
       { id: '4', type: 'general-purpose', status: 'running', description: 'helper' },
     ],
     reports: { backend: { status: 'done', job: '/api/login + JWT', helpers: 'sonnet ×2' }, docs: { status: 'done', job: 'readme', helpers: 'none' } },
@@ -1369,8 +1370,8 @@ test('board has 10 builders then 2 advisors and counts states', () => {
 
 test('an active agent wins over an older completed one of the same section', () => {
   const data = boardModel({ agents: [
-    { id: '1', type: 'claude-team:testing', status: 'completed', description: 'old' },
-    { id: '2', type: 'claude-team:testing', status: 'running', description: 'new' },
+    { id: '1', type: 'section-team:testing', status: 'completed', description: 'old' },
+    { id: '2', type: 'section-team:testing', status: 'running', description: 'new' },
   ] })
   assert.equal(data.cards.find(c => c.id === 'testing').line, 'Running · new')
 })
@@ -1486,7 +1487,7 @@ export type BoardData = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'claude-team': { board: BoardData }
+    'section-team': { board: BoardData }
   }
 }
 ```
@@ -1497,7 +1498,7 @@ import { atom } from 'claude-code'
 import type { BoardData } from '../types'
 import { emptyBoard } from './board-model.mjs'
 
-export const board = atom({ plugin: 'claude-team', key: 'board' } as const, emptyBoard() as BoardData)
+export const board = atom({ plugin: 'section-team', key: 'board' } as const, emptyBoard() as BoardData)
 ```
 
 Add to `.claude-plugin/plugin.json`: `"types": "./types/index.d.ts"`.
@@ -1513,9 +1514,9 @@ import { boardModel } from '../hooks/board-model.mjs'
 
 const DATA = boardModel({
   agents: [
-    { id: '1', type: 'claude-team:frontend', status: 'running', description: 'login form' },
-    { id: '2', type: 'claude-team:backend', status: 'completed', description: 'api' },
-    { id: '3', type: 'claude-team:devops', status: 'failed', description: 'docker' },
+    { id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' },
+    { id: '2', type: 'section-team:backend', status: 'completed', description: 'api' },
+    { id: '3', type: 'section-team:devops', status: 'failed', description: 'docker' },
   ],
   reports: { backend: { status: 'done', job: '/api/login + JWT', helpers: 'sonnet ×2' } },
   request: 'add login',
@@ -1526,7 +1527,7 @@ const PROPS = { title: 'Team Board', isFocused: false, bodyColumns: 100, placeme
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`board draws every section on ${surface}`, async $ => {
     await update($, board, () => DATA)
-    const ui = await $.ui.mount({ plugin: 'claude-team', surface, component: 'Pane', requestId: 'team-board', props: PROPS as never })
+    const ui = await $.ui.mount({ plugin: 'section-team', surface, component: 'Pane', requestId: 'team-board', props: PROPS as never })
     expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: add login')
     expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('Running · login form')
     expect((await ui.find({ key: 'card-backend' }))?.text).toContain('Done · /api/login + JWT')
@@ -1604,7 +1605,7 @@ export const register: Register = on => {
   }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'team', description: 'Show the claude-team Team Board' })
+    await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
     root = await findRoot($)
     stop?.()
     stop = $.clock.every(1000, () => {
@@ -1708,7 +1709,7 @@ git commit -m "feat: Team Board pane with live section states"
 
 Ask in chat: "I'll add `CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team` to your `~/.claude/settings.json` (backup first). OK?" Wait for yes. Then:
 ```bash
-cp ~/.claude/settings.json ~/.claude/settings.json.bak-claude-team
+cp ~/.claude/settings.json ~/.claude/settings.json.bak-section-team
 node -e '
 const fs = require("fs"); const p = require("os").homedir() + "/.claude/settings.json";
 const s = JSON.parse(fs.readFileSync(p, "utf8"));
@@ -1721,7 +1722,7 @@ Expected: prints the env object containing `CLAUDE_CODE_PLUGIN_DIRS`.
 - [ ] **Step 2: CLI acceptance in a throwaway repo**
 
 ```bash
-ACC="$(mktemp -d)/claude-team acceptance"
+ACC="$(mktemp -d)/section-team acceptance"
 mkdir -p "$ACC" && cd "$ACC" && git init -q && git commit -q --allow-empty -m init
 claude -p --allowedTools "Agent,SendMessage,Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npm *),Bash(date *),Bash(mkdir *)" \
   "Build a tiny Node project here: an Express-free HTTP server in server.mjs with GET /api/hello returning {msg:'hi'}, a static index.html that fetches it and shows the message, and tests with node:test. Use your sections. The plan is approved in advance: OK." > acc-output.txt
@@ -1733,25 +1734,25 @@ Expected: `.team/reports/<today>/` holds a REPORT file for each woken section (a
 
 Ask the user to open a **new** Code-tab session in any project folder and walk this checklist with them, recording each result:
 1. `/status` → Claude Code ≥ 2.1.289.
-2. Ask "Who are you in this session?" → answers as the claude-team supervisor (marker loaded). `/context` shows the brief.
+2. Ask "Who are you in this session?" → answers as the section-team supervisor (marker loaded). `/context` shows the brief.
 3. `/team` → Team Board opens: supervisor card, 10 grey section boxes, 2 dashed advisor boxes.
 4. Ask for a change needing 3 builders → a plan appears and no box turns blue before "OK".
 5. After "OK" → boxes turn blue within ~2 s, then green with their report line; the summary appears and a summary file exists.
 6. If a section uses Fable, a consent prompt appears.
 7. `/clear` → ask "Who are you?" again → still supervisor.
-8. Disable test: set `"claude-team@inline": false` under `enabledPlugins` in `~/.claude/settings.json`, open a new session → normal Claude, no `/team`. Set it back to `true` (or remove the key).
+8. Disable test: set `"section-team@inline": false` under `enabledPlugins` in `~/.claude/settings.json`, open a new session → normal Claude, no `/team`. Set it back to `true` (or remove the key).
 
 - [ ] **Step 4: Write README and the acceptance record**
 
 `README.md`:
 ```markdown
-# claude-team
+# section-team
 
 A personal Claude Code plugin: every session is a **supervisor** that wakes specialist **sections** (Opus 5.5) when a task needs them, saves their reports, and shows a live **Team Board**.
 
 ## On / off
 - On: `~/.claude/settings.json` → `env.CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team`. New sessions pick it up.
-- Off: set `"claude-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
+- Off: set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
 
 ## Use
 - Just talk to the supervisor. Small tasks it does itself; bigger ones wake sections. 3+ sections → it shows a plan first.

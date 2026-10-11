@@ -1,4 +1,4 @@
-# claude-team — Design
+# section-team — Design
 
 Date: 2026-10-12 · Status: v3 — review fixes applied, user decisions recorded; awaiting spec approval · Owner: Asus (personal tool)
 
@@ -22,7 +22,7 @@ Date: 2026-10-12 · Status: v3 — review fixes applied, user decisions recorded
 - Auto memory is on (needed for section memory).
 
 **Success criteria**
-1. In any project, a new Code-tab session has the supervisor brief in context (marker line `[claude-team supervisor]` visible in `/context`), also after `/clear` and after compaction.
+1. In any project, a new Code-tab session has the supervisor brief in context (marker line `[section-team supervisor]` visible in `/context`), also after `/clear` and after compaction.
 2. A task needing 3+ builder sections: the supervisor shows a plan and wakes no section before the user says OK.
 3. Sections are woken by name, each job names its skills, and heads pass an explicit model to every helper.
 4. Two section heads exchange at least one direct message during the acceptance task (or, if Phase 0 selects the relay fallback, via the supervisor; see §3.5).
@@ -34,10 +34,10 @@ Date: 2026-10-12 · Status: v3 — review fixes applied, user decisions recorded
 
 ## 2. Architecture
 
-One plugin, `claude-team`, at `C:\Users\Asus\claude-team` (git repo), loaded globally.
+One plugin, `section-team`, at `C:\Users\Asus\claude-team` (git repo), loaded globally.
 
 ```
-claude-team/
+section-team/
   .claude-plugin/plugin.json      name, version, description
   agents/                         12 section definitions
   hooks/hooks.json                classic hooks (Node scripts) + "modules": ["./register.js"]
@@ -60,7 +60,7 @@ You ──► SUPERVISOR (main session; brief injected by SessionStart)
           ├─ small task → does it itself
           ├─ AI/data decision → asks advisor (ai-engineer / data-scientist), then decides
           ├─ 3+ builder sections → plan in chat → waits for OK
-          └─ spawns heads: Agent(subagent_type "claude-team:<id>", name "<id>", no model arg)
+          └─ spawns heads: Agent(subagent_type "section-team:<id>", name "<id>", no model arg)
                 head (Opus 5.5, own context, own memory)
                   ├─ helpers: Agent(model haiku|sonnet|opus|fable) — helpers are leaves
                   └─ SendMessage ⇄ other heads by name (§3.5)
@@ -70,11 +70,11 @@ You ──► SUPERVISOR (main session; brief injected by SessionStart)
 You ◄── combined summary (also saved)
 ```
 
-**Identifiers.** The authoritative section id is the agent type with the `claude-team:` prefix stripped (`claude-team:frontend` → `frontend`). The spawn `name` equals the id and is used only as the SendMessage address. The saver and the board key on agent type, never on the REPORT header text.
+**Identifiers.** The authoritative section id is the agent type with the `section-team:` prefix stripped (`section-team:frontend` → `frontend`). The spawn `name` equals the id and is used only as the SendMessage address. The saver and the board key on agent type, never on the REPORT header text.
 
-**Loading.** `CLAUDE_CODE_PLUGIN_DIRS=C:\Users\Asus\claude-team` in the `env` block of `~/.claude/settings.json` (Windows separator `;` if more paths are added). The plugin appears as `claude-team@inline`; edits apply on `/reload-plugins` or next session. Phase 0 confirms the desktop app honours it. Fallback only if it does not: local marketplace in this repo with a relative `"./"` source, installed with `--scope user` (loads in place, no reinstall after edits). Never both at once.
+**Loading.** `CLAUDE_CODE_PLUGIN_DIRS=C:\Users\Asus\claude-team` in the `env` block of `~/.claude/settings.json` (Windows separator `;` if more paths are added). The plugin appears as `section-team@inline`; edits apply on `/reload-plugins` or next session. Phase 0 confirms the desktop app honours it. Fallback only if it does not: local marketplace in this repo with a relative `"./"` source, installed with `--scope user` (loads in place, no reinstall after edits). Never both at once.
 
-**Disable.** Remove the env entry (or set `"claude-team@inline": false` under `enabledPlugins`) and start a new session. Emergency: `claude --safe-mode`.
+**Disable.** Remove the env entry (or set `"section-team@inline": false` under `enabledPlugins`) and start a new session. Emergency: `claude --safe-mode`.
 
 ## 3. Components
 
@@ -93,7 +93,7 @@ You ◄── combined summary (also saved)
 | 3+ distinct **builder** sections (advisors not counted), or a task grows to need a 3rd | Show a short plan (who, what, order) in chat; wake nothing until the user says OK |
 
 - **Job message** contains: goal · relevant files and prior decisions · skills/commands to use · definition of done · the full roster of section names currently awake and which to coordinate with · "end with REPORT".
-- **Spawning**: `subagent_type: "claude-team:<id>"`, `name: "<id>"`, never a `model` argument. Spawn heads that must talk to each other before sending either one a job that needs the other. Spawn each name once per session; later jobs to the same section go by SendMessage (keeps its context).
+- **Spawning**: `subagent_type: "section-team:<id>"`, `name: "<id>"`, never a `model` argument. Spawn heads that must talk to each other before sending either one a job that needs the other. Spawn each name once per session; later jobs to the same section go by SendMessage (keeps its context).
 - **Retry**: on failure, SendMessage the same section once to resume; if that fails, tell the user with the error.
 - **Missing REPORT**: ask the section once for it.
 - **Precedence over global rules**: in supervisor mode, sections do the delegated work; ECC agents (planner, code-reviewer, tdd-guide, …) are used as helpers *inside* sections, not spawned directly by the supervisor for section work. For a multi-section task the testing section owns final review and verification; other heads skip a separate full review pass. (Confirmed by user — §9.1.)
@@ -134,7 +134,7 @@ Roster (preloaded = verified skills; go-to = listed in body text):
 
 **Advisors are read-only for the project, not for their memory.**
 - Frontmatter `tools:` allowlist: Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit (no Bash, PowerShell, NotebookEdit).
-- `pre-tool-use.mjs` (classic PreToolUse): when `agent_type` is `claude-team:ai-engineer` or `claude-team:data-scientist` → deny Write/Edit unless the target path is inside that advisor's memory folder; deny Agent unless `subagent_type` ∈ {Explore, Plan, architect}; deny Bash/PowerShell/NotebookEdit defensively.
+- `pre-tool-use.mjs` (classic PreToolUse): when `agent_type` is `section-team:ai-engineer` or `section-team:data-scientist` → deny Write/Edit unless the target path is inside that advisor's memory folder; deny Agent unless `subagent_type` ∈ {Explore, Plan, architect}; deny Bash/PowerShell/NotebookEdit defensively.
 - Advisors end with the same REPORT (`Changed: none`) and are saved and shown like sections.
 
 ### 3.3 Reports (`subagent-stop.mjs`)
@@ -151,7 +151,7 @@ Problems:     <or "none">
 Next:         <or "none">
 ```
 - Delivery to supervisor: automatic (completion notification).
-- Saver: classic `SubagentStop` hook. Ignore events whose `agent_type` does not start with `claude-team:` (this also skips empty types from internal agents). Take text from `last_assistant_message`; if empty, read the last assistant message from `agent_transcript_path`. Find the `## REPORT` block; none → write nothing. Id = agent type minus prefix.
+- Saver: classic `SubagentStop` hook. Ignore events whose `agent_type` does not start with `section-team:` (this also skips empty types from internal agents). Take text from `last_assistant_message`; if empty, read the last assistant message from `agent_transcript_path`. Find the `## REPORT` block; none → write nothing. Id = agent type minus prefix.
 - Path: project root = main checkout (`git rev-parse --path-format=absolute --git-common-dir` → its parent; worktree-safe), else `cwd`. File `.team/reports/<YYYY-MM-DD>/<HHMMSS>-<id>.md`, local time; if it exists, append `-2`, `-3`… Never overwrite. Create folders as needed.
 - Any error → log to stderr, exit 0. Never blocks the session.
 
@@ -197,7 +197,7 @@ Primary: SendMessage by name between heads (documented: named subagents can mess
 **Phase 0 spike (throwaway, before building).** Each check names its fallback.
 1. Desktop app loads the plugin via `CLAUDE_CODE_PLUGIN_DIRS` → else local marketplace (§2).
 2. SessionStart `additionalContext` reaches a desktop session on startup, `/clear` and compact.
-3. A plugin head spawned as `claude-team:<id>` runs on Opus 5.5 with memory and its preloaded skills (list what loaded) → else fix names / drop field.
+3. A plugin head spawned as `section-team:<id>` runs on Opus 5.5 with memory and its preloaded skills (list what loaded) → else fix names / drop field.
 4. A head spawns helpers with `model: haiku` and `model: fable`; both run on the requested model; observe the Fable consent prompt from inside a background subagent → else routing note in brief / fable-consultant agent file.
 5. Head-to-head SendMessage, agent teams off: both running; target completed → else supervisor relay (§3.5).
 6. A section reused via SendMessage fires a second completion notification and a second SubagentStop carrying the new REPORT → else spawn fresh each job.
