@@ -102,6 +102,59 @@ test('two handbacks in the same job: the last one wins', () => {
   )), 'second')
 })
 
+const meta = content => ({ type: 'user', isMeta: true, message: { content } })
+const coordinator = content => ({ type: 'user', isMeta: true, origin: { kind: 'coordinator' }, message: { content } })
+
+test('a coordinator message starts a new job even though it is flagged isMeta', () => {
+  const dir = tempDir()
+  const transcript = transcriptOf(
+    user('job 1'),
+    assistant(handback(`notes\n${REPORT}`)),
+    user([toolResult]),
+    coordinator('The coordinator sent a message while you were working…'),
+    assistant({ type: 'text', text: 'job 2 answer, no report' }),
+  )
+  assert.equal(finalAgentText(transcript), 'job 2 answer, no report')
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW), null)
+  assert.equal(finalAgentText(transcriptOf(assistant(handback('old')), { type: 'user', origin: { kind: 'coordinator' }, message: { content: [toolResult] } })), '')
+})
+
+test('hook feedback after a handback does not stop the scan (the report is still saved)', () => {
+  const dir = tempDir()
+  const transcript = transcriptOf(
+    user('job'),
+    assistant(handback(`notes\n${REPORT}`)),
+    meta('[handback-send-enforce] You must hand your result back with SubagentHandback.'),
+    assistant({ type: 'text', text: 'see above' }),
+  )
+  assert.equal(finalAgentText(transcript), `notes\n${REPORT}`)
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW)
+  assert.equal(readFileSync(file, 'utf8'), REPORT)
+})
+
+test('skill loads and system reminders mid-job are not job starts', () => {
+  assert.equal(finalAgentText(transcriptOf(
+    user('job'),
+    assistant({ type: 'tool_use', name: 'Skill', input: {} }),
+    user([toolResult]),
+    meta([{ type: 'text', text: 'Base directory for this skill: C:\\skills\\x' }]),
+    assistant(handback(`notes\n${REPORT}`)),
+  )), `notes\n${REPORT}`)
+  assert.equal(finalAgentText(transcriptOf(
+    user('job'),
+    assistant(handback('the handback')),
+    user([toolResult]),
+    meta('<system-reminder>be brief</system-reminder>'),
+    meta([{ type: 'text', text: 'another reminder' }]),
+  )), 'the handback')
+  assert.equal(finalAgentText(transcriptOf(
+    assistant(handback('job 1 handback')),
+    user('job 2'),
+    meta('<system-reminder>be brief</system-reminder>'),
+    assistant({ type: 'text', text: 'job 2 text' }),
+  )), 'job 2 text')
+})
+
 test('null rows and null parts are skipped without throwing', () => {
   const transcript = transcriptOf(
     { type: 'user', message: null },

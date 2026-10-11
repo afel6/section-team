@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
 import { isMainModule, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
-// A user row that is not only tool results is a job (the first prompt or a coordinator message reusing the agent).
-const startsJob = row => row?.type === 'user' && !(Array.isArray(row.message?.content) && row.message.content.every(part => part == null || part.type === 'tool_result'))
+// A job starts at a coordinator message (even though the harness flags it isMeta) or at a real user row.
+// Harness rows (isMeta: skill loads, hook feedback, system reminders) and tool results arrive mid-job and never start one.
+const isToolResultOnly = content => Array.isArray(content) && content.every(part => part == null || part.type === 'tool_result')
+const startsJob = row => row?.type === 'user' && (row.origin?.kind === 'coordinator' || (row.isMeta !== true && !isToolResultOnly(row.message?.content)))
 
 // The current job's last handback, else its last assistant text, else ''. Never reaches back past the job's first row.
 export function finalAgentText(transcriptPath) {

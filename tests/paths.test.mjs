@@ -114,10 +114,18 @@ test('latestSummary ignores day folders after today', () => {
   touch(dir, '2099-12-31', '120000-supervisor-summary.md')
   touch(dir, '2026-10-13', '120000-supervisor-summary.md')
   same(latestSummary(dir, NOW), real)
-  same(latestSummary(dir), real)
   const future = tempDir()
   touch(future, '2099-12-31', '120000-supervisor-summary.md')
   assert.equal(latestSummary(future), null)
+})
+
+test('latestSummary ignores tomorrow on the real clock, whatever day the suite runs', () => {
+  const clock = new Date()
+  const tomorrow = stamp(new Date(clock.getFullYear(), clock.getMonth(), clock.getDate() + 1)).date
+  const dir = tempDir()
+  const real = touch(dir, '2026-10-12', '080000-supervisor-summary.md')
+  touch(dir, tomorrow, '120000-supervisor-summary.md')
+  same(latestSummary(dir), real)
 })
 
 test('latestSummary orders by time, then by collision number', () => {
