@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData } from '../types'
 import { boardModel, emptyBoard, latestReportFiles } from './board-model.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
@@ -20,7 +20,7 @@ async function findRoot($: EngineInterface): Promise<string> {
 }
 
 type Report = ReturnType<typeof parseReport>
-type Ctx = { root: string; request: string; lastJson: string; cache: Map<string, { mtimeMs: number; report: Report }> }
+type Ctx = { root: string; request: string; lastJson: string; lastError: string; stop?: Timer; cache: Map<string, { mtimeMs: number; report: Report }> }
 
 async function readReports($: EngineInterface, ctx: Ctx) {
   const dir = `${ctx.root}/.team/reports/${today()}`
@@ -50,27 +50,34 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   const next = boardModel({ agents, reports, request: ctx.request, lastSummary })
   const json = JSON.stringify(next)
   if (json === ctx.lastJson) return
-  ctx.lastJson = json
   await update($, board, () => next)
+  ctx.lastJson = json
+}
+
+// A failed tick is retried by the next one (lastJson only moves after a write lands) and logged once per message.
+async function poll($: EngineInterface, ctx: Ctx) {
+  try {
+    await refresh($, ctx)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message === ctx.lastError) return
+    ctx.lastError = message
+    $.ui.log(`Team Board: refresh failed: ${message}`)
+  }
 }
 
 export const register: Register = on => {
-  let stop: (() => void) | undefined
-  const ctx: Ctx = { root: '', request: '', lastJson: '', cache: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', cache: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
     ctx.root = await findRoot($)
-    stop?.()
-    stop = $.clock.every(1000, () => {
-      void refresh($, ctx).catch(() => undefined)
+    // A re-fired session.start replaces the poll instead of stacking another. No session.end hook:
+    // /clear ends a session without a new session.start, and the timer ends with the process.
+    ctx.stop?.cancel()
+    ctx.stop = $.clock.every(1000, () => {
+      void poll($, ctx)
     })
-    return next(e)
-  })
-
-  on('session.end', async ($, e, next) => {
-    stop?.()
-    stop = undefined
     return next(e)
   })
 
