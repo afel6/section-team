@@ -6,7 +6,8 @@ export const ADVISOR_HELPERS = ['architect', 'planner', 'code-explorer']
 
 export function sectionIdFromType(type) {
   if (typeof type !== 'string') return null
-  const id = type.startsWith(PREFIX) ? type.slice(PREFIX.length) : type
+  if (!type.startsWith(PREFIX)) return null
+  const id = type.slice(PREFIX.length)
   return SECTION_IDS.includes(id) ? id : null
 }
 
@@ -15,7 +16,8 @@ const isFenceLine = line => /^[ \t]*(```|~~~)/.test(line)
 export function extractReport(text) {
   if (typeof text !== 'string') return null
   const lf = text.replace(/\r\n?/g, '\n')
-  const heading = /^[ \t]*#{1,6}[ \t]*REPORT\b.*$/m.exec(lf)
+  // The contract ends the message with the report, so the last heading is the one that counts.
+  const heading = [...lf.matchAll(/^[ \t]*#{1,6}[ \t]*REPORT\b.*$/gim)].at(-1)
   if (!heading) return null
   let lines = lf.slice(heading.index).replace(/^[ \t]+/, '').split('\n')
   const fencesBefore = lf.slice(0, heading.index).split('\n').filter(isFenceLine).length
@@ -41,6 +43,6 @@ export function parseReport(block) {
     const key = FIELDS[match[1].toLowerCase()]
     if (key && out[key] === '') out[key] = match[2].trim()
   }
-  out.status = (out.status.split(/[\s|·,—-]+/)[0] ?? '').toLowerCase()
+  out.status = (/(partial|blocked|done)/i.exec(out.status)?.[1] ?? out.status.split(/[\s|·,—-]+/)[0] ?? '').toLowerCase()
   return out
 }

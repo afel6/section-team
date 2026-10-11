@@ -59,13 +59,24 @@ export function writeReport(root, id, text, now = new Date()) {
   throw new Error(`section-team: over 999 reports for ${id} in one second`)
 }
 
-export function latestSummary(root) {
+// Only names writeReport can produce: the path goes into trusted session context, so a committed file must not shape it.
+const SUMMARY_NAME = /^(\d{6})-supervisor-summary(?:-(\d+))?\.md$/
+
+export function latestSummary(root, now = new Date()) {
   const base = join(root, '.team', 'reports')
   if (!existsSync(base)) return null
-  const days = readdirSync(base).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse()
+  const today = stamp(now).date
+  const days = readdirSync(base).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= today).sort().reverse()
   for (const day of days) {
-    const file = readdirSync(join(base, day)).filter(n => n.endsWith('-supervisor-summary.md')).sort().reverse()[0]
-    if (file) return join(base, day, file)
+    let best = null
+    for (const name of readdirSync(join(base, day))) {
+      const match = SUMMARY_NAME.exec(name)
+      if (!match) continue
+      const time = match[1]
+      const n = Number(match[2] ?? 1)
+      if (!best || time > best.time || (time === best.time && n > best.n)) best = { name, time, n }
+    }
+    if (best) return join(base, day, best.name)
   }
   return null
 }

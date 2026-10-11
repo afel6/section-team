@@ -57,6 +57,13 @@ test('advisor helpers are the read-only types, and no advisor file names Explore
   }
 })
 
+test('no section preloads council, whose untyped subagents the advisor guard denies', () => {
+  for (const s of ROSTER) {
+    assert.ok(!s.skills.includes('council'), `${s.id} preloads council`)
+    assert.doesNotMatch(readFileSync(new URL(`${s.id}.md`, AGENTS), 'utf8'), /^\s*- council\s*$/m, `${s.id}.md preloads council`)
+  }
+})
+
 test('testing owns the final review; other builders keep the separate-review line', () => {
   const testing = readFileSync(new URL('testing.md', AGENTS), 'utf8')
   assert.ok(testing.includes('you own the final review'), 'testing.md does not own the final review')

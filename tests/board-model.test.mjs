@@ -59,6 +59,16 @@ test('latest report per section, hyphenated ids and collisions, summary apart', 
   assert.equal(files.summary, '120000-supervisor-summary.md')
 })
 
+test('bare and foreign agent types never light a card', () => {
+  const data = boardModel({ agents: [
+    { id: '1', type: 'frontend', status: 'running', description: 'my own agent' },
+    { id: '2', type: 'security', status: 'failed', description: 'project agent' },
+  ] })
+  assert.equal(data.cards.find(c => c.id === 'frontend').state, 'asleep')
+  assert.equal(data.cards.find(c => c.id === 'security').state, 'asleep')
+  assert.deepEqual(data.counts, { active: 0, done: 0, problem: 0 })
+})
+
 test('empty board is all asleep', () => {
   const data = emptyBoard()
   assert.equal(data.cards.length, 12)

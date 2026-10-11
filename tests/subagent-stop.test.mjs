@@ -27,6 +27,8 @@ test('ignores non-team agents, empty types and messages without a REPORT', () =>
   const dir = tempDir()
   assert.equal(saveFromEvent({ agent_type: 'general-purpose', cwd: dir, last_assistant_message: REPORT }, NOW), null)
   assert.equal(saveFromEvent({ agent_type: '', cwd: dir, last_assistant_message: REPORT }, NOW), null)
+  assert.equal(saveFromEvent({ agent_type: 'security', cwd: dir, last_assistant_message: REPORT }, NOW), null)
+  assert.equal(saveFromEvent({ agent_type: 'frontend', cwd: dir, last_assistant_message: REPORT }, NOW), null)
   assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: 'no report here' }, NOW), null)
   assert.equal(existsSync(join(dir, '.team')), false)
 })
@@ -57,6 +59,61 @@ test('without a handback, the last assistant text is used', () => {
     'not json',
   ].join('\n'))
   assert.equal(finalAgentText(transcript), REPORT)
+})
+
+const jsonl = (...rows) => rows.map(row => (typeof row === 'string' ? row : JSON.stringify(row))).join('\n') + '\n'
+const user = content => ({ type: 'user', message: { content } })
+const assistant = (...content) => ({ type: 'assistant', message: { content } })
+const handback = message => ({ type: 'tool_use', name: 'SubagentHandback', input: { message } })
+const toolResult = { type: 'tool_result', content: 'ok' }
+const transcriptOf = (...rows) => {
+  const file = join(tempDir(), 'agent.jsonl')
+  writeFileSync(file, jsonl(...rows))
+  return file
+}
+
+test('a reused agent does not hand back the previous job report', () => {
+  const dir = tempDir()
+  const transcript = transcriptOf(
+    user('job 1'),
+    assistant(handback(`notes\n${REPORT}`)),
+    user([toolResult]),
+    user('job 2 from the coordinator'),
+    assistant({ type: 'text', text: 'job 2 answer, no report' }),
+  )
+  assert.equal(finalAgentText(transcript), 'job 2 answer, no report')
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW), null)
+  assert.equal(existsSync(join(dir, '.team')), false)
+})
+
+test('a user row with a text part starts a new job, tool results do not', () => {
+  assert.equal(finalAgentText(transcriptOf(
+    assistant(handback('old')), user([{ type: 'text', text: 'next job' }]), assistant({ type: 'text', text: 'fresh text' }),
+  )), 'fresh text')
+  assert.equal(finalAgentText(transcriptOf(
+    user('job'), assistant(handback('mine')), user([toolResult, toolResult]), assistant({ type: 'text', text: 'wrapped up' }),
+  )), 'mine')
+  assert.equal(finalAgentText(transcriptOf(assistant(handback('old')), user('next job'))), '')
+})
+
+test('two handbacks in the same job: the last one wins', () => {
+  assert.equal(finalAgentText(transcriptOf(
+    user('job'), assistant(handback('first')), user([toolResult]), assistant(handback('second')), user([toolResult]),
+  )), 'second')
+})
+
+test('null rows and null parts are skipped without throwing', () => {
+  const transcript = transcriptOf(
+    { type: 'user', message: null },
+    'null',
+    '42',
+    { type: 'assistant', message: null },
+    assistant(null, { type: 'text', text: 'before' }),
+    assistant(null, { type: 'text', text: 'last words' }, undefined),
+    { type: 'user', message: { content: [null, toolResult] } },
+  )
+  assert.doesNotThrow(() => finalAgentText(transcript))
+  assert.equal(finalAgentText(transcript), 'last words')
 })
 
 test('hook end to end, and malformed stdin exits 0 silently', () => {

@@ -5,11 +5,21 @@ import { ensureExcluded, isMainModule, latestSummary, projectRoot, readStdinJson
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
+// The brief must reach the session even when a side effect fails (EISDIR, ENOTDIR, EACCES): say so on stderr and go on.
+function attempt(label, fn) {
+  try {
+    return fn()
+  } catch (err) {
+    process.stderr.write(`section-team session-start: ${label} failed: ${String(err?.message ?? err).replace(/\s+/g, ' ')}\n`)
+    return null
+  }
+}
+
 export function buildContext(cwd) {
   const brief = readFileSync(join(HERE, '..', 'brief', 'supervisor.md'), 'utf8').trim()
   const root = projectRoot(cwd)
-  ensureExcluded(cwd, root)
-  const summary = latestSummary(root)
+  attempt('git exclude update', () => ensureExcluded(cwd, root))
+  const summary = attempt('summary lookup', () => latestSummary(root))
   return summary ? `${brief}\n\nLast team summary for this project: ${summary}. Read it before new team work.` : brief
 }
 

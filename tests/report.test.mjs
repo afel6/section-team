@@ -15,9 +15,12 @@ Problems:     none
 Next:         rate limiting
 `
 
-test('section id from prefixed and bare types', () => {
+test('section id comes only from section-team: prefixed types', () => {
   assert.equal(sectionIdFromType('section-team:frontend'), 'frontend')
-  assert.equal(sectionIdFromType('ai-llm'), 'ai-llm')
+  assert.equal(sectionIdFromType('ai-llm'), null)
+  assert.equal(sectionIdFromType('security'), null)
+  assert.equal(sectionIdFromType('section-team:nope'), null)
+  assert.equal(sectionIdFromType('section-team:'), null)
   assert.equal(sectionIdFromType('section-team:data-scientist'), 'data-scientist')
   assert.equal(sectionIdFromType('general-purpose'), null)
   assert.equal(sectionIdFromType(''), null)
@@ -63,6 +66,29 @@ test('missing fields stay empty strings', () => {
   assert.equal(r.status, 'blocked')
   assert.equal(r.job, '')
   assert.equal(parseReport(undefined).status, '')
+})
+
+test('status survives punctuation, backticks and emoji around the word', () => {
+  for (const [raw, want] of [['blocked.', 'blocked'], ['`blocked`', 'blocked'], ['⚠ partial', 'partial'], ['❌ blocked', 'blocked'], ['**Partial** — 2 failing', 'partial'], ['DONE', 'done'], ['✅ done', 'done']]) {
+    assert.equal(parseReport(`## REPORT · docs\nStatus: ${raw}\n`).status, want, raw)
+  }
+  assert.equal(parseReport('## REPORT · docs\nStatus: shipped\n').status, 'shipped')
+})
+
+test('heading is matched case-insensitively', () => {
+  for (const heading of ['## Report · docs', '## report · docs', '### REPORT']) {
+    const block = extractReport(`notes\n${heading}\nStatus: done\n`)
+    assert.ok(block?.startsWith(heading), heading)
+  }
+  assert.equal(extractReport('## Reporting is hard\nStatus: done\n'), null)
+})
+
+test('the last REPORT heading wins', () => {
+  const text = '## REPORT · backend\nStatus: partial\nJob: first try\n\nretrying...\n\n## REPORT · backend\nStatus: done\nJob: second try\n'
+  const block = extractReport(text)
+  assert.ok(block.startsWith('## REPORT · backend\nStatus: done'))
+  assert.ok(!block.includes('first try'))
+  assert.equal(parseReport(block).job, 'second try')
 })
 
 test('keeps fenced code blocks inside the report', () => {

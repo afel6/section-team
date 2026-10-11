@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -48,4 +48,59 @@ test('empty or malformed stdin: exit 0, no output', () => {
     assert.equal(result.status, 0)
     assert.equal(result.stdout, '')
   }
+})
+
+const MARKER = '[section-team supervisor]'
+const startInput = cwd => JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd })
+const quietStderr = fn => {
+  const lines = []
+  const original = process.stderr.write
+  process.stderr.write = chunk => { lines.push(String(chunk)); return true }
+  try {
+    return { value: fn(), lines }
+  } finally {
+    process.stderr.write = original
+  }
+}
+const breakExclude = dir => {
+  const file = excludeFile(dir)
+  rmSync(file, { force: true })
+  mkdirSync(file, { recursive: true })
+}
+const breakSummaryScan = dir => {
+  mkdirSync(join(dir, '.team', 'reports'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'reports', '2026-01-01'), 'a file where a day folder should be')
+}
+
+test('a failing exclude update still returns the brief, with one line on stderr', () => {
+  const dir = repo()
+  breakExclude(dir)
+  const { value, lines } = quietStderr(() => buildContext(dir))
+  assert.ok(value.startsWith(MARKER))
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /^section-team session-start: [^\n]+\n$/)
+  const result = run(startInput(dir))
+  assert.equal(result.status, 0)
+  assert.ok(JSON.parse(result.stdout).hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.equal(result.stderr.trim().split('\n').length, 1)
+})
+
+test('a failing summary scan still returns the brief, with one line on stderr', () => {
+  const dir = repo()
+  breakSummaryScan(dir)
+  const { value, lines } = quietStderr(() => buildContext(dir))
+  assert.ok(value.startsWith(MARKER))
+  assert.ok(!value.includes('Last team summary'))
+  assert.equal(lines.length, 1)
+  const result = run(startInput(dir))
+  assert.equal(result.status, 0)
+  const out = JSON.parse(result.stdout)
+  assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart')
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.equal(result.stderr.trim().split('\n').length, 1)
+})
+
+test('a healthy run writes nothing to stderr', () => {
+  const dir = repo()
+  assert.equal(run(startInput(dir)).stderr, '')
 })

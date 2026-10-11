@@ -2,6 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
 import { isMainModule, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
+// A user row that is not only tool results is a job (the first prompt or a coordinator message reusing the agent).
+const startsJob = row => row?.type === 'user' && !(Array.isArray(row.message?.content) && row.message.content.every(part => part == null || part.type === 'tool_result'))
+
+// The current job's last handback, else its last assistant text, else ''. Never reaches back past the job's first row.
 export function finalAgentText(transcriptPath) {
   if (typeof transcriptPath !== 'string' || !existsSync(transcriptPath)) return ''
   const rows = readFileSync(transcriptPath, 'utf8').split(/\r?\n/).filter(Boolean)
@@ -13,10 +17,11 @@ export function finalAgentText(transcriptPath) {
     } catch {
       continue
     }
-    if (row.type !== 'assistant' || !Array.isArray(row.message?.content)) continue
-    const handback = row.message.content.find(part => part.type === 'tool_use' && part.name === 'SubagentHandback')
+    if (startsJob(row)) break
+    if (row?.type !== 'assistant' || !Array.isArray(row.message?.content)) continue
+    const handback = row.message.content.find(part => part?.type === 'tool_use' && part.name === 'SubagentHandback')
     if (typeof handback?.input?.message === 'string') return handback.input.message
-    const text = row.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    const text = row.message.content.filter(part => part?.type === 'text').map(part => part.text).join('\n')
     if (lastText === '' && text !== '') lastText = text
   }
   return lastText

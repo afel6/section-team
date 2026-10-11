@@ -31,15 +31,20 @@ for (const surface of ['terminal', 'desktop'] as const) {
 const FILE = { kind: 'file', size: 1, mtimeMs: 1, isLink: false } as const
 const REPORT = '## REPORT · backend\nStatus: done\nJob: /api/login + JWT\nHelpers used: sonnet ×2\n'
 const START = { cwd: 'C:/proj', surface: 'terminal', isInteractive: true } as const
+const SECTION = { prompt: 'x', description: 'login form', subagentType: 'section-team:frontend' } as const
+const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-purpose' } as const
 
 // Answers, beneath the plugin, everything the board's poll reaches for; `seen` records what it asked.
 function world(on: On) {
   const clock = mock.clock(on)
-  const seen = { listed: '', opened: [] as string[], agentList: 0, logs: [] as string[] }
+  const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false }
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
   on('session.cwd', async () => ({ value: 'C:/proj' }))
-  on('process.run', async () => ({ value: { exitCode: 0, stdout: 'C:/proj/.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('process.run', async (_$, e) => {
+    seen.runs.push({ argv: e.argv, timeoutMs: e.init?.timeoutMs })
+    return { value: { exitCode: 0, stdout: 'C:/proj/.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   on('command.register', async () => ({ value: { command: 'team' } }))
   on('agent.list', async () => {
     seen.agentList += 1
@@ -48,9 +53,9 @@ function world(on: On) {
   on('fs.list', async (_$, e) => { seen.listed = e.path; return { value: [{ name: '101500-backend.md', ...FILE }, { name: '140200-supervisor-summary.md', ...FILE }] } })
   on('fs.read', async () => ({ value: REPORT }))
   on('prompt.submit', async (_$, e) => ({ text: e.text }))
-  on('agent.spawn', async () => ({ model: 'sonnet' }))
+  on('agent.spawn', async () => (seen.denySpawn ? { deny: 'guard says no' } : { model: 'sonnet' }))
   on('ui.open', async (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } })
-  on('ui.log', async (_$, e) => { seen.logs.push(e.text); return { value: undefined } })
+  on('ui.log', async (_$, e) => { seen.logs.push({ text: e.text, to: e.to }); return { value: undefined } })
   return { clock, seen }
 }
 
@@ -59,9 +64,9 @@ test('the poll turns agents, saved reports and the request into cards and the pa
 
   await $.session.start(START)
   await $.prompt.submit({ text: '/team\nadd login\nmore detail' })
-  await $.agent.spawn({ prompt: 'x', description: 'login form', subagentType: 'general-purpose' })
+  await $.agent.spawn(OTHER)
   expect(seen.opened).toEqual([])
-  await $.agent.spawn({ prompt: 'x', description: 'login form', subagentType: 'section-team:frontend' })
+  await $.agent.spawn(SECTION)
   expect(seen.opened).toEqual(['team-board'])
   expect(await $.command.run({ command: 'team' })).toEqual({ text: 'Team Board opened.' })
   expect(seen.opened).toEqual(['team-board', 'team-board'])
@@ -76,11 +81,88 @@ test('the poll turns agents, saved reports and the request into cards and the pa
   expect((await ui.find({ key: 'card-backend' }))?.text).toContain('sonnet ×2')
 })
 
+test('a session that never uses the team never polls or runs git', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  await $.prompt.submit({ text: 'fix the typo' })
+  await $.agent.spawn(OTHER)
+  await clock.advance(5000)
+
+  expect(seen.agentList).toBe(0)
+  expect(seen.runs).toEqual([])
+  expect(seen.listed).toBe('')
+  expect(seen.logs).toEqual([])
+})
+
+test('/team starts the poll, and the git root is looked up on the first refresh with a 5 s limit', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  expect(seen.runs).toEqual([])
+  await $.command.run({ command: 'team' })
+  expect(seen.runs).toEqual([])
+  expect(seen.agentList).toBe(0)
+
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  expect(seen.runs).toHaveLength(1)
+  expect(seen.runs[0].argv.slice(0, 2)).toEqual(['git', 'rev-parse'])
+  expect(seen.runs[0].timeoutMs).toBe(5000)
+
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  expect(seen.runs).toHaveLength(1)
+})
+
+test('the first section spawn starts the poll, and /team after it does not add a second one', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  await $.agent.spawn(SECTION)
+  await $.command.run({ command: 'team' })
+  await $.agent.spawn(SECTION)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  expect(seen.runs).toHaveLength(1)
+})
+
+test('a denied section spawn starts no poll and opens no pane', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  seen.denySpawn = true
+  expect(await $.agent.spawn(SECTION)).toEqual({ deny: 'guard says no' })
+  await clock.advance(3000)
+  expect(seen.opened).toEqual([])
+  expect(seen.agentList).toBe(0)
+
+  seen.denySpawn = false
+  await $.agent.spawn(SECTION)
+  expect(seen.opened).toEqual(['team-board'])
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+})
+
+test('spawns open the pane the first time only; /team always opens it', async ($, on) => {
+  const { seen } = world(on)
+
+  await $.session.start(START)
+  await $.agent.spawn(SECTION)
+  await $.agent.spawn({ ...SECTION, subagentType: 'section-team:backend' })
+  expect(seen.opened).toEqual(['team-board'])
+  await $.command.run({ command: 'team' })
+  await $.command.run({ command: 'team' })
+  expect(seen.opened).toEqual(['team-board', 'team-board', 'team-board'])
+})
+
 test('a second session.start leaves one poll, and a cleared session keeps polling', async ($, on) => {
   const { clock, seen } = world(on)
 
   await $.session.start(START)
+  await $.command.run({ command: 'team' })
   await $.session.start(START)
+  await $.command.run({ command: 'team' })
   await clock.advance(1000)
   expect(seen.agentList).toBe(1)
 
@@ -90,7 +172,7 @@ test('a second session.start leaves one poll, and a cleared session keeps pollin
   expect(seen.agentList).toBe(2)
 })
 
-test('a failed board write is retried on the next tick and logged once per message', async ($, on) => {
+test('a failed board write is retried on the next tick and logged once per message, to the debug log only', async ($, on) => {
   const { clock, seen } = world(on)
   let failures = 2
   on('state.set', { plugin: 'section-team', key: 'board' }, async (_$, e, next) => {
@@ -102,11 +184,13 @@ test('a failed board write is retried on the next tick and logged once per messa
   })
 
   await $.session.start(START)
+  await $.command.run({ command: 'team' })
   await clock.advance(1000)
   await clock.advance(1000)
   expect(seen.agentList).toBe(2)
   expect(seen.logs).toHaveLength(1)
-  expect(seen.logs[0]).toContain('disk full')
+  expect(seen.logs[0].text).toContain('disk full')
+  expect(seen.logs[0].to).toBe('debug')
 
   await clock.advance(1000)
   const ui = await $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'Pane', requestId: 'team-board', props: PROPS as never })

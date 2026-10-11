@@ -8,19 +8,21 @@ import { parseReport, PREFIX } from './lib/report.mjs'
 const board = atom({ plugin: 'section-team', key: 'board' } as const, emptyBoard() as BoardData)
 const PANE = 'team-board'
 const TITLE = 'Team Board'
+const POLL_MS = 1000
+const GIT_TIMEOUT_MS = 5000
 const COLOR = { asleep: 'inactive', running: 'suggestion', waiting: 'warning', done: 'success', problem: 'error' } as const
 const pad = (n: number) => String(n).padStart(2, '0')
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 async function findRoot($: EngineInterface): Promise<string> {
   const cwd = await $.session.cwd()
-  const result = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd }).catch(() => undefined)
+  const result = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, timeoutMs: GIT_TIMEOUT_MS }).catch(() => undefined)
   const common = result?.exitCode === 0 ? result.stdout.trim() : ''
   return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : cwd
 }
 
 type Report = ReturnType<typeof parseReport>
-type Ctx = { root: string; request: string; lastJson: string; lastError: string; stop?: Timer; cache: Map<string, { mtimeMs: number; report: Report }> }
+type Ctx = { root: string; request: string; lastJson: string; lastError: string; hasOpened: boolean; stop?: Timer; cache: Map<string, { mtimeMs: number; report: Report }> }
 
 async function readReports($: EngineInterface, ctx: Ctx) {
   const dir = `${ctx.root}/.team/reports/${today()}`
@@ -46,6 +48,8 @@ async function readReports($: EngineInterface, ctx: Ctx) {
 
 async function refresh($: EngineInterface, ctx: Ctx) {
   const agents = await $.agent.list()
+  // Looked up here, not at session.start, so a session that never uses the team never waits on git.
+  if (ctx.root === '') ctx.root = await findRoot($)
   const { reports, lastSummary } = await readReports($, ctx)
   const next = boardModel({ agents, reports, request: ctx.request, lastSummary })
   const json = JSON.stringify(next)
@@ -54,7 +58,7 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   ctx.lastJson = json
 }
 
-// A failed tick is retried by the next one (lastJson only moves after a write lands) and logged once per message.
+// A failed tick is retried by the next one (lastJson only moves after a write lands) and logged once per message, to the debug log only.
 async function poll($: EngineInterface, ctx: Ctx) {
   try {
     await refresh($, ctx)
@@ -62,33 +66,43 @@ async function poll($: EngineInterface, ctx: Ctx) {
     const message = error instanceof Error ? error.message : String(error)
     if (message === ctx.lastError) return
     ctx.lastError = message
-    $.ui.log(`Team Board: refresh failed: ${message}`)
+    $.ui.log(`Team Board: refresh failed: ${message}`, { to: 'debug' })
   }
 }
 
+// The poll starts with the team's first use (/team or a section spawn), once. There is no session.end hook:
+// /clear ends a session without a new session.start, and the timer ends with the process.
+function startPoll($: EngineInterface, ctx: Ctx) {
+  if (ctx.stop) return
+  ctx.stop = $.clock.every(POLL_MS, () => {
+    void poll($, ctx)
+  })
+}
+
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', cache: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', hasOpened: false, cache: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
-    ctx.root = await findRoot($)
-    // A re-fired session.start replaces the poll instead of stacking another. No session.end hook:
-    // /clear ends a session without a new session.start, and the timer ends with the process.
-    ctx.stop?.cancel()
-    ctx.stop = $.clock.every(1000, () => {
-      void poll($, ctx)
-    })
+    ctx.root = ''
     return next(e)
   })
 
   on('command.run', { command: 'team' }, async $ => {
+    startPoll($, ctx)
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: 'Team Board opened.' }
   })
 
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
-    if (typeof e.subagentType === 'string' && e.subagentType.startsWith(PREFIX)) void $.ui.open({ id: PANE, title: TITLE })
+    if (typeof e.subagentType !== 'string' || !e.subagentType.startsWith(PREFIX) || result.deny) return result
+    startPoll($, ctx)
+    // Opens by itself the first time only; a person who closed the pane is not fought, /team opens it again.
+    if (!ctx.hasOpened) {
+      ctx.hasOpened = true
+      void $.ui.open({ id: PANE, title: TITLE })
+    }
     return result
   })
 
