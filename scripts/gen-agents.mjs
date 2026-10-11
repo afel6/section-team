@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 export const MODEL = 'claude-opus-5-5'
 export const RELAY = 'To reach another section, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it and passes the answer back. If you cannot reach the supervisor, finish with `Status: blocked` and say what you need from which section.'
@@ -19,8 +20,8 @@ export const ROSTER = [
   { id: 'docs', kind: 'builder', color: 'purple', description: 'Docs section head: READMEs, guides, API docs, changelogs.', role: 'You own documentation: READMEs, guides, API references and changelogs.', skills: ['engineering:documentation'], goto: ['/update-docs'], helpers: ['doc-updater'] },
   { id: 'ai-llm', kind: 'builder', color: 'purple', description: 'AI/LLM section head: builds features that call Claude or other models: prompts, tools, RAG, evals.', role: 'You build AI features: model calls, prompts, tool use, retrieval and evaluations.', skills: ['claude-api', 'eval-harness'], goto: [], helpers: ['rag-pipeline-reviewer'] },
   { id: 'mobile', kind: 'builder', color: 'green', description: 'Mobile section head: iOS, Android, Flutter and React Native app work.', role: 'You own mobile apps: screens, native integration, builds and store readiness.', skills: [], goto: ['/flutter-review', '/kotlin-review'], helpers: ['flutter-reviewer', 'swift-reviewer', 'kotlin-reviewer'] },
-  { id: 'ai-engineer', kind: 'advisor', color: 'cyan', description: 'AI engineer ADVISOR (read-only): advises the supervisor on model choice, prompts, RAG and agent design. Never changes project files.', role: 'You advise the supervisor on AI decisions: which model, how to prompt, retrieval design, agent architecture, evaluation.', skills: ['claude-api', 'council', 'architecture-decision-records'], goto: [], helpers: ['architect', 'Explore'] },
-  { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], goto: [], helpers: ['Explore'] },
+  { id: 'ai-engineer', kind: 'advisor', color: 'cyan', description: 'AI engineer ADVISOR (read-only): advises the supervisor on model choice, prompts, RAG and agent design. Never changes project files.', role: 'You advise the supervisor on AI decisions: which model, how to prompt, retrieval design, agent architecture, evaluation.', skills: ['claude-api', 'council', 'architecture-decision-records'], goto: [], helpers: ['architect', 'code-explorer'] },
+  { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], goto: [], helpers: ['code-explorer'] },
 ]
 
 const REPORT = (id) => `## REPORT · ${id} · <YYYY-MM-DD HH:MM>
@@ -49,8 +50,10 @@ export function render(s) {
     `3. Helpers: delegate with the Agent tool and ALWAYS pass \`model\` explicitly — haiku for lookups, file search, formatting and mechanical edits; sonnet for routine code, tests and standard reviews; opus for tricky bugs and design calls; fable${CONSULTANT ? ' (subagent_type `section-team:fable-consultant`)' : ''} as a consultant only for the hardest problems (stuck after 2 attempts, major architecture, security-critical reasoning). If Fable is declined or unavailable, use opus and say so under Problems. Suggested helper types: ${s.helpers.join(', ')}. Tell every helper it must not spawn agents. Check helper output, merge it, and own the result.`,
     `4. ${RELAY} Record every agreement in your REPORT's Coordination line.`,
     isAdvisor
-      ? '5. You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (Explore, Plan, architect).'
-      : '5. Follow the project\'s rules. When the job says the testing section owns review, skip a separate full review pass of your own.',
+      ? `5. You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (${ADVISOR_HELPERS.join(', ')}).`
+      : s.id === 'testing'
+        ? '5. Follow the project\'s rules. For multi-section tasks you own the final review and verification when the job assigns it: review every section\'s changes, run the full test suite, and report what you found.'
+        : '5. Follow the project\'s rules. When the job says the testing section owns review, skip a separate full review pass of your own.',
     '6. Use your memory folder to remember this user\'s preferences for your area across projects.',
     '7. Finish with exactly this block, filled in, and nothing after it:',
     '',
