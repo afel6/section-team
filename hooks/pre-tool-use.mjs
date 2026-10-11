@@ -1,8 +1,7 @@
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { ADVISOR_HELPERS, ADVISOR_IDS, sectionIdFromType } from './lib/report.mjs'
-import { readStdinJson } from './lib/paths.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, PREFIX, sectionIdFromType } from './lib/report.mjs'
+import { isMainModule, readStdinJson } from './lib/paths.mjs'
 
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
@@ -13,11 +12,12 @@ export function isInMemory(target, id, cwd, home) {
   const rel = relative(join(home, '.claude', 'agent-memory'), resolve(cwd ?? '.', target))
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
   const folder = rel.split(/[\\/]/)[0]
-  return folder === id || folder.endsWith(`-${id}`) || folder.endsWith(`:${id}`)
+  return folder === id || folder === `section-team-${id}`
 }
 
 export function decide(e, home = homedir()) {
-  const id = sectionIdFromType(e?.agent_type)
+  if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
+  const id = sectionIdFromType(e.agent_type)
   if (!id || !ADVISOR_IDS.includes(id)) return null
   const tool = e.tool_name
   if (SHELL_TOOLS.has(tool)) return `section-team: the ${id} advisor is read-only; ${tool} is not allowed.`
@@ -30,7 +30,7 @@ export function decide(e, home = homedir()) {
   return null
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => {
       const reason = decide(e)

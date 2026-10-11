@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { ensureExcluded, latestSummary, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { fileURLToPath } from 'node:url'
+import { ensureExcluded, isMainModule, latestSummary, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -20,6 +20,6 @@ async function main() {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext } }))
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch(err => process.stderr.write(`section-team session-start: ${err.message}\n`))
 }

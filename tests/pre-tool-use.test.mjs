@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
+import { mkdtempSync, rmdirSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { decide } from '../hooks/pre-tool-use.mjs'
@@ -50,4 +52,31 @@ test('hook prints a deny decision, and stays silent otherwise', () => {
     assert.equal(quiet.status, 0)
     assert.equal(quiet.stdout, '')
   }
+})
+
+test('guard still runs when the script is reached through a junction', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ct-junction-'))
+  const link = join(dir, 'hooks-link')
+  symlinkSync(fileURLToPath(new URL('../hooks', import.meta.url)), link, 'junction')
+  try {
+    const run = spawnSync(process.execPath, [join(link, 'pre-tool-use.mjs')], { input: JSON.stringify(ev('section-team:ai-engineer', 'Bash', { command: 'ls' })), encoding: 'utf8' })
+    assert.equal(run.status, 0)
+    assert.match(run.stdout, /"permissionDecision":"deny"/)
+  } finally {
+    rmdirSync(link)
+    rmdirSync(dir)
+  }
+})
+
+test('bare-named agents are not advisors; only section-team: prefixed types are guarded', () => {
+  assert.equal(decide(ev('ai-engineer', 'Bash'), HOME), null)
+  assert.equal(decide(ev('data-scientist', 'Write', { file_path: join(PROJECT, 'src', 'a.ts') }), HOME), null)
+})
+
+test('memory folder must be exactly <id> or section-team-<id>', () => {
+  assert.equal(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'ai-engineer', 'x.md') }), HOME), null)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'section-team-ai-engineer', 'x.md') }), HOME), null)
+  assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'foo-ai-engineer', 'x.md') }), HOME), /memory folder/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'xai-engineer', 'x.md') }), HOME), /memory folder/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory') + '/ai-engineer/../backend/x.md' }), HOME), /memory folder/)
 })

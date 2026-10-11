@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, writeSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 function git(cwd, args) {
   try {
@@ -67,6 +68,16 @@ export function latestSummary(root) {
     if (file) return join(base, day, file)
   }
   return null
+}
+
+export function isMainModule(moduleUrl) {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return moduleUrl === pathToFileURL(realpathSync(entry)).href
+  } catch {
+    return false
+  }
 }
 
 export async function readStdinJson() {

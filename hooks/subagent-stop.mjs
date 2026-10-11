@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
-import { projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+import { isMainModule, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 export function finalAgentText(transcriptPath) {
   if (typeof transcriptPath !== 'string' || !existsSync(transcriptPath)) return ''
@@ -30,7 +29,7 @@ export function saveFromEvent(e, now = new Date()) {
   return block ? writeReport(projectRoot(e.cwd), id, block, now) : null
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => saveFromEvent(e))
     .catch(err => process.stderr.write(`section-team subagent-stop: ${err.message}\n`))
