@@ -129,12 +129,12 @@ Roster (preloaded = verified skills; go-to = listed in body text):
 | docs | builder | purple | engineering:documentation | /update-docs | doc-updater |
 | ai-llm | builder | purple | claude-api, eval-harness | — | rag-pipeline-reviewer |
 | mobile | builder | green | — | /flutter-review, /kotlin-review | flutter-reviewer, swift-reviewer, kotlin-reviewer |
-| ai-engineer | advisor | cyan | claude-api, council, architecture-decision-records | — | architect, Explore |
-| data-scientist | advisor | yellow | data:statistical-analysis, data:explore-data, dataviz | — | Explore |
+| ai-engineer | advisor | cyan | claude-api, council, architecture-decision-records | — | architect, code-explorer |
+| data-scientist | advisor | yellow | data:statistical-analysis, data:explore-data, dataviz | — | code-explorer |
 
 **Advisors are read-only for the project, not for their memory.**
 - Frontmatter `tools:` allowlist: Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit (no Bash, PowerShell, NotebookEdit).
-- `pre-tool-use.mjs` (classic PreToolUse): when `agent_type` is `section-team:ai-engineer` or `section-team:data-scientist` → deny Write/Edit unless the target path is inside that advisor's memory folder; deny Agent unless `subagent_type` ∈ {Explore, Plan, architect}; deny Bash/PowerShell/NotebookEdit defensively.
+- `pre-tool-use.mjs` (classic PreToolUse): when `agent_type` is `section-team:ai-engineer` or `section-team:data-scientist` → deny Write/Edit unless the target path is inside that advisor's memory folder; deny Agent unless `subagent_type` ∈ `ADVISOR_HELPERS` = {architect, planner, code-explorer} (tools Read, Grep, Glob only; built-in Explore and Plan carry Bash and are excluded); deny Bash/PowerShell/NotebookEdit defensively.
 - Advisors end with the same REPORT (`Changed: none`) and are saved and shown like sections.
 
 ### 3.3 Reports (`subagent-stop.mjs`)

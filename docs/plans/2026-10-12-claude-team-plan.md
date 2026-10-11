@@ -1184,7 +1184,7 @@ git commit -m "feat: save section reports on SubagentStop"
 - Modify: `hooks/hooks.json` (or plugin.json for `split`)
 
 **Interfaces:**
-- Consumes: `ADVISOR_IDS`, `sectionIdFromType` (Task 3); D5 `memoryDir` (the guard accepts `<id>`, `*-<id>` and `*:<id>` folder names, which covers every form Phase 0 can observe).
+- Consumes: `ADVISOR_IDS`, `ADVISOR_HELPERS`, `sectionIdFromType` (Task 3, `ADVISOR_HELPERS` added in Task 5 fix round); D5 `memoryDir` (the guard accepts `<id>`, `*-<id>` and `*:<id>` folder names, which covers every form Phase 0 can observe).
 - Produces: `decide(e: object, home?: string): string | null` (deny reason or null), `isInMemory(target, id, cwd, home): boolean`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1223,7 +1223,10 @@ test('advisors may write only inside their own memory folder', () => {
 })
 
 test('advisors may only spawn read-only helper types', () => {
-  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'Explore' }), HOME), null)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'code-explorer' }), HOME), null)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'planner' }), HOME), null)
+  assert.match(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'Explore' }), HOME), /read-only helpers/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'Plan' }), HOME), /read-only helpers/)
   assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'architect' }), HOME), null)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'general-purpose' }), HOME), /read-only helpers/)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', {}), HOME), /read-only helpers/)
@@ -1255,12 +1258,12 @@ Expected: FAIL — module not found.
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { ADVISOR_IDS, sectionIdFromType } from './lib/report.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, sectionIdFromType } from './lib/report.mjs'
 import { readStdinJson } from './lib/paths.mjs'
 
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
-const READ_ONLY_HELPERS = new Set(['Explore', 'Plan', 'architect'])
+const READ_ONLY_HELPERS = new Set(ADVISOR_HELPERS)
 
 export function isInMemory(target, id, cwd, home) {
   if (typeof target !== 'string' || target === '') return false
@@ -1279,7 +1282,7 @@ export function decide(e, home = homedir()) {
     return isInMemory(e.tool_input?.file_path, id, e.cwd, home) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
   }
   if (tool === 'Agent') {
-    return READ_ONLY_HELPERS.has(e.tool_input?.subagent_type) ? null : `section-team: the ${id} advisor may only use read-only helpers (Explore, Plan, architect).`
+    return READ_ONLY_HELPERS.has(e.tool_input?.subagent_type) ? null : `section-team: the ${id} advisor may only use read-only helpers (${ADVISOR_HELPERS.join(', ')}).`
   }
   return null
 }
