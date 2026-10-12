@@ -1738,8 +1738,9 @@ Expected: prints the env object containing `CLAUDE_CODE_PLUGIN_DIRS`.
 ```bash
 ACC="$(mktemp -d)/section-team acceptance"
 mkdir -p "$ACC" && cd "$ACC" && git init -q && git commit -q --allow-empty -m init
-claude -p --allowedTools "Agent,SendMessage,Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npm *),Bash(date *),Bash(mkdir *)" \
-  "Build a tiny Node project here: an Express-free HTTP server in server.mjs with GET /api/hello returning {msg:'hi'}, a static index.html that fetches it and shows the message, and tests with node:test. Use your sections; the frontend section must get the exact API response shape from the backend section through you. The plan is approved in advance: OK." > acc-output.txt
+# The prompt goes BEFORE --allowedTools: the flag is variadic and would swallow a prompt that follows it.
+claude -p "Build a tiny Node project here: an Express-free HTTP server in server.mjs with GET /api/hello returning {msg:'hi'}, a static index.html that fetches it and shows the message, and tests with node:test. Use your sections; the frontend section must get the exact API response shape from the backend section through you. The plan is approved in advance: OK." \
+  --allowedTools "Agent,SendMessage,Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npm *),Bash(date *),Bash(mkdir *)" > acc-output.txt
 ls -R .team/reports; cat .git/info/exclude
 ```
 Expected: `.team/reports/<today>/` holds a REPORT file for each woken section (at least backend, frontend, testing) and one `*-supervisor-summary.md`; `.git/info/exclude` contains `.team/`; `git status --porcelain` does not list `.team/`. Relay check: grep the section transcripts for a SendMessage to `main` that the supervisor then forwarded to another section. In `-p` mode sections may run in the foreground and cannot reach `main`; then the expected path is frontend reporting `Status: blocked` and the supervisor resuming it with the answer. Record which path happened. The desktop run (Step 3) must show the relay.

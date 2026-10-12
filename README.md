@@ -7,9 +7,10 @@ A personal Claude Code plugin: every session is a **supervisor** that wakes spec
 - Off: set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
 
 ## Use
-- Just talk to the supervisor. Small tasks it does itself; bigger ones wake sections. 3+ sections → it shows a plan first.
+- Just talk to the supervisor. Small tasks it does itself; bigger ones wake sections. 3+ builder sections (advisors not counted) → it shows a plan first.
+- Sections are addressed by agent id; a section's request for another section goes through the supervisor.
 - `/team` opens the Team Board.
-- Reports: `.team/reports/<date>/` in each project (kept out of git; create `.team/keep-in-git` to keep them in git).
+- Reports: `.team/reports/<date>/` in each project (kept out of git via `.git/info/exclude`; to keep them in git, create `.team/keep-in-git` and delete the `.team/` line from `.git/info/exclude`).
 
 ## Sections
 Builders: frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile. Advisors (read-only): ai-engineer, data-scientist.
