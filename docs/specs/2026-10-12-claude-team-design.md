@@ -156,7 +156,7 @@ Next:         <or "none">
 - Any error → log to stderr, exit 0. Never blocks the session.
 
 ### 3.4 Team Board (`register.js`, mods runtime)
-- Pane `team-board`, opened by `/team`. Auto-open on first section spawn is attempted; Phase 0 records whether the desktop app shows it (the documented auto-open rule only covers terminal width). It does not open at session start (user choice, §9.3).
+- Pane `team-board`, opened by `/team`. Auto-open on first section spawn is attempted; Phase 0 records whether the desktop app shows it (the documented auto-open rule only covers terminal width). It opens at session start (user decision 2026-10-12, §9.3).
 - Display only: plain Text in Box cards, no buttons.
 - Model: pure function `boardModel(agents, latestReports) → { supervisor, sections[], advisors[] }`, stored in a `$.state` atom; a 1 s `$.clock.every` poll updates the atom (redraw follows automatically).
 - Data: `$.agent.list()` (fields `id, type, status, name?`); section id from `type` minus prefix. Latest report per section: newest file in today's `.team/reports/` via `$.fs.list` / `$.fs.read`; show its Status, Job and "Helpers used" lines.
@@ -227,7 +227,7 @@ Agent teams; a browser web app; separate desktop sessions per section; messaging
 ## 9. User decisions (2026-10-12)
 1. Precedence over global rules (§3.1): **yes** — sections do delegated work and use ECC agents as helpers; testing owns final review for multi-section tasks.
 2. Fable (§5): **keep** for hard cases, with the consent prompt; opus fallback.
-3. Board (§3.4): opens **only on `/team` or when the first section wakes**, not at every session start.
+3. Board (§3.4): opens **automatically at session start** (changed 2026-10-12 from 'only on /team or first section'); `/team` reopens it.
 4. Messaging (§3.5): supervisor relay is **acceptable** if direct section messaging fails Phase 0. Phase 0 result: relay is in use.
 
 ## 10. Risks

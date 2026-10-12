@@ -33,4 +33,4 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## Team Board
-- `/team` opens the Team Board pane: one box per section with live state and its last report.
+- The Team Board opens automatically at session start; `/team` reopens it.

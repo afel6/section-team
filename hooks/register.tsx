@@ -48,7 +48,7 @@ async function readReports($: EngineInterface, ctx: Ctx) {
 
 async function refresh($: EngineInterface, ctx: Ctx) {
   const agents = await $.agent.list()
-  // Looked up here, not at session.start, so a session that never uses the team never waits on git.
+  // Looked up here, not at session.start, so the session start never waits on git.
   if (ctx.root === '') ctx.root = await findRoot($)
   const { reports, lastSummary } = await readReports($, ctx)
   const next = boardModel({ agents, reports, request: ctx.request, lastSummary })
@@ -70,7 +70,7 @@ async function poll($: EngineInterface, ctx: Ctx) {
   }
 }
 
-// The poll starts with the team's first use (/team or a section spawn), once. There is no session.end hook:
+// The poll starts with the session (/team and section spawns call this too), once. There is no session.end hook:
 // /clear ends a session without a new session.start, and the timer ends with the process.
 function startPoll($: EngineInterface, ctx: Ctx) {
   if (ctx.stop) return
@@ -85,6 +85,10 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
     ctx.root = ''
+    startPoll($, ctx)
+    // The board opens by itself with the session. Not awaited, so the start never waits on the open; a refused or failed open is dropped.
+    ctx.hasOpened = true
+    void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
     return next(e)
   })
 
@@ -98,7 +102,7 @@ export const register: Register = on => {
     const result = await next(e)
     if (typeof e.subagentType !== 'string' || !e.subagentType.startsWith(PREFIX) || result.deny) return result
     startPoll($, ctx)
-    // Opens by itself the first time only; a person who closed the pane is not fought, /team opens it again.
+    // Only if session.start did not already open it; a person who closed the pane is not fought, /team opens it again.
     if (!ctx.hasOpened) {
       ctx.hasOpened = true
       void $.ui.open({ id: PANE, title: TITLE })
