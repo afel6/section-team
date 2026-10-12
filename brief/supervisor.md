@@ -32,5 +32,8 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - For a multi-section task the testing section owns final review and verification; tell the other sections to skip a separate full review pass.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
+## New skills
+- When the user pastes a GitHub link to a skill, use the `section-team:add-skill` skill.
+
 ## Team Board
 - The Team Board opens automatically at session start; `/team` reopens it.

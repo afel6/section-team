@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
+import { isMainModule } from '../hooks/lib/paths.mjs'
+import { readExtra } from './assign-skill.mjs'
 
 export const MODEL = 'claude-opus-5-5'
 export const RELAY = 'To reach another section, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it and passes the answer back. If you cannot reach the supervisor, finish with `Status: blocked` and say what you need from which section.'
@@ -34,13 +35,13 @@ Helpers used: <model ×count (purpose), or "none">
 Problems:     <or "none">
 Next:         <or "none">`
 
-export function render(s) {
+export function render(s, extra = {}) {
   const isAdvisor = s.kind === 'advisor'
   const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL}`, `color: ${s.color}`, 'memory: user']
   if (isAdvisor) lines.push(`tools: ${ADVISOR_TOOLS}`)
   if (PRELOAD && s.skills.length > 0) lines.push('skills:', ...s.skills.map(k => `  - ${k}`))
   lines.push('---')
-  const goTo = [...(PRELOAD ? [] : s.skills), ...s.goto]
+  const goTo = [...new Set([...(PRELOAD ? [] : s.skills), ...s.goto, ...(extra[s.id] ?? [])])] // extras are go-to only: preloads cost context
   const body = [
     `You are the **${s.id}** ${isAdvisor ? 'advisor' : 'section head'} of section-team. ${s.role}`,
     '',
@@ -72,28 +73,33 @@ tools: Read, Grep, Glob, WebSearch, WebFetch
 You are a consultant to a section-team section head. Answer the question you are given as well as you can, with reasoning and a clear recommendation. Do not change files and do not spawn agents.
 `
 
-export function renderAll() {
-  const files = Object.fromEntries(ROSTER.map(s => [`${s.id}.md`, render(s)]))
+export function renderAll(extra = readExtra()) {
+  const files = Object.fromEntries(ROSTER.map(s => [`${s.id}.md`, render(s, extra)]))
   if (CONSULTANT) files['fable-consultant.md'] = CONSULTANT_FILE
   return files
 }
 
-function main() {
-  const dir = new URL('../agents/', import.meta.url)
+// Writes agent files (or, with check, only reports the stale ones); returns the file names that differ.
+export function writeAgents({ check = false, extra = readExtra(), dir = new URL('../agents/', import.meta.url) } = {}) {
   mkdirSync(dir, { recursive: true })
-  const isCheck = process.argv.includes('--check')
-  let stale = []
-  for (const [file, text] of Object.entries(renderAll())) {
+  const changed = []
+  for (const [file, text] of Object.entries(renderAll(extra))) {
     const target = new URL(file, dir)
     const current = existsSync(target) ? readFileSync(target, 'utf8') : null
     if (current === text) continue
-    if (isCheck) stale.push(file)
-    else writeFileSync(target, text)
+    changed.push(file)
+    if (!check) writeFileSync(target, text)
   }
-  if (isCheck && stale.length > 0) {
+  return changed
+}
+
+function main() {
+  const check = process.argv.includes('--check')
+  const stale = writeAgents({ check })
+  if (check && stale.length > 0) {
     console.log(`stale agent files: ${stale.join(', ')} — run node scripts/gen-agents.mjs`)
     process.exit(1)
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
+if (isMainModule(import.meta.url)) main()
