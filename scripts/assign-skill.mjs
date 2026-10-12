@@ -36,6 +36,7 @@ export function assignSkill(extra, skill, sections) {
 
 export function removeSkill(extra, skill) {
   validateExtra(extra)
+  checkSkill(skill)
   return Object.fromEntries(
     Object.entries(extra)
       .map(([id, skills]) => [id, skills.filter(s => s !== skill)])
@@ -52,15 +53,21 @@ export function readExtra(file = EXTRA_FILE) {
 
 async function save(extra) {
   const { writeAgents } = await import('./gen-agents.mjs') // lazy: gen-agents imports this module
+  writeAgents({ extra }) // agent files first, roster last: a failed write leaves the roster unchanged
   writeFileSync(EXTRA_FILE, `${JSON.stringify(extra, null, 2)}\n`)
-  writeAgents({ extra })
 }
 
 async function run([first, ...rest]) {
-  if (first === '--list') return JSON.stringify(readExtra(), null, 2)
+  if (first === '--list') {
+    if (rest.length > 0) throw new Error(USAGE)
+    return JSON.stringify(readExtra(), null, 2)
+  }
   if (first === '--remove') {
     if (rest.length !== 1) throw new Error(USAGE)
-    await save(removeSkill(readExtra(), rest[0]))
+    const extra = readExtra()
+    const next = removeSkill(extra, rest[0]) // also validates the name
+    if (!Object.values(extra).some(skills => skills.includes(rest[0]))) return `not assigned: ${rest[0]}`
+    await save(next)
     return `removed ${rest[0]}`
   }
   if (first === undefined || rest.length === 0) throw new Error(USAGE)
