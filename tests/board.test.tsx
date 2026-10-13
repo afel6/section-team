@@ -288,7 +288,8 @@ test('a section card shows its tokens and its helpers by model, the supervisor c
   expect(frontend).toContain('Running · login form')
   expect(frontend).toContain('tokens 7.4k · out 590')
   expect(frontend).toContain('helpers 1 · haiku×1')
-  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('team tokens 7.4k · 1 helpers')
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('team tokens 7.4k · 1 helper')
+  expect((await ui.find({ key: 'supervisor' }))?.text).not.toContain('1 helpers')
   const backend = (await ui.find({ key: 'card-backend' }))?.text
   expect(backend).not.toContain('tokens')
   expect(backend).not.toContain('helpers')
@@ -322,4 +323,73 @@ test('steps pass through untouched, a denied spawn is not counted, a step withou
   expect(frontend).toContain('tokens 10 · out 2')
   expect(frontend).toContain('helpers 1 · haiku×1')
   expect(frontend).not.toContain('NaN')
+})
+
+const mountBoard = ($: { ui: { mount: (t: never) => Promise<{ find: (q: { key: string }) => Promise<{ text: string } | undefined>; unmount: () => Promise<void> }> } }) =>
+  $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'Pane', requestId: 'team-board', props: PROPS } as never)
+
+// Counts something worth resetting: a request, a section, one helper, and steps of both.
+async function work($: never, seen: never) {
+  await ($ as { prompt: { submit: (e: never) => Promise<unknown> } }).prompt.submit({ text: 'add login' } as never)
+  await ($ as { agent: { spawn: (e: never) => Promise<unknown> } }).agent.spawn(SECTION as never)
+  await ($ as { agent: { spawn: (e: never) => Promise<unknown> } }).agent.spawn({ ...OTHER, parentAgentId: 'S1' } as never)
+  await step($, seen, 'S1', usage(100, 50, 0, 0))
+  await step($, seen, 'H1', usage(1, 2, 3, 4))
+}
+
+test('a /clear starts the counts again, keeps the poll alive, and the next steps are counted from zero', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = TEAM
+  seen.spawnAnswer = answerSpawns
+
+  await $.session.start(START)
+  await work($ as never, seen as never)
+  await clock.advance(1000)
+  let ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('tokens 160 · out 52')
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('helpers 1 · haiku×1')
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: add login')
+
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  const listed = seen.agentList
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(listed + 1)
+  await ui.unmount()
+  ui = await mountBoard($ as never)
+  const cleared = (await ui.find({ key: 'card-frontend' }))?.text
+  expect(cleared).toContain('Running · login form')
+  expect(cleared).not.toContain('tokens')
+  expect(cleared).not.toContain('helpers')
+  expect((await ui.find({ key: 'supervisor' }))?.text).not.toContain('team tokens')
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Waiting for your next request')
+
+  await step($ as never, seen, 'S1', usage(7, 3, 0, 0))
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(listed + 2)
+  await ui.unmount()
+  ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('tokens 10 · out 3')
+  expect((await ui.find({ key: 'card-frontend' }))?.text).not.toContain('helpers')
+})
+
+test('a session that ends for any other reason keeps its counts, a new session.start resets them', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = TEAM
+  seen.spawnAnswer = answerSpawns
+
+  await $.session.start(START)
+  await work($ as never, seen as never)
+  await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
+  await clock.advance(1000)
+  let ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('tokens 160 · out 52')
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: add login')
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  await ui.unmount()
+  ui = await mountBoard($ as never)
+  const restarted = (await ui.find({ key: 'card-frontend' }))?.text
+  expect(restarted).not.toContain('tokens')
+  expect(restarted).not.toContain('helpers')
 })

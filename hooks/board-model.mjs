@@ -83,16 +83,15 @@ export function boardModel({ agents = [], reports = {}, request = '', lastSummar
     const agent = list.find(a => ACTIVE.has(a.status)) ?? list.at(-1)
     const report = reports[id]
     const state = cardState(agent?.status, report?.status)
-    const helpers = report?.helpers && report.helpers !== 'none' ? report.helpers : ''
     const used = usage[id]
     const tokens = used?.total > 0 ? `tokens ${formatTokens(used.total)} · out ${formatTokens(used.out)}` : ''
     const helpersLine = used?.helpers > 0 ? `helpers ${used.helpers} · ${used.models.map(([model, n]) => `${model}×${n}`).join(' ')}` : ''
-    return { id, kind, state, line: cardLine(state, agent, report), helpers, tokens, helpersLine }
+    return { id, kind, state, line: cardLine(state, agent, report), tokens, helpersLine }
   }
   const cards = [...BUILDER_IDS.map(id => card(id, 'builder')), ...ADVISOR_IDS.map(id => card(id, 'advisor'))]
   const count = (...states) => cards.filter(c => states.includes(c.state)).length
   const team = Object.values(usage).reduce((sum, u) => ({ total: sum.total + u.total, helpers: sum.helpers + u.helpers }), { total: 0, helpers: 0 })
-  const teamLine = team.total > 0 || team.helpers > 0 ? `team tokens ${formatTokens(team.total)} · ${team.helpers} helpers` : ''
+  const teamLine = team.total > 0 || team.helpers > 0 ? `team tokens ${formatTokens(team.total)} · ${team.helpers} ${team.helpers === 1 ? 'helper' : 'helpers'}` : ''
   return { request, lastSummary, cards, counts: { active: count('running', 'waiting'), done: count('done'), problem: count('problem') }, teamLine }
 }
 

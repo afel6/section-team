@@ -32,10 +32,9 @@ test('board has 10 builders then 2 advisors and counts states', () => {
   const card = id => data.cards.find(c => c.id === id)
   assert.equal(card('frontend').line, 'Running · login form')
   assert.equal(card('backend').line, 'Done · /api/login + JWT')
-  assert.equal(card('backend').helpers, 'sonnet ×2')
+  assert.equal('helpers' in card('backend'), false) // the report's "Helpers used" text is no longer part of a card
   assert.equal(card('devops').state, 'problem')
   assert.equal(card('docs').line, 'Asleep · last: readme')
-  assert.equal(card('docs').helpers, '')
   assert.equal(card('mobile').line, 'Asleep')
   assert.deepEqual(data.counts, { active: 1, done: 1, problem: 1 })
   assert.equal(data.request, 'add login')
@@ -184,4 +183,12 @@ test('no usage means empty lines and no team line', () => {
     assert.equal(data.teamLine, '')
     assert.ok(data.cards.every(c => c.tokens === '' && c.helpersLine === ''))
   }
+})
+
+test('the team line says "1 helper" for one and "N helpers" for any other count', () => {
+  const line = (total, helpers) => boardModel({ usage: { frontend: { total, out: 1, helpers, models: helpers ? [['haiku', helpers]] : [] } } }).teamLine
+  assert.equal(line(5, 1), 'team tokens 5 · 1 helper')
+  assert.equal(line(5, 2), 'team tokens 5 · 2 helpers')
+  assert.equal(line(5, 0), 'team tokens 5 · 0 helpers')
+  assert.equal(line(0, 1), 'team tokens 0 · 1 helper')
 })

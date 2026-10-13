@@ -30,6 +30,12 @@ type Ctx = {
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
 }
 
+// A fresh session counts from zero. The poll is not touched: the board stays alive across a /clear.
+function resetCounts(ctx: Ctx) {
+  ctx.spawns.clear()
+  ctx.usage.clear()
+}
+
 // Accounting is best effort: whatever goes wrong in it is dropped, so it can never reach the session. A count that is not a number reads as zero.
 const count = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0)
 
@@ -117,10 +123,20 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
     ctx.root = ''
+    resetCounts(ctx)
     startPoll($, ctx)
     // The board opens by itself with the session. Not awaited, so the start never waits on the open; a refused or failed open is dropped.
     ctx.hasOpened = true
     void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
+    return next(e)
+  })
+
+  // /clear ends the session and no session.start follows: its counts and its request start again, and the poll keeps running.
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear') {
+      resetCounts(ctx)
+      ctx.request = ''
+    }
     return next(e)
   })
 

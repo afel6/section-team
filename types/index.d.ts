@@ -1,5 +1,5 @@
 export type CardState = 'asleep' | 'running' | 'waiting' | 'done' | 'problem'
-export type BoardCard = { id: string; kind: 'builder' | 'advisor'; state: CardState; line: string; helpers: string; tokens: string; helpersLine: string }
+export type BoardCard = { id: string; kind: 'builder' | 'advisor'; state: CardState; line: string; tokens: string; helpersLine: string }
 export type BoardData = {
   request: string
   lastSummary: string
