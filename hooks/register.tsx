@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData } from '../types'
-import { boardModel, emptyBoard, latestReportFiles } from './board-model.mjs'
+import { boardModel, emptyBoard, latestReportFiles, sectionUsage } from './board-model.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -22,7 +22,38 @@ async function findRoot($: EngineInterface): Promise<string> {
 }
 
 type Report = ReturnType<typeof parseReport>
-type Ctx = { root: string; request: string; lastJson: string; lastError: string; hasOpened: boolean; stop?: Timer; cache: Map<string, { mtimeMs: number; report: Report }> }
+type Spawn = { parentAgentId?: string; subagentType: string; model: string }
+type Used = { total: number; out: number }
+// spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
+type Ctx = {
+  root: string; request: string; lastJson: string; lastError: string; hasOpened: boolean; stop?: Timer
+  cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
+}
+
+// Accounting is best effort: whatever goes wrong in it is dropped, so it can never reach the session. A count that is not a number reads as zero.
+const count = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0)
+
+function recordSpawn(ctx: Ctx, e: { parentAgentId?: string; subagentType: string }, result: { model?: string; agentId?: string; deny?: string }) {
+  try {
+    if (result.deny || !result.agentId) return
+    ctx.spawns.set(result.agentId, { parentAgentId: e.parentAgentId, subagentType: e.subagentType, model: String(result.model ?? '') })
+  } catch {
+    // dropped on purpose
+  }
+}
+
+function recordStep(ctx: Ctx, agentId: string | undefined, result: { usage?: Record<string, unknown> | null } | undefined) {
+  try {
+    const u = result?.usage
+    if (!agentId || !u) return
+    const out = count(u.output_tokens)
+    const total = out + count(u.input_tokens) + count(u.cache_creation_input_tokens) + count(u.cache_read_input_tokens)
+    const before = ctx.usage.get(agentId)
+    ctx.usage.set(agentId, { total: (before?.total ?? 0) + total, out: (before?.out ?? 0) + out })
+  } catch {
+    // dropped on purpose
+  }
+}
 
 async function readReports($: EngineInterface, ctx: Ctx) {
   const dir = `${ctx.root}/.team/reports/${today()}`
@@ -51,7 +82,8 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   // Looked up here, not at session.start, so the session start never waits on git.
   if (ctx.root === '') ctx.root = await findRoot($)
   const { reports, lastSummary } = await readReports($, ctx)
-  const next = boardModel({ agents, reports, request: ctx.request, lastSummary })
+  const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
+  const next = boardModel({ agents, reports, request: ctx.request, lastSummary, usage })
   const json = JSON.stringify(next)
   if (json === ctx.lastJson) return
   await update($, board, () => next)
@@ -80,7 +112,7 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', hasOpened: false, cache: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', hasOpened: false, cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
@@ -100,6 +132,7 @@ export const register: Register = on => {
 
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
+    recordSpawn(ctx, e, result)
     if (typeof e.subagentType !== 'string' || !e.subagentType.startsWith(PREFIX) || result.deny) return result
     startPoll($, ctx)
     // Only if session.start did not already open it; a person who closed the pane is not fought, /team opens it again.
@@ -107,6 +140,13 @@ export const register: Register = on => {
       ctx.hasOpened = true
       void $.ui.open({ id: PANE, title: TITLE })
     }
+    return result
+  })
+
+  // Watches only: the stream and its result pass through as they are; the counts are added after the last chunk, and the 1 s poll shows them.
+  on('turn.step', async function* ($, e, next) {
+    const result = yield* next(e)
+    recordStep(ctx, e.agentId, result)
     return result
   })
 
@@ -125,7 +165,8 @@ export const register: Register = on => {
       <Box key={`card-${c.id}`} width={width} flexDirection="column" paddingX={1} borderStyle={c.kind === 'advisor' ? 'dashed' : 'round'} borderColor={COLOR[c.state]}>
         <Text bold color={COLOR[c.state]}>● {c.id}</Text>
         <Text wrap="truncate-end" dimColor={c.state === 'asleep'}>{c.line}</Text>
-        {c.helpers !== '' && <Text wrap="truncate-end" dimColor>{c.helpers}</Text>}
+        {c.tokens ? <Text wrap="truncate-end" dimColor>{c.tokens}</Text> : null}
+        {c.helpersLine ? <Text dimColor>{c.helpersLine}</Text> : null}
       </Box>
     )
     const counts = `${data.counts.active} active · ${data.counts.done} done · ${data.counts.problem} problem`
@@ -135,6 +176,7 @@ export const register: Register = on => {
           <Text bold>Supervisor</Text>
           <Text wrap="truncate-end">{data.request === '' ? 'Waiting for your next request' : `Task: ${data.request}`}</Text>
           <Text dimColor>{data.lastSummary === '' ? counts : `${counts} · last summary ${data.lastSummary}`}</Text>
+          {data.teamLine ? <Text dimColor>{data.teamLine}</Text> : null}
         </Box>
         <Text dimColor>Sections</Text>
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>{data.cards.filter(c => c.kind === 'builder').map(card)}</Box>

@@ -159,7 +159,7 @@ Next:         <or "none">
 - Pane `team-board`, opened by `/team`. Auto-open on first section spawn is attempted; Phase 0 records whether the desktop app shows it (the documented auto-open rule only covers terminal width). It opens at session start (user decision 2026-10-12, §9.3).
 - Display only: plain Text in Box cards, no buttons.
 - Model: pure function `boardModel(agents, latestReports) → { supervisor, sections[], advisors[] }`, stored in a `$.state` atom; a 1 s `$.clock.every` poll updates the atom (redraw follows automatically).
-- Data: `$.agent.list()` (fields `id, type, status, name?`); section id from `type` minus prefix. Latest report per section: newest file in today's `.team/reports/` via `$.fs.list` / `$.fs.read`; show its Status, Job and "Helpers used" lines.
+- Data: `$.agent.list()` (fields `id, type, status, name?`); section id from `type` minus prefix. Latest report per section: newest file in today's `.team/reports/` via `$.fs.list` / `$.fs.read`; show its Status and Job lines.
 - Status → look:
 
 | Agent state | Board |
@@ -171,6 +171,7 @@ Next:         <or "none">
 | completed + REPORT Status partial/blocked, failed, killed | problem · red |
 
 - Supervisor card: last user request (first line), counts (active / done / problem), time of last summary.
+- Usage (user decision 2026-10-13): a section card adds `tokens <total> · out <output>` and `helpers <n> · <model>×<count> …`, each only when non-zero (the live helpers line replaces the report's "Helpers used" line on the card); the supervisor card adds `team tokens <sum> · <n> helpers`. Total = input + cache + output tokens of every model step of the section head and of every agent below it; helpers = agents the head spawned directly, by resolved model (haiku, sonnet, opus, fable). The hooks count `turn.step` results per agent and note each `agent.spawn` in the plugin (not in the stored board); the 1 s poll shows the sums. Counted since the session started; the supervisor's own steps and helpers are not.
 - Layout: supervisor card on top; sections 3 per row when `bodyColumns ≥ 90`, else 2; advisors in their own row; legend line.
 
 ### 3.5 Section-to-section messaging
