@@ -92,7 +92,7 @@ You ◄── combined summary (also saved)
 - **Usage numbers** are counted inside the session from model-step usage; they are not reconciled with the account's billing view, and the counting maps are not pruned during very long sessions.
 - **Agent-id map lost** after `/clear` or compaction: the supervisor respawns sections and their in-session context is lost (long-term memory survives).
 - **Model cost:** all 12 heads are pinned to Opus 5.5 (user choice).
-- Deferred minor items are listed in `.superpowers/sdd/2026-10-12-claude-team-plan/progress.md` (lines marked `minor (deferred)`).
+- Deferred minor items and every controller ruling are listed in `docs/build-ledger.md` (lines marked `minor (deferred)` and `Ruling`).
 
 ## 8. Expected outcomes vs a single session (author's assessment, unmeasured)
 
