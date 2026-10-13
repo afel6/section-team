@@ -108,8 +108,8 @@ async function poll($: EngineInterface, ctx: Ctx) {
   }
 }
 
-// The poll starts with the session (/team and section spawns call this too), once. There is no session.end hook:
-// /clear ends a session without a new session.start, and the timer ends with the process.
+// The poll starts with the session (/team and section spawns call this too), once. The session.end hook below only
+// resets the counts on /clear; it never stops the poll (/clear starts no new session.start), and the timer ends with the process.
 function startPoll($: EngineInterface, ctx: Ctx) {
   if (ctx.stop) return
   ctx.stop = $.clock.every(POLL_MS, () => {
