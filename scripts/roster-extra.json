@@ -1,1 +1,8 @@
-{}
+{
+  "frontend": [
+    "muapi-models"
+  ],
+  "ai-llm": [
+    "muapi-models"
+  ]
+}
