@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sectionIdFromType, extractReport, parseReport, SECTION_IDS } from '../hooks/lib/report.mjs'
+import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate } from '../hooks/lib/report.mjs'
 
 const CLEAN = `Some work notes first.
 
@@ -109,4 +109,26 @@ test('parseReport reads the reviewer grade', () => {
   assert.equal(parseReport('## REPORT · backend\nStatus: done\nQuality:      8.5/10 (reviewer, 1 fix rounds)\n').quality, 8.5)
   assert.equal(parseReport('## REPORT · docs\nStatus: done\nQuality: n/a (no code)\n').quality, null)
   assert.equal(parseReport('## REPORT · docs\nStatus: done\n').quality, null)
+})
+
+test('changesCode: true only when the Changed line names a non-doc file', () => {
+  assert.equal(changesCode('none'), false)
+  assert.equal(changesCode(''), false)
+  assert.equal(changesCode(undefined), false)
+  assert.equal(changesCode('updated the docs'), false)
+  assert.equal(changesCode('README.md, docs/guide.md, notes.txt'), false)
+  assert.equal(changesCode('src/api.mjs, test/api.test.mjs'), true)
+  assert.equal(changesCode('README.md and src\app.ts (new)'), true)
+  assert.equal(changesCode('package.json'), true)
+})
+
+test('needsGate: changed code without a reviewer grade, unless the section is blocked', () => {
+  const report = (changed, quality, status = 'done') => parseReport(`## REPORT · backend\nStatus: ${status}\nChanged: ${changed}\n${quality === undefined ? '' : `Quality: ${quality}\n`}`)
+  assert.equal(needsGate(report('src/api.mjs')), true)
+  assert.equal(needsGate(report('src/api.mjs', 'n/a (no code)')), true)
+  assert.equal(needsGate(report('src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')), false)
+  assert.equal(needsGate(report('src/api.mjs', '6/10 (reviewer, 2 fix rounds)', 'partial')), false)
+  assert.equal(needsGate(report('src/api.mjs', undefined, 'blocked')), false)
+  assert.equal(needsGate(report('none')), false)
+  assert.equal(needsGate(report('README.md')), false)
 })

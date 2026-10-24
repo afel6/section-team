@@ -33,6 +33,20 @@ const FIELDS = {
   'helpers used': 'helpers', helpers: 'helpers', problems: 'problems', next: 'next', quality: 'quality',
 }
 
+const PATH_LIKE = /[\w./\\-]+\.[A-Za-z0-9]+/g
+const DOC_FILE = /\.(md|mdx|txt|rst|adoc)$/i
+
+// Whether a REPORT's Changed line names any file that is not a doc. Free text without file names counts as no code.
+export function changesCode(changed) {
+  if (typeof changed !== 'string') return false
+  return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
+}
+
+// A parsed REPORT that changed code but carries no reviewer grade must go through the gate first. A blocked section may stop.
+export function needsGate(report) {
+  return report.status !== 'blocked' && report.quality === null && changesCode(report.changed)
+}
+
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.
 export function parseReport(block) {
   const out = { status: '', job: '', changed: '', tests: '', coordination: '', helpers: '', problems: '', next: '', quality: '' }

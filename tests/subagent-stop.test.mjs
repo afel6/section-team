@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { saveFromEvent, finalAgentText } from '../hooks/subagent-stop.mjs'
+import { saveFromEvent, finalAgentText, gateFeedback } from '../hooks/subagent-stop.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/subagent-stop.mjs', import.meta.url))
 const tempDir = () => {
@@ -180,4 +180,35 @@ test('hook end to end, and malformed stdin exits 0 silently', () => {
     assert.equal(bad.status, 0)
     assert.equal(bad.stdout, '')
   }
+})
+
+const UNGRADED = '## REPORT · backend · 2026-10-12 14:32\nStatus: done\nJob: login api\nChanged: src/api.mjs, test/api.test.mjs\nQuality: n/a (no code)\n'
+const GRADED = '## REPORT · backend · 2026-10-12 14:32\nStatus: done\nJob: login api\nChanged: src/api.mjs\nQuality: 9/10 (reviewer, 0 fix rounds)\n'
+
+test('gateFeedback sends a builder back to the reviewer when its REPORT changed code without a grade', () => {
+  const feedback = gateFeedback({ agent_type: 'section-team:backend', stop_hook_active: false }, UNGRADED)
+  assert.equal(feedback.hookSpecificOutput.hookEventName, 'SubagentStop')
+  assert.match(feedback.hookSpecificOutput.additionalContext, /section-team:reviewer/)
+  assert.match(feedback.hookSpecificOutput.additionalContext, /Quality: <overall>\/10/)
+})
+
+test('gateFeedback lets it stop: graded, already sent back once, advisors, non-team agents, no REPORT', () => {
+  assert.equal(gateFeedback({ agent_type: 'section-team:backend', stop_hook_active: false }, GRADED), null)
+  assert.equal(gateFeedback({ agent_type: 'section-team:backend', stop_hook_active: true }, UNGRADED), null)
+  assert.equal(gateFeedback({ agent_type: 'section-team:ai-engineer', stop_hook_active: false }, UNGRADED), null)
+  assert.equal(gateFeedback({ agent_type: 'general-purpose', stop_hook_active: false }, UNGRADED), null)
+  assert.equal(gateFeedback({ agent_type: 'section-team:backend', stop_hook_active: false }, null), null)
+})
+
+test('hook end to end: an ungraded code REPORT is sent back and not saved; a graded one is saved', () => {
+  const dir = tempDir()
+  const run = report => spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:backend', stop_hook_active: false, cwd: dir, last_assistant_message: report }), encoding: 'utf8' })
+  const sentBack = run(UNGRADED)
+  assert.equal(sentBack.status, 0)
+  assert.match(JSON.parse(sentBack.stdout).hookSpecificOutput.additionalContext, /section-team:reviewer/)
+  assert.equal(existsSync(join(dir, '.team')), false)
+  const saved = run(GRADED)
+  assert.equal(saved.status, 0)
+  assert.equal(saved.stdout, '')
+  assert.ok(existsSync(join(dir, '.team', 'reports')))
 })
