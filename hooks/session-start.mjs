@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ensureExcluded, isMainModule, latestSummary, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { ensureExcluded, ensureNotes, isMainModule, latestSummary, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -19,6 +19,7 @@ export function buildContext(cwd) {
   const brief = readFileSync(join(HERE, '..', 'brief', 'supervisor.md'), 'utf8').trim()
   const root = projectRoot(cwd)
   attempt('git exclude update', () => ensureExcluded(cwd, root))
+  attempt('notes folder', () => ensureNotes(root))
   const summary = attempt('summary lookup', () => latestSummary(root))
   return summary ? `${brief}\n\nLast team summary for this project: ${summary}. Read it before new team work.` : brief
 }

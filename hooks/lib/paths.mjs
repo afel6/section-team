@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, writeSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, writeFileSync, writeSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -29,6 +29,21 @@ export function ensureExcluded(cwd, root) {
   mkdirSync(dirname(file), { recursive: true })
   appendFileSync(file, (current === '' || current.endsWith('\n') ? '' : '\n') + '.team/\n')
   return true
+}
+
+const NOTES_HEADER = '# Team notes — one line per note: <file> — <owner section> — <one-line summary> — <date>\n'
+
+// Creates the notes index only when missing (flag 'wx'), so a section's edits to it are never overwritten.
+export function ensureNotes(root) {
+  const dir = join(root, '.team', 'notes')
+  mkdirSync(dir, { recursive: true })
+  try {
+    writeFileSync(join(dir, 'INDEX.md'), NOTES_HEADER, { encoding: 'utf8', flag: 'wx' })
+    return true
+  } catch (err) {
+    if (err.code === 'EEXIST') return false
+    throw err
+  }
 }
 
 const pad = n => String(n).padStart(2, '0')

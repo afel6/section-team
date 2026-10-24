@@ -113,6 +113,26 @@ test('a failing summary scan still returns the brief, with one line on stderr', 
   assert.equal(result.stderr.trim().split('\n').length, 1)
 })
 
+test('the hook leaves .team/notes/INDEX.md behind', () => {
+  const dir = repo()
+  assert.equal(run(startInput(dir)).status, 0)
+  assert.ok(readFileSync(join(dir, '.team', 'notes', 'INDEX.md'), 'utf8').startsWith('# Team notes'))
+})
+
+test('a notes folder that cannot be created still returns the brief, with one line on stderr', () => {
+  const dir = repo()
+  mkdirSync(join(dir, '.team'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes'), 'a file where the notes folder should be')
+  const { value, lines } = quietStderr(() => buildContext(dir))
+  assert.ok(value.startsWith(MARKER))
+  assert.equal(lines.length, 1)
+  assert.match(lines[0], /^section-team session-start: notes folder failed: [^\n]+\n$/)
+  const result = run(startInput(dir))
+  assert.equal(result.status, 0)
+  assert.ok(JSON.parse(result.stdout).hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.equal(result.stderr.trim().split('\n').length, 1)
+})
+
 test('a healthy run writes nothing to stderr', () => {
   const dir = repo()
   assert.equal(run(startInput(dir)).stderr, '')

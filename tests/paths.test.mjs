@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpa
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { projectRoot, excludeFile, ensureExcluded, stamp, writeReport, latestSummary, readStdinJson } from '../hooks/lib/paths.mjs'
+import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -53,6 +53,16 @@ test('worktree: root and exclude point at the main checkout', () => {
   git(dir, 'worktree', 'add', '-q', wt)
   same(projectRoot(wt), dir)
   same(excludeFile(wt), excludeFile(dir))
+})
+
+test('ensureNotes creates INDEX.md with the exact header once and never overwrites it', () => {
+  const dir = tempDir()
+  const index = join(dir, '.team', 'notes', 'INDEX.md')
+  assert.equal(ensureNotes(dir), true)
+  assert.equal(readFileSync(index, 'utf8'), '# Team notes — one line per note: <file> — <owner section> — <one-line summary> — <date>\n')
+  writeFileSync(index, '# edited\nentry\n')
+  assert.equal(ensureNotes(dir), false)
+  assert.equal(readFileSync(index, 'utf8'), '# edited\nentry\n')
 })
 
 test('stamp uses local time', () => {
