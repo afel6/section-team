@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { RESULTS } from './run.mjs'
 
@@ -43,8 +44,34 @@ export function parseTranscript(raw) {
     agentSpawns: agents.length,
     agentTypes: count(agents.map(a => a.type)),
     agentModels: count(agents.map(a => a.model ?? 'inherit')),
+    split: agentModelSplit(arr),
     finalText: String(result.result ?? '').slice(-1500),
   }
+}
+
+// Tokens per agent and model: { <role>: { <short model>: { input, output } } }. A role is 'main', the subagent_type of the Agent/Task call the
+// message nests under (parent_tool_use_id), or 'unknown'. Input is fresh + cache read + cache write. The CLI repeats an assistant message once
+// per content block with identical usage, so each message id counts once.
+export function agentModelSplit(messages) {
+  const assistants = messages.filter(m => m.type === 'assistant' && m.message)
+  const roleOf = new Map()
+  for (const m of assistants) {
+    for (const part of Array.isArray(m.message.content) ? m.message.content : []) {
+      if (part.type === 'tool_use' && (part.name === 'Agent' || part.name === 'Task')) roleOf.set(part.id, part.input?.subagent_type ?? 'general-purpose')
+    }
+  }
+  const split = {}
+  const seen = new Set()
+  for (const m of assistants) {
+    const { id, model, usage = {} } = m.message
+    if (!model || seen.has(id)) continue
+    if (id) seen.add(id)
+    const role = m.parent_tool_use_id ? roleOf.get(m.parent_tool_use_id) ?? 'unknown' : 'main'
+    const slot = ((split[role] ??= {})[shortModel(model)] ??= { input: 0, output: 0 })
+    slot.input += (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
+    slot.output += usage.output_tokens ?? 0
+  }
+  return split
 }
 
 function count(list) {
@@ -124,7 +151,7 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(r => ({
     id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, wallMs: r.wallMs,
     costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
-    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage,
+    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.transcript.split,
     hidden: r.hidden, own: r.own, code: r.code, team: r.team,
   })), null, 2) + '\n')
 }

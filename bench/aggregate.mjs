@@ -5,6 +5,7 @@
 // Usage: node bench/aggregate.mjs
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { RESULTS } from './run.mjs'
 
@@ -36,6 +37,13 @@ export function judgeScores(judgeRows, key) {
     }
   }
   return Object.fromEntries(Object.entries(out).map(([id, e]) => [id, { quality: mean(e.qualities), overall: mean(e.overalls), wins: e.wins, losses: e.losses, rankPoints: e.rankPoints }]))
+}
+
+// Share (0–1) of a run's cost that went to Opus, from modelUsage[<model id>].costUSD over the run's total; null for a run with no cost.
+export function opusShare({ costUSD, modelUsage = {} }) {
+  if (!costUSD) return null
+  const opus = Object.entries(modelUsage).filter(([id]) => shortModel(id) === 'opus').reduce((sum, [, u]) => sum + (u.costUSD ?? 0), 0)
+  return opus / costUSD
 }
 
 export function composite(rows, judged) {
@@ -81,12 +89,13 @@ function main() {
       judgeLosses: rs.reduce((a, r) => a + (r.judge?.losses ?? 0), 0),
       judgeRankPoints: rs.reduce((a, r) => a + (r.judge?.rankPoints ?? 0), 0),
       agentSpawns: round(mean(rs.map(r => r.agentSpawns ?? 0)), 1),
+      opusSharePct: round(100 * mean(rs.map(opusShare).filter(x => x !== null)), 1),
       grade: round(mean(rs.map(r => r.grade.total)), 1),
       timeouts: rs.filter(r => r.timedOut).length,
     }
   }).sort((a, b) => ['easy', 'medium', 'hard', 'all'].indexOf(a.task) - ['easy', 'medium', 'hard', 'all'].indexOf(b.task) || a.cond.localeCompare(b.cond))
   writeFileSync(join(RESULTS, `report-data${suffix}.json`), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
-  const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'grade', 'timeouts']
+  const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'opusSharePct', 'grade', 'timeouts']
   console.log(`| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`)
   for (const row of table) console.log(`| ${cols.map(c => row[c] ?? '–').join(' | ')} |`)
 }

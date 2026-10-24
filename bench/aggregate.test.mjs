@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { judgeScores, composite } from './aggregate.mjs'
+import { judgeScores, composite, opusShare } from './aggregate.mjs'
 
 const scores = n => ({ correctness: n, codeQuality: n, tests: n, robustnessSecurity: n, docsUsability: n, overall: n })
 
@@ -32,4 +32,11 @@ test('composite: perfect correctness/quality, cheapest and fastest → 100', () 
   const g = composite(rows, { 'easy-team-r1': { quality: 10 }, 'easy-solo-r1': { quality: 5 } })
   assert.equal(g[0].grade.total, 100)
   assert.equal(g[1].grade.total, 20 + 15 + 7.5 + 3.75)
+})
+
+test('opusShare: opus cost over the run total, null when the run has no cost', () => {
+  const run = { costUSD: 4, modelUsage: { 'claude-opus-5-5': { costUSD: 3 }, 'claude-sonnet-5-5': { costUSD: 1 } } }
+  assert.equal(opusShare(run), 0.75)
+  assert.equal(opusShare({ costUSD: 1, modelUsage: { 'claude-haiku-5': { costUSD: 1 } } }), 0)
+  assert.equal(opusShare({ costUSD: null, modelUsage: {} }), null)
 })
