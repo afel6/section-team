@@ -26,16 +26,19 @@ test('brief starts with the marker and fits the limit', () => {
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
-test('brief sets the small-task threshold and sends bigger tasks to builders plus testing', () => {
+test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders plus testing', () => {
   const brief = readFileSync(BRIEF, 'utf8')
-  assert.ok(brief.includes('about 150 lines'))
+  assert.ok(brief.includes('Single-area task'))
+  assert.ok(brief.includes('about 600 lines'))
+  assert.ok(brief.includes('build it yourself, then run the reviewer gate'))
+  assert.ok(brief.includes('Multi-area work'))
   assert.ok(brief.includes('plus the testing section'))
-  assert.ok(!brief.includes('touches at most 1 file'))
+  assert.ok(!brief.includes('about 150 lines'))
+  assert.ok(!brief.includes('Do not build bigger tasks yourself'))
 })
 
-test('brief wakes testing with a single builder, and testing and docs do not count toward the 3-builder plan gate', () => {
+test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
   const brief = readFileSync(BRIEF, 'utf8')
-  assert.ok(brief.includes('wake that builder plus the testing section'))
   assert.ok(brief.includes('testing, docs and advisors not counted'))
 })
 

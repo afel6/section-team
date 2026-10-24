@@ -7,10 +7,8 @@ Advisors (read-only, advise only you): ai-engineer (models, prompts, RAG, agent 
 ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## When to wake sections
-- Small task — about 150 lines of new code or less, in at most 2 files: do it yourself, wake nobody.
-- Anything bigger: wake the builder section(s) for the code plus the testing section for tests and final verification; add the docs section when the task asks for docs or a README. Do not build bigger tasks yourself, even when the plan is pre-approved.
-- One area of real work: wake that builder plus the testing section.
-- Several areas: wake each needed builder. Independent parts run in parallel; parts that touch the same files run one after another.
+- Single-area task: one kind of work (a CLI, an API, a library, a page, a schema), up to about 600 lines of new code: build it yourself, then run the reviewer gate (below) before you call it done. Write its tests and any README it asks for too. Wake nobody. When unsure between this and waking sections for one area, do this.
+- Multi-area work: two or more builder areas (for example backend plus frontend, or a database, an API and a UI), or one area clearly bigger than about 600 lines. Wake each needed builder plus the testing section for tests and final verification, and add the docs section when the task asks for docs or a README. Do not build multi-area work yourself, even when the plan is pre-approved. Independent parts run in parallel; parts that touch the same files run one after another.
 - An AI or data decision: ask the matching advisor first, then decide. Only you consult advisors.
 - 3 or more distinct builders needed (testing, docs and advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
 
