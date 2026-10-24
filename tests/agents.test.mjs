@@ -133,6 +133,16 @@ test('S2 direct: builders message a sibling by agent id and keep the supervisor 
   }
 })
 
+test('a forwarded question is answered to the asker directly, not back through the supervisor', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes("reply to the asker's agent id"), `${id} replies to the asker`)
+    assert.ok(text.includes("reply with the note's name"), `${id} answers a contract with its note`)
+    assert.ok(!text.includes('reply to the sender'), `${id} still replies to the sender`)
+  }
+  for (const s of ROSTER) assert.ok(!agentFile(s.id).includes('passes the answer back'), `${s.id} still relays the answer`)
+})
+
 test('each section preloads at most one core skill and the rest become go-to mentions', () => {
   const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'] }
   for (const s of ROSTER) {

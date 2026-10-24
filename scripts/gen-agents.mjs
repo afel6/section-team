@@ -5,7 +5,7 @@ import { readExtra } from './assign-skill.mjs'
 
 export const MODEL = 'claude-opus-5-5'
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
-export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it and passes the answer back. If neither works, finish with `Status: blocked` and say what you need from which section.'
+export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
@@ -136,7 +136,7 @@ const WRITE_NOTES = [
   '   - You own the notes you write. Never edit another section\'s note. Ask its owner instead.',
 ].join('\n')
 
-const BUILDER_COORDINATION = `${RELAY} If another section sends you a question or a fix list about your files or notes, handle it and reply to the sender. Record every agreement in your REPORT's Coordination line.`
+const BUILDER_COORDINATION = `${RELAY} If a question or fix list about your files or notes reaches you (directly, or forwarded by the supervisor with the asker's agent id), handle it and reply to the asker's agent id; if the answer is a contract, write or update your note and reply with the note's name. Record every agreement in your REPORT's Coordination line.`
 const ADVISOR_COORDINATION = `${RELAY} Record every agreement in your REPORT's Coordination line.`
 
 function finalStep(s, isAdvisor) {
