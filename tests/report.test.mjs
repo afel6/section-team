@@ -28,7 +28,8 @@ test('section id comes only from section-team: prefixed types', () => {
   assert.equal(SECTION_IDS.length, 12)
 })
 
-test('the scout and coder helpers are not sections', () => {
+test('the scout, coder and reviewer helpers are not sections', () => {
+  assert.equal(sectionIdFromType('section-team:reviewer'), null)
   assert.equal(sectionIdFromType('section-team:scout'), null)
   assert.equal(sectionIdFromType('section-team:coder'), null)
 })

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ROSTER, render, renderAll } from '../scripts/gen-agents.mjs'
+import { ROSTER, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
@@ -46,7 +46,7 @@ test('committed files match the generator', () => {
   const result = spawnSync(process.execPath, [GEN, '--check'], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stdout + result.stderr)
   const all = renderAll()
-  for (const file of ['scout.md', 'coder.md']) assert.ok(file in all, `${file} is not generated`)
+  for (const file of ['scout.md', 'coder.md', 'reviewer.md']) assert.ok(file in all, `${file} is not generated`)
   for (const [file, text] of Object.entries(all)) assert.equal(readFileSync(new URL(file, AGENTS), 'utf8'), text)
 })
 
@@ -107,11 +107,11 @@ test('scout is a cheap read-only helper, not a section', () => {
   assert.equal(fm.model, 'haiku')
   assert.equal(fm.color, 'cyan')
   assert.equal(fm.omitClaudeMd, 'true')
-  assert.equal(fm.tools, 'Read, Grep, Glob')
+  assert.equal(fm.tools, 'Read, Grep, Glob, Skill')
   assert.equal(fm.memory, undefined)
   assert.equal(fm.skills, undefined)
   assert.ok(!ROSTER.some(s => s.id === 'scout'))
-  for (const banned of ['Agent', 'Write', 'Edit', 'Bash', 'PowerShell']) assert.ok(!fm.tools.includes(banned), `scout has ${banned}`)
+  for (const banned of ['Agent', 'Write', 'Edit', 'Bash', 'PowerShell']) assert.ok(!fm.tools.split(', ').includes(banned), `scout has ${banned}`)
 })
 
 test('coder is a Sonnet routine-coding helper that cannot spawn agents', () => {
@@ -126,7 +126,22 @@ test('coder is a Sonnet routine-coding helper that cannot spawn agents', () => {
   assert.ok(!ROSTER.some(s => s.id === 'coder'))
   for (const tool of ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']) assert.ok(fm.tools.split(', ').includes(tool), `coder lacks ${tool}`)
   assert.ok(!fm.tools.split(', ').includes('Agent'), 'coder has Agent')
+  assert.ok(fm.tools.split(', ').includes('Skill'), 'coder lacks Skill')
   assert.ok(text.includes('House rules'))
   assert.ok(text.includes('CLAUDE.local.md'), 'coder needs the full project-rules list')
   assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), 'coder project rules')
+})
+
+test('reviewer is an Opus read-only grader, not a section', () => {
+  const text = agentFile('reviewer')
+  const fm = front(text)
+  assert.equal(fm.model, 'opus')
+  assert.equal(fm.omitClaudeMd, 'true')
+  assert.equal(fm.tools, 'Read, Grep, Glob, Bash')
+  assert.ok(!ROSTER.some(s => s.id === 'reviewer'))
+  for (const item of RUBRIC_ITEMS) assert.ok(text.includes(`${item}:`), `rubric item ${item}`)
+  assert.ok(text.includes(PASS_RULE))
+  assert.ok(text.includes('## GRADE'))
+  assert.ok(text.includes('Grade only the changed lines and the functions around them.'))
+  assert.ok(text.includes('Never edit files and never spawn agents.'))
 })
