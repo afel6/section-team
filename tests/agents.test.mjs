@@ -88,16 +88,81 @@ test('every section head skips the global CLAUDE.md, carries the house rules and
   }
 })
 
-test('every builder gets the firm helper rule: delegate the bulk, never override the helper model, pass project rules to the coder', () => {
+const frontSkills = text => {
+  const lines = text.split('---')[1].split('\n')
+  const at = lines.findIndex(l => l.startsWith('skills:'))
+  if (at < 0) return []
+  return lines.slice(at + 1).filter(l => l.startsWith('  - ')).map(l => l.slice(4).trim())
+}
+
+test('every builder gets the solo-builder job flow: notes, plan, parallel helpers, reviewer gate, owner-only notes', () => {
+  const sentences = [
+    'Read `.team/notes/INDEX.md` first, then only the notes your job needs.',
+    'Plan your part (tasks, files, order) before you hand anything out.',
+    'Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines.',
+    'Agent `section-team:reviewer`',
+    PASS_RULE,
+    'at most 2 fix rounds',
+    'If it still fails, finish with `Status: partial` and the grade; never call it done.',
+    "Never edit another section's note.",
+    'Helpers never spawn agents.',
+  ]
   for (const id of BUILDER_IDS) {
     const text = agentFile(id)
-    assert.ok(text.includes('you run on Opus, the most expensive model, so delegate the bulk'), `${id} delegate the bulk`)
-    assert.ok(text.includes('Keep for yourself'), `${id} keep for yourself`)
-    assert.ok(text.includes('do not pass `model`'), `${id} do not pass model`)
-    assert.ok(text.includes('(Haiku; do not pass `model`)'), `${id} scout model`)
-    assert.ok(text.includes('(Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.'), `${id} coder rule`)
-    assert.ok(text.includes('If your job touches more than 2 files or needs tests, use at least one helper.'), `${id} at least one helper`)
+    for (const sentence of sentences) assert.ok(text.includes(sentence), `${id} lacks: ${sentence}`)
   }
+})
+
+test('helper hand-out keeps the model rules and tells helpers which skills to load', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes('(Haiku; do not pass `model`)'), `${id} scout model`)
+    assert.ok(text.includes('(Sonnet; do not pass `model`)'), `${id} coder model`)
+    assert.ok(text.includes('(Opus; do not pass `model`)'), `${id} reviewer model`)
+    assert.ok(text.includes('If a helper cannot load a named skill, put the few rules that matter into its brief.'), `${id} skill fallback`)
+  }
+})
+
+test('S2 direct: builders message a sibling by agent id and keep the supervisor as fallback', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes('SendMessage its agent id (the job lists the ids of awake sections)'), `${id} direct message`)
+    assert.ok(text.includes('SendMessage the supervisor (`main`)'), `${id} main fallback`)
+    assert.ok(text.includes('finish with `Status: blocked`'), `${id} blocked fallback`)
+  }
+})
+
+test('each section preloads at most one core skill and the rest become go-to mentions', () => {
+  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'] }
+  for (const s of ROSTER) {
+    assert.ok(s.core.length <= 1, `${s.id} preloads more than one skill`)
+    assert.deepEqual(s.core, CORE[s.id] ?? [], `${s.id} core`)
+    const text = agentFile(s.id)
+    assert.deepEqual(frontSkills(text), s.core, `${s.id} frontmatter skills`)
+    for (const skill of s.skills.filter(k => !s.core.includes(k))) assert.ok(text.includes(skill), `${s.id} lost go-to ${skill}`)
+  }
+})
+
+test('every REPORT has a Quality line between Tests and Coordination', () => {
+  for (const s of ROSTER) {
+    const text = agentFile(s.id)
+    assert.match(text, /^Tests: .*\nQuality:      <overall>\/10 \(reviewer, <n> fix rounds\) \| n\/a \(no code\)\nCoordination: /m, `${s.id} Quality line`)
+  }
+})
+
+test('advisors read the notes but get neither the reviewer nor the coder', () => {
+  for (const id of ADVISOR_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes('.team/notes/INDEX.md'), `${id} notes`)
+    assert.ok(!text.includes('section-team:reviewer'), `${id} reviewer`)
+    assert.ok(!text.includes('section-team:coder'), `${id} coder`)
+  }
+})
+
+test('testing runs the final reviewer pass and sends fix lists to the owning sections', () => {
+  const testing = agentFile('testing')
+  assert.ok(testing.includes("run the reviewer over every section's changed files"))
+  assert.ok(testing.includes('send each owning section its part of the fix list'))
 })
 
 test('scout is a cheap read-only helper, not a section', () => {

@@ -128,9 +128,9 @@ describe('generator with extras', () => {
   })
 
   test('a section with no go-to entries gains a go-to list from extras', () => {
-    const backend = ROSTER.find(s => s.id === 'backend')
-    assert.ok(!render(backend).includes('go-to'))
-    assert.ok(render(backend, { backend: ['x1'] }).includes('plus your go-to ones: x1.'))
+    const bare = { ...ROSTER.find(s => s.id === 'backend'), skills: [], goto: [] } // every real section now lists its non-core skills as go-to
+    assert.ok(!render(bare).includes('go-to'))
+    assert.ok(render(bare, { backend: ['x1'] }).includes('plus your go-to ones: x1.'))
   })
 
   test('writeAgents --check compares against output that includes extras', () => {
@@ -211,7 +211,7 @@ describe('assign-skill CLI in a temp copy of the plugin', () => {
 
   test('after prior use (roster already holds backend: x) the flow and the committed-agents test still pass', () => withPlugin({ backend: ['x'] }, tmp => {
     const prior = snapshot(tmp)
-    assert.match(prior['agents/backend.md'], /plus your go-to ones: x\./)
+    assert.match(prior['agents/backend.md'], /plus your go-to ones: .*, x\./)
     assert.equal(run(tmp, 'gen-agents.mjs', '--check').status, 0)
 
     // tests/agents.test.mjs ("committed files match the generator") run inside the copy

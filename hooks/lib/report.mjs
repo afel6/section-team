@@ -2,7 +2,7 @@ export const PREFIX = 'section-team:'
 export const BUILDER_IDS = ['frontend', 'backend', 'database', 'testing', 'security', 'devops', 'uiux', 'docs', 'ai-llm', 'mobile']
 export const ADVISOR_IDS = ['ai-engineer', 'data-scientist']
 export const SECTION_IDS = [...BUILDER_IDS, ...ADVISOR_IDS]
-export const ADVISOR_HELPERS = ['section-team:scout', 'architect', 'planner', 'code-explorer'] // scout is read-only (Read, Grep, Glob)
+export const ADVISOR_HELPERS = ['section-team:scout', 'architect', 'planner', 'code-explorer'] // scout is read-only (Read, Grep, Glob, Skill; no write or shell tools)
 
 export function sectionIdFromType(type) {
   if (typeof type !== 'string') return null
