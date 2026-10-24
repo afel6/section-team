@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>section-team v3 mockups</title>
+<style>
+:root{--surface-1:#f5f4ef;--surface-2:#fff;--border:#0000001f;--border-strong:#00000033;--text-primary:#141413;--text-secondary:#5f5e5a;--text-muted:#888780;--fill-accent:#378add;--fill-warning:#ef9f27;--fill-success:#639922;--bg-accent:#e6f1fb;--text-accent:#185fa5;--bg-warning:#faeeda;--text-warning:#854f0b;--bg-success:#eaf3de;--text-success:#3b6d11;--border-warning:#ef9f27;--radius:8px}
+@media (prefers-color-scheme:dark){:root{--surface-1:#262624;--surface-2:#30302e;--border:#ffffff1f;--border-strong:#ffffff33;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--bg-accent:#0c447c;--text-accent:#b5d4f4;--bg-warning:#633806;--text-warning:#fac775;--bg-success:#27500a;--text-success:#c0dd97}}
+body{background:var(--surface-2);color:var(--text-primary);font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 16px}
+h2{font-size:16px;font-weight:500}
+.opt{background:var(--surface-1);border-radius:12px;padding:1rem 1.25rem;margin:0 0 1.5rem}
+.win{display:flex;gap:8px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--radius);padding:8px;min-height:150px}
+.chat{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.msg{height:10px;border-radius:4px;background:var(--surface-1)}
+.inp{margin-top:auto;border:0.5px solid var(--border-strong);border-radius:var(--radius);height:26px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;padding:0 8px}
+.strip{display:flex;align-items:center;gap:8px;font-size:12px;border:0.5px solid var(--border);border-radius:var(--radius);padding:4px 8px;flex-wrap:wrap}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.c{background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:12px;display:flex;flex-direction:column;gap:4px}
+.need{border:1.5px solid var(--border-warning)}
+.t{font-weight:500;font-size:13px}.s{color:var(--text-secondary)}
+.pill{font-size:11px;padding:1px 6px;border-radius:var(--radius);margin-left:auto}
+.ico{border:0.5px solid var(--border-strong);border-radius:6px;padding:1px 6px;font-size:12px;margin-left:auto}
+</style>
+</head>
+<body>
+<h2>Approved by the user on 2026-10-24</h2>
+
+<div class="opt">
+<p class="s">Option A: team strip. No side pane; one line above the chat input. The icon (or <code>/team</code>) opens the full board on request.</p>
+<div class="win"><div class="chat"><div class="msg" style="width:70%"></div><div class="msg" style="width:55%"></div><div class="msg" style="width:62%"></div>
+<div class="strip"><span>Team</span>
+<span><span class="dot" style="background:var(--fill-accent)"></span>backend</span>
+<span><span class="dot" style="background:var(--fill-warning)"></span>testing</span>
+<span class="s">3 helpers · 48k tokens · 8 asleep</span>
+<span class="ico">open board</span></div>
+<div class="inp">Type / for commands</div></div></div>
+</div>
+
+<div class="opt">
+<p class="s">Option 1: chat cards (<code>/chats</code>). One card per open chat; chats waiting for the user are highlighted and sorted first.</p>
+<div class="grid">
+<div class="c need"><div style="display:flex;align-items:center"><span class="t">shop-app</span><span class="pill" style="background:var(--bg-warning);color:var(--text-warning)">needs you</span></div>
+<div class="s">Asked: approve the 3-section plan?</div><div><span class="dot" style="background:var(--fill-warning)"></span>supervisor waiting</div><div class="s">12 min · 210k tokens</div></div>
+<div class="c"><div style="display:flex;align-items:center"><span class="t">claude-team</span><span class="pill" style="background:var(--bg-accent);color:var(--text-accent)">working</span></div>
+<div class="s">Building: login API + tests</div><div><span class="dot" style="background:var(--fill-accent)"></span>backend <span class="dot" style="background:var(--fill-accent);margin-left:6px"></span>testing · 4 helpers</div><div class="s">31 min · 640k tokens</div></div>
+<div class="c"><div style="display:flex;align-items:center"><span class="t">blog</span><span class="pill" style="background:var(--bg-success);color:var(--text-success)">idle</span></div>
+<div class="s">Finished: README + deploy docs</div><div><span class="dot" style="background:var(--fill-success)"></span>docs done</div><div class="s">8 min · 95k tokens</div></div>
+</div>
+</div>
+</body>
+</html>
