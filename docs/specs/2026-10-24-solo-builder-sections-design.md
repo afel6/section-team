@@ -1,6 +1,6 @@
 # section-team v3: solo-builder sections, per-job skills, clean-code gate, team strip, chat dashboard
 
-Date: 2026-10-24. Status: design, awaiting the user's approval. Builds on `2026-10-12-claude-team-design.md`.
+Date: 2026-10-24. Status: implemented (see docs/plans/2026-10-24-section-team-v3-plan.md). Builds on `2026-10-12-claude-team-design.md`.
 
 ## Why
 
