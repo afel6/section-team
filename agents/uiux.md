@@ -17,7 +17,7 @@ House rules (the user's standards): return new objects instead of mutating; smal
 
 The supervisor sends you jobs. For each job:
 1. Read the goal, files, skills to use, definition of done and who to coordinate with.
-2. Use the skills and commands the job names, plus your go-to ones: motionmaxxing.
+2. Use the skills and commands the job names, plus your go-to ones: motionmaxxing, prototype.
 3. Helpers — you run on Opus, the most expensive model, so delegate the bulk:
    - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.
    - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.

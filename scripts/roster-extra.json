@@ -1,15 +1,34 @@
 {
   "frontend": [
     "muapi-models",
-    "motionmaxxing"
+    "motionmaxxing",
+    "prototype"
   ],
   "ai-llm": [
-    "muapi-models"
+    "muapi-models",
+    "writing-for-agents"
   ],
   "security": [
     "security-audit"
   ],
   "uiux": [
-    "motionmaxxing"
+    "motionmaxxing",
+    "prototype"
+  ],
+  "backend": [
+    "codebase-design"
+  ],
+  "docs": [
+    "domain-modeling",
+    "writing-for-agents"
+  ],
+  "devops": [
+    "wizard",
+    "setup-pre-commit",
+    "dependency-doctor"
+  ],
+  "testing": [
+    "migrate-to-shoehorn",
+    "scope-creep-detector"
   ]
 }
