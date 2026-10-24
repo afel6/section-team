@@ -159,6 +159,7 @@ Rules:
 - After benchmark round 3 (2026-10-24): builder section heads move to **Sonnet 5.5**, while advisors and the reviewer stay on Opus 5.5. Cheaper models do the work and the Opus reviewer is the higher model that checks and grades it. This replaces the earlier non-goal "heads stay on Opus".
 - After benchmark rounds 4–6: builder heads go **back to Opus 5.5**. Sonnet heads cost about half but were judged at solo level even with the enforced gate, and clean code wins over cost. The gate stays enforced at handback, by a PreToolUse hook on `SubagentHandback`.
 - Cheaper path for medium tasks (user request, 2026-10-25): the supervisor builds single-area tasks up to about 600 lines itself and gates them with the reviewer. Sections wake for multi-area work. Round 6 showed this path at 8.1 quality for $0.89 on the medium task.
+- After round 7 (same code quality at −77% cost, but thinner tests): on single-area tasks the supervisor also wakes **only the testing section** to write the tests. It still builds the code itself and gates it with the reviewer.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)
