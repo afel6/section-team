@@ -220,6 +220,22 @@ In round 6 the supervisor built the medium task alone and gated it. That run sco
   - For "clean code above cost", run builder heads on Opus.
   - Keep the enforced handback gate either way: it costs little and guarantees every code REPORT carries a real grade.
 
+## Round 7 — cheaper path for single-area tasks (commit 6f1b4a5)
+Change: the supervisor builds single-area tasks of up to about 600 lines itself and gates them with the Opus reviewer. Opus sections wake only for multi-area work. Heads run on Opus, and the handback gate is enforced.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.93 | 7.23 | **0.57** | 7.60 | **1.56** | 7.46 | 7.04 | **85.5** |
+| team-v3 (sections for everything bigger) | 3.39 | **7.53** | **8.65** | 3.69 | 8.30 | 5.87 | **8.54** | **8.71** | 73.7 |
+| team-v7 (supervisor + gate for one area) | 2.80 | 7.33 | 7.88 | 0.85 | **8.35** | 6.88 | **8.54** | 7.67 | 76.1 |
+
+Hidden tests and own tests passed 100% in all 6 runs. The routing worked: medium was built by the supervisor plus the reviewer in both runs, and hard woke 4–5 sections.
+
+### Verdict after round 7
+- **The medium path is 77% cheaper ($0.85 against $3.69) and the code is just as clean** (code quality 8.54 on both). The gate holds the code standard.
+- **What it loses is test depth.** The supervisor writes fewer, shallower tests than the dedicated testing section, so medium quality is 7.88 against 8.65. That is still +0.65 over solo.
+- **Hard is unchanged in quality** (8.35). It costs 17% more because the enforced gate now always runs, with fix rounds.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
@@ -227,4 +243,4 @@ In round 6 the supervisor built the medium task alone and gated it. That run sco
 - **Fable was disabled** for safety, since `-p` would bill it without asking.
 - **Costs** are Claude Code's API-equivalent estimates. On a subscription they count against usage limits instead.
 
-Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2–6 have `-v2` … `-v6` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
+Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2–7 have `-v2` … `-v7` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
