@@ -132,6 +132,49 @@ Share of spend by model:
   - making helpers mandatory for test-writing;
   - a per-task "quality mode" the user switches on.
 
+## Round 3 — v3: solo-builder sections and the clean-code gate (commit 6779fe3)
+v3 changes (design `docs/specs/2026-10-24-solo-builder-sections-design.md`):
+- sections plan their part, take per-job skills, share notes and message each other directly;
+- an Opus reviewer grades all code (pass 8/10, no item under 6, at most 2 fix rounds);
+- the supervisor gates its own code too.
+
+Setup notes:
+- The global setup was slimmed between rounds 2 and 3, from 60k to 41k tokens per session.
+- **Solo was therefore rerun (`solo-v3`)** so v3 is compared under the same setup. Team-v2's projects (old setup) were judged alongside as a reference.
+- Same 3 tasks, 2 runs each, 2 blind Opus judges per group, same rubric.
+
+| Way | Cost $ | Minutes | Judge quality /10 | Code quality | Tests | 1st places | Last places | Opus share | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | **2.7** | 7.57 | 7.88 | 7.25 | 3 of 12 | 4 of 12 | 97% | **86.4** |
+| team-v2 (reference) | 2.47 | 4.3 | 7.48 | 7.58 | 7.58 | 1 of 12 | 8 of 12 | 97% | 75.9 |
+| **team-v3** | 3.39 (×4.0) | 7.8 | **8.33** | **8.92** | **8.67** | **8 of 12** | **0 of 12** | 98% | 74.2 |
+
+Grade under other weightings:
+- quality-first: solo-v3 81.2 · team-v3 76.1 · team-v2 73.8
+- cost-first: solo-v3 86.2 · team-v2 65.7 · team-v3 62.4
+
+Hidden tests and own tests passed 100% in all 12 new runs, with no timeouts.
+
+### What the per-agent split shows
+The split comes from the subagent transcripts and reconciles exactly with `modelUsage` on every run.
+
+- **The quality gate works and is cheap.** The reviewer ran on every task, including easy, where the supervisor built alone and gated its own code. It used 32k–294k input tokens per run.
+- **Section heads still do the work themselves on Opus.**
+  - **testing:** 58–77 turns (18–22 test runs, 8 edits), 1.0–4.2M Opus input. It is the largest single cost.
+  - **backend:** 40–47 turns, writing and editing the code itself.
+  - **Sonnet coder:** used only on hard (237k–375k input).
+  - **Haiku scout:** never used.
+  - Every Opus turn re-reads the growing context, so long head sessions dominate the bill.
+- **Quality is clearly up.**
+  - Team-v3 is +0.76 over same-setup solo and +0.85 over team-v2.
+  - It has the best code quality (+1.0 over solo) and the best tests (+1.4 over solo), and it was never ranked last.
+  - This is the "always clean" goal showing up in the judges' scores.
+
+### Verdict after round 3
+- **Quality goal: met.** Team-v3 produces the cleanest code and the best tests of every way tested so far.
+- **Cost goal: missed, and not because of the gate.** The gate costs little. The extra cost is Opus section heads doing routine work (test runs, edits, writing files) instead of handing it to the Sonnet coder. v2's "delegate the bulk" wording was ignored the same way, so prompt wording alone does not move this.
+- **The lever that would move it is a model change, which is the user's decision:** section heads on Sonnet, with the Opus reviewer as the higher model that checks and grades. The design kept heads on Opus at the user's request, so no tuning rerun was made.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
@@ -139,4 +182,4 @@ Share of spend by model:
 - **Fable was disabled** for safety, since `-p` would bill it without asking.
 - **Costs** are Claude Code's API-equivalent estimates. On a subscription they count against usage limits instead.
 
-Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Round 2 has `-v2` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
+Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2 and 3 have `-v2` / `-v3` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
