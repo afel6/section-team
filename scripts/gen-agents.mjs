@@ -3,7 +3,8 @@ import { ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { readExtra } from './assign-skill.mjs'
 
-export const MODEL = 'claude-opus-5-5'
+// Builders do the work on Sonnet; advisors make judgement calls on Opus. The Opus reviewer checks the builders' code.
+export const MODEL = { builder: 'claude-sonnet-5-5', advisor: 'claude-opus-5-5' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
 export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
@@ -110,10 +111,10 @@ const loadSkills = (core, goTo) => [
   goTo.length > 0 ? `Go-to skills, only when the job needs one its list lacks: ${goTo.join(', ')}.` : "Prefer the job's list; load another skill only if you truly need it.",
 ].join(' ')
 
-// Heads run on Opus, so the bulk goes to scout (Haiku) and coder (Sonnet). Advisors are read-only: scout only, no coder.
+// Each helper starts with a small fresh context, so the bulk goes to scout (Haiku) and coder (Sonnet). Advisors are read-only: scout only, no coder.
 function handOut(s, isAdvisor) {
   return [
-    'Hand out the work. You run on Opus, the most expensive model, so delegate the bulk. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message so they run at once.',
+    'Hand out the work. Delegate the bulk: every turn you take re-reads your whole growing context, while a helper starts small and fresh. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message so they run at once.',
     '   - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.',
     ...(isAdvisor ? [] : ['   - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.']),
     ...(isAdvisor ? [] : ['   - If your job touches more than 2 files or needs tests, use at least one helper; skip a helper only for a single piece under about 20 lines.']),
@@ -156,7 +157,7 @@ const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
 
 export function render(s, extra = {}) {
   const isAdvisor = s.kind === 'advisor'
-  const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: user']
+  const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL[s.kind]}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: user']
   if (isAdvisor) lines.push(`tools: ${ADVISOR_TOOLS}`)
   if (s.core.length > 0) lines.push('skills:', ...s.core.map(k => `  - ${k}`))
   lines.push('---')

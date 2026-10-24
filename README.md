@@ -1,6 +1,6 @@
 # section-team
 
-A personal Claude Code plugin: every session is a **supervisor** that wakes specialist **sections** (Opus 5.5) when a task needs them, saves their reports, and shows a live **Team Board**.
+A personal Claude Code plugin: every session is a **supervisor** that wakes specialist **sections** (builders on Sonnet 5.5, advisors on Opus 5.5, all code graded by an Opus reviewer) when a task needs them, saves their reports, and shows a live **Team Board**.
 
 ## On / off
 - On: `~/.claude/settings.json` → `env.CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team`. New sessions pick it up.

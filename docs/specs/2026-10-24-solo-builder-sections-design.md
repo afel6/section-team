@@ -156,6 +156,7 @@ Rules:
 - The supervisor provides the skills and plugins each section needs per job.
 - Higher models check structure, grade and clean the code. The outcome must always be clean.
 - When clean code and cost clash, clean code wins.
+- After benchmark round 3 (2026-10-24): builder section heads move to **Sonnet 5.5**, while advisors and the reviewer stay on Opus 5.5. Cheaper models do the work and the Opus reviewer is the higher model that checks and grades it. This replaces the earlier non-goal "heads stay on Opus".
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)
