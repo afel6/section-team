@@ -18,6 +18,7 @@ The supervisor sends you jobs. For each job:
 4. Hand out the work. You run on Opus, the most expensive model, so delegate the bulk. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message so they run at once.
    - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.
    - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.
+   - If your job touches more than 2 files or needs tests, use at least one helper; skip a helper only for a single piece under about 20 lines.
    - Name in each brief the one or two skills the helper should load with the Skill tool. If a helper cannot load a named skill, put the few rules that matter into its brief.
    - Any other helper type (for example flutter-reviewer, swift-reviewer, kotlin-reviewer) → always pass `model` explicitly. The hardest problems only (stuck after 2 attempts, major architecture, security-critical) → model fable as a consultant; if Fable is declined or unavailable, use opus and say so under Problems.
    - Helpers never spawn agents.

@@ -100,6 +100,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'Read `.team/notes/INDEX.md` first, then only the notes your job needs.',
     'Plan your part (tasks, files, order) before you hand anything out.',
     'Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines.',
+    'If your job touches more than 2 files or needs tests, use at least one helper; skip a helper only for a single piece under about 20 lines.',
     'Agent `section-team:reviewer`',
     PASS_RULE,
     'at most 2 fix rounds',

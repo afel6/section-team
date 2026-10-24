@@ -109,6 +109,7 @@ function handOut(s, isAdvisor) {
     'Hand out the work. You run on Opus, the most expensive model, so delegate the bulk. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message so they run at once.',
     '   - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.',
     ...(isAdvisor ? [] : ['   - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.']),
+    ...(isAdvisor ? [] : ['   - If your job touches more than 2 files or needs tests, use at least one helper; skip a helper only for a single piece under about 20 lines.']),
     '   - Name in each brief the one or two skills the helper should load with the Skill tool. If a helper cannot load a named skill, put the few rules that matter into its brief.',
     `   - Any other helper type (for example ${s.helpers.join(', ')}) → always pass \`model\` explicitly. ${FABLE_RULE}`,
     '   - Helpers never spawn agents.',
