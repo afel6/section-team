@@ -1,39 +1,71 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agentModelSplit, parseTranscript } from './score.mjs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { agentModelSplit, collectRoles, parseTranscript, splitCoverage } from './score.mjs'
 
-const mainOpus = {
-  type: 'assistant',
-  message: {
-    id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 2, cache_read_input_tokens: 100, cache_creation_input_tokens: 30, output_tokens: 7 },
-    content: [{ type: 'tool_use', id: 't1', name: 'Agent', input: { subagent_type: 'section-team:backend' } }],
-  },
-}
-const nestedSonnet = {
-  type: 'assistant', parent_tool_use_id: 't1',
-  message: { model: 'claude-sonnet-5-5', usage: { input_tokens: 10, output_tokens: 5 } }, // no id, no content: still counted
-}
+const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
-test('agentModelSplit: tokens per role (main, subagent_type) and short model name', () => {
-  const split = agentModelSplit([{ type: 'system' }, mainOpus, nestedSonnet, { type: 'result' }])
-  assert.deepEqual(split['section-team:backend'].sonnet, { input: 10, output: 5 })
-  assert.deepEqual(split.main.opus, { input: 132, output: 7 })
+// A main stream (one API response written twice, once per content block), a background backend head on Opus,
+// and the depth-2 coder that head hired on Sonnet.
+const roles = [
+  { role: 'main', messages: [{ type: 'system' }, say('m1', 'claude-opus-5-5', { input_tokens: 2, cache_read_input_tokens: 100, cache_creation_input_tokens: 30, output_tokens: 7 }), say('m1', 'claude-opus-5-5', { input_tokens: 2, cache_read_input_tokens: 100, cache_creation_input_tokens: 30, output_tokens: 7 })] },
+  { role: 'section-team:backend', messages: [say('b1', 'claude-opus-5-5', { input_tokens: 1, cache_read_input_tokens: 200 })] },
+  { role: 'section-team:coder', messages: [say('c1', 'claude-sonnet-5-5', { input_tokens: 10, cache_creation_input_tokens: 5, output_tokens: 99 })] },
+]
+
+test('agentModelSplit: input tokens per role and short model, a repeated message id counted once, no output', () => {
+  assert.deepEqual(agentModelSplit(roles), {
+    main: { opus: 132 },
+    'section-team:backend': { opus: 201 },
+    'section-team:coder': { sonnet: 15 },
+  })
 })
 
-test('agentModelSplit: counts a repeated message id once, Task calls name the role, an unmatched parent is unknown', () => {
-  const task = { type: 'assistant', message: { id: 'm3', model: 'claude-opus-5-5', usage: {}, content: [{ type: 'tool_use', id: 't2', name: 'Task', input: {} }] } }
+test('agentModelSplit: roles of the same type add up, and an id replayed in another role is not counted twice', () => {
   const split = agentModelSplit([
-    mainOpus, { ...mainOpus, message: { ...mainOpus.message, content: [] } }, task,
-    { type: 'assistant', parent_tool_use_id: 't2', message: { id: 'm4', model: 'claude-haiku-5', usage: { input_tokens: 1, output_tokens: 1 }, content: [] } },
-    { type: 'assistant', parent_tool_use_id: 'gone', message: { id: 'm5', model: 'claude-haiku-5', usage: { input_tokens: 4, output_tokens: 2 }, content: [] } },
+    ...roles,
+    { role: 'section-team:coder', messages: [say('c2', 'claude-sonnet-5-5', { input_tokens: 5 }), say('m1', 'claude-opus-5-5', { input_tokens: 999 })] },
   ])
-  assert.deepEqual(split.main.opus, { input: 132, output: 7 })
-  assert.deepEqual(split['general-purpose'].haiku, { input: 1, output: 1 })
-  assert.deepEqual(split.unknown.haiku, { input: 4, output: 2 })
+  assert.deepEqual(split['section-team:coder'], { sonnet: 20 })
+  assert.deepEqual(split.main, { opus: 132 })
 })
 
-test('parseTranscript carries the split next to its existing fields', () => {
-  const t = parseTranscript(JSON.stringify([mainOpus, nestedSonnet, { type: 'result', total_cost_usd: 1 }]))
+test('splitCoverage: the remainder per model is modelUsage input minus the split, and only an exact match is complete', () => {
+  const split = agentModelSplit(roles)
+  const modelUsage = { 'claude-opus-5-5': { input: 3, cacheRead: 400, cacheWrite: 30 }, 'claude-sonnet-5-5': { input: 10, cacheRead: 0, cacheWrite: 5 }, 'claude-haiku-5': { input: 7, cacheRead: 0, cacheWrite: 0 } }
+  assert.deepEqual(splitCoverage(split, modelUsage), { complete: false, unattributed: { opus: 433 - 333, sonnet: 0, haiku: 7 } })
+  assert.deepEqual(splitCoverage(split, { 'claude-opus-5-5': { input: 3, cacheRead: 300, cacheWrite: 30 }, 'claude-sonnet-5-5': { input: 10, cacheRead: 0, cacheWrite: 5 } }), { complete: true, unattributed: { opus: 0, sonnet: 0 } })
+})
+
+test('splitCoverage: no split (transcripts not found) is incomplete and everything is unattributed', () => {
+  const cov = splitCoverage(null, { 'claude-opus-5-5': { input: 1, cacheRead: 2, cacheWrite: 3 } })
+  assert.deepEqual(cov, { complete: false, unattributed: { opus: 6 } })
+})
+
+test('collectRoles: reads the session and subagent transcripts from the project folder, null when it is missing', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bench-split-'))
+  try {
+    const project = join(home, '.claude', 'projects', 'C--bench-runs-easy-team-r1')
+    const subs = join(project, 'sess1', 'subagents')
+    mkdirSync(subs, { recursive: true })
+    const jsonl = (...rows) => rows.map(r => JSON.stringify(r)).join('\n') + '\n'
+    writeFileSync(join(project, 'sess1.jsonl'), jsonl(say('m1', 'claude-opus-5-5', { input_tokens: 1 })))
+    writeFileSync(join(subs, 'agent-a.jsonl'), jsonl(say('b1', 'claude-opus-5-5', { input_tokens: 2 })))
+    writeFileSync(join(subs, 'agent-a.meta.json'), JSON.stringify({ agentType: 'section-team:backend', spawnDepth: 1 }))
+    writeFileSync(join(subs, 'agent-b.jsonl'), jsonl(say('c1', 'claude-sonnet-5-5', { input_tokens: 3 })) + 'not json\n')
+    const found = collectRoles('C:/bench-runs/easy-team-r1', 'sess1', home)
+    assert.deepEqual(agentModelSplit(found), { main: { opus: 1 }, 'section-team:backend': { opus: 2 }, unknown: { sonnet: 3 } })
+    assert.equal(collectRoles('C:/bench-runs/easy-team-r1', 'other-session', home), null)
+    assert.equal(collectRoles('C:/bench-runs/not-run', 'sess1', home), null)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('parseTranscript keeps its fields and carries the session id', () => {
+  const t = parseTranscript(JSON.stringify([{ type: 'result', total_cost_usd: 1, session_id: 'sess1' }]))
   assert.equal(t.costUSD, 1)
-  assert.deepEqual(t.split['section-team:backend'].sonnet, { input: 10, output: 5 })
+  assert.equal(t.sessionId, 'sess1')
 })

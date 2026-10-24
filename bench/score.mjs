@@ -3,6 +3,7 @@
 // Usage: node bench/score.mjs
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { shortModel } from '../hooks/board-model.mjs'
@@ -44,34 +45,58 @@ export function parseTranscript(raw) {
     agentSpawns: agents.length,
     agentTypes: count(agents.map(a => a.type)),
     agentModels: count(agents.map(a => a.model ?? 'inherit')),
-    split: agentModelSplit(arr),
+    sessionId: result.session_id ?? null,
     finalText: String(result.result ?? '').slice(-1500),
   }
 }
 
-// Tokens per agent and model: { <role>: { <short model>: { input, output } } }. A role is 'main', the subagent_type of the Agent/Task call the
-// message nests under (parent_tool_use_id), or 'unknown'. Input is fresh + cache read + cache write. The CLI repeats an assistant message once
-// per content block with identical usage, so each message id counts once.
-export function agentModelSplit(messages) {
-  const assistants = messages.filter(m => m.type === 'assistant' && m.message)
-  const roleOf = new Map()
-  for (const m of assistants) {
-    for (const part of Array.isArray(m.message.content) ? m.message.content : []) {
-      if (part.type === 'tool_use' && (part.name === 'Agent' || part.name === 'Task')) roleOf.set(part.id, part.input?.subagent_type ?? 'general-purpose')
-    }
-  }
+// Which model each agent used, as INPUT tokens (fresh + cache read + cache write): { <role>: { <short model>: n } }.
+// roles = [{ role, messages }]: the main session and each subagent transcript (see collectRoles). Output tokens are left out on purpose:
+// the per-message output_tokens in a transcript are the count when streaming began, about 6x below the real total, so output stays with modelUsage.
+// The CLI writes one assistant message per content block with identical usage, so each message id counts once, across all roles.
+export function agentModelSplit(roles) {
   const split = {}
   const seen = new Set()
-  for (const m of assistants) {
-    const { id, model, usage = {} } = m.message
-    if (!model || seen.has(id)) continue
-    if (id) seen.add(id)
-    const role = m.parent_tool_use_id ? roleOf.get(m.parent_tool_use_id) ?? 'unknown' : 'main'
-    const slot = ((split[role] ??= {})[shortModel(model)] ??= { input: 0, output: 0 })
-    slot.input += (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
-    slot.output += usage.output_tokens ?? 0
+  for (const { role, messages } of roles) {
+    for (const m of messages) {
+      const { id, model, usage = {} } = m?.type === 'assistant' ? m.message ?? {} : {}
+      if (!model || seen.has(id)) continue
+      if (id) seen.add(id)
+      const models = (split[role] ??= {})
+      const name = shortModel(model)
+      models[name] = (models[name] ?? 0) + (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
+    }
   }
   return split
+}
+
+// What the split misses: modelUsage input per short model minus the split's total for it. Negative means the split has more than the CLI billed.
+// `complete` needs the transcripts found (split not null) and every remainder 0. Without a split everything is unattributed.
+export function splitCoverage(split, modelUsage) {
+  const billed = {}
+  for (const [id, u] of Object.entries(modelUsage)) billed[shortModel(id)] = (billed[shortModel(id)] ?? 0) + u.input + u.cacheRead + u.cacheWrite
+  const seen = {}
+  for (const models of Object.values(split ?? {})) for (const [name, n] of Object.entries(models)) seen[name] = (seen[name] ?? 0) + n
+  const unattributed = Object.fromEntries([...new Set([...Object.keys(billed), ...Object.keys(seen)])].map(name => [name, (billed[name] ?? 0) - (seen[name] ?? 0)]))
+  return { complete: split !== null && Object.values(unattributed).every(n => n === 0), unattributed }
+}
+
+const readJsonl = path => readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
+const agentType = metaPath => { try { return JSON.parse(readFileSync(metaPath, 'utf8')).agentType ?? 'unknown' } catch { return 'unknown' } }
+
+// Reads a run's session transcript and every subagent transcript (background heads and their depth-2 helpers are only here, not in raw.json):
+// ~/.claude/projects/<run dir with every non-alphanumeric as '-'>/<session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType).
+// Returns [{ role, messages }] with the session as 'main', or null when the session file is missing.
+export function collectRoles(runDir, sessionId, home = homedir()) {
+  const project = join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+  const sessionFile = join(project, `${sessionId}.jsonl`)
+  if (!sessionId || !existsSync(sessionFile)) return null
+  const subagents = join(project, sessionId, 'subagents')
+  const files = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
+  return [
+    { role: 'main', messages: readJsonl(sessionFile) },
+    ...files.map(name => ({ role: agentType(join(subagents, name.replace(/\.jsonl$/, '.meta.json'))), messages: readJsonl(join(subagents, name)) })),
+  ]
 }
 
 function count(list) {
@@ -143,7 +168,9 @@ function main() {
     const hidden = hiddenTests(run.task, run.dir)
     writeFileSync(join(RESULTS, id, 'hidden.tap'), hidden.tap)
     const own = ownTests(run.dir)
-    const metrics = { ...run, transcript, hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own, code: codeStats(run.dir), team: teamStats(run.dir) }
+    const roles = collectRoles(run.dir, transcript.sessionId)
+    const split = roles && agentModelSplit(roles)
+    const metrics = { ...run, transcript, split, splitCoverage: splitCoverage(split, transcript.modelUsage), hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own, code: codeStats(run.dir), team: teamStats(run.dir) }
     writeFileSync(join(RESULTS, id, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
     rows.push(metrics)
     console.log(`${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(run.wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${run.timedOut}`)
@@ -151,7 +178,7 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(r => ({
     id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, wallMs: r.wallMs,
     costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
-    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.transcript.split,
+    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
     hidden: r.hidden, own: r.own, code: r.code, team: r.team,
   })), null, 2) + '\n')
 }
