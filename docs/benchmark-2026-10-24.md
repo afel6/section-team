@@ -175,6 +175,28 @@ The split comes from the subagent transcripts and reconciles exactly with `model
 - **Cost goal: missed, and not because of the gate.** The gate costs little. The extra cost is Opus section heads doing routine work (test runs, edits, writing files) instead of handing it to the Sonnet coder. v2's "delegate the bulk" wording was ignored the same way, so prompt wording alone does not move this.
 - **The lever that would move it is a model change, which is the user's decision:** section heads on Sonnet, with the Opus reviewer as the higher model that checks and grades. The design kept heads on Opus at the user's request, so no tuning rerun was made.
 
+## Round 4 — v4: builder heads on Sonnet, Opus reviewer kept (commit 653e99b)
+Setup: same tasks and setup as round 3, and team only. These were judged blind together with round 3's solo-v3 and team-v3 projects, using 2 new Opus judges per group.
+
+| Way | Cost $ | Minutes | Judge quality /10 | Code quality | Tests | Hard-task quality | 1st places | Last places | Opus share | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | **2.7** | 7.58 | 7.92 | 7.17 | 8.35 | 1 of 12 | 5 of 12 | 97% | **86.5** |
+| team-v3 (Opus heads) | 3.39 | 7.8 | **8.23** | **8.67** | **8.58** | **8.90** | **7 of 12** | **1 of 12** | 98% | 73.9 |
+| **team-v4 (Sonnet heads)** | 1.30 | 6.1 | 7.43 | 7.83 | 7.42 | 6.90 | 4 of 12 | 6 of 12 | 65% | 75.0 |
+
+Hidden tests and own tests passed 100% in all 6 new runs, with no timeouts. Team-v3's grade from these judges (8.23) matches its round-3 grade (8.33) within noise.
+
+### What the split shows
+- **Cost fell sharply.** Medium went from $3.69 to $1.30 and hard from $5.87 to $1.88. The sections' work moved to Sonnet; the remaining Opus spend is the supervisor and the reviewer.
+- **The quality gate was mostly skipped.**
+  - The reviewer ran in only 2 of 4 multi-section runs (medium-r2, hard-r1), once each (32–37k tokens).
+  - The Opus heads in round 3 ran it in every run, several times each (99k–294k).
+  - On the hard task, team-v4 ranked last in all 4 judgements.
+
+### Verdict after round 4
+- Sonnet heads keep the cost low, but they do not reliably follow the "always run the reviewer" rule. The clean-code gain from round 3 disappears with it.
+- The gate has to be **enforced by the plugin, not just asked for in the prompt**, or the heads go back to Opus.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
@@ -182,4 +204,4 @@ The split comes from the subagent transcripts and reconciles exactly with `model
 - **Fable was disabled** for safety, since `-p` would bill it without asking.
 - **Costs** are Claude Code's API-equivalent estimates. On a subscription they count against usage limits instead.
 
-Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2 and 3 have `-v2` / `-v3` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
+Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2–4 have `-v2` / `-v3` / `-v4` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
