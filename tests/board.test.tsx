@@ -23,8 +23,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('Running · login form')
     expect((await ui.find({ key: 'card-backend' }))?.text).toContain('Done · /api/login + JWT')
     expect((await ui.find({ key: 'card-devops' }))?.text).toContain('Problem')
-    expect((await ui.find({ key: 'card-mobile' }))?.text).toContain('Asleep')
-    expect((await ui.find({ key: 'card-ai-engineer' }))?.text).toContain('Asleep')
+    // Sections nobody woke fold into one line instead of a card each.
+    expect(await ui.find({ key: 'card-mobile' })).toBeUndefined()
+    expect(await ui.find({ key: 'card-ai-engineer' })).toBeUndefined()
+    expect((await ui.find({ key: 'asleep' }))?.text).toBe('9 asleep')
   })
 }
 
@@ -37,7 +39,7 @@ const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-p
 // Answers, beneath the plugin, everything the board's poll reaches for; `seen` records what it asked.
 function world(on: On) {
   const clock = mock.clock(on)
-  const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false, denyOpen: false, holdOpen: false,
+  const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false,
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown }
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
@@ -62,24 +64,23 @@ function world(on: On) {
   })
   on('ui.open', async (_$, e) => {
     seen.opened.push(e.id)
-    if (seen.holdOpen) await new Promise<never>(() => undefined)
-    return seen.denyOpen ? { deny: 'no pane today' } : { value: { isPlaced: true } }
+    return { value: { isPlaced: true } }
   })
   on('ui.log', async (_$, e) => { seen.logs.push({ text: e.text, to: e.to }); return { value: undefined } })
   return { clock, seen }
 }
 
-test('the poll turns agents, saved reports and the request into cards and the pane opens by itself', async ($, on) => {
+test('the poll turns agents, saved reports and the request into cards, and only /team opens the pane', async ($, on) => {
   const { clock, seen } = world(on)
 
   await $.session.start(START)
-  expect(seen.opened).toEqual(['team-board'])
+  expect(seen.opened).toEqual([])
   await $.prompt.submit({ text: '/team\nadd login\nmore detail' })
   await $.agent.spawn(OTHER)
   await $.agent.spawn(SECTION)
-  expect(seen.opened).toEqual(['team-board'])
+  expect(seen.opened).toEqual([])
   expect(await $.command.run({ command: 'team' })).toEqual({ text: 'Team Board opened.' })
-  expect(seen.opened).toEqual(['team-board', 'team-board'])
+  expect(seen.opened).toEqual(['team-board'])
 
   await clock.advance(1000)
   expect(seen.listed).toMatch(/^C:[\\/]proj[\\/]\.team[\\/]reports[\\/]\d{4}-\d{2}-\d{2}$/)
@@ -93,17 +94,18 @@ test('the poll turns agents, saved reports and the request into cards and the pa
 })
 
 // Intentionally replaces "a session that never uses the team never polls or runs git" (user decision 2026-10-12, spec §9.3).
-test('session.start alone opens the pane and starts the poll: waiting for /team or a section spawn is intentionally removed', async ($, on) => {
+test('session.start alone starts the poll but opens no pane: waiting for /team or a section spawn is intentionally removed', async ($, on) => {
   const { clock, seen } = world(on)
 
   await $.session.start(START)
-  expect(seen.opened).toEqual(['team-board'])
+  expect(seen.opened).toEqual([])
   expect(seen.agentList).toBe(0)
   expect(seen.runs).toEqual([])
 
   await clock.advance(1000)
   expect(seen.agentList).toBe(1)
   expect(seen.runs).toHaveLength(1)
+  expect(seen.opened).toEqual([])
 })
 
 test('two session.start events leave one poll: exactly one agent.list per tick', async ($, on) => {
@@ -115,26 +117,6 @@ test('two session.start events leave one poll: exactly one agent.list per tick',
   expect(seen.agentList).toBe(1)
   await clock.advance(1000)
   expect(seen.agentList).toBe(2)
-})
-
-test('a refused pane open never fails session.start and the poll still ticks', async ($, on) => {
-  const { clock, seen } = world(on)
-  seen.denyOpen = true
-
-  await $.session.start(START)
-  await clock.advance(1000)
-  expect(seen.opened).toEqual(['team-board'])
-  expect(seen.agentList).toBe(1)
-})
-
-test('session.start does not wait for the pane open', async ($, on) => {
-  const { clock, seen } = world(on)
-  seen.holdOpen = true
-
-  const outcome = await Promise.race([$.session.start(START).then(() => 'returned'), new Promise(resolve => setTimeout(() => resolve('waited'), 300))])
-  expect(outcome).toBe('returned')
-  await clock.advance(1000)
-  expect(seen.agentList).toBe(1)
 })
 
 test('the git root is looked up on the first refresh, not at session.start or /team, with a 5 s limit', async ($, on) => {
@@ -169,34 +151,77 @@ test('a section spawn and /team after session.start do not add a second poll', a
   expect(seen.runs).toHaveLength(1)
 })
 
-test('a denied or allowed section spawn after session.start opens nothing more and adds no second poll', async ($, on) => {
+test('a denied or allowed section spawn after session.start opens nothing and adds no second poll', async ($, on) => {
   const { clock, seen } = world(on)
 
   await $.session.start(START)
   seen.denySpawn = true
   expect(await $.agent.spawn(SECTION)).toEqual({ deny: 'guard says no' })
   await clock.advance(3000)
-  expect(seen.opened).toEqual(['team-board'])
+  expect(seen.opened).toEqual([])
   expect(seen.agentList).toBe(3)
 
   seen.denySpawn = false
   await $.agent.spawn(SECTION)
-  expect(seen.opened).toEqual(['team-board'])
+  expect(seen.opened).toEqual([])
   await clock.advance(1000)
   expect(seen.agentList).toBe(4)
 })
 
-test('session.start opens the pane once, spawns do not open it again, /team always opens it', async ($, on) => {
+test('neither session.start nor section spawns open the pane, /team always does', async ($, on) => {
   const { seen } = world(on)
 
   await $.session.start(START)
-  expect(seen.opened).toEqual(['team-board'])
   await $.agent.spawn(SECTION)
   await $.agent.spawn({ ...SECTION, subagentType: 'section-team:backend' })
+  expect(seen.opened).toEqual([])
+  await $.command.run({ command: 'team' })
+  await $.command.run({ command: 'team' })
+  expect(seen.opened).toEqual(['team-board', 'team-board'])
+})
+
+const BAND = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 9 }, view: {} }
+const mountStrip = ($: { ui: { mount: (t: never) => Promise<{ find: (q: { key: string }) => Promise<{ text: string } | undefined>; press: (t: { key: string }) => Promise<unknown> }> } }, props: object = BAND) =>
+  $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'AbovePrompt', props } as never)
+
+test('the strip sits above the prompt: idle before anyone wakes, then the sections that are awake', async ($, on) => {
+  const { clock } = world(on)
+
+  await $.session.start(START)
+  expect((await (await mountStrip($ as never)).find({ key: 'strip' }))?.text).toContain('Team · idle')
+
+  await clock.advance(1000)
+  const text = (await (await mountStrip($ as never)).find({ key: 'strip' }))?.text
+  expect(text).toContain('Team · ● frontend running · ● backend done · 10 asleep')
+})
+
+test('the strip button opens the board, and a survey on the band leaves the band to the engine', async ($, on) => {
+  const { clock, seen } = world(on)
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  const ui = await mountStrip($ as never)
+  expect(seen.opened).toEqual([])
+  await ui.press({ key: 'open-board' })
   expect(seen.opened).toEqual(['team-board'])
-  await $.command.run({ command: 'team' })
-  await $.command.run({ command: 'team' })
-  expect(seen.opened).toEqual(['team-board', 'team-board', 'team-board'])
+
+  const survey = await mountStrip($ as never, { ...BAND, hasSurvey: true })
+  expect(await survey.find({ key: 'strip' })).toBeUndefined()
+})
+
+test('the board pane draws the sections that are awake and folds the rest into one asleep line', async ($, on) => {
+  const { clock } = world(on)
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  const ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('Running · login form')
+  expect(await ui.find({ key: 'card-mobile' })).toBeUndefined()
+  expect((await ui.find({ key: 'asleep' }))?.text).toMatch(/\d+ asleep/)
 })
 
 test('a second session.start leaves one poll, and a cleared session keeps polling', async ($, on) => {

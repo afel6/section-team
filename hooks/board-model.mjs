@@ -95,6 +95,19 @@ export function boardModel({ agents = [], reports = {}, request = '', lastSummar
   return { request, lastSummary, cards, counts: { active: count('running', 'waiting'), done: count('done'), problem: count('problem') }, teamLine }
 }
 
+const STRIP_MAX = 4
+
+// The one line above the prompt: who is awake, then the team's tokens and helpers (the board's own teamLine, said shorter), then how many sleep.
+export function stripLine(data) {
+  const awake = data.cards.filter(c => c.state !== 'asleep')
+  if (awake.length === 0 && data.teamLine === '') return 'Team · idle'
+  const parts = awake.slice(0, STRIP_MAX).map(c => `● ${c.id} ${c.state}`)
+  if (awake.length > STRIP_MAX) parts.push(`+${awake.length - STRIP_MAX} more`)
+  if (data.teamLine !== '') parts.push(data.teamLine.replace(/^team tokens (\S+) · /, '$1 tokens · '))
+  parts.push(`${data.cards.length - awake.length} asleep`)
+  return ['Team', ...parts].join(' · ')
+}
+
 export function emptyBoard() {
   return boardModel()
 }

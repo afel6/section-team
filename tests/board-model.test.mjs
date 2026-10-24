@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardModel, cardLine, cardState, latestReportFiles, emptyBoard, formatTokens, shortModel, sectionUsage } from '../hooks/board-model.mjs'
+import { boardModel, cardLine, cardState, latestReportFiles, emptyBoard, formatTokens, shortModel, sectionUsage, stripLine } from '../hooks/board-model.mjs'
 
 test('agent status and report status map to card states', () => {
   assert.equal(cardState(undefined, undefined), 'asleep')
@@ -197,4 +197,35 @@ test('a done card shows the reviewer grade when the report has one', () => {
   assert.equal(cardLine('done', undefined, { job: 'api', quality: 9 }), 'Done · api · 9/10')
   assert.equal(cardLine('done', undefined, { job: 'api', quality: null }), 'Done · api')
   assert.equal(cardLine('done', undefined, { job: 'api' }), 'Done · api')
+})
+
+test('stripLine: nobody awake and no usage reads idle', () => {
+  assert.equal(stripLine(emptyBoard()), 'Team · idle')
+})
+
+test('stripLine: awake sections as dots, then tokens and helpers, then the asleep count', () => {
+  const data = boardModel({
+    agents: [
+      { id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' },
+      { id: '2', type: 'section-team:testing', status: 'waiting', description: 'review' },
+    ],
+    usage: { frontend: { total: 48000, out: 900, helpers: 3, models: [['haiku', 3]] } },
+  })
+  const line = stripLine(data)
+  assert.ok(line.startsWith('Team · ● frontend running · ● testing waiting'), line)
+  assert.ok(line.endsWith('10 asleep'), line)
+  assert.equal(line, 'Team · ● frontend running · ● testing waiting · 48k tokens · 3 helpers · 10 asleep')
+})
+
+test('stripLine: shows 4 awake sections and folds the rest into +N more', () => {
+  const agents = ['frontend', 'backend', 'database', 'testing', 'security', 'devops'].map((id, i) => ({ id: String(i), type: `section-team:${id}`, status: 'running', description: 'x' }))
+  const line = stripLine(boardModel({ agents }))
+  assert.ok(line.includes('+2 more'), line)
+  assert.equal(line, 'Team · ● frontend running · ● backend running · ● database running · ● testing running · +2 more · 6 asleep')
+  assert.equal(stripLine(boardModel({ agents: agents.slice(0, 4) })).includes('more'), false)
+})
+
+test('stripLine: usage with nobody awake still shows tokens and helpers, with no empty slot', () => {
+  const line = stripLine(boardModel({ usage: { frontend: { total: 5, out: 1, helpers: 1, models: [['haiku', 1]] } } }))
+  assert.equal(line, 'Team · 5 tokens · 1 helper · 12 asleep')
 })

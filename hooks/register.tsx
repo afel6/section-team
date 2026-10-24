@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData } from '../types'
-import { boardModel, emptyBoard, latestReportFiles, sectionUsage } from './board-model.mjs'
+import { boardModel, emptyBoard, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -26,7 +26,7 @@ type Spawn = { parentAgentId?: string; subagentType: string; model: string }
 type Used = { total: number; out: number }
 // spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
 type Ctx = {
-  root: string; request: string; lastJson: string; lastError: string; hasOpened: boolean; stop?: Timer
+  root: string; request: string; lastJson: string; lastError: string; stop?: Timer
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
 }
 
@@ -118,16 +118,13 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', hasOpened: false, cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
     ctx.root = ''
     resetCounts(ctx)
     startPoll($, ctx)
-    // The board opens by itself with the session. Not awaited, so the start never waits on the open; a refused or failed open is dropped.
-    ctx.hasOpened = true
-    void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
     return next(e)
   })
 
@@ -151,11 +148,6 @@ export const register: Register = on => {
     recordSpawn(ctx, e, result)
     if (typeof e.subagentType !== 'string' || !e.subagentType.startsWith(PREFIX) || result.deny) return result
     startPoll($, ctx)
-    // Only if session.start did not already open it; a person who closed the pane is not fought, /team opens it again.
-    if (!ctx.hasOpened) {
-      ctx.hasOpened = true
-      void $.ui.open({ id: PANE, title: TITLE })
-    }
     return result
   })
 
@@ -172,6 +164,19 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The strip: one line above the prompt, drawn from the same stored board as the pane. A survey holds the band, so the strip yields to it.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const data = await read($, board)
+    return (
+      <Box key="strip" gap={1}>
+        <Text wrap="truncate-end">{stripLine(data)}</Text>
+        <Button key="open-board" label="Board" onPress={() => $.ui.open({ id: PANE, title: TITLE })} />
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const data = await read($, board)
@@ -186,6 +191,18 @@ export const register: Register = on => {
       </Box>
     )
     const counts = `${data.counts.active} active · ${data.counts.done} done · ${data.counts.problem} problem`
+    // Sections nobody woke are one line, not a card each; a heading is drawn only when it has a card under it.
+    const awake = data.cards.filter(c => c.state !== 'asleep')
+    const asleep = data.cards.length - awake.length
+    const group = (title: string, kind: BoardCard['kind']) => {
+      const cards = awake.filter(c => c.kind === kind)
+      return cards.length === 0 ? null : (
+        <Box key={`group-${kind}`} flexDirection="column" gap={1}>
+          <Text dimColor>{title}</Text>
+          <Box flexDirection="row" flexWrap="wrap" columnGap={1}>{cards.map(card)}</Box>
+        </Box>
+      )
+    }
     return (
       <Box flexDirection="column" gap={1}>
         <Box key="supervisor" flexDirection="column" paddingX={1} borderStyle="double" borderColor="claude">
@@ -194,10 +211,9 @@ export const register: Register = on => {
           <Text dimColor>{data.lastSummary === '' ? counts : `${counts} · last summary ${data.lastSummary}`}</Text>
           {data.teamLine ? <Text dimColor>{data.teamLine}</Text> : null}
         </Box>
-        <Text dimColor>Sections</Text>
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1}>{data.cards.filter(c => c.kind === 'builder').map(card)}</Box>
-        <Text dimColor>Advisors</Text>
-        <Box flexDirection="row" flexWrap="wrap" columnGap={1}>{data.cards.filter(c => c.kind === 'advisor').map(card)}</Box>
+        {group('Sections', 'builder')}
+        {group('Advisors', 'advisor')}
+        <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>
         <Box key="legend" flexDirection="row" gap={2}>
           <Text color={COLOR.running}>● running</Text>
           <Text color={COLOR.waiting}>● waiting</Text>
