@@ -42,9 +42,10 @@ export function changesCode(changed) {
   return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
 }
 
-// A parsed REPORT that changed code but carries no reviewer grade must go through the gate first. A blocked section may stop.
+// A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
+// partial and blocked are the honest ways out, so a section can never be stuck.
 export function needsGate(report) {
-  return report.status !== 'blocked' && report.quality === null && changesCode(report.changed)
+  return !['blocked', 'partial'].includes(report.status) && report.quality === null && changesCode(report.changed)
 }
 
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.

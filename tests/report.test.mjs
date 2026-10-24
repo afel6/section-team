@@ -128,6 +128,7 @@ test('needsGate: changed code without a reviewer grade, unless the section is bl
   assert.equal(needsGate(report('src/api.mjs', 'n/a (no code)')), true)
   assert.equal(needsGate(report('src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')), false)
   assert.equal(needsGate(report('src/api.mjs', '6/10 (reviewer, 2 fix rounds)', 'partial')), false)
+  assert.equal(needsGate(report('src/api.mjs', 'not graded: reviewer unavailable', 'partial')), false)
   assert.equal(needsGate(report('src/api.mjs', undefined, 'blocked')), false)
   assert.equal(needsGate(report('none')), false)
   assert.equal(needsGate(report('README.md')), false)

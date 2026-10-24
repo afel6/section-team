@@ -48,7 +48,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## Rules that win inside section-team
 - For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers. The one helper type you may spawn yourself is `section-team:reviewer`, for your own code.
-- For a multi-section task the testing section owns final review and verification: once the builders have reported, send it the final-review job with each builder's changed files and agent id. Tell the other sections to skip a separate full review pass; their own reviewer gate still applies.
+- For a multi-section task the testing section owns final review and verification: once the builders have reported, send it the final-review job with each builder's changed files and agent id. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back (the plugin refuses an ungraded code REPORT). Never tell a section to skip its gate.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## New skills

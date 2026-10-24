@@ -83,3 +83,21 @@ test('memory folder must be exactly <id> or section-team-<id>', () => {
   assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory', 'xai-engineer', 'x.md') }), HOME), /memory folder/)
   assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(HOME, '.claude', 'agent-memory') + '/ai-engineer/../backend/x.md' }), HOME), /memory folder/)
 })
+
+const handback = (agent_type, report) => ev(agent_type, 'SubagentHandback', { message: `work notes\n${report}` })
+const REPORT_WITH = (status, changed, quality) => `## REPORT · backend · 2026-10-25 10:00\nStatus: ${status}\nJob: api\nChanged: ${changed}\n${quality ? `Quality: ${quality}\n` : ''}`
+
+test('a builder cannot hand back changed code without a reviewer grade', () => {
+  assert.match(decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', 'n/a (no code)')), HOME), /section-team:reviewer/)
+  assert.match(decide(handback('section-team:testing', REPORT_WITH('done', 'test/api.test.mjs', null)), HOME), /foreground/)
+})
+
+test('the handback gate lets graded, partial, blocked, docs-only, advisor and report-less handbacks through', () => {
+  assert.equal(decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')), HOME), null)
+  assert.equal(decide(handback('section-team:backend', REPORT_WITH('partial', 'src/api.mjs', 'not graded: reviewer unavailable')), HOME), null)
+  assert.equal(decide(handback('section-team:backend', REPORT_WITH('blocked', 'src/api.mjs', null)), HOME), null)
+  assert.equal(decide(handback('section-team:docs', REPORT_WITH('done', 'README.md', 'n/a (no code)')), HOME), null)
+  assert.equal(decide(handback('section-team:ai-engineer', REPORT_WITH('done', 'src/api.mjs', null)), HOME), null)
+  assert.equal(decide(ev('section-team:backend', 'SubagentHandback', { message: 'no report here' }), HOME), null)
+  assert.equal(decide(ev(undefined, 'SubagentHandback', { message: REPORT_WITH('done', 'src/api.mjs', null) }), HOME), null)
+})

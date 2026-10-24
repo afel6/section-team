@@ -72,7 +72,8 @@ test('testing owns the final review; other builders keep the separate-review lin
   assert.ok(testing.includes('you own the final review'), 'testing.md does not own the final review')
   assert.ok(!testing.includes('skip a separate full review pass'), 'testing.md still tells testing to skip its review')
   const frontend = readFileSync(new URL('frontend.md', AGENTS), 'utf8')
-  assert.ok(frontend.includes('skip a separate full review pass'), 'frontend.md lost the separate-review line')
+  assert.ok(frontend.includes("do not review other sections' work; you still run your own reviewer gate before you finish"), 'frontend.md lost the review-split line')
+  assert.ok(!frontend.includes('skip a separate full review pass'), 'frontend.md still has the ambiguous skip line')
 })
 
 const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')

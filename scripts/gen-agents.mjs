@@ -150,7 +150,7 @@ const ADVISOR_COORDINATION = `${RELAY} Record every agreement in your REPORT's C
 function finalStep(s, isAdvisor) {
   if (isAdvisor) return `You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (${ADVISOR_HELPERS.join(', ')}). Your REPORT's Quality line is always \`n/a (no code)\`.`
   if (s.id === 'testing') return "Follow the project's rules. For multi-section tasks you own the final review and verification when the job assigns it: run the reviewer over every section's changed files (Agent `section-team:reviewer`), run the full test suite, and report what you found. The section that wrote a file owns it: if the final pass fails, send each owning section its part of the fix list (by agent id, else through the supervisor), let the owner fix it with its own coders, and grade again, at most 2 fix rounds. If it still fails, finish with `Status: partial` and the grade."
-  return "Follow the project's rules. When the job says the testing section owns review, skip a separate full review pass of your own; your own quality gate above still applies."
+  return "Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work; you still run your own reviewer gate before you finish."
 }
 
 const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
