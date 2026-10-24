@@ -25,7 +25,7 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
     assert.equal(fm.memory, 'user')
     assert.ok(COLORS.includes(fm.color), `${file} colour ${fm.color}`)
     assert.ok(text.includes('## REPORT · '), `${file} has no REPORT template`)
-    assert.ok(text.includes('ALWAYS pass `model`'), `${file} has no model routing`)
+    assert.ok(text.includes('pass `model` explicitly'), `${file} has no model routing`)
   }
 })
 
@@ -45,11 +45,13 @@ test('advisors cannot use shell tools; builders have no tools allowlist', () => 
 test('committed files match the generator', () => {
   const result = spawnSync(process.execPath, [GEN, '--check'], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  for (const [file, text] of Object.entries(renderAll())) assert.equal(readFileSync(new URL(file, AGENTS), 'utf8'), text)
+  const all = renderAll()
+  for (const file of ['scout.md', 'coder.md']) assert.ok(file in all, `${file} is not generated`)
+  for (const [file, text] of Object.entries(all)) assert.equal(readFileSync(new URL(file, AGENTS), 'utf8'), text)
 })
 
 test('advisor helpers are the read-only types, and no advisor file names Explore or Plan', () => {
-  assert.deepEqual(ADVISOR_HELPERS, ['architect', 'planner', 'code-explorer'])
+  assert.deepEqual(ADVISOR_HELPERS, ['section-team:scout', 'architect', 'planner', 'code-explorer'])
   for (const s of ROSTER.filter(r => r.kind === 'advisor')) {
     for (const helper of s.helpers) assert.ok(ADVISOR_HELPERS.includes(helper), `${s.id} helper ${helper} is not read-only`)
     const file = readFileSync(new URL(`${s.id}.md`, AGENTS), 'utf8')
@@ -70,4 +72,54 @@ test('testing owns the final review; other builders keep the separate-review lin
   assert.ok(!testing.includes('skip a separate full review pass'), 'testing.md still tells testing to skip its review')
   const frontend = readFileSync(new URL('frontend.md', AGENTS), 'utf8')
   assert.ok(frontend.includes('skip a separate full review pass'), 'frontend.md lost the separate-review line')
+})
+
+const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
+
+test('every section head skips the global CLAUDE.md, carries the house rules and knows the scout; builders also know the coder', () => {
+  for (const s of ROSTER) {
+    const text = agentFile(s.id)
+    assert.equal(front(text).omitClaudeMd, 'true', `${s.id} omitClaudeMd`)
+    assert.ok(text.includes('Project rules: if the project root has CLAUDE.md or AGENTS.md, read it first and follow it.'), `${s.id} project rules`)
+    assert.ok(text.includes("House rules (the user's standards):"), `${s.id} house rules`)
+    assert.ok(text.includes('section-team:scout'), `${s.id} scout`)
+    if (s.kind === 'builder') assert.ok(text.includes('section-team:coder'), `${s.id} coder`)
+    else assert.ok(!text.includes('section-team:coder'), `${s.id} must not get the coder`)
+  }
+})
+
+test('builders get the firm helper rule: delegate the bulk, use at least one helper on bigger jobs', () => {
+  const text = agentFile('backend')
+  assert.ok(text.includes('you run on Opus, the most expensive model, so delegate the bulk'))
+  assert.ok(text.includes('If your job touches more than 2 files or needs tests, use at least one helper.'))
+  assert.ok(text.includes('Review its diff before accepting it.'))
+})
+
+test('scout is a cheap read-only helper, not a section', () => {
+  const text = agentFile('scout')
+  const fm = front(text)
+  assert.equal(fm.name, 'scout')
+  assert.equal(fm.model, 'haiku')
+  assert.equal(fm.color, 'cyan')
+  assert.equal(fm.omitClaudeMd, 'true')
+  assert.equal(fm.tools, 'Read, Grep, Glob')
+  assert.equal(fm.memory, undefined)
+  assert.equal(fm.skills, undefined)
+  assert.ok(!ROSTER.some(s => s.id === 'scout'))
+  for (const banned of ['Agent', 'Write', 'Edit', 'Bash', 'PowerShell']) assert.ok(!fm.tools.includes(banned), `scout has ${banned}`)
+})
+
+test('coder is a Sonnet routine-coding helper that cannot spawn agents', () => {
+  const text = agentFile('coder')
+  const fm = front(text)
+  assert.equal(fm.name, 'coder')
+  assert.equal(fm.model, 'sonnet')
+  assert.equal(fm.color, 'green')
+  assert.equal(fm.omitClaudeMd, 'true')
+  assert.equal(fm.memory, undefined)
+  assert.equal(fm.skills, undefined)
+  assert.ok(!ROSTER.some(s => s.id === 'coder'))
+  for (const tool of ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']) assert.ok(fm.tools.split(', ').includes(tool), `coder lacks ${tool}`)
+  assert.ok(!fm.tools.split(', ').includes('Agent'), 'coder has Agent')
+  assert.ok(text.includes('House rules'))
 })

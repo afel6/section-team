@@ -14,6 +14,7 @@ A personal Claude Code plugin: every session is a **supervisor** that wakes spec
 
 ## Sections
 Builders: frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile. Advisors (read-only): ai-engineer, data-scientist.
+Section heads skip your global `CLAUDE.md` (it costs about 14k tokens per agent) but read the project's own `CLAUDE.md` / `AGENTS.md`, and carry a short copy of the house rules. They delegate the bulk of their work to two cheap helpers (not sections, not on the board as cards): `section-team:scout` (Haiku, read-only: reads and searches, returns file:line facts) and `section-team:coder` (Sonnet, routine code and tests from the head's spec). Advisors may use the scout only.
 Edit the roster in `scripts/gen-agents.mjs`, then run `node scripts/gen-agents.mjs`.
 
 ## Develop

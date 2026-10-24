@@ -28,6 +28,11 @@ test('section id comes only from section-team: prefixed types', () => {
   assert.equal(SECTION_IDS.length, 12)
 })
 
+test('the scout and coder helpers are not sections', () => {
+  assert.equal(sectionIdFromType('section-team:scout'), null)
+  assert.equal(sectionIdFromType('section-team:coder'), null)
+})
+
 test('extracts the block from the heading to the end', () => {
   const block = extractReport(CLEAN)
   assert.ok(block.startsWith('## REPORT · backend'))

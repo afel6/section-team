@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { assignSkill, removeSkill, validateExtra, SKILL_NAME } from '../scripts/assign-skill.mjs'
-import { ROSTER, render, writeAgents } from '../scripts/gen-agents.mjs'
+import { HELPER_AGENTS, ROSTER, render, writeAgents } from '../scripts/gen-agents.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const frontend = ROSTER.find(s => s.id === 'frontend')
@@ -138,7 +138,7 @@ describe('generator with extras', () => {
     const target = pathToFileURL(dir + '/')
     try {
       const extra = { frontend: ['my-skill'] }
-      assert.equal(writeAgents({ dir: target, extra }).length, ROSTER.length)
+      assert.equal(writeAgents({ dir: target, extra }).length, ROSTER.length + HELPER_AGENTS.length)
       assert.deepEqual(writeAgents({ dir: target, extra, check: true }), [])
       assert.deepEqual(writeAgents({ dir: target, extra: {}, check: true }), ['frontend.md'])
       assert.match(readFileSync(join(dir, 'frontend.md'), 'utf8'), /my-skill/)

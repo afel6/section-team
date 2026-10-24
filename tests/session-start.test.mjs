@@ -24,6 +24,13 @@ test('brief starts with the marker and fits the limit', () => {
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
+test('brief sets the small-task threshold and sends bigger tasks to builders plus testing', () => {
+  const brief = readFileSync(BRIEF, 'utf8')
+  assert.ok(brief.includes('about 150 lines'))
+  assert.ok(brief.includes('plus the testing section'))
+  assert.ok(!brief.includes('touches at most 1 file'))
+})
+
 test('context names the latest summary and excludes .team/', () => {
   const dir = repo()
   const summary = writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
