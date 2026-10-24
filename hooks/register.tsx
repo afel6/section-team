@@ -29,7 +29,7 @@ type Used = { total: number; out: number }
 // spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
 type Ctx = {
   root: string; request: string; lastJson: string; lastError: string; stop?: Timer
-  board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; lastStatus: string; lastWrite: number
+  board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
 }
 
@@ -103,16 +103,21 @@ async function refresh($: EngineInterface, ctx: Ctx) {
 }
 
 // The status file the /chats dashboard reads, one per session id under the home folder. It is written when anything but updatedAt changes,
-// and every HEARTBEAT_MS besides, so a session that died goes stale. Without a home there is nowhere to write: skipped, silently.
+// and every HEARTBEAT_MS while working, so a session that died goes stale. A session waiting for you is not rewritten: its updatedAt freezes
+// and the dashboard turns it idle after IDLE_MS. Without a home there is nowhere to write: skipped, silently.
 async function writeStatus($: EngineInterface, ctx: Ctx, ended?: { sessionId: string }) {
   const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
   if (!home) return
   const now = await $.clock.now()
   ctx.startedAt ??= now
   const sessionId = ended?.sessionId ?? (await $.session.id())
+  // Seeing another id means the chat has moved on; seeing the ended one again (a /resume back to it) writes it afresh.
+  if (!ended && sessionId !== ctx.endedId) ctx.endedId = undefined
   const record = statusRecord({ sessionId, cwd: await $.session.cwd(), request: ctx.request, board: ctx.board, turnActive: ctx.turnActive, startedAt: ctx.startedAt, now, ended: ended !== undefined })
   const key = JSON.stringify({ ...record, updatedAt: 0 })
-  if (key === ctx.lastStatus && (record.state === 'idle' || now - ctx.lastWrite < HEARTBEAT_MS)) return
+  if (key === ctx.lastStatus && (record.state !== 'working' || now - ctx.lastWrite < HEARTBEAT_MS)) return
+  // A tick that still answers the old id after the session ended (in flight, or before the id switches) must not un-end its file.
+  if (!ended && sessionId === ctx.endedId) return
   await $.fs.write(`${statusDir(home)}/${sessionId}.json`, JSON.stringify(record))
   ctx.lastStatus = key
   ctx.lastWrite = now
@@ -158,6 +163,7 @@ export const register: Register = on => {
   // The ended file is written first, while it still holds the request and the board of the session that is ending.
   // /clear ends the session and no session.start follows: its counts and its request start again, and the poll keeps running.
   on('session.end', async ($, e, next) => {
+    ctx.endedId = e.sessionId // before the first await: writeStatus must see it from here on
     await writeStatus($, ctx, { sessionId: e.sessionId }).catch(error => logFailure($, ctx, 'status write', error))
     if (e.reason === 'clear') {
       resetCounts(ctx)

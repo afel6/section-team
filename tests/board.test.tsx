@@ -473,12 +473,12 @@ test('a busy section keeps the session working even with no turn running', async
   expect(statusOf(seen, 's1')[0].sections).toEqual([{ id: 'frontend', state: 'running' }, { id: 'backend', state: 'done' }])
 })
 
-test('nothing is rewritten while the status is unchanged, then a heartbeat after 60 s', async ($, on) => {
+test('a working session is not rewritten while its status is unchanged, then a heartbeat after 60 s', async ($, on) => {
   const { clock, seen } = world(on)
-  seen.agents = IDLE_TEAM
 
   await $.session.start(START)
   await clock.advance(1000)
+  expect(statusOf(seen, 's1')[0].state).toBe('working')
   expect(seen.writes).toHaveLength(1)
   await clock.advance(59000)
   expect(seen.writes).toHaveLength(1)
@@ -486,6 +486,19 @@ test('nothing is rewritten while the status is unchanged, then a heartbeat after
   expect(seen.writes).toHaveLength(2)
   expect(statusOf(seen, 's1')[1].updatedAt).toBe(61000)
   expect(statusOf(seen, 's1')[1].startedAt).toBe(1000)
+})
+
+test('a session waiting for you is written once and never heartbeats, so its updatedAt freezes and the dashboard can age it to idle', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+  expect(statusOf(seen, 's1')[0].state).toBe('needs-you')
+  await clock.advance(120000)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+  expect(statusOf(seen, 's1')[0].updatedAt).toBe(1000)
 })
 
 test('a /clear marks the old file ended, and the next write uses the new session id', async ($, on) => {
@@ -506,6 +519,38 @@ test('a /clear marks the old file ended, and the next write uses the new session
   expect(statusOf(seen, 's1')).toHaveLength(2)
   expect(statusOf(seen, 's2')).toHaveLength(1)
   expect(statusOf(seen, 's2')[0]).toMatchObject({ sessionId: 's2', ended: false, request: '', startedAt: 2000 })
+})
+
+test('a tick that still answers the old session id after the session ended does not un-end its file', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  expect(statusOf(seen, 's1')).toHaveLength(2)
+
+  // The id has not switched yet: ticks go on asking for 's1', through a whole heartbeat and beyond.
+  await clock.advance(70000)
+  expect(statusOf(seen, 's1')).toHaveLength(2)
+  expect(statusOf(seen, 's1')[1].ended).toBe(true)
+})
+
+test('an ended session id is written again once the chat comes back to it', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  seen.sessionId = 's2'
+  await clock.advance(1000)
+  expect(statusOf(seen, 's2')).toHaveLength(1)
+
+  seen.sessionId = 's1'
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(3)
+  expect(statusOf(seen, 's1')[2].ended).toBe(false)
 })
 
 test('any other session end marks the file ended too', async ($, on) => {
