@@ -4,7 +4,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { RESULTS } from './run.mjs'
+import { CONDITIONS, RESULTS } from './run.mjs'
 
 export const JUDGE = 'C:/Users/Asus/bench-judge'
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
@@ -13,12 +13,14 @@ const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite
 function main() {
   rmSync(JUDGE, { recursive: true, force: true })
   const key = {}
-  for (const task of ['easy', 'medium', 'hard']) {
+  const LABELS = ['X', 'Y', 'Z']
+  for (const [t, task] of ['easy', 'medium', 'hard'].entries()) {
     for (const rep of [1, 2]) {
       const pair = `${task}-r${rep}`
-      const order = rep === 1 ? ['team', 'solo'] : ['solo', 'team']
-      key[pair] = { X: order[0], Y: order[1] }
-      for (const [label, cond] of [['X', order[0]], ['Y', order[1]]]) {
+      const shift = (t + rep) % CONDITIONS.length
+      const order = [...CONDITIONS.slice(shift), ...CONDITIONS.slice(0, shift)]
+      key[pair] = Object.fromEntries(order.map((cond, i) => [LABELS[i], cond]))
+      for (const [label, cond] of Object.entries(key[pair])) {
         const runPath = join(RESULTS, `${task}-${cond}-r${rep}`, 'run.json')
         if (!existsSync(runPath)) continue
         const { dir } = JSON.parse(readFileSync(runPath, 'utf8'))

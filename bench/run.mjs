@@ -14,12 +14,18 @@ const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100 }
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
 const PLUGIN_OFF = JSON.stringify({ enabledPlugins: { 'section-team@inline': false } })
+const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the building to the sections; do not build it yourself.\n'
+// team   = plugin on, supervisor decides whether to delegate
+// solo   = plugin off (the old way)
+// forced = plugin on, prompt asks the supervisor to delegate to sections
+export const CONDITIONS = ['team', 'solo', 'forced']
 
 export function plan() {
   const out = []
   for (const rep of [1, 2]) {
     for (const task of ['easy', 'medium', 'hard']) {
-      for (const cond of rep === 1 ? ['team', 'solo'] : ['solo', 'team']) out.push({ id: `${task}-${cond}-r${rep}`, task, cond, rep })
+      const order = rep === 1 ? ['team', 'solo', 'forced'] : ['forced', 'solo', 'team']
+      for (const cond of order) out.push({ id: `${task}-${cond}-r${rep}`, task, cond, rep })
     }
   }
   return out
@@ -37,12 +43,12 @@ function freshRepo(dir) {
 }
 
 function runClaude(run, dir, outDir) {
-  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8')
+  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (run.cond === 'forced' ? FORCED_SUFFIX : '')
   const args = ['-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED]
   if (run.cond === 'solo') args.push('--settings', PLUGIN_OFF)
   return new Promise(resolve => {
     const started = Date.now()
-    const child = spawn('claude', args, { cwd: dir, windowsHide: true })
+    const child = spawn('claude', args, { cwd: dir, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     const out = createWriteStream(join(outDir, 'raw.json'))
     const err = createWriteStream(join(outDir, 'stderr.txt'))
     child.stdout.pipe(out)
