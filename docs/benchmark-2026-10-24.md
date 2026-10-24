@@ -73,6 +73,65 @@ The gains are mostly in **tests (+1.2)**, **robustness (+1.0)** and **docs (+1.1
 2. **Make the delegation rule firmer.** The supervisor skipped sections on the hard task, so team mode behaves like solo plus overhead.
 3. **Trim the about 80k-token global setup** (CLAUDE.md and the always-on plugins). Every section reloads it, so this cuts the team's cost most.
 
+## Round 2 — after the efficiency fixes (commit 99e9d42 + ddb7dcd)
+The fixes were:
+- cheap `scout` (Haiku) and `coder` (Sonnet) helpers;
+- section heads skip the global CLAUDE.md;
+- the supervisor must delegate anything over about 150 lines.
+
+Setup: the same 3 tasks, 2 runs each, of **team-v2** and **forced-v2**, and the same anonymizing. The solo projects from round 1 were reused as the anchor (the plugin is off in solo, so the fixes cannot change it). There were 2 new blind Opus judges per group with the same rubric.
+
+| Way | Cost $ | Minutes | Sections woken | Judge quality /10 | Over solo, same round | 1st places | Last places | Grade /100 |
+|---|---|---|---|---|---|---|---|---|
+| solo (same projects) | **0.85** | **1.9** | 0 | 6.89 | — | 1 of 12 | 10 of 12 | **88.1** |
+| team v1 (round 1) | 1.22 | 2.4 | 0.5 | 7.72 | +0.56 | 4 of 12 | 3 of 12 | 85.9 |
+| **team-v2** | 2.47 (×2.9) | 4.3 | 2.5 | 7.85 | **+0.96** | 3 of 12 | 2 of 12 | 79.2 |
+| forced v1 (round 1) | 2.36 | 4.7 | 2.7 | 8.03 | +0.87 | 8 of 12 | 2 of 12 | 75.7 |
+| **forced-v2** | 2.58 (×3.0) | 4.4 | 3.7 | **8.24** | **+1.35** | **8 of 12** | **0 of 12** | 75.2 |
+
+Notes on the table:
+- The same solo projects scored 7.16 with the round-1 judges and 6.89 with the round-2 judges. That ~0.3 gap is judge calibration noise, so compare each way against solo **within its own round** (the "over solo" column).
+- Hidden tests and own tests passed 100% in all 12 new runs, with no timeouts.
+
+Grade under other weightings (round 2):
+- default: solo 88.1 · team-v2 79.2 · forced-v2 75.2
+- quality-first: solo 79.7 · team-v2 77.5 · forced-v2 76.4
+- cost-first: solo 90.3 · team-v2 71.2 · forced-v2 63.4
+
+Judge averages per dimension in round 2:
+
+| Way | correctness | code quality | tests | robustness/security | docs | overall |
+|---|---|---|---|---|---|---|
+| solo | 8.25 | 7.50 | 6.63 | 6.33 | 5.75 | 7.08 |
+| team-v2 | 8.75 | 8.08 | 8.00 | 7.83 | 6.58 | 7.96 |
+| forced-v2 | **8.92** | **8.38** | **8.25** | **8.58** | **7.08** | **8.46** |
+
+Share of spend by model:
+
+| Way | Opus | Sonnet | Haiku |
+|---|---|---|---|
+| team v1 / forced v1 | 100% | 0% | 0% |
+| team-v2 | 95% | 5% (38k output tokens) | 0% |
+| forced-v2 | 97% | 3% | 0% |
+
+### What changed
+- **The delegation fix worked.**
+  - Team-v2 did easy alone (0 sections, same cost as solo: $0.62 vs $0.60).
+  - It woke sections on medium (3.5) and hard (4), where v1 skipped them.
+- **Quality went up.** Team-v2 moved from +0.56 to +0.96 over solo, and forced-v2 from +0.87 to +1.35. Forced-v2 was never ranked last. The gains are again in tests (+1.4 to +1.6), robustness (+1.5 to +2.3) and docs.
+- **Cost went up too.**
+  - Team-v2 now costs about the same as forced (2.9× solo), because it delegates.
+  - Lighter section heads did not offset the extra agents: forced-v2 has 2.40M tokens vs 2.37M in v1.
+- **Cheap helpers barely ran.** The Sonnet coder took only 3–5% of spend, and the Haiku scout was never used. Section heads still do most of the work on Opus.
+
+### Verdict after round 2
+- **Quality per dollar is still best with solo.** Solo wins every weighting, because the quality gap (about 1 point out of 10) is small next to a ~3× cost and ~2.3× time gap.
+- **Team-v2 now behaves like a cheaper forced mode.** It brings most of forced's quality gain at the same price. It is no longer the "small overhead" middle option that team v1 was.
+- **To get the v1 balance back with the v2 quality, the next fix is to move work off Opus**, not to delegate more. Options:
+  - a lean default that delegates only multi-area tasks;
+  - making helpers mandatory for test-writing;
+  - a per-task "quality mode" the user switches on.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
@@ -80,4 +139,4 @@ The gains are mostly in **tests (+1.2)**, **robustness (+1.0)** and **docs (+1.1
 - **Fable was disabled** for safety, since `-p` would bill it without asking.
 - **Costs** are Claude Code's API-equivalent estimates. On a subscription they count against usage limits instead.
 
-Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
+Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Round 2 has `-v2` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.

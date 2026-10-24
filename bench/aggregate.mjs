@@ -57,8 +57,8 @@ export function composite(rows, judged) {
 function main() {
   const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
   // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
-  const round = process.argv.slice(2).find(a => a.startsWith('--round='))?.slice(8) ?? ''
-  const suffix = round ? `-${round}` : ''
+  const roundTag = process.argv.slice(2).find(a => a.startsWith('--round='))?.slice(8) ?? ''
+  const suffix = roundTag ? `-${roundTag}` : ''
   const judgePath = join(RESULTS, `judge${suffix}.json`)
   const judged = existsSync(judgePath)
     ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(join(RESULTS, `blind-key${suffix}.json`), 'utf8')))
