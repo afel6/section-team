@@ -1,11 +1,15 @@
 {
   "frontend": [
-    "muapi-models"
+    "muapi-models",
+    "motionmaxxing"
   ],
   "ai-llm": [
     "muapi-models"
   ],
   "security": [
     "security-audit"
+  ],
+  "uiux": [
+    "motionmaxxing"
   ]
 }
