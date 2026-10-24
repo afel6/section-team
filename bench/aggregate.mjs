@@ -56,9 +56,12 @@ export function composite(rows, judged) {
 
 function main() {
   const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
-  const judgePath = join(RESULTS, 'judge.json')
+  // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
+  const round = process.argv.slice(2).find(a => a.startsWith('--round='))?.slice(8) ?? ''
+  const suffix = round ? `-${round}` : ''
+  const judgePath = join(RESULTS, `judge${suffix}.json`)
   const judged = existsSync(judgePath)
-    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(join(RESULTS, 'blind-key.json'), 'utf8')))
+    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(join(RESULTS, `blind-key${suffix}.json`), 'utf8')))
     : {}
   const graded = composite(rows, judged)
   const groups = {}
@@ -82,7 +85,7 @@ function main() {
       timeouts: rs.filter(r => r.timedOut).length,
     }
   }).sort((a, b) => ['easy', 'medium', 'hard', 'all'].indexOf(a.task) - ['easy', 'medium', 'hard', 'all'].indexOf(b.task) || a.cond.localeCompare(b.cond))
-  writeFileSync(join(RESULTS, 'report-data.json'), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
+  writeFileSync(join(RESULTS, `report-data${suffix}.json`), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
   const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'grade', 'timeouts']
   console.log(`| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`)
   for (const row of table) console.log(`| ${cols.map(c => row[c] ?? '–').join(' | ')} |`)

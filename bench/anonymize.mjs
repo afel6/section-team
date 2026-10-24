@@ -4,9 +4,12 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { CONDITIONS, RESULTS } from './run.mjs'
+import { CONDITIONS, RESULTS, parseArgs } from './run.mjs'
 
-export const JUDGE = 'C:/Users/Asus/bench-judge'
+// --round=v2 --conds=solo,team-v2,forced-v2 → judges those condition labels into bench-judge-v2, key blind-key-v2.json
+const { round, conds } = parseArgs(process.argv.slice(2))
+const COND_SET = round ? conds : CONDITIONS
+export const JUDGE = round ? `C:/Users/Asus/bench-judge-${round}` : 'C:/Users/Asus/bench-judge'
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
 const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite)$/i.test(src)
 
@@ -17,8 +20,8 @@ function main() {
   for (const [t, task] of ['easy', 'medium', 'hard'].entries()) {
     for (const rep of [1, 2]) {
       const pair = `${task}-r${rep}`
-      const shift = (t + rep) % CONDITIONS.length
-      const order = [...CONDITIONS.slice(shift), ...CONDITIONS.slice(0, shift)]
+      const shift = (t + rep) % COND_SET.length
+      const order = [...COND_SET.slice(shift), ...COND_SET.slice(0, shift)]
       key[pair] = Object.fromEntries(order.map((cond, i) => [LABELS[i], cond]))
       for (const [label, cond] of Object.entries(key[pair])) {
         const runPath = join(RESULTS, `${task}-${cond}-r${rep}`, 'run.json')
@@ -30,7 +33,7 @@ function main() {
       }
     }
   }
-  writeFileSync(join(RESULTS, 'blind-key.json'), JSON.stringify(key, null, 2) + '\n')
+  writeFileSync(join(RESULTS, round ? `blind-key-${round}.json` : 'blind-key.json'), JSON.stringify(key, null, 2) + '\n')
   console.log('anonymized pairs:', Object.keys(key).join(' '))
 }
 

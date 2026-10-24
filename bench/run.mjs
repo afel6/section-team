@@ -20,15 +20,29 @@ const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the b
 // forced = plugin on, prompt asks the supervisor to delegate to sections
 export const CONDITIONS = ['team', 'solo', 'forced']
 
-export function plan() {
+// A tag (e.g. "v2") benchmarks a newer plugin version: ids and condition labels get the tag (easy-team-v2-r1, cond team-v2).
+export function plan({ tag = '', conds = CONDITIONS } = {}) {
   const out = []
   for (const rep of [1, 2]) {
     for (const task of ['easy', 'medium', 'hard']) {
-      const order = rep === 1 ? ['team', 'solo', 'forced'] : ['forced', 'solo', 'team']
-      for (const cond of order) out.push({ id: `${task}-${cond}-r${rep}`, task, cond, rep })
+      const order = (rep === 1 ? ['team', 'solo', 'forced'] : ['forced', 'solo', 'team']).filter(c => conds.includes(c))
+      for (const base of order) {
+        const cond = tag ? `${base}-${tag}` : base
+        out.push({ id: `${task}-${cond}-r${rep}`, task, cond, base, rep })
+      }
     }
   }
   return out
+}
+
+export function parseArgs(argv) {
+  const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
+  return {
+    tag: opt('tag') ?? '',
+    conds: opt('conds')?.split(',') ?? CONDITIONS,
+    round: opt('round') ?? '',
+    filters: argv.filter(a => !a.startsWith('--')),
+  }
 }
 
 function freshRepo(dir) {
@@ -43,9 +57,10 @@ function freshRepo(dir) {
 }
 
 function runClaude(run, dir, outDir) {
-  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (run.cond === 'forced' ? FORCED_SUFFIX : '')
+  const base = run.base ?? run.cond
+  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const args = ['-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED]
-  if (run.cond === 'solo') args.push('--settings', PLUGIN_OFF)
+  if (base === 'solo') args.push('--settings', PLUGIN_OFF)
   return new Promise(resolve => {
     const started = Date.now()
     const child = spawn('claude', args, { cwd: dir, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -68,8 +83,8 @@ function runClaude(run, dir, outDir) {
 }
 
 async function main() {
-  const filters = process.argv.slice(2)
-  const runs = plan().filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
+  const { tag, conds, filters } = parseArgs(process.argv.slice(2))
+  const runs = plan({ tag, conds }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   for (const run of runs) {
     const outDir = join(RESULTS, run.id)
