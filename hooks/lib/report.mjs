@@ -30,12 +30,13 @@ export function extractReport(text) {
 
 const FIELDS = {
   status: 'status', job: 'job', changed: 'changed', tests: 'tests', coordination: 'coordination',
-  'helpers used': 'helpers', helpers: 'helpers', problems: 'problems', next: 'next',
+  'helpers used': 'helpers', helpers: 'helpers', problems: 'problems', next: 'next', quality: 'quality',
 }
 
+// quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.
 export function parseReport(block) {
-  const out = { status: '', job: '', changed: '', tests: '', coordination: '', helpers: '', problems: '', next: '' }
-  if (typeof block !== 'string') return out
+  const out = { status: '', job: '', changed: '', tests: '', coordination: '', helpers: '', problems: '', next: '', quality: '' }
+  if (typeof block !== 'string') return { ...out, quality: null }
   for (const raw of block.replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.replace(/\*\*/g, '').replace(/^\s*[-*]\s+/, '').trim()
     const match = /^([A-Za-z][A-Za-z ]*?)\s*:\s*(.*)$/.exec(line)
@@ -44,5 +45,7 @@ export function parseReport(block) {
     if (key && out[key] === '') out[key] = match[2].trim()
   }
   out.status = (/(partial|blocked|done)/i.exec(out.status)?.[1] ?? out.status.split(/[\s|·,—-]+/)[0] ?? '').toLowerCase()
+  const grade = /(\d+(?:\.\d+)?)\s*\/\s*10\b/.exec(out.quality)
+  out.quality = grade ? Number(grade[1]) : null
   return out
 }

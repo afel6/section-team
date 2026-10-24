@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardModel, cardState, latestReportFiles, emptyBoard, formatTokens, shortModel, sectionUsage } from '../hooks/board-model.mjs'
+import { boardModel, cardLine, cardState, latestReportFiles, emptyBoard, formatTokens, shortModel, sectionUsage } from '../hooks/board-model.mjs'
 
 test('agent status and report status map to card states', () => {
   assert.equal(cardState(undefined, undefined), 'asleep')
@@ -191,4 +191,10 @@ test('the team line says "1 helper" for one and "N helpers" for any other count'
   assert.equal(line(5, 2), 'team tokens 5 · 2 helpers')
   assert.equal(line(5, 0), 'team tokens 5 · 0 helpers')
   assert.equal(line(0, 1), 'team tokens 0 · 1 helper')
+})
+
+test('a done card shows the reviewer grade when the report has one', () => {
+  assert.equal(cardLine('done', undefined, { job: 'api', quality: 9 }), 'Done · api · 9/10')
+  assert.equal(cardLine('done', undefined, { job: 'api', quality: null }), 'Done · api')
+  assert.equal(cardLine('done', undefined, { job: 'api' }), 'Done · api')
 })

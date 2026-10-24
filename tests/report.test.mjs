@@ -63,7 +63,7 @@ test('parses every field and normalises status', () => {
   const r = parseReport(extractReport(CLEAN))
   assert.deepEqual(r, {
     status: 'done', job: 'Build /api/login', changed: 'src/api/login.ts', tests: '8 ran, 8 passed',
-    coordination: 'frontend → agreed {token, user}', helpers: 'sonnet ×2 (tests)', problems: 'none', next: 'rate limiting',
+    coordination: 'frontend → agreed {token, user}', helpers: 'sonnet ×2 (tests)', problems: 'none', next: 'rate limiting', quality: null,
   })
 })
 
@@ -103,4 +103,10 @@ test('keeps fenced code blocks inside the report', () => {
   assert.ok(block.includes('```js\nconst x = 1\n```\n'))
   assert.ok(block.includes('Next: deploy'))
   assert.equal(parseReport(block).next, 'deploy')
+})
+
+test('parseReport reads the reviewer grade', () => {
+  assert.equal(parseReport('## REPORT · backend\nStatus: done\nQuality:      8.5/10 (reviewer, 1 fix rounds)\n').quality, 8.5)
+  assert.equal(parseReport('## REPORT · docs\nStatus: done\nQuality: n/a (no code)\n').quality, null)
+  assert.equal(parseReport('## REPORT · docs\nStatus: done\n').quality, null)
 })

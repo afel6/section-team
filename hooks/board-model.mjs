@@ -13,7 +13,7 @@ export function cardState(agentStatus, reportStatus) {
 export function cardLine(state, agent, report) {
   if (state === 'running') return `Running · ${agent?.description || 'working'}`
   if (state === 'waiting') return `Waiting · ${agent?.description || 'for a reply'}`
-  if (state === 'done') return `Done · ${report?.job || 'no report yet'}`
+  if (state === 'done') return `Done · ${report?.job || 'no report yet'}${typeof report?.quality === 'number' ? ` · ${report.quality}/10` : ''}`
   if (state === 'problem') return `Problem · ${report?.job ? `${report.status}: ${report.job}` : agent?.status ?? 'unknown'}`
   return report?.job ? `Asleep · last: ${report.job}` : 'Asleep'
 }
