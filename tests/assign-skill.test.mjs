@@ -273,3 +273,13 @@ describe('assign-skill CLI in a temp copy of the plugin', () => {
     assert.equal(run(tmp, 'gen-agents.mjs', '--check').status, 0)
   }))
 })
+
+describe('add-skill procedure', () => {
+  const procedure = readFileSync(join(ROOT, 'skills', 'add-skill', 'SKILL.md'), 'utf8')
+
+  test('clones keep the repo line endings (no CRLF conversion on Windows)', () => {
+    const clones = procedure.match(/git[^`\n]*\bclone\b[^`\n]*/g) ?? []
+    assert.ok(clones.length > 0, 'procedure has a clone command')
+    for (const cmd of clones) assert.match(cmd, /-c core\.autocrlf=false/, cmd)
+  })
+})
