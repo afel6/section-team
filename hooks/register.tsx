@@ -3,6 +3,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData } from '../types'
 import { boardModel, emptyBoard, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
+import { statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
 const board = atom({ plugin: 'section-team', key: 'board' } as const, emptyBoard() as BoardData)
@@ -10,6 +11,7 @@ const PANE = 'team-board'
 const TITLE = 'Team Board'
 const POLL_MS = 1000
 const GIT_TIMEOUT_MS = 5000
+const HEARTBEAT_MS = 60 * 1000
 const COLOR = { asleep: 'inactive', running: 'suggestion', waiting: 'warning', done: 'success', problem: 'error' } as const
 const pad = (n: number) => String(n).padStart(2, '0')
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -27,6 +29,7 @@ type Used = { total: number; out: number }
 // spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
 type Ctx = {
   root: string; request: string; lastJson: string; lastError: string; stop?: Timer
+  board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; lastStatus: string; lastWrite: number
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
 }
 
@@ -90,21 +93,45 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   const { reports, lastSummary } = await readReports($, ctx)
   const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
   const next = boardModel({ agents, reports, request: ctx.request, lastSummary, usage })
+  ctx.board = next
   const json = JSON.stringify(next)
-  if (json === ctx.lastJson) return
-  await update($, board, () => next)
-  ctx.lastJson = json
+  if (json !== ctx.lastJson) {
+    await update($, board, () => next)
+    ctx.lastJson = json
+  }
+  await writeStatus($, ctx)
 }
 
-// A failed tick is retried by the next one (lastJson only moves after a write lands) and logged once per message, to the debug log only.
+// The status file the /chats dashboard reads, one per session id under the home folder. It is written when anything but updatedAt changes,
+// and every HEARTBEAT_MS besides, so a session that died goes stale. Without a home there is nowhere to write: skipped, silently.
+async function writeStatus($: EngineInterface, ctx: Ctx, ended?: { sessionId: string }) {
+  const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
+  if (!home) return
+  const now = await $.clock.now()
+  ctx.startedAt ??= now
+  const sessionId = ended?.sessionId ?? (await $.session.id())
+  const record = statusRecord({ sessionId, cwd: await $.session.cwd(), request: ctx.request, board: ctx.board, turnActive: ctx.turnActive, startedAt: ctx.startedAt, now, ended: ended !== undefined })
+  const key = JSON.stringify({ ...record, updatedAt: 0 })
+  if (key === ctx.lastStatus && (record.state === 'idle' || now - ctx.lastWrite < HEARTBEAT_MS)) return
+  await $.fs.write(`${statusDir(home)}/${sessionId}.json`, JSON.stringify(record))
+  ctx.lastStatus = key
+  ctx.lastWrite = now
+}
+
+// Logged once per message, to the debug log only.
+function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message === ctx.lastError) return
+  ctx.lastError = message
+  $.ui.log(`Team Board: ${what} failed: ${message}`, { to: 'debug' })
+}
+
+// A failed tick is retried by the next one (lastJson and lastStatus only move after a write lands).
 async function poll($: EngineInterface, ctx: Ctx) {
   try {
     await refresh($, ctx)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message === ctx.lastError) return
-    ctx.lastError = message
-    $.ui.log(`Team Board: refresh failed: ${message}`, { to: 'debug' })
+    logFailure($, ctx, 'refresh', error)
   }
 }
 
@@ -118,7 +145,7 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
@@ -128,12 +155,29 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The ended file is written first, while it still holds the request and the board of the session that is ending.
   // /clear ends the session and no session.start follows: its counts and its request start again, and the poll keeps running.
   on('session.end', async ($, e, next) => {
+    await writeStatus($, ctx, { sessionId: e.sessionId }).catch(error => logFailure($, ctx, 'status write', error))
     if (e.reason === 'clear') {
       resetCounts(ctx)
       ctx.request = ''
+      ctx.startedAt = undefined
     }
+    return next(e)
+  })
+
+  // The chat's own turn, not a helper's: it decides between working and needs-you in the status file.
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      ctx.mainTurnId = e.turnId
+      ctx.turnActive = true
+    }
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    if (e.turnId === ctx.mainTurnId) ctx.turnActive = false
     return next(e)
   })
 

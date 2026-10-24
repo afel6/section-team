@@ -92,7 +92,7 @@ export function boardModel({ agents = [], reports = {}, request = '', lastSummar
   const count = (...states) => cards.filter(c => states.includes(c.state)).length
   const team = Object.values(usage).reduce((sum, u) => ({ total: sum.total + u.total, helpers: sum.helpers + u.helpers }), { total: 0, helpers: 0 })
   const teamLine = team.total > 0 || team.helpers > 0 ? `team tokens ${formatTokens(team.total)} · ${team.helpers} ${team.helpers === 1 ? 'helper' : 'helpers'}` : ''
-  return { request, lastSummary, cards, counts: { active: count('running', 'waiting'), done: count('done'), problem: count('problem') }, teamLine }
+  return { request, lastSummary, cards, counts: { active: count('running', 'waiting'), done: count('done'), problem: count('problem') }, teamLine, team: { tokens: team.total, helpers: team.helpers } }
 }
 
 const STRIP_MAX = 4

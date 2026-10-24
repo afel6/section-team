@@ -185,6 +185,13 @@ test('no usage means empty lines and no team line', () => {
   }
 })
 
+test('the board carries the team totals as raw numbers, zero when nobody used anything', () => {
+  const usage = { frontend: { total: 1250000, out: 1, helpers: 3, models: [['haiku', 3]] }, backend: { total: 7, out: 1, helpers: 1, models: [['opus', 1]] } }
+  assert.deepEqual(boardModel({ usage }).team, { tokens: 1250007, helpers: 4 })
+  assert.deepEqual(boardModel().team, { tokens: 0, helpers: 0 })
+  assert.deepEqual(emptyBoard().team, { tokens: 0, helpers: 0 })
+})
+
 test('the team line says "1 helper" for one and "N helpers" for any other count', () => {
   const line = (total, helpers) => boardModel({ usage: { frontend: { total, out: 1, helpers, models: helpers ? [['haiku', helpers]] : [] } } }).teamLine
   assert.equal(line(5, 1), 'team tokens 5 · 1 helper')

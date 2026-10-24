@@ -40,10 +40,21 @@ const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-p
 function world(on: On) {
   const clock = mock.clock(on)
   const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false,
+    writes: [] as { path: string; text: string }[], env: { USERPROFILE: 'C:/Users/u' } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined,
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown }
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
   on('session.cwd', async () => ({ value: 'C:/proj' }))
+  on('session.id', async () => ({ value: seen.sessionId }))
+  on('env.get', async (_$, e) => ({ value: seen.env[e.name] }))
+  on('fs.write', async (_$, e) => {
+    if (seen.denyWrite) return { deny: seen.denyWrite }
+    // The engine hands the path over as the OS spells it (backslashes on Windows).
+    seen.writes.push({ path: e.path.replaceAll('\\', '/'), text: e.text })
+    return { value: undefined }
+  })
+  on('turn.start', async (_$, e) => ({ turnId: e.turnId }))
+  on('turn.complete', async (_$, e) => ({ text: e.answer }))
   on('process.run', async (_$, e) => {
     seen.runs.push({ argv: e.argv, timeoutMs: e.init?.timeoutMs })
     return { value: { exitCode: 0, stdout: 'C:/proj/.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -417,4 +428,134 @@ test('a session that ends for any other reason keeps its counts, a new session.s
   const restarted = (await ui.find({ key: 'card-frontend' }))?.text
   expect(restarted).not.toContain('tokens')
   expect(restarted).not.toContain('helpers')
+})
+
+// The status file the /chats dashboard reads: one JSON per session id, under the home folder.
+const STATUS_DIR = 'C:/Users/u/.claude/section-team/sessions'
+const IDLE_TEAM = [{ id: '2', type: 'section-team:backend', status: 'completed', description: 'api' }]
+const TURN_DONE = { answer: 'ok', durationMs: 5, isAborted: false, reason: 'answer' } as const
+const statusOf = (seen: { writes: { path: string; text: string }[] }, id: string) => seen.writes.filter(w => w.path === `${STATUS_DIR}/${id}.json`).map(w => JSON.parse(w.text))
+
+test('a session writes its status file: working while its turn runs, needs-you once the turn completes', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await $.prompt.submit({ text: 'add login\nthe second line stays out of the file' })
+  await $.turn.start({ text: 'add login', turnId: 't1' })
+  await clock.advance(1000)
+  expect(seen.writes).toHaveLength(1)
+  expect(seen.writes[0].text).not.toContain('second line')
+  expect(statusOf(seen, 's1')[0]).toEqual({
+    sessionId: 's1', cwd: 'C:/proj', project: 'proj', request: 'add login', state: 'working',
+    sections: [{ id: 'backend', state: 'done' }], helpers: 0, tokens: 0, startedAt: 1000, updatedAt: 1000, ended: false,
+  })
+
+  // A helper's turn is not the chat's turn: it neither starts nor ends it.
+  await $.turn.start({ text: 'look up', turnId: 't2', agentId: 'H1' })
+  await $.turn.complete({ ...TURN_DONE, turnId: 't2', agentId: 'H1' })
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+
+  await $.turn.complete({ ...TURN_DONE, turnId: 't1' })
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(2)
+  expect(statusOf(seen, 's1')[1].state).toBe('needs-you')
+  expect(statusOf(seen, 's1')[1].startedAt).toBe(1000)
+})
+
+test('a busy section keeps the session working even with no turn running', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')[0].state).toBe('working')
+  expect(statusOf(seen, 's1')[0].sections).toEqual([{ id: 'frontend', state: 'running' }, { id: 'backend', state: 'done' }])
+})
+
+test('nothing is rewritten while the status is unchanged, then a heartbeat after 60 s', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.writes).toHaveLength(1)
+  await clock.advance(59000)
+  expect(seen.writes).toHaveLength(1)
+  await clock.advance(1000)
+  expect(seen.writes).toHaveLength(2)
+  expect(statusOf(seen, 's1')[1].updatedAt).toBe(61000)
+  expect(statusOf(seen, 's1')[1].startedAt).toBe(1000)
+})
+
+test('a /clear marks the old file ended, and the next write uses the new session id', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = IDLE_TEAM
+
+  await $.session.start(START)
+  await $.prompt.submit({ text: 'add login' })
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  expect(statusOf(seen, 's1')).toHaveLength(2)
+  expect(statusOf(seen, 's1')[1]).toMatchObject({ sessionId: 's1', ended: true, request: 'add login' })
+
+  seen.sessionId = 's2'
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(2)
+  expect(statusOf(seen, 's2')).toHaveLength(1)
+  expect(statusOf(seen, 's2')[0]).toMatchObject({ sessionId: 's2', ended: false, request: '', startedAt: 2000 })
+})
+
+test('any other session end marks the file ended too', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
+  expect(statusOf(seen, 's1').at(-1)?.ended).toBe(true)
+})
+
+test('with no USERPROFILE or HOME nothing is written and nothing is logged', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.env = {}
+
+  await $.session.start(START)
+  await $.prompt.submit({ text: 'add login' })
+  await clock.advance(3000)
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  await clock.advance(1000)
+  expect(seen.writes).toEqual([])
+  expect(seen.logs).toEqual([])
+  expect(seen.agentList).toBe(4)
+})
+
+test('HOME serves when USERPROFILE is unset or empty', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.env = { USERPROFILE: '', HOME: 'C:/Users/h' }
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.writes.map(w => w.path)).toEqual(['C:/Users/h/.claude/section-team/sessions/s1.json'])
+})
+
+test('a failed status write is retried on the next tick, logged once to the debug log, and never holds the board back', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.denyWrite = 'disk full'
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  await clock.advance(1000)
+  expect(seen.writes).toEqual([])
+  expect(seen.logs).toHaveLength(1)
+  expect(seen.logs[0].text).toContain('disk full')
+  expect(seen.logs[0].to).toBe('debug')
+  const ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('Running · login form')
+
+  seen.denyWrite = undefined
+  await clock.advance(1000)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+  expect(seen.logs).toHaveLength(1)
 })
