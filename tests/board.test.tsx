@@ -37,10 +37,12 @@ const SECTION = { prompt: 'x', description: 'login form', subagentType: 'section
 const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-purpose' } as const
 
 // Answers, beneath the plugin, everything the board's poll reaches for; `seen` records what it asked.
-function world(on: On) {
-  const clock = mock.clock(on)
+function world(on: On, now = 0) {
+  const clock = mock.clock(on, { now })
   const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false,
-    writes: [] as { path: string; text: string }[], env: { USERPROFILE: 'C:/Users/u' } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined,
+    writes: [] as { path: string; text: string }[], env: { USERPROFILE: 'C:/Users/u' } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined, registered: [] as string[],
+    // The status folder the /chats pane reads: file texts by name (mtimes by name, T0 when not given), a refusal, and what was asked of it.
+    chats: { files: {} as Record<string, string>, mtimes: {} as Record<string, number>, deny: undefined as string | undefined, lists: 0, reads: [] as string[] },
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown }
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
@@ -59,13 +61,30 @@ function world(on: On) {
     seen.runs.push({ argv: e.argv, timeoutMs: e.init?.timeoutMs })
     return { value: { exitCode: 0, stdout: 'C:/proj/.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('command.register', async () => ({ value: { command: 'team' } }))
+  on('command.register', async (_$, e) => {
+    seen.registered.push(e.name)
+    return { value: { command: e.name } }
+  })
   on('agent.list', async () => {
     seen.agentList += 1
     return { value: seen.agents ?? [{ id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' }, { id: '2', type: 'section-team:backend', status: 'completed', description: 'api' }] }
   })
-  on('fs.list', async (_$, e) => { seen.listed = e.path; return { value: [{ name: '101500-backend.md', ...FILE }, { name: '140200-supervisor-summary.md', ...FILE }] } })
-  on('fs.read', async () => ({ value: REPORT }))
+  on('fs.list', async (_$, e) => {
+    if (slashes(e.path) === STATUS_DIR) {
+      seen.chats.lists += 1
+      if (seen.chats.deny) return { deny: seen.chats.deny }
+      return { value: Object.keys(seen.chats.files).map(name => ({ name, ...FILE, mtimeMs: seen.chats.mtimes[name] ?? T0 })) }
+    }
+    seen.listed = e.path
+    return { value: [{ name: '101500-backend.md', ...FILE }, { name: '140200-supervisor-summary.md', ...FILE }] }
+  })
+  on('fs.read', async (_$, e) => {
+    const path = slashes(e.path)
+    if (!path.startsWith(`${STATUS_DIR}/`)) return { value: REPORT }
+    const name = path.slice(STATUS_DIR.length + 1)
+    seen.chats.reads.push(name)
+    return { value: seen.chats.files[name] }
+  })
   on('prompt.submit', async (_$, e) => ({ text: e.text }))
   on('agent.spawn', async (_$, e) => (seen.denySpawn ? { deny: 'guard says no' } : seen.spawnAnswer?.(e) ?? { model: 'sonnet' }))
   // The model's answer to a step, beneath the plugin: one text chunk, then a result carrying the usage the test set.
@@ -432,6 +451,9 @@ test('a session that ends for any other reason keeps its counts, a new session.s
 
 // The status file the /chats dashboard reads: one JSON per session id, under the home folder.
 const STATUS_DIR = 'C:/Users/u/.claude/section-team/sessions'
+const T0 = 1_700_000_000_000
+const MINUTE = 60 * 1000
+const slashes = (path: string) => path.replaceAll('\\', '/')
 const IDLE_TEAM = [{ id: '2', type: 'section-team:backend', status: 'completed', description: 'api' }]
 const TURN_DONE = { answer: 'ok', durationMs: 5, isAborted: false, reason: 'answer' } as const
 const statusOf = (seen: { writes: { path: string; text: string }[] }, id: string) => seen.writes.filter(w => w.path === `${STATUS_DIR}/${id}.json`).map(w => JSON.parse(w.text))
@@ -603,4 +625,113 @@ test('a failed status write is retried on the next tick, logged once to the debu
   await clock.advance(1000)
   expect(statusOf(seen, 's1')).toHaveLength(1)
   expect(seen.logs).toHaveLength(1)
+})
+
+// The /chats dashboard: the status folder is answered beneath the plugin by world(), from seen.chats.
+const chat = (sessionId: string, change: object = {}) =>
+  JSON.stringify({ sessionId, cwd: `C:/x/${sessionId}`, project: sessionId, request: `job ${sessionId}`, state: 'needs-you', sections: [], helpers: 0, tokens: 0, startedAt: T0 - 5 * MINUTE, updatedAt: T0 - MINUTE, ended: false, ...change })
+
+type Drawn = { find: (q: { key: string }) => Promise<{ text: string; props: Record<string, unknown>; children: unknown[] } | undefined>; unmount: () => Promise<void> }
+const mountChats = ($: { ui: { mount: (t: never) => Promise<Drawn> } }) =>
+  $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'Pane', requestId: 'team-chats', props: { ...PROPS, title: 'Chats' } } as never)
+const chatKeys = async (ui: Drawn) => ((await ui.find({ key: 'chats' }))?.children as { props: { key?: string } }[]).map(c => c.props.key)
+
+test('/chats opens the Chats pane, and the poll reads the status folder only from then on', async ($, on) => {
+  const { clock, seen } = world(on, T0)
+  seen.chats.files = { 'a.json': chat('a') }
+
+  await $.session.start(START)
+  expect(seen.registered).toEqual(['team', 'chats'])
+  await clock.advance(3000)
+  expect(seen.chats.lists).toBe(0)
+  expect(seen.opened).toEqual([])
+
+  expect(await $.command.run({ command: 'chats' })).toEqual({ text: 'Chats opened.' })
+  expect(seen.opened).toEqual(['team-chats'])
+  const listed = seen.chats.lists
+  expect(listed).toBeGreaterThan(0)
+  await clock.advance(2000)
+  expect(seen.chats.lists).toBeGreaterThan(listed)
+})
+
+test('the Chats pane draws one card per good file, needs-you first, and skips a file cut off mid-write', async ($, on) => {
+  const { clock, seen } = world(on, T0)
+  seen.chats.files = {
+    'w.json': chat('w', { project: 'claude-team', request: '', state: 'working', updatedAt: T0 - 1000, startedAt: T0 - 31 * MINUTE, tokens: 640_000, helpers: 4, sections: [{ id: 'backend', state: 'running' }, { id: 'testing', state: 'done' }] }),
+    'cut.json': '{"sessionId":',
+    'n.json': chat('n', { project: 'shop-app', request: 'approve the 3-section plan?', startedAt: T0 - 12 * MINUTE, tokens: 210_000 }),
+    'notes.txt': 'not a status file',
+  }
+
+  await $.session.start(START)
+  await $.command.run({ command: 'chats' })
+  const ui = await mountChats($ as never)
+  expect(await chatKeys(ui)).toEqual(['chat-n', 'chat-w'])
+  const waiting = await ui.find({ key: 'chat-n' })
+  for (const line of ['shop-app', 'needs you', 'approve the 3-section plan?', 'no sections awake', '0 helpers', '12 min · 210k tokens']) expect(waiting?.text).toContain(line)
+  expect(waiting?.props.borderColor).toBe('warning')
+  const working = await ui.find({ key: 'chat-w' })
+  for (const line of ['claude-team', 'working', 'No request yet', 'backend running', 'testing done', '4 helpers', '31 min · 640k tokens']) expect(working?.text).toContain(line)
+  expect(working?.props.borderColor).toBe('suggestion')
+
+  // The next tick draws what changed: that chat ended, so its card goes.
+  seen.chats.files['n.json'] = chat('n', { ended: true })
+  await clock.advance(1000)
+  await ui.unmount()
+  expect(await chatKeys(await mountChats($ as never))).toEqual(['chat-w'])
+})
+
+test('ended chats and chats over 24 hours old are left out, a stale file is not read, and a working chat silent for 31 minutes shows idle', async ($, on) => {
+  const { seen } = world(on, T0)
+  seen.chats.files = {
+    'live.json': chat('live', { state: 'working', updatedAt: T0 - 1000 }),
+    'crashed.json': chat('crashed', { state: 'working', updatedAt: T0 - 31 * MINUTE }),
+    'ended.json': chat('ended', { ended: true }),
+    'old.json': chat('old', { updatedAt: T0 - 25 * 60 * MINUTE }),
+    'stale.json': chat('stale'),
+  }
+  seen.chats.mtimes = { 'stale.json': T0 - 25 * 60 * MINUTE }
+
+  await $.session.start(START)
+  await $.command.run({ command: 'chats' })
+  const ui = await mountChats($ as never)
+  expect(await chatKeys(ui)).toEqual(['chat-live', 'chat-crashed'])
+  expect((await ui.find({ key: 'chat-crashed' }))?.text).toContain('idle')
+  expect((await ui.find({ key: 'chat-crashed' }))?.props.borderColor).toBe('inactive')
+  expect((await ui.find({ key: 'chat-live' }))?.text).toContain('working')
+  expect(seen.chats.reads).not.toContain('stale.json')
+})
+
+test('two chats in one project each keep a card', async ($, on) => {
+  const { seen } = world(on, T0)
+  seen.chats.files = { 'a.json': chat('a', { project: 'shop-app' }), 'b.json': chat('b', { project: 'shop-app', updatedAt: T0 }) }
+
+  await $.session.start(START)
+  await $.command.run({ command: 'chats' })
+  expect(await chatKeys(await mountChats($ as never))).toEqual(['chat-b', 'chat-a'])
+})
+
+test('with no chats, or no status folder yet, the pane says there are none and nothing is logged', async ($, on) => {
+  const { seen } = world(on, T0)
+  seen.chats.deny = 'no such folder'
+
+  await $.session.start(START)
+  await $.command.run({ command: 'chats' })
+  const ui = await mountChats($ as never)
+  expect((await ui.find({ key: 'no-chats' }))?.text).toBe('No open chats.')
+  expect(seen.logs).toEqual([])
+})
+
+test('with no USERPROFILE or HOME the Chats pane says so in one line and reads nothing', async ($, on) => {
+  const { seen } = world(on, T0)
+  seen.env = {}
+  seen.chats.files = { 'a.json': chat('a') }
+
+  await $.session.start(START)
+  await $.command.run({ command: 'chats' })
+  const ui = await mountChats($ as never)
+  expect((await ui.find({ key: 'no-home' }))?.text).toBe('Chats need USERPROFILE or HOME to be set.')
+  expect(await ui.find({ key: 'chats' })).toBeUndefined()
+  expect(seen.chats.lists).toBe(0)
+  expect(seen.logs).toEqual([])
 })

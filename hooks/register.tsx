@@ -1,18 +1,27 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
-import type { BoardCard, BoardData } from '../types'
-import { boardModel, emptyBoard, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
+import type { BoardCard, BoardData, ChatCard, ChatsData, SessionState, SessionStatus } from '../types'
+import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
-import { statusDir, statusRecord } from './sessions-model.mjs'
+import { dashboardCards, HIDE_MS, parseStatus, statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
 const board = atom({ plugin: 'section-team', key: 'board' } as const, emptyBoard() as BoardData)
+const chats = atom({ plugin: 'section-team', key: 'chats' } as const, { hasHome: true, cards: [] } as ChatsData)
 const PANE = 'team-board'
 const TITLE = 'Team Board'
+const CHATS_PANE = 'team-chats'
+const CHATS_TITLE = 'Chats'
 const POLL_MS = 1000
 const GIT_TIMEOUT_MS = 5000
 const HEARTBEAT_MS = 60 * 1000
+const MINUTE_MS = 60 * 1000
 const COLOR = { asleep: 'inactive', running: 'suggestion', waiting: 'warning', done: 'success', problem: 'error' } as const
+// A chat waiting for you is lit like a waiting section, a working one like a running section, an idle one like a sleeping section.
+const CHAT_COLOR = { 'needs-you': COLOR.waiting, working: COLOR.running, idle: COLOR.asleep } as const
+const CHAT_PILL: Record<SessionState, string> = { 'needs-you': 'needs you', working: 'working', idle: 'idle' }
+// Three cards across a wide pane, two across a narrow one.
+const cardWidth = (columns: number) => Math.max(18, Math.floor(columns / (columns >= 90 ? 3 : 2)) - 1)
 const pad = (n: number) => String(n).padStart(2, '0')
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
@@ -30,6 +39,7 @@ type Used = { total: number; out: number }
 type Ctx = {
   root: string; request: string; lastJson: string; lastError: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
+  chatsOpen: boolean; lastChats: string
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
 }
 
@@ -102,11 +112,14 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   await writeStatus($, ctx)
 }
 
+// The person's home folder, where the status files live. An empty USERPROFILE is not a home.
+const homeDir = async ($: EngineInterface) => (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
+
 // The status file the /chats dashboard reads, one per session id under the home folder. It is written when anything but updatedAt changes,
 // and every HEARTBEAT_MS while working, so a session that died goes stale. A session waiting for you is not rewritten: its updatedAt freezes
 // and the dashboard turns it idle after IDLE_MS. Without a home there is nowhere to write: skipped, silently.
 async function writeStatus($: EngineInterface, ctx: Ctx, ended?: { sessionId: string }) {
-  const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
+  const home = await homeDir($)
   if (!home) return
   const now = await $.clock.now()
   ctx.startedAt ??= now
@@ -123,6 +136,28 @@ async function writeStatus($: EngineInterface, ctx: Ctx, ended?: { sessionId: st
   ctx.lastWrite = now
 }
 
+// What the /chats pane shows: every status file under the home folder, cut down to the cards worth drawing. Only the chats pane being open
+// makes the poll call this. A folder that is not there yet is no chats; a file that is cut off mid-write is skipped and read again next tick.
+// ponytail: reads every file touched in the last 24 h each tick; add an mtime cache like readReports if that folder ever grows large.
+async function refreshChats($: EngineInterface, ctx: Ctx) {
+  const home = await homeDir($)
+  const now = await $.clock.now()
+  let next: ChatsData = { hasHome: false, cards: [] }
+  if (home) {
+    const dir = statusDir(home)
+    const entries = await $.fs.list(dir).catch(() => [])
+    // A file last written more than HIDE_MS ago holds an updatedAt older than that too: not worth reading. (A file with no mtime is read.)
+    const fresh = entries.filter(e => e.name.endsWith('.json') && !(now - e.mtimeMs > HIDE_MS))
+    const texts = await Promise.all(fresh.map(e => $.fs.read(`${dir}/${e.name}`).catch(() => '')))
+    const records = texts.map(parseStatus).filter((r): r is SessionStatus => r !== undefined)
+    next = { hasHome: true, cards: dashboardCards(records, now).map(r => ({ ...r, minutes: Math.max(0, Math.floor((now - r.startedAt) / MINUTE_MS)) })) }
+  }
+  const json = JSON.stringify(next)
+  if (json === ctx.lastChats) return
+  await update($, chats, () => next)
+  ctx.lastChats = json
+}
+
 // Logged once per message, to the debug log only.
 function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
@@ -131,13 +166,23 @@ function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown) 
   $.ui.log(`Team Board: ${what} failed: ${message}`, { to: 'debug' })
 }
 
-// A failed tick is retried by the next one (lastJson and lastStatus only move after a write lands).
+async function pollChats($: EngineInterface, ctx: Ctx) {
+  if (!ctx.chatsOpen) return
+  try {
+    await refreshChats($, ctx)
+  } catch (error) {
+    logFailure($, ctx, 'chats refresh', error)
+  }
+}
+
+// A failed tick is retried by the next one (lastJson, lastStatus and lastChats only move after a write lands). The chats come after the board and cannot hold it back.
 async function poll($: EngineInterface, ctx: Ctx) {
   try {
     await refresh($, ctx)
   } catch (error) {
     logFailure($, ctx, 'refresh', error)
   }
+  await pollChats($, ctx)
 }
 
 // The poll starts with the session (/team and section spawns call this too), once. The session.end hook below only
@@ -150,10 +195,11 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: 'Show the section-team Team Board' })
+    await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
     resetCounts(ctx)
     startPoll($, ctx)
@@ -193,6 +239,15 @@ export const register: Register = on => {
     return { text: 'Team Board opened.' }
   })
 
+  // From here on the poll reads the status folder; the first read is done now so the pane opens with the chats in it.
+  on('command.run', { command: 'chats' }, async $ => {
+    ctx.chatsOpen = true
+    startPoll($, ctx)
+    await pollChats($, ctx)
+    await $.ui.open({ id: CHATS_PANE, title: CHATS_TITLE })
+    return { text: 'Chats opened.' }
+  })
+
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
     recordSpawn(ctx, e, result)
@@ -230,8 +285,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const data = await read($, board)
-    const columns = e.props.bodyColumns ?? 80
-    const width = Math.max(18, Math.floor(columns / (columns >= 90 ? 3 : 2)) - 1)
+    const width = cardWidth(e.props.bodyColumns ?? 80)
     const card = (c: BoardCard) => (
       <Box key={`card-${c.id}`} width={width} flexDirection="column" paddingX={1} borderStyle={c.kind === 'advisor' ? 'dashed' : 'round'} borderColor={COLOR[c.state]}>
         <Text bold color={COLOR[c.state]}>● {c.id}</Text>
@@ -273,5 +327,30 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
+  })
+
+  // The dashboard: one card per open chat, the ones waiting for you first (dashboardCards sorts), drawn from the chats the poll stored.
+  on('ui.render', { component: 'Pane', requestId: CHATS_PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const data = await read($, chats)
+    if (!data.hasHome) return <Box key="no-home"><Text>Chats need USERPROFILE or HOME to be set.</Text></Box>
+    if (data.cards.length === 0) return <Box key="no-chats"><Text dimColor>No open chats.</Text></Box>
+    const width = cardWidth(e.props.bodyColumns ?? 80)
+    const card = (c: ChatCard) => {
+      const sections = c.sections.map(s => `${s.id} ${s.state}`).join(', ') || 'no sections awake'
+      const helpers = `${c.helpers} ${c.helpers === 1 ? 'helper' : 'helpers'}`
+      return (
+        <Box key={`chat-${c.sessionId}`} width={width} flexDirection="column" paddingX={1} borderStyle="round" borderColor={CHAT_COLOR[c.state]}>
+          <Box gap={1}>
+            <Text bold wrap="truncate-end">{c.project}</Text>
+            <Text color={CHAT_COLOR[c.state]}>{CHAT_PILL[c.state]}</Text>
+          </Box>
+          <Text wrap="truncate-end">{c.request || 'No request yet'}</Text>
+          <Text wrap="truncate-end" dimColor>{`${sections} · ${helpers}`}</Text>
+          <Text dimColor>{`${c.minutes} min · ${formatTokens(c.tokens)} tokens`}</Text>
+        </Box>
+      )
+    }
+    return <Box key="chats" flexDirection="row" flexWrap="wrap" gap={1}>{data.cards.map(card)}</Box>
   })
 }

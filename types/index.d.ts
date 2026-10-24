@@ -25,8 +25,12 @@ export type SessionStatus = {
   ended: boolean
 }
 
+// What the /chats pane draws: the cards the dashboard shows, each with how long its chat has been open. hasHome is false when there is no folder to read.
+export type ChatCard = SessionStatus & { minutes: number }
+export type ChatsData = { hasHome: boolean; cards: ChatCard[] }
+
 declare module 'claude-code' {
   interface PluginState {
-    'section-team': { board: BoardData }
+    'section-team': { board: BoardData; chats: ChatsData }
   }
 }
