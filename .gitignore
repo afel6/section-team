@@ -2,3 +2,4 @@ node_modules/
 .spike/
 .team/
 .claude-plugin/types/
+bench/results/
