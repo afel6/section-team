@@ -4,5 +4,8 @@
   ],
   "ai-llm": [
     "muapi-models"
+  ],
+  "security": [
+    "security-audit"
   ]
 }
