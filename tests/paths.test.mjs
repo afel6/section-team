@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson } from '../hooks/lib/paths.mjs'
+import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, pruneStatus, PRUNE_MS } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -172,4 +172,22 @@ test('malformed stdin resolves to null', () => {
   assert.equal(r.status, 0)
   assert.equal(r.stdout, '')
   assert.equal(r.stderr, 'NULL')
+})
+
+test('pruneStatus removes only regular .json files older than 7 days; a missing folder is a no-op', () => {
+  const dir = tempDir()
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+  const age = (name, ms) => utimesSync(join(dir, name), new Date(now - ms), new Date(now - ms))
+  for (const [name, ms] of [['old.json', 8 * DAY], ['fresh.json', DAY], ['old.txt', 8 * DAY]]) {
+    writeFileSync(join(dir, name), '{}')
+    age(name, ms)
+  }
+  mkdirSync(join(dir, 'old-dir.json'))
+  age('old-dir.json', 8 * DAY)
+  assert.equal(PRUNE_MS, 7 * DAY)
+  pruneStatus(dir, now)
+  assert.equal(existsSync(join(dir, 'old.json')), false)
+  for (const kept of ['fresh.json', 'old.txt', 'old-dir.json']) assert.ok(existsSync(join(dir, kept)), `${kept} was removed`)
+  assert.doesNotThrow(() => pruneStatus(join(dir, 'no-such-folder'), now))
 })

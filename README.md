@@ -16,7 +16,7 @@ A personal Claude Code plugin: every session is a **supervisor** that wakes spec
 ## Team Board
 - Nothing opens by itself. A one-line team strip above the prompt shows who is awake, the team's tokens and helpers, and how many sections sleep; its **Board** button opens the board.
 - `/team` opens the Team Board. Each awake section has a box with its live token use, how many helpers it started by model, and its reviewer grade once it is done. Sections nobody woke are folded into one "N asleep" line.
-- `/chats` opens a dashboard with one card per open chat: needs you, working or idle (a chat quiet for 30 minutes is idle; one that ended or has been quiet for a day drops off). It reads one status file per session in `~/.claude/section-team/sessions/`. A status file holds the project folder, the first line of your latest request (cut to 80 characters), the awake sections and the token and helper counts.
+- `/chats` opens a dashboard with one card per open chat: needs you, working or idle (a chat quiet for 30 minutes is idle; one that ended or has been quiet for a day drops off). It reads one status file per session in `~/.claude/section-team/sessions/`. A status file holds the project folder, the first line of your latest request (cut to 80 characters), the awake sections and the token and helper counts. Status files older than 7 days are deleted at session start.
 
 ## Sections
 Builders: frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile. Advisors (read-only): ai-engineer, data-scientist.

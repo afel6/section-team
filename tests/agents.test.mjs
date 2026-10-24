@@ -107,10 +107,31 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
+    "Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer`",
+    'If another section will depend on a contract you decide here (an API, a schema, design tokens), write its note now, before you hand out work; update it at step 7 if it changed.',
   ]
   for (const id of BUILDER_IDS) {
     const text = agentFile(id)
     for (const sentence of sentences) assert.ok(text.includes(sentence), `${id} lacks: ${sentence}`)
+    assert.ok(text.includes('\n7. Write notes for anything other sections depend on'), `${id}: step 7 is no longer the notes step the plan step points to`)
+    assert.ok(!text.includes("Once your helpers' code is in"), `${id} still gates only the helpers' code`)
+  }
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
+})
+
+test('step 2 loads only the skills the job names; go-to skills are listed by name, only for when the list lacks one', () => {
+  for (const s of ROSTER) {
+    const text = agentFile(s.id)
+    const step = text.split('\n').find(l => l.startsWith('2. '))
+    assert.ok(step.startsWith('2. Read the goal, files, skills to use, definition of done, who to coordinate with and the ids of the awake sections. Load the skills the job names with the Skill tool'), `${s.id} step 2: ${step}`)
+    assert.ok(!text.includes('plus your go-to ones'), `${s.id} still says "plus your go-to ones"`)
+    const goTo = [...s.skills.filter(k => !s.core.includes(k)), ...s.goto] // roster-extra.json assignments (add-skill) follow these
+    if (goTo.length === 0) continue
+    const list = step.slice(step.indexOf('Go-to skills'))
+    assert.ok(list.startsWith(`Go-to skills, only when the job needs one its list lacks: ${goTo.join(', ')}`), `${s.id} go-to list: ${step}`)
+    assert.ok(list.endsWith('.'), `${s.id} go-to list is the last sentence of step 2`)
+    assert.ok(!/(^|[ ,])\/[\w-]/.test(list), `${s.id} go-to entry still has a leading slash: ${step}`)
+    if (s.core.length > 0) assert.ok(step.includes(`(${s.core[0]} is already loaded)`), `${s.id} core note`)
   }
 })
 
@@ -220,4 +241,8 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(text.includes('## GRADE'))
   assert.ok(text.includes('Grade only the changed lines and the functions around them.'))
   assert.ok(text.includes('Never edit files and never spawn agents.'))
+  assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), 'reviewer project rules')
+  assert.ok(text.includes("Where the project's own rules differ from the house rules, the project's rules win."))
+  assert.ok(text.includes('Score each item 1–10:'))
+  assert.ok(!text.includes('0–10'))
 })

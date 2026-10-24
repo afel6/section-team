@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -43,7 +43,7 @@ test('the injected brief hands per-job skills, uses notes, gates its own code an
   const brief = buildContext(repo())
   assert.ok(brief.startsWith('[section-team supervisor]'))
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
-  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', PASS_RULE, '/chats', '/team']) {
+  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', '`section-team:reviewer` replaces `code-reviewer` for your own code.', PASS_RULE, '/chats', '/team']) {
     assert.ok(brief.includes(phrase), `brief lacks: ${phrase}`)
   }
   assert.ok(!brief.includes('opens automatically'))
@@ -54,7 +54,9 @@ test('the injected brief hands per-job skills, uses notes, gates its own code an
 
 test('with S2 direct the brief tells the supervisor to list the awake agent ids in every job', () => {
   if (!/^S2: direct$/m.test(readFileSync(SPIKES, 'utf8'))) return
-  assert.ok(buildContext(repo()).includes('the agent ids of the sections that are awake'))
+  const brief = buildContext(repo())
+  assert.ok(brief.includes('the agent ids of the awake builder sections'))
+  assert.ok(!brief.includes('the agent ids of the sections that are awake'))
 })
 
 test('context names the latest summary and excludes .team/', () => {
@@ -156,4 +158,33 @@ test('a notes folder that cannot be created still returns the brief, with one li
 test('a healthy run writes nothing to stderr', () => {
   const dir = repo()
   assert.equal(run(startInput(dir)).stderr, '')
+})
+
+test('a folder outside any git repo gets no .team/ folder, but still gets the brief', () => {
+  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-nogit-'))), 'plain')
+  mkdirSync(dir, { recursive: true })
+  assert.equal(excludeFile(dir), null, 'the temp folder is inside a git repo')
+  assert.ok(buildContext(dir).startsWith(MARKER))
+  assert.equal(existsSync(join(dir, '.team')), false)
+  const result = run(startInput(dir))
+  assert.equal(result.status, 0)
+  assert.ok(JSON.parse(result.stdout).hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.equal(existsSync(join(dir, '.team')), false)
+  assert.equal(result.stderr, '')
+})
+
+test('session start deletes status files older than 7 days and nothing else', () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'ct-home-')))
+  const dir = join(home, '.claude', 'section-team', 'sessions')
+  mkdirSync(join(dir, 'old-dir.json'), { recursive: true })
+  const DAY = 24 * 60 * 60 * 1000
+  for (const [name, days] of [['old.json', 8], ['fresh.json', 1], ['old.txt', 8]]) {
+    writeFileSync(join(dir, name), '{}')
+    utimesSync(join(dir, name), new Date(Date.now() - days * DAY), new Date(Date.now() - days * DAY))
+  }
+  utimesSync(join(dir, 'old-dir.json'), new Date(Date.now() - 8 * DAY), new Date(Date.now() - 8 * DAY))
+  assert.ok(buildContext(repo(), home).startsWith(MARKER))
+  assert.equal(existsSync(join(dir, 'old.json')), false)
+  for (const kept of ['fresh.json', 'old.txt', 'old-dir.json']) assert.ok(existsSync(join(dir, kept)), `${kept} was removed`)
+  assert.ok(buildContext(repo(), join(home, 'no-such-home')).startsWith(MARKER))
 })

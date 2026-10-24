@@ -109,7 +109,7 @@ describe('generator with extras', () => {
   test('the body lists the extra among the go-to skills; the skills: preload does not', () => {
     const text = render(frontend, { frontend: ['my-skill'] })
     const frontmatter = text.split('---')[1]
-    assert.ok(gotoLine(text).includes('/react-review, my-skill'), gotoLine(text))
+    assert.ok(gotoLine(text).endsWith('Go-to skills, only when the job needs one its list lacks: modern-web-guidance:modern-web-guidance, react-review, my-skill.'), gotoLine(text))
     assert.ok(!frontmatter.includes('my-skill'), 'extra leaked into the skills: preload')
     assert.ok(frontmatter.includes('frontend-design:frontend-design'), 'real preload lost')
   })
@@ -129,8 +129,8 @@ describe('generator with extras', () => {
 
   test('a section with no go-to entries gains a go-to list from extras', () => {
     const bare = { ...ROSTER.find(s => s.id === 'backend'), skills: [], goto: [] } // every real section now lists its non-core skills as go-to
-    assert.ok(!render(bare).includes('go-to'))
-    assert.ok(render(bare, { backend: ['x1'] }).includes('plus your go-to ones: x1.'))
+    assert.ok(!render(bare).includes('Go-to skills'))
+    assert.ok(render(bare, { backend: ['x1'] }).includes('Go-to skills, only when the job needs one its list lacks: x1.'))
   })
 
   test('writeAgents --check compares against output that includes extras', () => {
@@ -180,7 +180,7 @@ describe('assign-skill CLI in a temp copy of the plugin', () => {
     assert.equal(add.status, 0, add.stderr)
     assert.equal(add.stdout.trim(), 'assigned demo-skill → frontend, uiux')
     assert.equal(readFileSync(rosterFile(tmp), 'utf8'), '{\n  "frontend": [\n    "demo-skill"\n  ],\n  "uiux": [\n    "demo-skill"\n  ]\n}\n')
-    for (const id of ['frontend', 'uiux']) assert.match(readFileSync(join(tmp, 'agents', `${id}.md`), 'utf8'), /go-to ones:.*demo-skill/)
+    for (const id of ['frontend', 'uiux']) assert.match(readFileSync(join(tmp, 'agents', `${id}.md`), 'utf8'), /Go-to skills, only when the job needs one its list lacks:.*demo-skill\.$/m)
     assert.ok(!readFileSync(join(tmp, 'agents', 'backend.md'), 'utf8').includes('demo-skill'))
     assert.equal(run(tmp, 'gen-agents.mjs', '--check').status, 0)
 
@@ -211,7 +211,7 @@ describe('assign-skill CLI in a temp copy of the plugin', () => {
 
   test('after prior use (roster already holds backend: x) the flow and the committed-agents test still pass', () => withPlugin({ backend: ['x'] }, tmp => {
     const prior = snapshot(tmp)
-    assert.match(prior['agents/backend.md'], /plus your go-to ones: .*, x\./)
+    assert.match(prior['agents/backend.md'], /Go-to skills, only when the job needs one its list lacks: .*, x\.$/m)
     assert.equal(run(tmp, 'gen-agents.mjs', '--check').status, 0)
 
     // tests/agents.test.mjs ("committed files match the generator") run inside the copy

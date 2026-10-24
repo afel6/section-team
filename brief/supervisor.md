@@ -21,7 +21,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
   - the goal; relevant files and decisions so far;
   - `Skills for this job: …` — at most 4, picked from the installed skills and plugins that fit that section and this task (read-only skills for advisors);
   - what "done" means;
-  - the agent ids of the sections that are awake, and which of them to coordinate with;
+  - the agent ids of the awake builder sections, and which of them to coordinate with;
   - "End with your REPORT block."
 - Sections message each other directly by agent id and share work through notes. Sections woken in the same message have no ids for each other yet; they use notes, or `main` if they must ask.
 - A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it first if asleep) and include the asker's agent id so the owner replies to it directly. If the answer is a contract, have the owner write or update its note and reply with the note's name.
@@ -42,6 +42,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## Your own code
 - Before you say work you wrote yourself is done, run Agent `section-team:reviewer` on the changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
+- `section-team:reviewer` replaces `code-reviewer` for your own code.
 - If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
 - Docs-only and config-value edits skip this.
 

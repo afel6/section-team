@@ -248,6 +248,12 @@ export const register: Register = on => {
     return { text: 'Chats opened.' }
   })
 
+  // The pane is gone, however it closed: the poll stops reading the status folder until /chats opens it again.
+  on('ui.close', { id: CHATS_PANE }, async ($, e, next) => {
+    ctx.chatsOpen = false
+    return next(e)
+  })
+
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
     recordSpawn(ctx, e, result)

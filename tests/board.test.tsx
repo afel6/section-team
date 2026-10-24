@@ -1,6 +1,7 @@
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { boardModel } from '../hooks/board-model.mjs'
+import { register } from '../hooks/register'
 
 const DATA = boardModel({
   agents: [
@@ -652,6 +653,58 @@ test('/chats opens the Chats pane, and the poll reads the status folder only fro
   expect(listed).toBeGreaterThan(0)
   await clock.advance(2000)
   expect(seen.chats.lists).toBeGreaterThan(listed)
+})
+
+// The test engine cannot raise ui.close (its `$` has no ui.close, and a hook of the test may not call it), so this one drives the
+// registered hooks themselves with a stub `$`: the real register(), the real poll, only the engine around them is stubbed.
+type Registered = { event: string; matcher: unknown; hook: (...args: unknown[]) => Promise<unknown> }
+const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
+test('closing the Chats pane stops the poll reading the status folder, and /chats starts it again', async () => {
+  const registered: Registered[] = []
+  register(((event: string, matcher: unknown, hook?: Registered['hook']) => {
+    registered.push(hook ? { event, matcher, hook } : { event, matcher: undefined, hook: matcher as Registered['hook'] })
+  }) as never)
+  const hookFor = (event: string, matcher: unknown) => registered.find(r => r.event === event && JSON.stringify(r.matcher) === JSON.stringify(matcher))?.hook
+  let tick = () => {}
+  const reads = { lists: 0 }
+  const $ = {
+    clock: { every: (_ms: number, run: () => void) => { tick = run; return {} }, now: async () => T0 },
+    env: { get: async (name: string) => (name === 'USERPROFILE' ? 'C:/Users/u' : undefined) },
+    fs: { list: async () => { reads.lists += 1; return [] }, read: async () => '' },
+    ui: { open: async () => ({ isPlaced: true }), log: () => {} },
+  }
+  const chatsRun = hookFor('command.run', { command: 'chats' })
+  const onClose = hookFor('ui.close', { id: 'team-chats' })
+  expect(chatsRun).toBeDefined()
+  expect(onClose).toBeDefined()
+  // Only the Chats pane has a close hook: closing the Team Board leaves the poll alone.
+  expect(registered.filter(r => r.event === 'ui.close')).toHaveLength(1)
+
+  await chatsRun!($, { command: 'chats' })
+  const opened = reads.lists
+  expect(opened).toBeGreaterThan(0)
+  tick()
+  await flush()
+  expect(reads.lists).toBeGreaterThan(opened)
+
+  const event = { id: 'team-chats', origin: { kind: 'person' } }
+  const passed: unknown[] = []
+  expect(await onClose!($, event, async (e: unknown) => { passed.push(e); return 'next-result' })).toBe('next-result')
+  expect(passed).toEqual([event])
+  const closed = reads.lists
+  tick()
+  await flush()
+  tick()
+  await flush()
+  expect(reads.lists).toBe(closed)
+
+  await chatsRun!($, { command: 'chats' })
+  expect(reads.lists).toBeGreaterThan(closed)
+  const reopened = reads.lists
+  tick()
+  await flush()
+  expect(reads.lists).toBeGreaterThan(reopened)
 })
 
 test('the Chats pane draws one card per good file, needs-you first, and skips a file cut off mid-write', async ($, on) => {

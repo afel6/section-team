@@ -11,16 +11,16 @@ export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
 
 export const ROSTER = [
-  { id: 'frontend', kind: 'builder', color: 'blue', description: 'Frontend section head: UI pages, components, styling, client state. Use for any user-facing screen work.', role: 'You own everything the user sees in a browser: pages, components, styling, client-side state and accessibility of the UI you build.', skills: ['frontend-design:frontend-design', 'modern-web-guidance:modern-web-guidance'], core: ['frontend-design:frontend-design'], goto: ['/react-review'], helpers: ['react-reviewer', 'typescript-reviewer', 'a11y-architect'] },
+  { id: 'frontend', kind: 'builder', color: 'blue', description: 'Frontend section head: UI pages, components, styling, client state. Use for any user-facing screen work.', role: 'You own everything the user sees in a browser: pages, components, styling, client-side state and accessibility of the UI you build.', skills: ['frontend-design:frontend-design', 'modern-web-guidance:modern-web-guidance'], core: ['frontend-design:frontend-design'], goto: ['react-review'], helpers: ['react-reviewer', 'typescript-reviewer', 'a11y-architect'] },
   { id: 'backend', kind: 'builder', color: 'green', description: 'Backend section head: APIs, server logic, auth, integrations.', role: 'You own server code: APIs, business logic, authentication, background jobs and integrations.', skills: ['anthropic-skills:backend-patterns', 'error-handling'], core: [], goto: [], helpers: ['code-reviewer', 'fastapi-reviewer', 'python-reviewer'] },
   { id: 'database', kind: 'builder', color: 'yellow', description: 'Database section head: schema design, migrations, queries, indexes.', role: 'You own data storage: schemas, migrations, queries, indexes and data integrity.', skills: ['data:sql-queries'], core: [], goto: [], helpers: ['database-reviewer'] },
   { id: 'testing', kind: 'builder', color: 'cyan', description: 'Testing section head: unit, integration and e2e tests; owns final review and verification for multi-section tasks.', role: 'You own tests and, for multi-section tasks, the final review and verification of everyone\'s changes.', skills: ['tdd-workflow', 'e2e-testing', 'verification-loop'], core: ['tdd-workflow'], goto: [], helpers: ['tdd-guide', 'e2e-runner', 'pr-test-analyzer', 'code-reviewer'] },
   { id: 'security', kind: 'builder', color: 'red', description: 'Security section head: vulnerability review, secrets, auth hardening, fixes for security findings.', role: 'You own security: finding vulnerabilities, exposed secrets and weak auth, and fixing them.', skills: ['security-review', 'security-scan'], core: ['security-review'], goto: [], helpers: ['security-reviewer', 'silent-failure-hunter'] },
-  { id: 'devops', kind: 'builder', color: 'orange', description: 'DevOps section head: builds, CI, Docker, deployment, environment config.', role: 'You own how code is built, packaged, configured and deployed.', skills: ['anthropic-skills:docker-management', 'engineering:deploy-checklist'], core: [], goto: ['/build-fix'], helpers: ['build-error-resolver'] },
+  { id: 'devops', kind: 'builder', color: 'orange', description: 'DevOps section head: builds, CI, Docker, deployment, environment config.', role: 'You own how code is built, packaged, configured and deployed.', skills: ['anthropic-skills:docker-management', 'engineering:deploy-checklist'], core: [], goto: ['build-fix'], helpers: ['build-error-resolver'] },
   { id: 'uiux', kind: 'builder', color: 'pink', description: 'UI/UX section head: layouts, user flows, accessibility, UX copy; designs before code.', role: 'You own how the product looks and flows: layouts, user journeys, accessibility and wording, decided before code is written.', skills: ['design:design-critique', 'design:accessibility-review', 'design:ux-copy'], core: [], goto: [], helpers: ['a11y-architect'] },
-  { id: 'docs', kind: 'builder', color: 'purple', description: 'Docs section head: READMEs, guides, API docs, changelogs.', role: 'You own documentation: READMEs, guides, API references and changelogs.', skills: ['engineering:documentation'], core: [], goto: ['/update-docs'], helpers: ['doc-updater'] },
+  { id: 'docs', kind: 'builder', color: 'purple', description: 'Docs section head: READMEs, guides, API docs, changelogs.', role: 'You own documentation: READMEs, guides, API references and changelogs.', skills: ['engineering:documentation'], core: [], goto: ['update-docs'], helpers: ['doc-updater'] },
   { id: 'ai-llm', kind: 'builder', color: 'purple', description: 'AI/LLM section head: builds features that call Claude or other models: prompts, tools, RAG, evals.', role: 'You build AI features: model calls, prompts, tool use, retrieval and evaluations.', skills: ['claude-api', 'eval-harness'], core: ['claude-api'], goto: [], helpers: ['rag-pipeline-reviewer'] },
-  { id: 'mobile', kind: 'builder', color: 'green', description: 'Mobile section head: iOS, Android, Flutter and React Native app work.', role: 'You own mobile apps: screens, native integration, builds and store readiness.', skills: [], core: [], goto: ['/flutter-review', '/kotlin-review'], helpers: ['flutter-reviewer', 'swift-reviewer', 'kotlin-reviewer'] },
+  { id: 'mobile', kind: 'builder', color: 'green', description: 'Mobile section head: iOS, Android, Flutter and React Native app work.', role: 'You own mobile apps: screens, native integration, builds and store readiness.', skills: [], core: [], goto: ['flutter-review', 'kotlin-review'], helpers: ['flutter-reviewer', 'swift-reviewer', 'kotlin-reviewer'] },
   { id: 'ai-engineer', kind: 'advisor', color: 'cyan', description: 'AI engineer ADVISOR (read-only): advises the supervisor on model choice, prompts, RAG and agent design. Never changes project files.', role: 'You advise the supervisor on AI decisions: which model, how to prompt, retrieval design, agent architecture, evaluation.', skills: ['claude-api', 'architecture-decision-records'], core: ['claude-api'], goto: [], helpers: ['architect', 'code-explorer'] },
   { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], core: [], goto: [], helpers: ['code-explorer'] },
 ]
@@ -61,7 +61,10 @@ export const HELPER_AGENTS = [
     body: [
       "You are the **reviewer**, a clean-code grader for section-team. You grade the code you are pointed at against the user's standards and return a score with a file:line fix list.",
       '',
-      'Grade only the changed lines and the functions around them. Score each item 0–10:',
+      PROJECT_RULES,
+      "Where the project's own rules differ from the house rules, the project's rules win.",
+      '',
+      'Grade only the changed lines and the functions around them. Score each item 1–10:',
       ...RUBRIC_ITEMS.map(item => `- ${item}: ${RUBRIC_TEXT[item]}`),
       '',
       PASS_RULE,
@@ -95,12 +98,16 @@ const FABLE_RULE = `The hardest problems only (stuck after 2 attempts, major arc
 
 const READ_NOTES = 'Read `.team/notes/INDEX.md` first, then only the notes your job needs. If it does not exist yet, there are no notes.'
 // Advisors get their own wording: a test bans the bare word "Plan" from advisor files (the Plan helper type can run shell commands).
-const PLAN = isAdvisor => `${isAdvisor ? 'Work out your approach (what to read, in what order) before you hand anything out.' : 'Plan your part (tasks, files, order) before you hand anything out.'} Keep it in your own context.`
+// Builders only: a contract is written before the work is handed out, so sections woken together do not wait for step 7. "step 7" is the WRITE_NOTES step (a test pins it).
+const CONTRACT_NOW = 'If another section will depend on a contract you decide here (an API, a schema, design tokens), write its note now, before you hand out work; update it at step 7 if it changed.'
+const PLAN = isAdvisor => isAdvisor
+  ? 'Work out your approach (what to read, in what order) before you hand anything out. Keep it in your own context.'
+  : `Plan your part (tasks, files, order) before you hand anything out. Keep it in your own context. ${CONTRACT_NOW}`
 
 const loadSkills = (core, goTo) => [
   'Read the goal, files, skills to use, definition of done, who to coordinate with and the ids of the awake sections.',
-  `Load the skills the job names with the Skill tool${core.length > 0 ? ` (your core skill ${core[0]} is already loaded)` : ''}${goTo.length > 0 ? `, plus your go-to ones: ${goTo.join(', ')}` : ''}.`,
-  goTo.length > 0 ? "Load a go-to skill only when it fits the job; prefer the job's list." : "Prefer the job's list; load another skill only if you truly need it.",
+  `Load the skills the job names with the Skill tool${core.length > 0 ? ` (${core[0]} is already loaded)` : ''}.`,
+  goTo.length > 0 ? `Go-to skills, only when the job needs one its list lacks: ${goTo.join(', ')}.` : "Prefer the job's list; load another skill only if you truly need it.",
 ].join(' ')
 
 // Heads run on Opus, so the bulk goes to scout (Haiku) and coder (Sonnet). Advisors are read-only: scout only, no coder.
@@ -121,7 +128,7 @@ const KEEP = isAdvisor => `Keep for yourself: ${isAdvisor ? 'design decisions, t
 // Builders only. Docs-only and config-only jobs have no code to grade.
 const QUALITY_GATE = [
   'Quality gate (skip it when the job changed no code, for example docs only or config values):',
-  '   - Once your helpers\' code is in, send your changed files to Agent `section-team:reviewer` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.',
+  "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',

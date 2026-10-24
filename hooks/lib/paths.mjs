@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, writeFileSync, writeSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -43,6 +43,28 @@ export function ensureNotes(root) {
   } catch (err) {
     if (err.code === 'EEXIST') return false
     throw err
+  }
+}
+
+export const PRUNE_MS = 7 * 24 * 60 * 60 * 1000
+
+// Deletes only regular *.json files in the status folder that are older than PRUNE_MS. A missing folder, or a file another session removed first, is nothing to do.
+export function pruneStatus(dir, now = Date.now()) {
+  let names
+  try {
+    names = readdirSync(dir)
+  } catch (err) {
+    if (err.code === 'ENOENT') return
+    throw err
+  }
+  for (const name of names.filter(n => n.endsWith('.json'))) {
+    const file = join(dir, name)
+    try {
+      const info = lstatSync(file)
+      if (info.isFile() && now - info.mtimeMs > PRUNE_MS) unlinkSync(file)
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err
+    }
   }
 }
 
