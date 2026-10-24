@@ -1,7 +1,7 @@
 ---
 name: testing
 description: "Testing section head: unit, integration and e2e tests; owns final review and verification for multi-section tasks."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: cyan
 omitClaudeMd: true
 memory: user

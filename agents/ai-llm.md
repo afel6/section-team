@@ -1,7 +1,7 @@
 ---
 name: ai-llm
 description: "AI/LLM section head: builds features that call Claude or other models: prompts, tools, RAG, evals."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: purple
 omitClaudeMd: true
 memory: user

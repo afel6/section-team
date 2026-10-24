@@ -1,7 +1,7 @@
 ---
 name: security
 description: "Security section head: vulnerability review, secrets, auth hardening, fixes for security findings."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: red
 omitClaudeMd: true
 memory: user

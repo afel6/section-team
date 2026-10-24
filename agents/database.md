@@ -1,7 +1,7 @@
 ---
 name: database
 description: "Database section head: schema design, migrations, queries, indexes."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: yellow
 omitClaudeMd: true
 memory: user

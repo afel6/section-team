@@ -3,8 +3,8 @@ import { ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { readExtra } from './assign-skill.mjs'
 
-// Builders do the work on Sonnet; advisors make judgement calls on Opus. The Opus reviewer checks the builders' code.
-export const MODEL = { builder: 'claude-sonnet-5-5', advisor: 'claude-opus-5-5' }
+// All heads run on Opus: benchmark rounds 4–6 showed Sonnet builder heads land at solo quality even with the Opus gate.
+export const MODEL = { builder: 'claude-opus-5-5', advisor: 'claude-opus-5-5' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
 export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly

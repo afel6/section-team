@@ -1,7 +1,7 @@
 ---
 name: uiux
 description: "UI/UX section head: layouts, user flows, accessibility, UX copy; designs before code."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: pink
 omitClaudeMd: true
 memory: user

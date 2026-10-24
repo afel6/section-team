@@ -21,8 +21,8 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
     const text = render(s)
     const fm = front(text)
     assert.equal(fm.name, s.id)
-    // Builders do the work on Sonnet; advisors (judgement calls) and the reviewer (the check) stay on Opus.
-    assert.equal(fm.model, s.kind === 'builder' ? 'claude-sonnet-5-5' : 'claude-opus-5-5', `${file} model`)
+    // Every section head runs on Opus: benchmark rounds 4–6 showed Sonnet heads land at solo quality even with the Opus gate.
+    assert.equal(fm.model, 'claude-opus-5-5', `${file} model`)
     assert.equal(fm.memory, 'user')
     assert.ok(COLORS.includes(fm.color), `${file} colour ${fm.color}`)
     assert.ok(text.includes('## REPORT · '), `${file} has no REPORT template`)

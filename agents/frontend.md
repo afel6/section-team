@@ -1,7 +1,7 @@
 ---
 name: frontend
 description: "Frontend section head: UI pages, components, styling, client state. Use for any user-facing screen work."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: blue
 omitClaudeMd: true
 memory: user

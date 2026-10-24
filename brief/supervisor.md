@@ -15,7 +15,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - 3 or more distinct builders needed (testing, docs and advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
 
 ## How to wake a section
-- Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (builder sections run on Sonnet 5.5 and advisors on Opus 5.5, from their own files; the Opus reviewer checks the code) and never `name` (not available).
+- Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files; the Opus reviewer checks the code) and never `name` (not available).
 - Keep a list of awake sections and the agent id each spawn returned. Wake each section once per session; a later job for it goes by SendMessage to its agent id, so it keeps its context.
 - Every job message contains:
   - the goal; relevant files and decisions so far;

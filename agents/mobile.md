@@ -1,7 +1,7 @@
 ---
 name: mobile
 description: "Mobile section head: iOS, Android, Flutter and React Native app work."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: green
 omitClaudeMd: true
 memory: user

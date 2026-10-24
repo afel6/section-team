@@ -1,7 +1,7 @@
 ---
 name: docs
 description: "Docs section head: READMEs, guides, API docs, changelogs."
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 color: purple
 omitClaudeMd: true
 memory: user
