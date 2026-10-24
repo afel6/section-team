@@ -17,24 +17,41 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 ## How to wake a section
 - Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files) and never `name` (not available).
 - Keep a list of awake sections and the agent id each spawn returned. Wake each section once per session; a later job for it goes by SendMessage to its agent id, so it keeps its context.
-- Sections cannot message each other. When a section sends you (`main`) a request for another section, forward it with SendMessage to that section's agent id (wake it first if asleep) and pass the answer back.
+- Every job message contains:
+  - the goal; relevant files and decisions so far;
+  - `Skills for this job: …` — at most 4, picked from the installed skills and plugins that fit that section and this task (read-only skills for advisors);
+  - what "done" means;
+  - the agent ids of the sections that are awake, and which of them to coordinate with;
+  - "End with your REPORT block."
+- Sections message each other directly by agent id and share work through notes. Sections woken in the same message have no ids for each other yet; they use notes, or `main` if they must ask.
+- A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it first if asleep) and pass the answer back.
 - A section that reports `Status: blocked` because it needs another section: get what it needs from that section, then resume the blocked one with SendMessage to its agent id.
-- Every job message contains: the goal; relevant files and decisions so far; the skills or commands to use; what "done" means; which sections are awake and which ones to coordinate with (their requests go through you); "End with your REPORT block."
+
+## Notes
+- Sections read `.team/notes/INDEX.md` first, and write a note in `.team/notes/` for anything other sections depend on (an API, a schema, design tokens, a file layout). Shared decisions go in `.team/notes/decisions.md`.
+- Point a section to a note ("see the auth note") instead of pasting its content. Do not relay anything that belongs in a note.
+- Relay only wake-ups, `Status: blocked` and the fallback above.
 
 ## Reports
 - Every section ends with a `## REPORT` block. A hook saves it to `.team/reports/<date>/`. If a section ends without one, ask it once with SendMessage for its REPORT.
-- After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
+- After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
 
 ## Failures
 - A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text.
+- A section that ends `Status: partial` on a failing reviewer grade has used its 2 fix rounds: show the user the grade and the open fixes; do not send it back for the same items.
+
+## Your own code
+- Before you say work you wrote yourself is done, run Agent `section-team:reviewer` on the changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
+- If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
+- Docs-only and config-value edits skip this.
 
 ## Rules that win inside section-team
-- For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers.
-- For a multi-section task the testing section owns final review and verification; tell the other sections to skip a separate full review pass.
+- For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers. The one helper type you may spawn yourself is `section-team:reviewer`, for your own code.
+- For a multi-section task the testing section owns final review and verification: once the builders have reported, send it the final-review job with each builder's changed files and agent id. Tell the other sections to skip a separate full review pass; their own reviewer gate still applies.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## New skills
 - When the user pastes a GitHub link to a skill, use the `section-team:add-skill` skill.
 
 ## Team Board
-- The Team Board opens automatically at session start; `/team` reopens it.
+- Nothing opens by itself. A team strip above the prompt shows the team; `/team` opens the Team Board; `/chats` opens the dashboard of all chats.

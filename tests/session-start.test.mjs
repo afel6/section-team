@@ -7,9 +7,11 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { buildContext } from '../hooks/session-start.mjs'
 import { writeReport, excludeFile } from '../hooks/lib/paths.mjs'
+import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.url))
 const BRIEF = fileURLToPath(new URL('../brief/supervisor.md', import.meta.url))
+const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
 const repo = () => {
   const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
   mkdirSync(dir, { recursive: true })
@@ -35,6 +37,22 @@ test('brief wakes testing with a single builder, and testing and docs do not cou
   const brief = readFileSync(BRIEF, 'utf8')
   assert.ok(brief.includes('wake that builder plus the testing section'))
   assert.ok(brief.includes('testing, docs and advisors not counted'))
+})
+
+test('the injected brief hands per-job skills, uses notes, gates its own code and describes the board commands', () => {
+  const brief = buildContext(repo())
+  assert.ok(brief.startsWith('[section-team supervisor]'))
+  assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
+  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', PASS_RULE, '/chats', '/team']) {
+    assert.ok(brief.includes(phrase), `brief lacks: ${phrase}`)
+  }
+  assert.ok(!brief.includes('opens automatically'))
+  assert.ok(!brief.includes('Sections cannot message each other'))
+})
+
+test('with S2 direct the brief tells the supervisor to list the awake agent ids in every job', () => {
+  if (!/^S2: direct$/m.test(readFileSync(SPIKES, 'utf8'))) return
+  assert.ok(buildContext(repo()).includes('the agent ids of the sections that are awake'))
 })
 
 test('context names the latest summary and excludes .team/', () => {
