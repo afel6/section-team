@@ -7,7 +7,7 @@ A personal Claude Code plugin: every session is a **supervisor** that wakes spec
 - Off: set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
 
 ## Use
-- Just talk to the supervisor. Single-area tasks (up to about 600 lines): it builds the code itself, wakes only the testing section for the tests, and gates its code with the Opus reviewer. Multi-area work wakes the builder sections plus testing. 3+ builder sections (testing, docs and advisors not counted) → it shows a plan first.
+- Just talk to the supervisor. Small tasks (about 150 lines or less) it builds, tests and gates itself. Single-area tasks (up to about 600 lines): it builds the code itself, wakes only the testing section for the tests, and gates its code with the Opus reviewer. Multi-area work wakes the builder sections plus testing. 3+ builder sections (testing, docs and advisors not counted) → it shows a plan first.
 - Sections message each other directly by agent id and share contracts as notes in `.team/notes/`. If an id is missing or a message fails, the supervisor forwards the request with the asker's id, so the owner replies to the asker directly.
 - The supervisor names up to 4 skills per job (`Skills for this job:`), picked from what is installed and fits that section and task.
 - Reports: `.team/reports/<date>/` in each project. Every REPORT has a `Quality:` line, the reviewer's grade (see Sections) or `n/a (no code)`.

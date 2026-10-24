@@ -35,7 +35,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('then run the reviewer gate on your own changed files'))
   assert.ok(brief.includes('Multi-area work'))
   assert.ok(brief.includes('plus the testing section'))
-  assert.ok(!brief.includes('about 150 lines'))
+  assert.ok(brief.includes('Small task: about 150 lines of new code or less: build it and its tests yourself, then run the reviewer gate'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
 })
 
