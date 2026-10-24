@@ -47,6 +47,8 @@ test('the injected brief hands per-job skills, uses notes, gates its own code an
     assert.ok(brief.includes(phrase), `brief lacks: ${phrase}`)
   }
   assert.ok(!brief.includes('opens automatically'))
+  assert.ok(brief.includes("include the asker's agent id so the owner replies to it directly"))
+  assert.ok(brief.includes("reply with the note's name"))
   assert.ok(!brief.includes('Sections cannot message each other'))
 })
 

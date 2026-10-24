@@ -24,7 +24,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
   - the agent ids of the sections that are awake, and which of them to coordinate with;
   - "End with your REPORT block."
 - Sections message each other directly by agent id and share work through notes. Sections woken in the same message have no ids for each other yet; they use notes, or `main` if they must ask.
-- A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it first if asleep) and pass the answer back.
+- A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it first if asleep) and include the asker's agent id so the owner replies to it directly. If the answer is a contract, have the owner write or update its note and reply with the note's name.
 - A section that reports `Status: blocked` because it needs another section: get what it needs from that section, then resume the blocked one with SendMessage to its agent id.
 
 ## Notes
