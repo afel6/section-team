@@ -80,7 +80,7 @@ test('every section head skips the global CLAUDE.md, carries the house rules and
   for (const s of ROSTER) {
     const text = agentFile(s.id)
     assert.equal(front(text).omitClaudeMd, 'true', `${s.id} omitClaudeMd`)
-    assert.ok(text.includes('Project rules: if the project root has CLAUDE.md or AGENTS.md, read it first and follow it.'), `${s.id} project rules`)
+    assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), `${s.id} project rules`)
     assert.ok(text.includes("House rules (the user's standards):"), `${s.id} house rules`)
     assert.ok(text.includes('section-team:scout'), `${s.id} scout`)
     if (s.kind === 'builder') assert.ok(text.includes('section-team:coder'), `${s.id} coder`)
@@ -88,11 +88,16 @@ test('every section head skips the global CLAUDE.md, carries the house rules and
   }
 })
 
-test('builders get the firm helper rule: delegate the bulk, use at least one helper on bigger jobs', () => {
-  const text = agentFile('backend')
-  assert.ok(text.includes('you run on Opus, the most expensive model, so delegate the bulk'))
-  assert.ok(text.includes('If your job touches more than 2 files or needs tests, use at least one helper.'))
-  assert.ok(text.includes('Review its diff before accepting it.'))
+test('every builder gets the firm helper rule: delegate the bulk, never override the helper model, pass project rules to the coder', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes('you run on Opus, the most expensive model, so delegate the bulk'), `${id} delegate the bulk`)
+    assert.ok(text.includes('Keep for yourself'), `${id} keep for yourself`)
+    assert.ok(text.includes('do not pass `model`'), `${id} do not pass model`)
+    assert.ok(text.includes('(Haiku; do not pass `model`)'), `${id} scout model`)
+    assert.ok(text.includes('(Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.'), `${id} coder rule`)
+    assert.ok(text.includes('If your job touches more than 2 files or needs tests, use at least one helper.'), `${id} at least one helper`)
+  }
 })
 
 test('scout is a cheap read-only helper, not a section', () => {
@@ -122,4 +127,6 @@ test('coder is a Sonnet routine-coding helper that cannot spawn agents', () => {
   for (const tool of ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']) assert.ok(fm.tools.split(', ').includes(tool), `coder lacks ${tool}`)
   assert.ok(!fm.tools.split(', ').includes('Agent'), 'coder has Agent')
   assert.ok(text.includes('House rules'))
+  assert.ok(text.includes('CLAUDE.local.md'), 'coder needs the full project-rules list')
+  assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), 'coder project rules')
 })

@@ -9,10 +9,10 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 ## When to wake sections
 - Small task — about 150 lines of new code or less, in at most 2 files: do it yourself, wake nobody.
 - Anything bigger: wake the builder section(s) for the code plus the testing section for tests and final verification; add the docs section when the task asks for docs or a README. Do not build bigger tasks yourself, even when the plan is pre-approved.
-- One area of real work: wake that one builder.
+- One area of real work: wake that builder plus the testing section.
 - Several areas: wake each needed builder. Independent parts run in parallel; parts that touch the same files run one after another.
 - An AI or data decision: ask the matching advisor first, then decide. Only you consult advisors.
-- 3 or more distinct builders needed (advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
+- 3 or more distinct builders needed (testing, docs and advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
 
 ## How to wake a section
 - Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files) and never `name` (not available).

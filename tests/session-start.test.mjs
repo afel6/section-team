@@ -31,6 +31,12 @@ test('brief sets the small-task threshold and sends bigger tasks to builders plu
   assert.ok(!brief.includes('touches at most 1 file'))
 })
 
+test('brief wakes testing with a single builder, and testing and docs do not count toward the 3-builder plan gate', () => {
+  const brief = readFileSync(BRIEF, 'utf8')
+  assert.ok(brief.includes('wake that builder plus the testing section'))
+  assert.ok(brief.includes('testing, docs and advisors not counted'))
+})
+
 test('context names the latest summary and excludes .team/', () => {
   const dir = repo()
   const summary = writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))

@@ -25,7 +25,7 @@ export const ROSTER = [
   { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], goto: [], helpers: ['code-explorer'] },
 ]
 
-const PROJECT_RULES = 'Project rules: if the project root has CLAUDE.md or AGENTS.md, read it first and follow it.'
+const PROJECT_RULES = 'Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'
 const HOUSE_RULES = "House rules (the user's standards): return new objects instead of mutating; small focused files (200–400 lines typical, 800 max) and functions (under 50 lines); validate input at boundaries; handle errors explicitly and never swallow them; no hardcoded secrets; no console.log in shipped code; write tests first for new behaviour and aim for 80% coverage; conventional commit messages if you commit."
 
 // Cheap helpers for section heads. Not sections: not in SECTION_IDS, so the board, report saver and guard treat them as helpers.
@@ -38,7 +38,7 @@ export const HELPER_AGENTS = [
   {
     id: 'coder', model: 'sonnet', color: 'green', tools: 'Read, Write, Edit, Bash, PowerShell, Grep, Glob',
     description: 'Routine-coding helper for section heads: writes or edits code and tests exactly as specified by the head, runs them, and reports. Does not make design decisions.',
-    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', HOUSE_RULES, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
+    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', PROJECT_RULES, HOUSE_RULES, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
   },
 ]
 
@@ -58,8 +58,8 @@ const FABLE_RULE = `The hardest problems only (stuck after 2 attempts, major arc
 function helperSteps(s, isAdvisor) {
   return [
     '3. Helpers — you run on Opus, the most expensive model, so delegate the bulk:',
-    '   - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku). Ask for a short summary with file:line facts.',
-    ...(isAdvisor ? [] : ['   - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet). Review its diff before accepting it.']),
+    '   - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.',
+    ...(isAdvisor ? [] : ['   - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.']),
     `   - Keep for yourself: ${isAdvisor ? 'design decisions, tricky questions and the final advice' : 'design decisions, tricky bugs, integration and the final check'}.`,
     `   - Any other helper type (for example ${s.helpers.join(', ')}) → always pass \`model\` explicitly. ${FABLE_RULE}`,
     isAdvisor ? '   - Helpers must not spawn agents.' : '   - If your job touches more than 2 files or needs tests, use at least one helper. Helpers must not spawn agents.',
