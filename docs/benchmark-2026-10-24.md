@@ -197,6 +197,29 @@ Hidden tests and own tests passed 100% in all 6 new runs, with no timeouts. Team
 - Sonnet heads keep the cost low, but they do not reliably follow the "always run the reviewer" rule. The clean-code gain from round 3 disappears with it.
 - The gate has to be **enforced by the plugin, not just asked for in the prompt**, or the heads go back to Opus.
 
+## Rounds 5–6 — forcing the gate with Sonnet heads
+- **v5 (commit d2d16f6): gate forced at SubagentStop.** Quality 7.58, $1.43. It failed in two ways:
+  - The supervisor already has a section's REPORT at handback, so holding the stop never re-ran the gate. It also lost the backend, frontend and testing REPORTs on the hard task.
+  - The brief's "skip a separate full review pass" (aimed at testing's final review) made Sonnet heads skip their own gate. The REPORTs say "the brief said to skip".
+- **v6 (commit f73f159): gate forced at handback.** A PreToolUse hook refuses an ungraded code REPORT, with partial or blocked as the honest ways out. The brief now says each builder runs its own gate.
+  - A live spike confirmed it: the refused section came back `partial` instead of faking a grade.
+  - In round 6 the reviewer ran in every run. Sections handed back `partial` first, then `done` with grades of 8–9/10 after fix rounds.
+
+| Way | Cost $ | Minutes | Judge quality /10 | Code quality | Tests | Easy | Medium | Hard | Last places | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | **2.7** | 7.36 | 7.42 | 7.08 | 6.70 | 7.45 | 7.93 | 7 of 12 | **85.8** |
+| team-v3 (Opus heads) | 3.39 | 7.8 | **8.17** | **8.63** | **8.58** | 7.35 | **8.45** | **8.73** | **0 of 12** | 73.7 |
+| team-v6 (Sonnet heads, enforced gate) | 1.64 | 4.7 | 7.52 | 7.92 | 7.71 | 7.35 | 8.10 | 7.10 | 5 of 12 | 74.9 |
+
+In round 6 the supervisor built the medium task alone and gated it. That run scored 8.10 for $0.89.
+
+### Verdict after rounds 4–6
+- **Team-v3 (Opus heads) is the only version that consistently beats solo on quality.** It scored 8.17–8.50 across four independent judge panels and was never ranked last.
+- **Sonnet heads are about half the cost, but their code is judged at solo level even with a working Opus gate.** On the hard task the reviewer passed work at 8–9 that the blind judges scored about 7. The gate catches defects, but it does not add the design quality the builder did not write.
+- **Recommendation:**
+  - For "clean code above cost", run builder heads on Opus.
+  - Keep the enforced handback gate either way: it costs little and guarantees every code REPORT carries a real grade.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
@@ -204,4 +227,4 @@ Hidden tests and own tests passed 100% in all 6 new runs, with no timeouts. Team
 - **Fable was disabled** for safety, since `-p` would bill it without asking.
 - **Costs** are Claude Code's API-equivalent estimates. On a subscription they count against usage limits instead.
 
-Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2–4 have `-v2` / `-v3` / `-v4` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
+Data: `bench/results/` (local, git-ignored): `summary.json`, `report-data.json`, `judge.json` (all judge notes) and `blind-key.json`. Rounds 2–6 have `-v2` … `-v6` versions of the last three (`node bench/run.mjs --tag=v2 --conds=team,forced`, `node bench/anonymize.mjs --round=v2 --conds=solo,team-v2,forced-v2`, `node bench/aggregate.mjs --round=v2`). Reproduce with `node bench/run.mjs`, `node bench/score.mjs`, `node bench/anonymize.mjs`, the judging workflow, and `node bench/aggregate.mjs`.
