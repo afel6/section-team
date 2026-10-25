@@ -200,6 +200,7 @@ test('advisors read the notes but get neither the reviewer nor the coder', () =>
 })
 
 test('testing runs the final reviewer pass and sends fix lists to the owning sections', () => {
+  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))
   assert.ok(testing.includes('send each owning section its part of the fix list'))

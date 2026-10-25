@@ -38,6 +38,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions): build it and its tests yourself, then run the reviewer gate'))
   assert.ok(brief.includes('A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
+  assert.ok(brief.includes('Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes.'))
 })
 
 test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
