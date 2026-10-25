@@ -160,6 +160,7 @@ Rules:
 - After benchmark rounds 4–6: builder heads go **back to Opus 5.5**. Sonnet heads cost about half but were judged at solo level even with the enforced gate, and clean code wins over cost. The gate stays enforced at handback, by a PreToolUse hook on `SubagentHandback`.
 - Cheaper path for medium tasks (user request, 2026-10-25): the supervisor builds single-area tasks up to about 600 lines itself and gates them with the reviewer. Sections wake for multi-area work. Round 6 showed this path at 8.1 quality for $0.89 on the medium task.
 - After round 7 (same code quality at −77% cost, but thinner tests): on single-area tasks the supervisor also wakes **only the testing section** to write the tests. It still builds the code itself and gates it with the reviewer.
+- After round 8 (the testing section was never woken: the medium CLI fell under the 150-line small tier): the small tier is now about 50 lines, and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)

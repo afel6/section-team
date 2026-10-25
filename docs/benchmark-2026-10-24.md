@@ -236,6 +236,21 @@ Hidden tests and own tests passed 100% in all 6 runs. The routing worked: medium
 - **What it loses is test depth.** The supervisor writes fewer, shallower tests than the dedicated testing section, so medium quality is 7.88 against 8.65. That is still +0.65 over solo.
 - **Hard is unchanged in quality** (8.35). It costs 17% more because the enforced gate now always runs, with fix rounds.
 
+## Round 8 — testing section for single-area tasks (commits 76c098b + 26643c6)
+Change: for single-area tasks the supervisor still builds the code, but wakes only the testing section to write the tests. Tasks of about 150 lines or less stay supervisor-only.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.78 | 7.20 | **0.57** | 7.83 | **1.56** | 7.29 | 7.17 | **85.5** |
+| team-v3 (sections for everything bigger) | 3.39 | **7.45** | **8.55** | 3.69 | **8.40** | 5.87 | **8.54** | **8.50** | 73.6 |
+| team-v8 | 2.70 | 7.13 | 7.65 | 0.84 | 8.30 | 6.60 | 8.46 | 7.67 | 75.5 |
+
+Hidden tests and own tests passed 100% in all 6 runs.
+
+### Verdict after round 8
+- **The change was never exercised.** Both medium runs used only the supervisor and the reviewer; the testing section was not woken. The medium task (a CLI with storage and error handling) fell under the new 150-line small tier, so the supervisor built it and its tests alone. Medium results match round 7 (7.65 at $0.84), as expected for the same path.
+- **Fix (after round 8):** the small tier is now about 50 lines (one or two small functions), and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task. Round 9 should show whether the testing section closes the test gap (7.67 against 8.50).
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
