@@ -251,6 +251,22 @@ Hidden tests and own tests passed 100% in all 6 runs.
 - **The change was never exercised.** Both medium runs used only the supervisor and the reviewer; the testing section was not woken. The medium task (a CLI with storage and error handling) fell under the new 150-line small tier, so the supervisor built it and its tests alone. Medium results match round 7 (7.65 at $0.84), as expected for the same path.
 - **Fix (after round 8):** the small tier is now about 50 lines (one or two small functions), and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task. Round 9 should show whether the testing section closes the test gap (7.67 against 8.50).
 
+## Round 9 — the fixed tiers (commit 86c9033)
+Change: the small tier is about 50 lines, and a feature with its own behaviour to test is never small. Single-area tasks get the supervisor's code plus the testing section's tests.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.85 | 7.50 | **0.57** | 7.68 | **1.56** | 7.46 | 6.88 | 1–9 | **85.8** |
+| team-v3 (sections for everything bigger) | 3.39 | 6.95 | **8.35** | 3.69 | **8.35** | 5.87 | 8.46 | **8.33** | 6–3 | 72.8 |
+| team-v9 | 3.07 | **7.45** | **8.35** | 1.66 | 8.32 | 6.88 | **8.54** | 8.29 | **5–0** | 73.6 |
+
+Hidden tests and own tests passed 100% in all 6 runs. The routing worked: easy stayed supervisor-only, both medium runs woke the testing section (plus the reviewer, once a coder), and hard woke backend, frontend, testing and docs.
+
+### Verdict after round 9
+- **Medium now matches team-v3 at 55% less cost:** 8.35 for $1.66 against 8.35 for $3.69. The testing section closed the test gap: medium tests 8.50, against 7.67 in round 8 without it.
+- **Best overall on this panel:** 8.04, no losses in 12 judge votes, and code quality 8.54. This panel scored team-v3 lower (7.88) than round 8's panel did (8.13), so read the overall lead as a tie with team-v3 at 10% less cost.
+- **Hard is the remaining cost:** $6.88, about 17% above team-v3, for the same quality. The testing section used the most tokens there (3.5–4.8M on Opus), more than any builder.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
