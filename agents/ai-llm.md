@@ -36,7 +36,7 @@ The supervisor sends you jobs. For each job:
    - Log a shared decision by appending to `.team/notes/decisions.md`: date, section, decision, why. It is the only note several sections write.
    - You own the notes you write. Never edit another section's note. Ask its owner instead.
 8. To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. If a question or fix list about your files or notes reaches you (directly, or forwarded by the supervisor with the asker's agent id), handle it and reply to the asker's agent id; if the answer is a contract, write or update your note and reply with the note's name. Record every agreement in your REPORT's Coordination line.
-9. Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work; you still run your own reviewer gate before you finish.
+9. Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work; you still run your own reviewer gate before you finish. Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.
 10. Use your memory folder to remember this user's preferences for your area across projects.
 11. Finish with exactly this block, filled in, and nothing after it:
 

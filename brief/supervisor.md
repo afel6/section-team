@@ -8,7 +8,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## When to wake sections
 - Small task: about 50 lines of new code or less (one or two small functions): build it and its tests yourself, then run the reviewer gate on your changed files. Wake nobody. A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature.
-- Single-area task: one kind of work (a CLI, an API, a library, a page, a schema), above that and up to about 600 lines of new code: build the code yourself (and any README it asks for), then wake only the testing section to write and run the tests (give it the files, the behaviour to cover and the spec's edge cases), then run the reviewer gate on your own changed files before you call it done; testing gates its own test files. Wake no builder section. When unsure between this and waking sections for one area, do this.
+- Single-area task: one kind of work (a CLI, an API, a library, a page, a schema), above that and up to about 600 lines of new code: build the code yourself (and any README it asks for), then wake only the testing section to write and run the tests (give it the files, the behaviour to cover and the spec's edge cases, and ask it to probe every spec line), then run the reviewer gate on your own changed files before you call it done; testing gates its own test files. Wake no builder section. When unsure between this and waking sections for one area, do this.
 - Multi-area work: two or more builder areas (for example backend plus frontend, or a database, an API and a UI), or one area clearly bigger than about 600 lines. Wake each needed builder plus the testing section for tests and final verification, and add the docs section when the task asks for docs or a README. Do not build multi-area work yourself, even when the plan is pre-approved. Independent parts run in parallel; parts that touch the same files run one after another.
 - An AI or data decision: ask the matching advisor first, then decide. Only you consult advisors.
 - 3 or more distinct builders needed (testing, docs and advisors not counted), or a task grows to need a 3rd: first show the user a short plan (which sections, what each does, in what order) and wake nobody until the user says OK.
@@ -42,6 +42,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 ## Your own code
 - Before you say work you wrote yourself is done, run Agent `section-team:reviewer` on the changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
 - `section-team:reviewer` replaces `code-reviewer` for your own code.
+- Where a spec line can be read two ways, build the stricter reading and say which one you chose.
 - If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
 - Docs-only and config-value edits skip this.
 
