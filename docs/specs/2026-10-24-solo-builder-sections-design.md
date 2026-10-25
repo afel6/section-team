@@ -163,6 +163,7 @@ Rules:
 - After round 8 (the testing section was never woken: the medium CLI fell under the 150-line small tier): the small tier is now about 50 lines, and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task.
 - Round 9 confirmed the fixed tiers: medium 8.35 for $1.66, the same quality as sections-for-everything at 55% less cost. Kept.
 - After round 9: heads ran helpers in the background, ended their turn to wait, and were forced to hand back unfinished. Heads now run helpers in the foreground and the plugin refuses a section's background Agent call. Round 10: hard 19% cheaper ($5.59), quality unchanged.
+- After round 10: testing sends builders only failing fix lists; its verdict and optional nits stay in its REPORT. Round 11: hard 11% cheaper ($4.96), no turns after handback. Its lower hard score traced to spec-edge bugs nobody found, not to held-back nits. The small-task wording now says "storage or I/O"; input checks that throw do not make a function a feature.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)

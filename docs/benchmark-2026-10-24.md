@@ -284,6 +284,23 @@ Hidden tests and own tests passed 100% in all 6 runs. Every helper ran in the fo
 - **Quality ties team-v3 at 21% less cost overall:** 8.05 against 8.00 on this panel, with the best code quality so far (8.71) and no losses. Hard is 0.2 below team-v3 and medium 0.15 below, both inside the noise of 2 runs.
 - **What is left:** after its final review, testing sends "passed, plus optional nits" to the builders. That wakes them to make optional fixes, and their replies reach testing after it has handed back, forcing 1–2 more handbacks. Sending builders only failing fix lists, with optional nits kept in the REPORT, would cut those turns.
 
+## Round 11 — testing sends builders only failing fix lists (commit 7259b26)
+Change: after its final review, testing messages a builder only with a failing fix list. A passing verdict and optional nits stay in its REPORT, and the supervisor no longer asks testing for a verdict per builder.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.90 | 7.25 | **0.57** | 7.90 | **1.56** | 7.58 | 6.92 | 2–9 | **85.8** |
+| team-v3 (sections for everything bigger) | 3.39 | **7.50** | **8.60** | 3.69 | **8.45** | 5.87 | **8.71** | **8.54** | **7–1** | 73.7 |
+| team-v11 | 2.57 | 7.45 | 8.18 | 1.68 | 7.85 | 4.96 | 8.42 | 8.33 | 3–2 | 72.1 |
+
+Hidden tests and own tests passed 100% in all 6 runs. Both hard runs had no turns after handback and no forced handbacks; testing took 11–12 turns (33–45 in round 9).
+
+### Verdict after round 11
+- **Hard is 11% cheaper again** ($4.96 against $5.59 in round 10, $6.88 in round 9).
+- **Hard quality fell (7.85), but the change did not cause it.** A traced and verified check of every judge-flagged defect in 4 hard runs (rounds 10 and 11) found that almost all of round 11's were never found by anyone on the team, so no optional nit was held back. In round 10's higher-scoring run, the nits that were sent left its judged gaps open (backend declined them). The difference is which spec-edge bugs the builders happened to write. With 2 runs, a 0.5 swing is within the noise.
+- **The gap the judges keep finding:** spec edge cases nobody probed (URL validation that's too loose, a raw non-ASCII Location header, an empty or null code treated as absent, no PORT validation), plus spec ambiguities settled with the lenient reading.
+- **Easy routing slipped once:** one easy run read "a module with … error handling is never small" as covering two small functions that throw, and woke testing ($1.44 against $0.70). The wording now says storage or I/O, and that input checks that throw do not make a function a feature.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
