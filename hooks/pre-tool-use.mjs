@@ -15,7 +15,7 @@ export function isInMemory(target, id, cwd, home) {
   return folder === id || folder === `section-team-${id}`
 }
 
-const GATE_REASON = 'section-team: your REPORT lists changed code but no reviewer grade, so it cannot be handed back yet. Run Agent `section-team:reviewer` on your changed files in the foreground (do not pass `model`, do not run it in the background) and wait for its GRADE. If it fails, have a coder apply the fix list and grade again, at most 2 fix rounds. Then hand back with `Quality: <overall>/10 (reviewer, <n> fix rounds)`. The testing section\'s final review does not replace your own gate. If the gate truly cannot run, hand back with `Status: partial` and say why.'
+const GATE_REASON = 'section-team: your REPORT lists changed code but no reviewer grade, so it cannot be handed back yet. Run Agent `section-team:reviewer` on your changed files with `run_in_background: false` (do not pass `model`) and wait for its GRADE. If it fails, have a coder apply the fix list and grade again, at most 2 fix rounds. Then hand back with `Quality: <overall>/10 (reviewer, <n> fix rounds)`. The testing section\'s final review does not replace your own gate. If the gate truly cannot run, hand back with `Status: partial` and say why.'
 
 // The clean-code gate, enforced where the REPORT leaves the section: an ungraded REPORT that changed code is refused.
 function handbackGate(id, e) {
@@ -24,22 +24,31 @@ function handbackGate(id, e) {
   return block && needsGate(parseReport(block)) ? GATE_REASON : null
 }
 
-export function decide(e, home = homedir()) {
-  if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
-  const id = sectionIdFromType(e.agent_type)
-  if (!id) return null
-  const gate = handbackGate(id, e)
-  if (gate) return gate
+const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` on every Agent call. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
+
+// A section that waits on a background helper ends its turn, and the harness then forces an unfinished handback.
+function foregroundRule(e) {
+  return e.tool_name === 'Agent' && e.tool_input?.run_in_background !== false ? FOREGROUND_REASON : null
+}
+
+function advisorRule(id, e, home) {
   if (!ADVISOR_IDS.includes(id)) return null
   const tool = e.tool_name
   if (SHELL_TOOLS.has(tool)) return `section-team: the ${id} advisor is read-only; ${tool} is not allowed.`
   if (WRITE_TOOLS.has(tool)) {
     return isInMemory(e.tool_input?.file_path, id, e.cwd, home) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
   }
-  if (tool === 'Agent') {
-    return READ_ONLY_HELPERS.has(e.tool_input?.subagent_type) ? null : `section-team: the ${id} advisor may only use read-only helpers (${ADVISOR_HELPERS.join(', ')}).`
+  if (tool === 'Agent' && !READ_ONLY_HELPERS.has(e.tool_input?.subagent_type)) {
+    return `section-team: the ${id} advisor may only use read-only helpers (${ADVISOR_HELPERS.join(', ')}).`
   }
   return null
+}
+
+export function decide(e, home = homedir()) {
+  if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
+  const id = sectionIdFromType(e.agent_type)
+  if (!id) return null
+  return handbackGate(id, e) ?? advisorRule(id, e, home) ?? foregroundRule(e)
 }
 
 if (isMainModule(import.meta.url)) {

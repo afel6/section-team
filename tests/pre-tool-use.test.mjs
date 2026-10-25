@@ -32,13 +32,13 @@ test('advisors may write only inside their own memory folder', () => {
 })
 
 test('advisors may only spawn read-only helper types', () => {
-  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'code-explorer' }), HOME), null)
-  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'planner' }), HOME), null)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'code-explorer', run_in_background: false }), HOME), null)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'planner', run_in_background: false }), HOME), null)
   assert.match(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'Explore' }), HOME), /read-only helpers/)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'Plan' }), HOME), /read-only helpers/)
-  assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'architect' }), HOME), null)
-  assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:scout' }), HOME), null)
-  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'section-team:scout' }), HOME), null)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'architect', run_in_background: false }), HOME), null)
+  assert.equal(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:scout', run_in_background: false }), HOME), null)
+  assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'section-team:scout', run_in_background: false }), HOME), null)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder' }), HOME), /read-only helpers/)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'general-purpose' }), HOME), /read-only helpers/)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', {}), HOME), /read-only helpers/)
@@ -89,7 +89,7 @@ const REPORT_WITH = (status, changed, quality) => `## REPORT · backend · 2026-
 
 test('a builder cannot hand back changed code without a reviewer grade', () => {
   assert.match(decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', 'n/a (no code)')), HOME), /section-team:reviewer/)
-  assert.match(decide(handback('section-team:testing', REPORT_WITH('done', 'test/api.test.mjs', null)), HOME), /foreground/)
+  assert.match(decide(handback('section-team:testing', REPORT_WITH('done', 'test/api.test.mjs', null)), HOME), /run_in_background: false/)
 })
 
 test('the handback gate lets graded, partial, blocked, docs-only, advisor and report-less handbacks through', () => {
@@ -100,4 +100,18 @@ test('the handback gate lets graded, partial, blocked, docs-only, advisor and re
   assert.equal(decide(handback('section-team:ai-engineer', REPORT_WITH('done', 'src/api.mjs', null)), HOME), null)
   assert.equal(decide(ev('section-team:backend', 'SubagentHandback', { message: 'no report here' }), HOME), null)
   assert.equal(decide(ev(undefined, 'SubagentHandback', { message: REPORT_WITH('done', 'src/api.mjs', null) }), HOME), null)
+})
+
+test('a section must run its helpers in the foreground, so it never idles into a forced handback', () => {
+  for (const who of ['section-team:testing', 'section-team:backend', 'section-team:ai-engineer']) {
+    const helper = who === 'section-team:ai-engineer' ? 'section-team:scout' : 'section-team:coder'
+    assert.match(decide(ev(who, 'Agent', { subagent_type: helper }), HOME), /run_in_background: false/)
+    assert.match(decide(ev(who, 'Agent', { subagent_type: helper, run_in_background: true }), HOME), /run_in_background: false/)
+    assert.equal(decide(ev(who, 'Agent', { subagent_type: helper, run_in_background: false }), HOME), null)
+  }
+  assert.match(decide(ev('section-team:frontend', 'Agent', { subagent_type: 'react-reviewer', model: 'sonnet' }), HOME), /run helpers in the foreground/)
+  assert.equal(decide(ev(undefined, 'Agent', { subagent_type: 'section-team:backend' }), HOME), null)
+  for (const helper of ['section-team:coder', 'section-team:reviewer', 'section-team:scout']) assert.equal(decide(ev(helper, 'Agent', { subagent_type: 'Explore' }), HOME), null)
+  assert.match(decide(ev('section-team:backend', 'Agent', { subagent_type: 'section-team:coder', run_in_background: 'false' }), HOME), /run_in_background: false/)
+  assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder', run_in_background: false }), HOME), /read-only helpers/)
 })

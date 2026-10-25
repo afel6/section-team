@@ -145,6 +145,12 @@ test('helper hand-out keeps the model rules and tells helpers which skills to lo
     assert.ok(text.includes('(Opus; do not pass `model`)'), `${id} reviewer model`)
     assert.ok(text.includes('If a helper cannot load a named skill, put the few rules that matter into its brief.'), `${id} skill fallback`)
   }
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS]) {
+    const text = agentFile(id)
+    assert.ok(text.includes('with `run_in_background: false`'), `${id} foreground helpers`)
+    assert.ok(text.includes('Never end your turn while a helper runs'), `${id} no idle turn`)
+    if (BUILDER_IDS.includes(id)) assert.ok(text.includes('Agent `section-team:reviewer` with `run_in_background: false`') || text.includes('Agent `section-team:reviewer`, with `run_in_background: false`'), `${id} foreground reviewer`)
+  }
 })
 
 test('S2 direct: builders message a sibling by agent id and keep the supervisor as fallback', () => {

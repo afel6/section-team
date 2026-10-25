@@ -114,7 +114,7 @@ const loadSkills = (core, goTo) => [
 // Each helper starts with a small fresh context, so the bulk goes to scout (Haiku) and coder (Sonnet). Advisors are read-only: scout only, no coder.
 function handOut(s, isAdvisor) {
   return [
-    'Hand out the work. Delegate the bulk: every turn you take re-reads your whole growing context, while a helper starts small and fresh. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message so they run at once.',
+    'Hand out the work. Delegate the bulk: every turn you take re-reads your whole growing context, while a helper starts small and fresh. Hand out independent tasks in parallel, one helper per task, as many as the job needs; skip a helper for anything under about 20 lines. Launch the independent helpers together in one message, each with `run_in_background: false`: they still run at once, and their results all come back in that one step. Never end your turn while a helper runs: a section that ends its turn is made to hand back unfinished.',
     '   - Reading or searching more than 2 files (code, docs, logs) → Agent `section-team:scout` (Haiku; do not pass `model`). Ask for a short summary with file:line facts.',
     ...(isAdvisor ? [] : ['   - Writing routine code or tests from your precise spec (file names, signatures, test cases) → Agent `section-team:coder` (Sonnet; do not pass `model`). Include in its prompt the project rules that apply to the task. Review its diff before accepting it.']),
     ...(isAdvisor ? [] : ['   - If your job touches more than 2 files or needs tests, use at least one helper; skip a helper only for a single piece under about 20 lines.']),
@@ -129,7 +129,7 @@ const KEEP = isAdvisor => `Keep for yourself: ${isAdvisor ? 'design decisions, t
 // Builders only. Docs-only and config-only jobs have no code to grade.
 const QUALITY_GATE = [
   'Quality gate (skip it when the job changed no code, for example docs only or config values):',
-  "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
+  "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
@@ -149,7 +149,7 @@ const ADVISOR_COORDINATION = `${RELAY} Record every agreement in your REPORT's C
 
 function finalStep(s, isAdvisor) {
   if (isAdvisor) return `You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (${ADVISOR_HELPERS.join(', ')}). Your REPORT's Quality line is always \`n/a (no code)\`.`
-  if (s.id === 'testing') return "Follow the project's rules. For multi-section tasks you own the final review and verification when the job assigns it: run the reviewer over every section's changed files (Agent `section-team:reviewer`), run the full test suite, and report what you found. The section that wrote a file owns it: if the final pass fails, send each owning section its part of the fix list (by agent id, else through the supervisor), let the owner fix it with its own coders, and grade again, at most 2 fix rounds. If it still fails, finish with `Status: partial` and the grade."
+  if (s.id === 'testing') return "Follow the project's rules. For multi-section tasks you own the final review and verification when the job assigns it: run the reviewer over every section's changed files (Agent `section-team:reviewer`, with `run_in_background: false`), run the full test suite, and report what you found. The section that wrote a file owns it: if the final pass fails, send each owning section its part of the fix list (by agent id, else through the supervisor), let the owner fix it with its own coders, and grade again, at most 2 fix rounds. If it still fails, finish with `Status: partial` and the grade."
   return "Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work; you still run your own reviewer gate before you finish."
 }
 
