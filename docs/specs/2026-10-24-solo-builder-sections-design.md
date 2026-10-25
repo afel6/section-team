@@ -162,6 +162,7 @@ Rules:
 - After round 7 (same code quality at −77% cost, but thinner tests): on single-area tasks the supervisor also wakes **only the testing section** to write the tests. It still builds the code itself and gates it with the reviewer.
 - After round 8 (the testing section was never woken: the medium CLI fell under the 150-line small tier): the small tier is now about 50 lines, and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task.
 - Round 9 confirmed the fixed tiers: medium 8.35 for $1.66, the same quality as sections-for-everything at 55% less cost. Kept.
+- After round 9: heads ran helpers in the background, ended their turn to wait, and were forced to hand back unfinished. Heads now run helpers in the foreground and the plugin refuses a section's background Agent call. Round 10: hard 19% cheaper ($5.59), quality unchanged.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)

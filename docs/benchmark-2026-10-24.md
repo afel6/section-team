@@ -267,6 +267,23 @@ Hidden tests and own tests passed 100% in all 6 runs. The routing worked: easy s
 - **Best overall on this panel:** 8.04, no losses in 12 judge votes, and code quality 8.54. This panel scored team-v3 lower (7.88) than round 8's panel did (8.13), so read the overall lead as a tie with team-v3 at 10% less cost.
 - **Hard is the remaining cost:** $6.88, about 17% above team-v3, for the same quality. The testing section used the most tokens there (3.5–4.8M on Opus), more than any builder.
 
+## Round 10 — helpers in the foreground (commit 033b1c4)
+What the round-9 transcripts showed: the testing section already handed test writing to Sonnet coders. The waste was waiting. Heads launched helpers in the background and ended their turn to wait for them. A subagent that ends its turn must hand back, so backend, frontend and testing each handed back unfinished 1–2 times per hard run, stopped their own coders, and were resumed by the supervisor. Every idle or redone turn re-read 90–130k tokens of Opus context.
+Change: heads pass `run_in_background: false` on every Agent call (several in one message still run in parallel), and the plugin refuses a section's background Agent call.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.85 | 7.08 | **0.57** | 7.55 | **1.56** | 7.33 | 6.83 | 1–9 | **85.2** |
+| team-v3 (sections for everything bigger) | 3.39 | 7.18 | **8.25** | 3.69 | **8.58** | 5.87 | 8.33 | 8.33 | 7–3 | 73.2 |
+| team-v10 | 2.69 | **7.68** | 8.10 | 1.69 | 8.38 | 5.59 | **8.71** | **8.42** | **4–0** | 73.0 |
+
+Hidden tests and own tests passed 100% in all 6 runs. Every helper ran in the foreground, and no Agent call was refused.
+
+### Verdict after round 10
+- **Hard is 19% cheaper than round 9** ($5.59 against $6.88) and now below team-v3 ($5.87). The testing section read 1.0–1.9M tokens, against 3.5–4.8M.
+- **Quality ties team-v3 at 21% less cost overall:** 8.05 against 8.00 on this panel, with the best code quality so far (8.71) and no losses. Hard is 0.2 below team-v3 and medium 0.15 below, both inside the noise of 2 runs.
+- **What is left:** after its final review, testing sends "passed, plus optional nits" to the builders. That wakes them to make optional fixes, and their replies reach testing after it has handed back, forcing 1–2 more handbacks. Sending builders only failing fix lists, with optional nits kept in the REPORT, would cut those turns.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
