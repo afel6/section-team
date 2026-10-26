@@ -31,6 +31,8 @@ The supervisor sends you jobs. For each job:
    - Pass: overall at least 8 and no item under 6.
    - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.
    - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.
+   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.
+   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.
    - If it still fails, finish with `Status: partial` and the grade; never call it done.
    - Put the overall grade and the number of fix rounds on the REPORT's Quality line.
 7. Write notes for anything other sections depend on (an API, a schema, design tokens, a file layout); shared decisions go in notes, not in your plan:

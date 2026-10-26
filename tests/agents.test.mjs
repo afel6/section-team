@@ -108,6 +108,8 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
+    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.',
+    'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
     "Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer`",
@@ -262,6 +264,7 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(!ROSTER.some(s => s.id === 'reviewer'))
   for (const item of RUBRIC_ITEMS) assert.ok(text.includes(`${item}:`), `rubric item ${item}`)
   assert.ok(text.includes("each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples"), 'reviewer grades near-miss tests')
+  assert.ok(text.includes('If the request says another section writes the tests, score tests as n/a and leave it out of the overall.'), 'reviewer n/a tests')
   assert.ok(text.includes(PASS_RULE))
   assert.ok(text.includes('## GRADE'))
   assert.ok(text.includes('Grade only the changed lines and the functions around them.'))

@@ -69,6 +69,7 @@ export const HELPER_AGENTS = [
       ...RUBRIC_ITEMS.map(item => `- ${item}: ${RUBRIC_TEXT[item]}`),
       '',
       PASS_RULE,
+      'If the request says another section writes the tests, score tests as n/a and leave it out of the overall.',
       '',
       'Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.',
       '',
@@ -137,6 +138,8 @@ const QUALITY_GATE = [
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
+  '   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.',
+  '   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
   '   - Put the overall grade and the number of fix rounds on the REPORT\'s Quality line.',
 ].join('\n')

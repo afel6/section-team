@@ -22,6 +22,7 @@ Grade only the changed lines and the functions around them. Score each item 1–
 - leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code.
 
 Pass: overall at least 8 and no item under 6.
+If the request says another section writes the tests, score tests as n/a and leave it out of the overall.
 
 Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.
 

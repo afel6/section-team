@@ -40,6 +40,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
   assert.ok(brief.includes('Where a spec line can be read two ways, build the stricter reading and say which one you chose.'))
   assert.ok(brief.includes('probe every spec line'))
+  assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('the user has approved installs that pass its safety review, so do not ask'))
   assert.ok(brief.includes('List every skill you installed in your summary.'))

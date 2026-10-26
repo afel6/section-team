@@ -46,6 +46,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - Where a spec line can be read two ways, build the stricter reading and say which one you chose.
 - Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null).
 - If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
+- A pass ends the gate: do not grade again after a pass.
 - Docs-only and config-value edits skip this.
 
 ## Rules that win inside section-team
