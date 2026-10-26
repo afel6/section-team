@@ -121,16 +121,16 @@ test('the handback gate lets graded, partial, blocked, docs-only, advisor and re
   assert.equal(decide(ev(undefined, 'SubagentHandback', { message: REPORT_WITH('done', 'src/api.mjs', null) }), HOME), null)
 })
 
-test('a section must run its helpers in the foreground, so it never idles into a forced handback', () => {
+test('a section may not start a helper in the background on purpose, and an Agent tool without that option is never blocked', () => {
   for (const who of ['section-team:testing', 'section-team:backend', 'section-team:ai-engineer']) {
     const helper = who === 'section-team:ai-engineer' ? 'section-team:scout' : 'section-team:coder'
-    assert.match(decide(ev(who, 'Agent', { subagent_type: helper }), HOME), /run_in_background: false/)
-    assert.match(decide(ev(who, 'Agent', { subagent_type: helper, run_in_background: true }), HOME), /run_in_background: false/)
+    // the desktop app's Agent tool has no run_in_background option and strips it, so an absent flag must pass
+    assert.equal(decide(ev(who, 'Agent', { subagent_type: helper }), HOME), null)
     assert.equal(decide(ev(who, 'Agent', { subagent_type: helper, run_in_background: false }), HOME), null)
+    assert.match(decide(ev(who, 'Agent', { subagent_type: helper, run_in_background: true }), HOME), /run helpers in the foreground/)
   }
-  assert.match(decide(ev('section-team:frontend', 'Agent', { subagent_type: 'react-reviewer', model: 'sonnet' }), HOME), /run helpers in the foreground/)
-  assert.equal(decide(ev(undefined, 'Agent', { subagent_type: 'section-team:backend' }), HOME), null)
-  for (const helper of ['section-team:coder', 'section-team:reviewer', 'section-team:scout']) assert.equal(decide(ev(helper, 'Agent', { subagent_type: 'Explore' }), HOME), null)
-  assert.match(decide(ev('section-team:backend', 'Agent', { subagent_type: 'section-team:coder', run_in_background: 'false' }), HOME), /run_in_background: false/)
-  assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder', run_in_background: false }), HOME), /read-only helpers/)
+  assert.equal(decide(ev('section-team:frontend', 'Agent', { subagent_type: 'react-reviewer', model: 'sonnet' }), HOME), null)
+  assert.equal(decide(ev(undefined, 'Agent', { subagent_type: 'section-team:backend', run_in_background: true }), HOME), null)
+  for (const helper of ['section-team:coder', 'section-team:reviewer', 'section-team:scout']) assert.equal(decide(ev(helper, 'Agent', { subagent_type: 'Explore', run_in_background: true }), HOME), null)
+  assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder' }), HOME), /read-only helpers/)
 })

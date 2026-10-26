@@ -29,11 +29,12 @@ function handbackGate(id, e) {
   return failsGate(report) ? FAILING_REASON : null
 }
 
-const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` on every Agent call. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
+const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
 
 // A section that waits on a background helper ends its turn, and the harness then forces an unfinished handback.
+// Only an explicit request is refused: some Agent tools (the desktop app's) have no run_in_background option and strip it.
 function foregroundRule(e) {
-  return e.tool_name === 'Agent' && e.tool_input?.run_in_background !== false ? FOREGROUND_REASON : null
+  return e.tool_name === 'Agent' && e.tool_input?.run_in_background === true ? FOREGROUND_REASON : null
 }
 
 function advisorRule(id, e, home) {
