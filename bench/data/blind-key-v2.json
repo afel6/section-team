@@ -1,0 +1,32 @@
+{
+  "easy-r1": {
+    "X": "team-v2",
+    "Y": "forced-v2",
+    "Z": "solo"
+  },
+  "easy-r2": {
+    "X": "forced-v2",
+    "Y": "solo",
+    "Z": "team-v2"
+  },
+  "medium-r1": {
+    "X": "forced-v2",
+    "Y": "solo",
+    "Z": "team-v2"
+  },
+  "medium-r2": {
+    "X": "solo",
+    "Y": "team-v2",
+    "Z": "forced-v2"
+  },
+  "hard-r1": {
+    "X": "solo",
+    "Y": "team-v2",
+    "Z": "forced-v2"
+  },
+  "hard-r2": {
+    "X": "team-v2",
+    "Y": "forced-v2",
+    "Z": "solo"
+  }
+}
