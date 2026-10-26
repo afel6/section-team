@@ -105,11 +105,15 @@ const PLAN = isAdvisor => isAdvisor
   ? 'Work out your approach (what to read, in what order) before you hand anything out. Keep it in your own context.'
   : `Plan your part (tasks, files, order) before you hand anything out. Keep it in your own context. ${CONTRACT_NOW}`
 
+// Sections find skills they lack but never install one: an install runs an unreviewed repo, so it goes through the user and add-skill.
+const SKILL_SEARCH = "If no listed or installed skill fits a need, search the open skills directory read-only: WebFetch `https://skills.sh/api/search?q=<words>`. Never run `npx skills` and never install anything. Put a fitting result with about 1,000+ installs from a known source on your REPORT's Next line as `Suggested skill: <id> (<installs> installs) — <why>`."
+
 const loadSkills = (core, goTo) => [
   'Read the goal, files, skills to use, definition of done, who to coordinate with and the ids of the awake sections.',
   `Load the skills the job names with the Skill tool${core.length > 0 ? ` (${core[0]} is already loaded)` : ''}.`,
   goTo.length > 0 ? `Go-to skills, only when the job needs one its list lacks: ${goTo.join(', ')}.` : "Prefer the job's list; load another skill only if you truly need it.",
-].join(' ')
+].join(' ') + `
+   - ${SKILL_SEARCH}`
 
 // Each helper starts with a small fresh context, so the bulk goes to scout (Haiku) and coder (Sonnet). Advisors are read-only: scout only, no coder.
 function handOut(s, isAdvisor) {

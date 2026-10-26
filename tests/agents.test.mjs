@@ -122,6 +122,15 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
 })
 
+test('every section may search the skills directory read-only and suggest, never install', () => {
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS]) {
+    const text = agentFile(id)
+    assert.ok(text.includes('search the open skills directory read-only: WebFetch `https://skills.sh/api/search?q=<words>`'), `${id} search`)
+    assert.ok(text.includes('Never run `npx skills` and never install anything.'), `${id} no install`)
+    assert.ok(text.includes('`Suggested skill: <id> (<installs> installs) — <why>`'), `${id} suggestion format`)
+  }
+})
+
 test('step 2 loads only the skills the job names; go-to skills are listed by name, only for when the list lacks one', () => {
   for (const s of ROSTER) {
     const text = agentFile(s.id)
