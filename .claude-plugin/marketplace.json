@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "section-team",
+  "description": "The section-team plugin for Claude Code, installable straight from its GitHub repo",
+  "owner": {
+    "name": "Raouf"
+  },
+  "plugins": [
+    {
+      "name": "section-team",
+      "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

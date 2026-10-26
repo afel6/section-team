@@ -24,6 +24,13 @@ It costs about 3.6 times as much as plain Claude Code, for cleaner, better-teste
 - Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `security-review` (security), `claude-api` (ai-llm, ai-engineer), `web-design-guidelines` (uiux). Other skills a job names are loaded only if they are installed.
 
 ## Install
+In Claude Code 2.1.275 or later, one command installs it from this repo:
+```
+/plugin install section-team --marketplace afel6/section-team
+```
+On older versions, run `/plugin marketplace add afel6/section-team`, then `/plugin install section-team@section-team`.
+
+To work on the plugin itself, clone it instead:
 ```bash
 git clone https://github.com/afel6/section-team.git
 ```
@@ -49,7 +56,7 @@ The section agents are generated: edit the roster in `scripts/gen-agents.mjs` an
 Builders: frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile. Advisors (read-only): ai-engineer, data-scientist.
 Section heads work like solo builders. Each reads `.team/notes/INDEX.md` first, plans its part, then hands independent tasks out in parallel to cheap helpers (not sections, not on the board as cards): `section-team:scout` (Haiku, read-only: reads and searches, returns file:line facts) and `section-team:coder` (Sonnet, routine code and tests from the head's spec). Both helpers can load skills with the Skill tool. Heads run helpers in the foreground (`run_in_background: false`; several in one message still run in parallel), because a head that waits on a background helper ends its turn and is made to hand back unfinished. The plugin refuses a section's Agent call that asks for the background (PreToolUse hook). Where the Agent tool has no such option (the desktop app), helpers run in the background and the head keeps working until their results are in. The head keeps design, tricky bugs and integration for itself. Advisors may use the scout but not the coder.
 - **Notes:** a head writes a note in `.team/notes/` for anything other sections depend on (an API, a schema, design tokens, a file layout) and adds one line to `INDEX.md` (`<file> — <owner section> — <one-line summary> — <date>`). Only the owner edits its note; shared decisions are appended to `.team/notes/decisions.md`.
-- **Skills:** each section preloads at most one core skill; every other skill loads on demand, the job's `Skills for this job:` list first. If no installed skill fits, a section searches the open directory read-only (`skills.sh/api/search`) and names a `Suggested skill:` in its REPORT; it never installs. The supervisor installs it through `section-team:add-skill` for that section without asking you, but only when the safety review finds no red flag (a red flag, or an existing skill of the same name, stops it and you are told); its summary lists every skill it installed.
+- **Skills:** each section preloads at most one core skill; every other skill loads on demand, the job's `Skills for this job:` list first. If no installed skill fits, a section searches the open directory read-only (`skills.sh/api/search`) and names a `Suggested skill:` in its REPORT; it never installs. The supervisor lists the suggestion in its summary and asks you; on yes it installs it through `section-team:add-skill` (a safety review, then the install) for that section. To let it install without asking whenever the review finds no red flag, set `env.SECTION_TEAM_AUTO_INSTALL_SKILLS` to `1` in `~/.claude/settings.json`; a red flag, or an existing skill of the same name, still stops the install and you are told.
 - **Clean-code gate:** once the helpers' code is in, a builder sends its changed files to `section-team:reviewer` (Opus, never edits). Pass: overall at least 8 out of 10 and no item under 6. On a fail the fix list goes to a coder and the reviewer grades again, at most 2 fix rounds; if it still fails the section ends `Status: partial` with the grade. Jobs that change no code skip the gate. The plugin enforces it at handback: a builder whose REPORT lists changed code but no grade cannot hand it back (PreToolUse hook on `SubagentHandback`). It must run the reviewer first, or hand back honestly as `Status: partial` or `blocked`. The supervisor runs the same gate on code it wrote itself.
 
 Section heads skip your global `CLAUDE.md` (it can cost many thousands of tokens per agent) but read the project's own rule files (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `.claude/rules/*.md`), and carry a short copy of the house rules.
