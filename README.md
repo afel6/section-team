@@ -1,10 +1,33 @@
 # section-team
 
-A personal Claude Code plugin: every session is a **supervisor** that wakes specialist **sections** (Opus 5.5, all code graded by an Opus reviewer) when a task needs them, saves their reports, and shows a live **Team Board**.
+A Claude Code plugin that turns every session into a **supervisor** of a small engineering team. The supervisor builds small work itself and wakes specialist **sections** (frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile, plus two read-only advisors) for bigger work. Every piece of code passes an Opus **reviewer gate** before it is handed back, section reports are saved in the project, and a live **Team Board** shows who is working.
 
-## On / off
-- On: `~/.claude/settings.json` → `env.CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team`. New sessions pick it up.
+## Results
+Measured over 17 benchmark rounds (three tasks of rising size, two runs each, graded blind by 12 Opus judges per round). In the final round:
+
+| | Cost per task | Judge quality (1–10) | Judge votes |
+|---|---|---|---|
+| Plain Claude Code (plugin off) | $0.85 | 7.1 | 0 wins, 9 losses |
+| An earlier version of this team | $3.39 | 7.7 | 0 wins, 3 losses |
+| **section-team now** | $3.10 | **8.6** | **12 wins, 0 losses** |
+
+It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code. Details: `docs/benchmark-2026-10-24.md` (final summary at the end).
+
+## Requirements
+- Claude Code with plugin support. The Team Board strip, `/team` and `/chats` use the Mods API (`hooks/register.tsx`).
+- Access to the Claude 5 models: sections and the reviewer run on Opus 5.5, the coder helper on Sonnet 5.5, the scout helper on Haiku 5.5.
+- Node.js (tested on v26) for the hooks and tests.
+- Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `security-review` (security), `claude-api` (ai-llm, ai-engineer), `web-design-guidelines` (uiux). Other skills a job names are loaded only if they are installed.
+
+## Install
+```bash
+git clone https://github.com/afel6/section-team.git
+```
+- Try it once: `claude --plugin-dir <path-to-section-team>`.
+- Keep it on: in `~/.claude/settings.json`, set `env.CLAUDE_CODE_PLUGIN_DIRS` to the clone's path. New sessions pick it up.
 - Off: set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
+
+The section agents are generated: edit the roster in `scripts/gen-agents.mjs` and run `node scripts/gen-agents.mjs`. Skills you give a section with `node scripts/assign-skill.mjs <skill> <section>...` are kept in `scripts/roster-extra.json`.
 
 ## Use
 - Just talk to the supervisor. Small tasks (about 50 lines, one or two small functions) it builds, tests and gates itself; a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never small. Single-area tasks (up to about 600 lines): it builds the code itself, wakes only the testing section for the tests, and gates its code with the Opus reviewer. Multi-area work wakes the builder sections plus testing. 3+ builder sections (testing, docs and advisors not counted) → it shows a plan first.
@@ -25,8 +48,7 @@ Section heads work like solo builders. Each reads `.team/notes/INDEX.md` first, 
 - **Skills:** each section preloads at most one core skill; every other skill loads on demand, the job's `Skills for this job:` list first. If no installed skill fits, a section searches the open directory read-only (`skills.sh/api/search`) and names a `Suggested skill:` in its REPORT; it never installs. The supervisor installs it through `section-team:add-skill` for that section without asking you, but only when the safety review finds no red flag (a red flag, or an existing skill of the same name, stops it and you are told); its summary lists every skill it installed.
 - **Clean-code gate:** once the helpers' code is in, a builder sends its changed files to `section-team:reviewer` (Opus, never edits). Pass: overall at least 8 out of 10 and no item under 6. On a fail the fix list goes to a coder and the reviewer grades again, at most 2 fix rounds; if it still fails the section ends `Status: partial` with the grade. Jobs that change no code skip the gate. The plugin enforces it at handback: a builder whose REPORT lists changed code but no grade cannot hand it back (PreToolUse hook on `SubagentHandback`). It must run the reviewer first, or hand back honestly as `Status: partial` or `blocked`. The supervisor runs the same gate on code it wrote itself.
 
-Section heads skip your global `CLAUDE.md` (it costs about 14k tokens per agent) but read the project's own rule files (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `.claude/rules/*.md`), and carry a short copy of the house rules.
-Edit the roster in `scripts/gen-agents.mjs`, then run `node scripts/gen-agents.mjs`.
+Section heads skip your global `CLAUDE.md` (it can cost many thousands of tokens per agent) but read the project's own rule files (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `.claude/rules/*.md`), and carry a short copy of the house rules.
 
 ## Develop
 - `npm test` — hook logic (node:test)

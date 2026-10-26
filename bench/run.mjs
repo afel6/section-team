@@ -3,12 +3,14 @@
 // Usage: node bench/run.mjs [id-substring ...]
 import { spawn, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
-export const RUNS = 'C:/Users/Asus/bench-runs'
+// Benchmark projects live outside this repo, in the user's home folder (forward slashes: run ids are joined with '/').
+export const RUNS = join(homedir(), 'bench-runs').replaceAll('\\', '/')
 export const RESULTS = join(BENCH, 'results')
 const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100 }
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'

@@ -2,6 +2,7 @@
 // the condition (.team/, .claude/, .superpowers/, .git, node_modules, databases). Writes the secret key to
 // results/blind-key.json. Usage: node bench/anonymize.mjs
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { CONDITIONS, RESULTS, parseArgs } from './run.mjs'
@@ -9,7 +10,8 @@ import { CONDITIONS, RESULTS, parseArgs } from './run.mjs'
 // --round=v2 --conds=solo,team-v2,forced-v2 → judges those condition labels into bench-judge-v2, key blind-key-v2.json
 const { round, conds } = parseArgs(process.argv.slice(2))
 const COND_SET = round ? conds : CONDITIONS
-export const JUDGE = round ? `C:/Users/Asus/bench-judge-${round}` : 'C:/Users/Asus/bench-judge'
+const HOME = homedir().replaceAll('\\', '/')
+export const JUDGE = round ? `${HOME}/bench-judge-${round}` : `${HOME}/bench-judge`
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
 const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite)$/i.test(src)
 

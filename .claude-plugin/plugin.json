@@ -2,6 +2,10 @@
   "name": "section-team",
   "version": "0.1.0",
   "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board",
-  "author": { "name": "Asus" },
-  "types": "./types/index.d.ts"
+  "author": {
+    "name": "Raouf"
+  },
+  "types": "./types/index.d.ts",
+  "license": "MIT",
+  "repository": "https://github.com/afel6/section-team"
 }
