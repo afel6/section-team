@@ -168,6 +168,7 @@ Rules:
 - After round 12 (a verified trace: builders "improved" exact spec values, notes were faithful): spec-named values are exact (never extended or normalized, no unstated rule) and testing asserts them with exact equality. Round 13: correctness 8.83 (hard 8.00), quality 8.15 against team-v3 7.82, but hard cost $7.88. Kept, because the user ranks clean code above cost.
 - After round 13: the supervisor sends builders only failing items after the final review (optional findings go in its summary); heads re-grade with a new foreground reviewer call, never by SendMessage to a helper; the handback hook refuses a REPORT that claims done with a grade under 8. Round 14: 8.23 against team-v3 7.76, hard correctness 8.63 (above solo), $2.80 per task. Kept.
 - After round 14: tests must catch near-miss implementations (reviewer tests item, supervisor small tasks, testing probe). Round 15: 8.52 against team-v3 7.82, tests 9.08, but $3.68 per task (hard $8.25) from extra reviewer fix rounds. Kept.
+- After round 15: a passing grade ends the gate (no re-grade after applying its quick fixes); when another section writes the tests, the builder tells the reviewer, which scores tests as n/a. Round 16: 8.37 against team-v3 7.94, tests 9.21, $2.80 per task (hard $5.89). Kept.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)

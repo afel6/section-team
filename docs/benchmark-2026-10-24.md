@@ -370,6 +370,24 @@ Hidden tests and own tests passed 100% in all 6 runs. The judges ran near-miss m
 - **The price is cost:** $3.68 per task (round 14: $2.80); hard $8.25 (round 14: $5.81). The stricter tests item fails first grades more often, so every builder ran its reviewer gate 2–3 times on hard (once in round 14).
 - Kept, because the user ranks clean code above cost.
 
+## Round 16 — a pass ends the gate; no double tests (commit fa9ab44)
+What the round-15 reviewer transcripts showed: the reviewer already gave 4–13 fixes on its first grade, so incremental fix lists were not the cause. Two re-grades came after a pass (a builder applied the optional fixes of a passing grade and graded again), and one builder failed on tests (2/10) in multi-area work where the testing section writes the tests, so it wrote duplicate tests and re-graded. The rest were real fails.
+Change: a pass ends the gate (quick fixes allowed, no new grade); when the job says another section writes the tests, the builder tells the reviewer, which scores tests as n/a and leaves them out of the overall.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Tests | Robustness | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.88 | 7.23 | **0.57** | 7.82 | **1.56** | – | – | 1–9 | **85.7** |
+| team-v3 (sections for everything bigger) | 3.39 | 7.20 | 8.28 | 3.69 | 8.35 | 5.87 | 7.96 | 7.63 | 3–2 | 73.0 |
+| team-v16 | 2.80 | **8.03** | **8.40** | 1.77 | **8.68** | 5.89 | **9.21** | **8.13** | **8–1** | 73.7 |
+
+Hidden tests and own tests passed 100% in all 6 runs. In hard-r1 every section ran one reviewer gate and passed at 9/10; builders' tests were scored n/a and testing's final review graded the tests (8/10).
+Judging note: one judge cleaned up with `rm -rf /tmp/mut-*` and deleted about 320 temp folders of judges running at the same time. All 12 judges still returned full reports, but some mutation probes may have been cut short. The judge prompt now says to delete only one's own `mktemp -d` folders by exact path.
+
+### Verdict after round 16
+- **Cost back to round 14's level:** $2.80 per task (round 15: $3.68); hard $5.89 (round 15: $8.25), the same as team-v3's hard cost.
+- **Quality mostly held:** 8.37 against team-v3's 7.94 (+0.43; round 15: +0.70 on its own panel), 8 wins and 1 loss. Tests rose to 9.21, the best of all rounds; robustness slipped (8.13 against 8.58), mostly on medium. The changes only remove waste, so the gap to round 15 is likely panel noise.
+- Kept.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
