@@ -7,11 +7,11 @@ A Claude Code plugin that turns every session into a **supervisor** of a small e
 ## Results
 Measured over 17 benchmark rounds (three tasks of rising size, two runs each, graded blind by 12 Opus judges per round). In the final round:
 
-| | Cost per task | Judge quality (1–10) | Judge votes |
+| | Cost per task | Judge quality (1–10) | Ranked 1st / last (of 12 judges) |
 |---|---|---|---|
-| Plain Claude Code (plugin off) | $0.85 | 7.1 | 0 wins, 9 losses |
-| An earlier version of this team | $3.39 | 7.7 | 0 wins, 3 losses |
-| **section-team now** | $3.10 | **8.6** | **12 wins, 0 losses** |
+| Plain Claude Code (plugin off) | $0.85 | 7.1 | 0 / 9 |
+| An earlier version of this team | $3.39 | 7.7 | 0 / 3 |
+| **section-team now** | $3.10 | **8.6** | **12 / 0** |
 
 It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code.
 
