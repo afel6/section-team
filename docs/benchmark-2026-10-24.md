@@ -318,6 +318,24 @@ Hidden tests and own tests passed 100% in all 6 runs. Both easy runs stayed supe
 - **The price is on hard:** $6.07 against $4.96 in round 11, because testing reads about 2M tokens while probing and the probes send real fix lists to backend.
 - **Hard correctness (7.63) is still the weakest score:** some spec violations survive even the probe pass.
 
+## Round 13 — spec-named values are exact (commit ef631f8)
+What a traced and verified root-cause check of 12 real spec violations in 4 hard runs (rounds 11–12) showed: the notes carried the spec faithfully. The causes were lenient readings (5: an accepted null or empty code, `application/json; charset=utf-8` twice, loose URL checks), builders departing from a faithful note (3, plus one note testing itself changed: `Location` re-serialized with `new URL(url).href`, `/api` reserved as a code, a rate-limiter reset), and 3 probe misses. Builders "improved" values the spec names exactly, without seeing an ambiguity.
+Change: builders and the supervisor treat every value the spec names as exact (send exactly that value, never extend or normalize it, add no rule the spec does not state); testing asserts spec-named values with exact equality.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Correctness | Hard correctness | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 7.03 | 7.05 | **0.57** | 7.60 | **1.56** | 8.58 | **8.25** | 2–6 | **85.4** |
+| team-v3 (sections for everything bigger) | 3.39 | 7.18 | 8.20 | 3.69 | 8.07 | 5.87 | 8.17 | 7.63 | 2–5 | 72.6 |
+| team-v13 | 3.46 | **7.57** | **8.45** | 1.75 | **8.43** | 7.88 | **8.83** | 8.00 | **8–1** | 73.0 |
+
+Hidden tests and own tests passed 100% in all 6 runs.
+
+### Verdict after round 13
+- **The traced defects are gone:** the judges confirm Content-Type is exactly `application/json`, `Location` is the stored url verbatim, and a null or empty code gets 400.
+- **Correctness rose:** 8.83 overall (8.63 in round 12) and 8.00 on hard (7.63), now above team-v3 on the same panel (7.63) but still under solo on hard (8.25). Overall 8.15 against team-v3's 7.82 (+0.33), 8 wins and 1 loss.
+- **The price is hard cost:** $7.88 against $6.07, because exact-value probes send real fix lists and backend re-runs its reviewer gate (5 times in one run). Overall cost per task is now about team-v3's ($3.46 against $3.39), for +0.33 quality.
+- **Left on hard:** one run still accepts `http:example.com` (it checks only `new URL().protocol`), and both reject valid non-ASCII URLs, an unstated rule that the stricter reading pushed too far.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.

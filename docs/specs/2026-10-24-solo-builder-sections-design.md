@@ -165,6 +165,7 @@ Rules:
 - After round 9: heads ran helpers in the background, ended their turn to wait, and were forced to hand back unfinished. Heads now run helpers in the foreground and the plugin refuses a section's background Agent call. Round 10: hard 19% cheaper ($5.59), quality unchanged.
 - After round 10: testing sends builders only failing fix lists; its verdict and optional nits stay in its REPORT. Round 11: hard 11% cheaper ($4.96), no turns after handback. Its lower hard score traced to spec-edge bugs nobody found, not to held-back nits. The small-task wording now says "storage or I/O"; input checks that throw do not make a function a feature.
 - After round 11: testing probes every spec line (boundaries, empty and null, encoding, environment values) before grading; builders and the supervisor take the stricter reading of an ambiguous spec line. Round 12: 8.17 against team-v3 7.74 on the same panel, robustness 8.75 against 7.38, at $2.83 per task. Kept.
+- After round 12 (a verified trace: builders "improved" exact spec values, notes were faithful): spec-named values are exact (never extended or normalized, no unstated rule) and testing asserts them with exact equality. Round 13: correctness 8.83 (hard 8.00), quality 8.15 against team-v3 7.82, but hard cost $7.88. Kept, because the user ranks clean code above cost.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)
