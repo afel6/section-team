@@ -1,0 +1,32 @@
+{
+  "easy-r1": {
+    "X": "solo",
+    "Y": "forced",
+    "Z": "team"
+  },
+  "easy-r2": {
+    "X": "forced",
+    "Y": "team",
+    "Z": "solo"
+  },
+  "medium-r1": {
+    "X": "forced",
+    "Y": "team",
+    "Z": "solo"
+  },
+  "medium-r2": {
+    "X": "team",
+    "Y": "solo",
+    "Z": "forced"
+  },
+  "hard-r1": {
+    "X": "team",
+    "Y": "solo",
+    "Z": "forced"
+  },
+  "hard-r2": {
+    "X": "solo",
+    "Y": "forced",
+    "Z": "team"
+  }
+}

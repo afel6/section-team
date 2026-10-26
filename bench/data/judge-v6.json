@@ -1,0 +1,446 @@
+[
+  {
+    "pair": "easy-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 3,
+      "overall": 8,
+      "notes": "8/8 tests pass on Node 26. Strengths: the cleanest source of the three. src/text.mjs:1-4 uses named constants (COMBINING_MARKS with ̀-ͯ escapes, NON_ALNUM_RUN, EDGE_DASHES, ELLIPSIS), an assertString helper (src/text.mjs:6-10), and validates max before the length check. Tests cover all spec examples, an NFKD compatibility case ('ﬁle Ⅻ' -> 'file-xii', test/text.test.mjs:10, which tells NFKD apart from NFD), digits, the empty string, five non-string types, length==max, max=1, and seven bad max values including null, Infinity and '5'. Defects: (1) src/text.mjs:25 builds the RangeError message with String(max), and String() itself throws for a null-prototype object, so truncate('hi', Object.create(null)) throws a TypeError where the spec requires a RangeError (I confirmed this by running it). It is a contrived input, but the spec is broken by a convenience the spec never asked for. (2) test/text.test.mjs:10 puts a literal U+FB01 ligature in the source, which in most fonts looks the same as plain 'file', so a reader cannot see what the test checks. (3) No test for truncate('', n) or for leading whitespace being kept (a trim() mutation would survive). (4) README.md is just '# bench project', with no usage or API description."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 3,
+      "overall": 8.5,
+      "notes": "7/7 tests pass on Node 26. It met every spec item and every edge case I probed: accents, NFKD ligature and Roman numeral, İ, edge dashes, CJK -> '', boxed String, Symbol, BigInt, null-prototype and Symbol max, surrogate split by .length, and validation before the length check. Strengths: a shared assertString helper (src/text.mjs:7-11) whose error message includes the received typeof. The RangeError path is safe for any value. In the tests, test/text.test.mjs:10-11 builds the NFKD ligature with String.fromCodePoint(0xfb01) and a comment, so it is readable and tells NFKD apart from NFD. Boundaries include truncate('', 1) and truncate('hello', 1), and the bad-max list includes undefined, which covers a missing argument. Defects: (1) src/text.mjs:2-5 builds the combining-mark regex with new RegExp and String.fromCodePoint in a template literal, which is roundabout when a /[̀-ͯ]/g literal would do. (2) package.json:7 relies on bare 'node --test' auto-discovery instead of naming test/text.test.mjs. It works, but it is less explicit and will pick up any stray test-like files. (3) No test that leading whitespace is kept in truncate. (4) README.md is a placeholder ('# bench project') with no usage docs."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 2,
+      "overall": 7,
+      "notes": "9/9 tests pass on Node 26. Its behaviour matches the spec and was identical to Y's on every edge case I probed. It is very compact (16 lines). Each error message is prefixed with the function name ('slugify: input must be a string'), and validation comes before the length check. Defects: (1) src/text.mjs:6 writes the regex as /[̀-ͯ]/g, which embeds the literal combining characters U+0300 and U+036F in the source (I confirmed this from the bytes: 314 200 ... 315 257). The range is invisible or garbled in editors and diffs, the U+0300 visually combines with '[', and an encoding or normalization tool could silently corrupt it. Using \\u escapes would be the correct choice. (2) The string type check is duplicated inline in both functions (lines 2 and 12) instead of shared, which is trivial. (3) The tests (test/text.test.mjs) have no NFKD-specific case such as a ligature or compatibility character, so an NFD implementation would pass even though the spec explicitly says NFKD. Uppercase accents are covered ('ÀÉÎÕÜ ñ'), as are digits, the empty string, five non-string types, and seven bad max values including null, NaN, Infinity and '5'. There is no truncate('', n) case and no leading-whitespace case. (4) README.md is just '# bench project', and there are no comments at all."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "reasoning": "All three solutions implement the same algorithm, and all of their own tests pass. Edge-case probing found the same results for all three except for one difference in X. The ranking therefore comes down to small differences in correctness, code quality and tests.\n\nY comes first. It is fully spec-compliant on every probe I ran, including a null-prototype or Symbol max, which correctly gives a RangeError. Its tests discriminate on the points that matter: NFKD versus NFD through a readable fromCodePoint ligature, truncate('', 1), and an undefined max. Its only weaknesses are style: the regex is built in a roundabout way, and the test script relies on bare 'node --test' discovery.\n\nX has the cleanest source: named constants, \\\\u escapes and a helper. However, its error message calls String(max), which throws a TypeError for a null-prototype object. That breaks the spec's 'otherwise RangeError' rule. The input is contrived, but the defect is real and was introduced by an unnecessary nicety. Its test also uses a visually ambiguous literal ligature. That puts it just behind Y.\n\nZ comes last. Its behaviour is correct, but its source embeds invisible literal combining characters in the regex (src/text.mjs:6), which is a maintainability and readability hazard. Its tests also never check the NFKD-specific behaviour the spec requires, so an NFD implementation would pass them.\n\nAll three have only a placeholder README, so documentation does not separate them.",
+    "judge": 2
+  },
+  {
+    "pair": "easy-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 3,
+      "overall": 8,
+      "notes": "Strengths: src/text.mjs:9-17 follows the spec steps in the order they are listed (lowercase, then NFKD, then strip U+0300-U+036F, then collapse [^a-z0-9]+ to '-', then trim dashes). It writes the combining-mark range with readable \\u escapes (line 14). truncate (19-26) checks the string type first, then Number.isInteger(max) && max >= 1, then length <= max, then slice(0, max-1).trimEnd() + ellipsis. All spec examples pass. Probing passed for -0, 1.5, NaN, Infinity, '5', undefined, 0n (RangeError), boxed String and Symbol (TypeError), max=1 giving '…', whitespace-only prefix giving '…', and max larger than the length returning the input. The error messages include the offending type or value (lines 5 and 22). Tests (12, all pass): spec examples, the length == max boundary (line 35), max=1, an NFKD ligature ('ﬁle'), digits, empty input, several invalid max values, several non-string inputs, and a check that TypeError wins over RangeError when both apply (line 60). Defects: because it lowercases before NFKD, compatibility letters that only decompose to uppercase are dropped. 'ℌello' becomes 'ello', '𝐀BC' becomes 'bc' and '㎒ band' becomes 'z-band'. This is spec-literal but gives poor slugs. No test checks that non-Latin text slugifies to '' or covers a cut in the middle of a word. README.md is the placeholder '# bench project' with no usage or API notes. truncate can split a surrogate pair, but that follows from the spec's use of input.length."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 3,
+      "overall": 7,
+      "notes": "Strengths: the runtime behaviour is identical to X. Every spec example and all my edge probes give the same results (lowercase before NFKD, correct TypeError and RangeError ordering, trimEnd plus ellipsis). The module is short and clear. Defects: src/text.mjs:14 writes the combining-mark class with raw, invisible combining characters, /[<U+0300>-<U+036F>]/g. A hex dump confirms the bytes are correct, but a reader cannot check the range by eye and editors or normalizers could silently corrupt it. This is a real maintainability hazard compared with \\u escapes. The RangeError message (line 22) omits the bad value. Tests (5, all pass) are grouped into large 'spec examples' blocks (test/text.test.mjs:5-12 and 20-27), so a failure gives less detail. Coverage is thinner: truncate's TypeError is tested only with 123 and null, there is no NFKD compatibility-character test, and there is no test that TypeError wins over RangeError. On the plus side, it adds truncate('', 1) and 'ABC 123'. It has the same compatibility-letter loss as X ('ℌello' becomes 'ello'). README.md is the placeholder '# bench project'."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 3,
+      "overall": 8,
+      "notes": "Strengths: src/text.mjs:1-4 hoists the regexes into named constants (COMBINING_MARKS, NON_ALPHANUMERIC_RUN, EDGE_DASHES) and writes the ellipsis as the escape '…', the most self-documenting of the three. Reusing the /g regexes with String.replace is safe. It applies NFKD before lowercasing (lines 15-16), which keeps compatibility letters that decompose to uppercase: 'ℌello' becomes 'hello', '𝐀BC' becomes 'abc' and '㎒ band' becomes 'mhz-band', where X and Y produce 'ello', 'bc' and 'z-band'. It still meets every spec example. truncate behaves the same as X, with an informative RangeError message that includes the value. Tests (13, all pass) are one behaviour per test with descriptive names, cover the spec examples, a mid-word cut ('hello wor…'), the length == max boundary, max=1, several invalid max values and several non-string inputs, and add compatibility-decomposition cases (lines 62-65). Defects: the NFKD-then-lowercase order departs from the literal order the spec lists the steps in. This is harmless, and arguably better, for every realistic input, but it is a deviation. There is no test that TypeError wins over RangeError, and no non-Latin-to-'' test. README.md is the placeholder '# bench project'."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "reasoning": "All three pass their own tests and every spec example, and they behave the same on all my edge probes except one: Z applies NFKD before lowercasing. Because the functional results are nearly identical, the ranking rests on code quality, tests and that one ordering difference. Z ranks first: named regex constants and escaped literals make it the most readable, its tests are the most granular and include a mid-word truncation and compatibility-decomposition cases, and its normalize-then-lowercase order gives sensibly better slugs for compatibility characters ('ℌello' gives 'hello', not 'ello'). That order departs from the literal sequence of the spec's steps but keeps its intent. X is a very close second: clean, spec-literal and well tested, including the TypeError-over-RangeError check that the others lack. It loses only on slightly less self-documenting code and on dropping compatibility letters. Y ranks last: its runtime behaviour matches X, but it writes the combining-mark range as raw invisible combining characters (src/text.mjs:14), a real maintainability hazard. Its tests are coarse grouped blocks with thinner TypeError and NFKD coverage, and its RangeError message omits the bad value. All three ship the same placeholder README, so docs scores are equally low.",
+    "judge": 1
+  },
+  {
+    "pair": "easy-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 4,
+      "overall": 7,
+      "notes": "Strengths: the cleanest source of the three. src/text.mjs is pure ASCII, with named constants (COMBINING_MARKS using ̀-ͯ, NON_ALNUM_RUN, EDGE_DASHES, ELLIPSIS at lines 1-4) and a shared assertString helper (lines 6-10). slugify follows the spec order: lowercase, NFKD, strip marks, collapse runs, trim dashes. truncate checks the string, then the integer >= 1 rule, then input.length <= max, then slice(0, max-1).trimEnd() + U+2026. Every spec example passes, and so does every probe: Crème Brûlée, Turkish İ, Ⅻ, the fi ligature, Ångström, Symbol and String-object inputs, 3.0, 1n, MAX_SAFE_INTEGER+2. npm test passes 8/8 in a temp copy. The tests cover all spec examples, NFKD compatibility folding (fi ligature to 'fi' and Ⅻ to 'xii', test:10), digits, the empty string, five non-string types, length == max, max = 1, and a broad invalid-max list (0, -1, 1.5, NaN, Infinity, '5', null). The error messages say what value was received. Defect: line 25 builds the message with String(max), and that call can throw. truncate('abc', Object.create(null)) throws TypeError 'Cannot convert object to primitive value', and a max whose toString throws gives a plain Error. Both should be RangeError under the spec, so the error-reporting path breaks the error contract. It is a narrow, one-word fix but a real spec deviation. Minor: there is no test for truncate on an empty string, and the glob in the test script needs Node >= 21. README.md is only the placeholder '# bench project', with no usage notes."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 3,
+      "overall": 8,
+      "notes": "Strengths: correct on every spec example and every edge probe, including the exotic max values that break X. The RangeError message is static (src/text.mjs:26), so building it can never throw. It reuses an assertString helper (lines 7-11), and the slugify pipeline is right. npm test passes 7/7. The test script is plain 'node --test' with default discovery, which works on every supported Node version without glob quoting. The tests cover the spec examples, NFKD ligature folding written readably with String.fromCodePoint(0xfb01) (test:10-11), digits, the empty string, five non-string types, the boundaries length == max, max = 1 and truncate('', 1) (test:32-34), and an invalid-max list that includes undefined. Defects: COMBINING_MARKS is built in a roundabout way (src/text.mjs:2-5), with new RegExp over String.fromCodePoint(0x300)/(0x36f), where the literal /[̀-ͯ]/g would be clearer. The comment explains it but does not justify it. Two regexes are inline while one is a named constant, and the ellipsis is a raw literal; both are inconsistent. Error messages are generic: they do not name the function or show the received value. No test for Unicode case folding such as Ⅻ or uppercase accented letters. README.md is the placeholder only."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 6,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 4,
+      "overall": 7,
+      "notes": "Strengths: the most compact implementation, 16 lines, and its behavior matches Y on every spec example and edge probe (accents, İ, Ⅻ, ligatures, Symbol, 1n, 3.0, exotic max objects all raise the right error). Error messages put the function name first ('truncate: max must be an integer >= 1'), which helps debugging. npm test passes 9/9. The tests add an uppercase accent case, 'ÀÉÎÕÜ ñ' to 'aeiou-n' (test:14), and check five non-string types and an invalid-max list including null. Defects: line 6 writes the combining-mark range as raw, invisible combining characters, /[̀-ͯ]/g (bytes CC 80 and CD AF in a hex dump). It works, but the code reads as garbled text, a reviewer cannot check the range without a hex dump, editors and normalizing tools can mangle it, and ESLint no-misleading-character-class would likely flag it. The ̀-ͯ escape was the obvious choice. The typeof-string check is duplicated in both functions (trivial). The tests have no NFKD compatibility-decomposition case (ligature or Roman numeral), so NFKD vs NFD is not checked. There is no truncate('', 1) test. The test script glob needs Node >= 21. README.md is the placeholder only."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "reasoning": "All three solutions behave almost the same. Each passes its own suite (X 8/8, Y 7/7, Z 9/9) and gives the same output on every normal and Unicode edge probe I ran: accents, Turkish İ, Ⅻ, ligatures, lone-surrogate splitting, 3.0, 1n, Symbol and String-object inputs. The placeholder README is identical in all three. They differ on correctness at the edges, source readability and test depth. Y ranks first. It is the only one that is both fully spec-correct on every probe and has no readability hazard. Its tests cover NFKD compatibility folding plus the empty-input and undefined-max boundaries, and its runner (plain node --test) is the most portable. Its main weakness is the clumsy RegExp/String.fromCodePoint construction of the mark range. X has the best-written code: ASCII escapes, named constants, and informative errors. It also has the strongest Unicode tests (fi and Ⅻ). But its error message interpolates String(max), so an invalid max with a null prototype or a throwing toString raises TypeError or Error instead of the required RangeError. The fix is trivial and the inputs are exotic, but it is a concrete spec violation that Y and Z do not have. That puts X second, ahead of Z on the strength of its code and tests. Z is correct, but it encodes the U+0300 to U+036F range as raw invisible combining characters, which is a real maintainability and review hazard. Its tests also never check NFKD compatibility decomposition, so it ranks last.",
+    "judge": 1
+  },
+  {
+    "pair": "easy-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 3,
+      "overall": 8,
+      "notes": "Strengths: src/text.mjs follows the spec's step order literally (toLowerCase, then NFKD, line 12-16). It uses a readable escaped combining-mark range /[̀-ͯ]/g (line 14) and a shared assertString helper (lines 3-7). truncate validates with Number.isInteger and max < 1 (line 21), and its RangeError message includes the bad value. Every spec example passes, and so do my probes: '-a-', 'ﬁle Ａ', İstanbul, '', truncate('abc',3), truncate('a   b',4), 2n/'5'/NaN/Infinity max. npm test: 12/12 pass, 100% line/branch coverage. Tests are split per behavior and cover NFKD compatibility ('ﬁle', line 11), so an NFD mutant fails them. It is the only suite that pins validation precedence (truncate(42, 0) -> TypeError, line 60). Defects: lowercasing before NFKD means compatibility characters that decompose to uppercase but have no lowercase mapping get dropped: 'ℌello' -> 'ello', '𝐀BC' -> 'bc'. This matches the literal spec order, but the slug is worse than it needs to be. The regexes are inline rather than named constants, which is minor. There is no mid-word truncation case (e.g. 'hello wor…'). truncate counts UTF-16 code units, so it can split a surrogate pair ('😀😀',2 -> lone surrogate + …). The spec's use of input.length allows this, and the other two behave the same. README.md is only '# bench project': no usage, API or test instructions, and there is no JSDoc."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 6,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 3,
+      "overall": 6.5,
+      "notes": "Strengths: it behaves the same as X on every spec example and every probe I ran (same order and validation logic). package.json is correct, and npm test passes 5/5 with 100% coverage. It is the only suite that tests truncate('', 1) and an uppercase-plus-digits slug ('ABC 123'). Defects: src/text.mjs:14 writes the combining-mark class with literal invisible U+0300 and U+036F characters (bytes 0xCC80 and 0xCDAF). The combining grave renders glued onto the '[', so the line is unreadable, easy to corrupt with an editor or normalizer, and impossible to check against the spec by eye. The RangeError message (line 22) leaves out the offending value. Tests are coarse: 5 tests bundle many assertions ('slugify: spec examples' has 6), so one failure hides the rest. There is no NFKD-compatibility case, so changing normalize('NFKD') to 'NFD' still passes the whole suite (I ran this mutant: 0 failures). There is no test of validation precedence, the TypeError test for truncate is thin (only 123 and null), and there is no mid-word truncation case. It shares X's lowercase-first limitation ('ℌello' -> 'ello'). README.md is only '# bench project'."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 3,
+      "overall": 8.5,
+      "notes": "Strengths: src/text.mjs is the cleanest of the three. Its regexes and the ellipsis are named constants with \\u escapes (COMBINING_MARKS, NON_ALPHANUMERIC_RUN, EDGE_DASHES, ELLIPSIS, lines 1-4), and assertString is shared. truncate validates with Number.isInteger and max < 1, and the RangeError message includes the bad value (line 25). It runs NFKD before lowercasing (lines 15-16), so compatibility characters that decompose to uppercase still become a-z: 'ℌello' -> 'hello', '𝐀BC' -> 'abc', 'ᴬ' -> 'a', where X and Y drop them. On every spec example and every other probe the output is the same as the literal order. npm test: 13/13 pass, 100% coverage. Tests are split per behavior and include a mid-word cut ('hello wor…', line 39), length == max (line 34), max 1 -> '…', a broad invalid-max list ('5', NaN, Infinity, 1.5, undefined) and non-string inputs. An explicit NFKD-compatibility test ('ﬁle', 'ℌello', lines 62-65) pins the normalization choice and fails the NFD mutant. Defects: normalizing before lowercasing departs slightly from the spec's literal step order. The result is never worse, but nothing documents the choice. The last test sits out of order after the truncate tests (line 62). No test pins validation precedence for truncate(nonString, badMax). It splits surrogate pairs on code-unit truncation, which the spec allows and the others share. README.md is only '# bench project': no usage, API or test instructions."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "reasoning": "All three implementations behave correctly on every spec example and pass their own tests with 100% coverage. They differ in code clarity, test quality and one normalization detail. Z ranks first. It has the clearest source (named regex constants with escaped ranges), the most thorough tests (13, including a mid-word cut and an NFKD-compatibility test that catches an NFD mutant), and its NFKD-then-lowercase order gives strictly better slugs for letterlike and math characters without changing any spec output. X is a close second. Its code is the same in substance, with inline but readable escaped regexes, and it follows the spec's literal step order. Its tests are about as strong: it lacks the mid-word case but uniquely pins validation precedence (truncate(42, 0) -> TypeError). Y ranks last. Its logic matches X's, but src/text.mjs:14 embeds raw invisible combining characters in the regex, which hurts maintainability. Its error message leaves out the bad value. Its 5 tests lump many assertions together and have no NFKD-compatibility case, so an NFKD-to-NFD regression passes its suite unnoticed. None of the three has a usable README; each is the same one-line placeholder.",
+    "judge": 2
+  },
+  {
+    "pair": "medium-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 6,
+      "overall": 7,
+      "notes": "All 14 own tests pass (npm test in a temp copy). Meets every spec line: add trims and joins, keeps ids monotonic via lastId (todo.mjs:83), list sorts, done is idempotent, remove works, clear-done counts, usage goes to stderr with exit 2, a corrupt file gives exit 3 and is left untouched, and writes go to a temp file then rename (todo.mjs:55-64; the temp name is hidden, uses pid+Date.now, and is removed on failure). Strengths: load() validates each entry with isTodo (todo.mjs:36,48), so '{\"lastId\":1,\"todos\":[null]}' is reported as corrupt and never overwritten. parseId rejects unsafe integers (todo.mjs:68). Text and id are checked before the file is loaded, so `add` or `done abc` on a corrupt file give exit 2. Object.hasOwn blocks __proto__/constructor commands. Defects: (1) Non-CliError errors are rethrown (todo.mjs:123). With TODO_FILE pointing at a directory (EISDIR) or into a folder that does not exist (ENOENT on write), the user gets a raw Node stack trace. (2) `done 99999999999999999999` returns 'invalid id' with exit 2 although the argument is an integer. The safe-int check is defensible, but the spec says not-found (exit 1). (3) 'Error: ' is repeated in every CliError message instead of being added once. (4) Tests: good hygiene (afterEach cleanup), and they cover the double-space join nuance (todo.test.mjs:33), a huge id, a malformed entry and leftover temp files. Gaps: only one corrupt-JSON variant runs across commands, ids are not checked for reuse after clear-done empties the list, and setup steps are not checked. (5) The README is minimal. It does not list the exact error strings, the list format, or that a bad JSON shape also counts as corrupt."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 8,
+      "notes": "All 12 own tests pass. Every spec item works, including ids that are never reused (it stores nextId) and corrupt files that are never overwritten. Strengths: this is the most defensive load() of the three (todo.mjs:47-51). It validates each entry's shape and the invariant id < nextId, so a hand-edited file cannot later cause duplicate ids. Unexpected I/O errors are caught in main (todo.mjs:130-131) and printed as a clean 'Error: EISDIR...' or 'Error: ENOENT...' with exit 1 instead of a stack trace. This was the only solution that handled a directory TODO_FILE or a missing parent folder gracefully. Text and id are validated before loading, the temp file sits in the same folder and is removed on failure, and Object.hasOwn guards the command lookup. Defects: (1) Huge integer ids such as 99999999999999999999 give 'not found #100000000000000000000', so the echoed id is not the one the user typed. (2) 'Error: ' is repeated in each CliError message, and every command repeats its own load/save calls. (3) Tests: 12 tests with sound assertions (full {code,out,err} deepEqual) and 4 bad-shape variants, including id >= nextId. However, they never remove their mkdtemp dirs, so temp folders leak in tmpdir. Setup steps are not asserted. Only one invalid-JSON variant runs across commands, and there is no test for sorting a file stored out of order. (4) The README is concise and accurate, with a command table and exit codes. It does not mention leading zeros or 0 and negative ids, and the exit-3 row says only 'not valid JSON' although bad shape is also rejected."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 6,
+      "docsUsability": 9,
+      "overall": 8.5,
+      "notes": "All 25 own tests pass. Meets every spec line: ids are monotonic via lastId, list is sorted, done is idempotent, clear-done counts, unknown commands and the __proto__/constructor names print usage with exit 2, a corrupt file gives exit 3 and is left untouched, and writes use a hidden temp file in the same folder, renamed over the data file and removed on failure (todo.mjs:54-63). Strengths: the cleanest design of the three. Command handlers are pure and return {data,out} (todo.mjs:76-103), and main does the single load, save and print, with 'Error: ' added in one place (todo.mjs:118). The tests are the strongest set: 25 cases, each corrupt variant (invalid JSON, wrong shape, null, missing lastId) run against all 5 commands with byte-for-byte file comparison, sorting of a file stored out of order, id non-reuse after remove and after clear-done, leading zeros, 0 and -1 as not-found, default todo.json in cwd, no leftover temp files, and stderr='' asserted on success. Every setup step is asserted (ok()), and temp dirs are cleaned with t.after. The README is the most complete and accurate: per-command examples, id parsing rules, the data-file shape, and an exit-code table. Defects: (1) isValidStore checks only the top level (todo.mjs:31-34) and not each entry. With '{\"lastId\":1,\"todos\":[null]}', `list` crashes with an uncaught TypeError stack trace and exit 1, and `add` succeeds and rewrites the malformed file. The README claims shape validation, which is only partly true. (2) Non-CliError errors are rethrown (todo.mjs:117). EISDIR or a missing parent folder produces a raw Node stack trace. (3) The file is loaded before args are validated, so `add` or `done abc` on a corrupt file gives exit 3 instead of 2. This is acceptable but differs from the other two. (4) Huge ids echo a mangled number (#100000000000000000000)."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "reasoning": "All three are compact, correct implementations. Every spec requirement I probed behaves the same in each, and all their own suites pass (Z 25/25, Y 12/12, X 14/14). The differences are in tests, docs and robustness at the edges.\n\nZ ranks first. It has the best structure (pure command handlers with one I/O point) and a much stronger test suite: several corrupt-file variants run across every command with byte-level checks, plus sorting, leading zeros, 0 and -1, non-reuse after clear-done, the default path and temp-file hygiene. Its README is the clearest and most complete. Its real weakness is robustness. It validates only the top-level shape, so a null todo entry crashes `list` with a stack trace, and I/O errors are not caught. Neither case is a direct violation of the spec, which only requires invalid JSON to give exit 3.\n\nY ranks second. It has the best robustness: it validates each entry and the id < nextId invariant, and it reports I/O errors cleanly. Its spec compliance is equally complete. It trails Z on test breadth, the tests leak temp dirs, and its README is thinner.\n\nX ranks third. Its code is close to Y's and it also validates entries, and its tests clean up after themselves. But it lets I/O errors escape as stack traces, treats a huge integer id as 'invalid id' (a debatable deviation), and has the thinnest README.",
+    "judge": 2
+  },
+  {
+    "pair": "medium-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 7,
+      "overall": 7.5,
+      "notes": "All 14 own tests pass. Every spec line holds in my probes: add joins and trims, ids are never reused (lastId), list sorts and prints No todos, done is idempotent, invalid id gives exit 2 and not found gives exit 1, clear-done counts correctly, usage goes to stderr with exit 2 (also for __proto__/toString via Object.hasOwn, todo.mjs:105), and a corrupt file gives exit 3 and is left untouched. Strengths: load() checks the shape of each entry as well as JSON validity (todo.mjs:26,38). parseId also rejects ids that are not safe integers, so 99999999999999999999 is an invalid id rather than a wrongly echoed number (todo.mjs:58). The temp file name is unique per pid and timestamp and is removed on failure (todo.mjs:46-53). Updates are immutable. Defects: it does not check lastId against the stored ids, so a hand-edited {\"lastId\":0,\"todos\":[{\"id\":1}]} makes add create a duplicate #1 (probed). Unexpected I/O errors (EISDIR, missing parent directory) are rethrown and crash with a raw Node stack trace (todo.mjs:113). findTodo's return value is unused. Tests (todo.test.mjs) cover the spec well and clean up temp dirs in afterEach. But todos are always stored in id order, so removing the sort in list would not fail any test. There is no test that the default todo.json path and the data round-trip together. The README is accurate but minimal: it does not mention the error messages or how ids are parsed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "All 12 own tests pass, and every spec requirement holds in my probes. Strengths: it has the strongest data validation. An entry whose id is not below nextId counts as corrupt (todo.mjs:38-41), so a stale or hand-edited counter cannot produce duplicate ids; X and Z both produced a duplicate #1 here. Non-CliError failures print a clean 'Error: <msg>' and exit 1 instead of a stack trace (todo.mjs:121-122), and the README documents that. The atomic write goes to a temp file in the same folder with cleanup on failure (todo.mjs:46-55). The command map uses Object.hasOwn, so prototype names print usage. The README has a command table, a storage section and exit codes, and it is accurate. Defects: parseId has no safe-integer check, so 'done 99999999999999999999' prints 'not found #100000000000000000000', echoing a different id (todo.mjs:57-60). The temp name ${file}.${pid}.tmp is fine but not hidden. Tests: there is no afterEach cleanup, so each test leaks a temp dir into os.tmpdir (test/todo.test.mjs:22-25). The whitespace-only add test checks only the exit code, not the message (line 34). No test stores todos out of id order, so the sort is never verified. No test checks that list leaves the file uncreated. The test that the default path is used only asserts that the file exists. The corrupt-shape variants are tested with list only."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 6,
+      "docsUsability": 9,
+      "overall": 8.5,
+      "notes": "All 25 own tests pass, and every explicit spec requirement holds in my probes. Strengths: it has the cleanest architecture. Each command is a pure function (data, args) -> {data, out}, and main does one load and one optional save (todo.mjs:68-106), so there is no repeated load/save code and corrupt-file safety holds structurally. It has the best test suite (test/todo.test.mjs). It is the only one that verifies sorting with todos stored out of order (line 84). It also tests: ids not reused after clear-done empties the list (119), leading-zero ids (154), 0 and -1 being not found (145), and four corrupt-file variants checked byte-for-byte after every command (186-203). It also checks that the default todo.json path round-trips with list, and that no temp files are left after all write commands. Each test cleans up via t.after, and runIn strips the TODO_FILE inherited from the parent environment. It has the most complete README: it documents per-command errors, id parsing rules, the exact usage text, the data shape and exit codes, and all of it is accurate. Defects: isValidStore checks only the top-level shape (todo.mjs:23-26), not the entries. So {\"lastId\":1,\"todos\":[null]} crashes list and done with an uncaught TypeError and stack trace, exit 1 (probed). A string id '1' is listed as #1, but 'done 1' then says not found. A stale lastId produces duplicate ids. Unexpected I/O errors also crash with a raw stack (todo.mjs:109). parseId has no safe-integer check (the huge id is echoed as 1e20). The file is loaded before arguments are validated, so 'add' with empty text on a corrupt file reports corrupt instead of text required (allowed by the spec). package.json has no bin entry (not required)."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "reasoning": "All three meet every explicit line of the spec: output formats, exit codes, ids never reused, the atomic temp-file-and-rename write in the same folder, the TODO_FILE default, usage on stderr, and a corrupt file that is never overwritten. The core logic is also nearly the same: a CliError class, a command map checked with Object.hasOwn, and a /^-?\\d+$/ id check. They differ in secondary qualities.\n\nZ ranks first. Its test suite is clearly the strongest, and it is the only one that would catch a missing sort, plus id reuse after clear-done, leading zeros, 0 and -1, and per-command byte-identical checks on a corrupt file. Its code structure is the cleanest (pure commands, with I/O in one place in main), and its README is the most complete and accurate. Its weakness is robustness outside the spec: valid JSON with malformed entries crashes with a stack trace instead of reporting corrupt. That is a real gap, but the spec only requires corrupt handling for invalid JSON, and no data is lost.\n\nY ranks second. It has the most robust validation: entry shape plus id < nextId prevents duplicate ids from a stale counter, and I/O errors are reported cleanly. Its README is solid. Its tests are the weakest of the three: they leak temp dirs, never verify sorting, and check some cases by exit code only.\n\nX ranks third. It is close to Y: its tests are slightly better (cleanup, a safe-integer id check), but its robustness and docs are weaker. A stale lastId lets add create duplicate ids, I/O errors crash with raw stack traces, and the README is minimal.",
+    "judge": 1
+  },
+  {
+    "pair": "medium-r2",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 6,
+      "overall": 6.5,
+      "notes": "Strengths: compact (111 lines) with the same clean centralised design as Z. Pure command functions return {data,out} and main does one load and one save (todo.mjs:72-118). It uses a highest-id counter (lastId), so ids are not reused. The temp file goes in the same folder and is cleaned up on failure (todo.mjs:50-59). All 12 tests pass, and every spec command works on the happy and error paths I probed. Defects: (1) Shape check is weak (todo.mjs:43): only todos-is-array and lastId-is-integer are checked. With {\"lastId\":0,\"todos\":[1]}, list prints '#undefined [ ] undefined' and add overwrites the file. With {\"lastId\":5,\"todos\":[{\"id\":7,...}]} the next adds will produce a duplicate #7. (2) I/O errors are not handled: main rethrows anything that is not a CliError (todo.mjs:114). TODO_FILE pointing at a directory, or a missing parent folder, dumps a raw Node stack trace to stderr. (3) parseId (todo.mjs:62) uses /^\\d+$/ with no safe-integer check. 'done 99999999999999999999' prints 'Error: not found #100000000000000000000', and 9007199254740993 becomes #9007199254740992, so the echoed id differs from the input. (4) '-1' is reported as 'invalid id' (exit 2). The spec reserves that for missing or non-integer ids, so an integer that does not exist should arguably be 'not found #-1' (exit 1). (5) Control flow by exception: it throws new Error('bad shape') only to land in its own catch. Exit codes are magic numbers. findIndex returns an index nobody uses. Tests: they cover the core spec (trim/join, id non-reuse, idempotent done, id validation, clear-done, usage, corrupt across all 5 commands, no temp files, default path). There is no afterEach cleanup, so every test leaks a temp directory. There are no tests for shape, I/O errors or large ids, and add with '  ' only checks the exit code. README is accurate but thin: usage, exit codes and storage, but nothing on the list format or id non-reuse."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: every spec line is met and all my probes matched the spec. The id check is strict: regex plus Number.isSafeInteger rejects 1.5, 0x1, 1e0, 99999999999999999999, +1 and padded ids (todo.mjs:75-81), while -1 and 0 correctly report 'not found'. Data shape is checked down to each todo (todo.mjs:32-44), so an empty file, [], null, {} and {todos:[1]} are all exit 3 with the file left untouched. OS errors give one tidy line, 'Error: cannot access data file (EISDIR|ENOENT|EPERM)', exit 1 (todo.mjs:127-131). It sets process.exitCode instead of calling process.exit, so output is never cut off. Text is validated before the file is read, so a bad add does not touch the file. The atomic write uses a temp file in the same folder plus rename, and removes the temp file on failure (todo.mjs:64-73). Tests: the strongest suite. 55 tests pass, organised by command. They cover id non-reuse after both remove and clear-done, a wide set of bad ids, 'not found' on an empty store, double remove, a case-sensitive unknown command (LIST), corrupt and empty files on all 5 commands with a check that no temp file is left, the I/O errors (directory, missing folder, Windows EPERM rename with the temp file removed), file created only on first write, a custom path and the default path. The test helper also strips TODO_FILE from the environment case-insensitively, which matters on Windows. README: the most complete. It has a correct example session, a command table, the error and I/O-error messages, storage and atomicity notes, an exit-code table and how to run tests. Defects: (1) todo.mjs:2 points to '.team/notes/todo-cli-spec.md' and 'todo-data-format.md', which are not shipped (leftover internal reference). (2) nextId is not checked against the stored ids: {\"nextId\":5,\"todos\":[{\"id\":7,...}]} is accepted, and later adds will produce a duplicate #7. Z guards this case. (3) Every command calls load and save itself (todo.mjs:89-124), which is mild duplication compared with one central load/save. Exit codes are bare numbers. toMessage throws from inside a catch, which is slightly odd. (4) README says corrupt means 'not valid JSON', but valid JSON with the wrong shape is also reported as corrupt."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8.5,
+      "notes": "Strengths: every spec line is met and all my probes matched the spec. The cleanest design of the three. Command functions are pure and return {data,out}, and main does a single load and save (todo.mjs:85-123). Exit codes are named constants (todo.mjs:5-7). It uses a lastId counter, so ids are never reused. Validation is the strictest: the file must have the right shape AND every todo id must be <= lastId (todo.mjs:30-40). That makes hand-edited files that would cause duplicate ids count as corrupt, and the file is never overwritten. The id check uses regex plus a safe-integer test (todo.mjs:74-79): 1.5, 1x, 1e3, '', +1 and over-large numbers are 'invalid id', while -1 and 0 are 'not found'. OS errors map to 'Error: cannot access data file (CODE)', exit 1, with no stack trace (todo.mjs:125-135). The atomic write uses a unique hidden temp name in the same folder (pid + timestamp), then rename, with cleanup on failure (todo.mjs:63-72). Tests: 13 tests, all passing, short but well aimed. They check exact stdout, stderr and exit code together, and cover id non-reuse across remove-all, idempotent done, bad ids (including a 20-digit one) for both done and remove, clear-done (also with 0), usage, corrupt across all 5 commands, wrong-shape JSON including the id > lastId check, no temp files left, and the default todo.json in the working directory. Defects: (1) There are no tests for the I/O-error path (TODO_FILE is a directory, missing parent folder, failed write cleanup), even though the code handles it. There is no empty-file corrupt test either. (2) README is clear and correct (example session, command table, storage/atomicity, exit codes), but leaves out the exit-1 'cannot access data file' case and says corrupt means only 'not valid JSON' while wrong-shape JSON also counts. (3) Small nits: the data is read before the add text is checked, so a corrupt file plus an empty add reports 'corrupt' rather than 'text required' (acceptable). The usage text is carried in a CliError message, a mild overload of the error type."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "reasoning": "Y and Z are both correct and robust. They handle every spec line, reject bad ids strictly, check the data shape, never overwrite a corrupt file, write atomically and report OS errors as a single clean line. Z has the tidier code: central load/save, named exit codes, and an extra guard that each stored id is not above lastId. Y wins on verification and documentation. Its 55-test suite covers I/O failures, the Windows read-only rename case, empty-file corruption and environment isolation, none of which Z tests. Its README also documents the I/O-error exit code. Y's flaws are small: a dangling reference to internal notes, load/save repeated in each command, and nextId not checked against stored ids. Because its stronger tests and docs outweigh Z's slightly cleaner code, Y ranks first and Z a close second. X is clearly last: thin shape checking prints '#undefined [ ] undefined' and overwrites semantically corrupt files, I/O errors crash with a raw stack trace, and large ids lose precision in the 'not found' message. '-1' is treated as an invalid id, which is debatable under the spec. Its tests leak temp directories and skip shape and I/O cases, and its README is minimal.",
+    "judge": 2
+  },
+  {
+    "pair": "medium-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "All 12 own tests pass. Every required behavior is correct: add join/trim, empty text exits 2, ids are never reused (lastId counter), list sorts by id, done is idempotent, the remove and clear-done messages are right, usage goes to stderr with exit 2, a corrupt file gives exit 3 and is left untouched, and the save is atomic (temp file in the same folder, then rename, with the temp removed on failure, todo.mjs:41-50). It also guards against prototype-key commands with Object.hasOwn (todo.mjs:94).\n\nStrengths: the smallest and cleanest design. Command handlers are pure and return {data,out}, and load/save happen once in main (todo.mjs:63-109).\n\nDefects:\n(1) I/O errors are rethrown as raw Node stack traces (todo.mjs:105). TODO_FILE pointing at a directory, or at a missing parent folder, dumps a node:fs stack with exit 1.\n(2) parseId uses /^\\d+$/ with no safe-integer check (todo.mjs:53). `done 99999999999999999999` prints `Error: not found #100000000000000000000`, which is not the id the user typed.\n(3) Negative ids such as `done -1` give `invalid id` (exit 2), but -1 is an integer, so a literal reading of the spec wants `not found #-1` (exit 1).\n(4) Shape validation only checks the top level (todo.mjs:34). A file with todos:[{\"id\":\"x\"}] lists as `#x [ ] undefined`, and a hand-edited lastId lower than the highest stored id lets add create a duplicate id.\n(5) The data file is loaded before arguments are validated. `add` with empty text against a corrupt file exits 3 instead of 2. The spec allows this, but the precedence is undocumented.\n\nTests are concise and hit each spec clause, including the corrupt file across all 5 commands and no leftover temp files. They do not cover shape validation, I/O errors, oversized ids or out-of-order storage.\n\nThe README is accurate and brief, with an exit-code table. It has no example error output and no Node version note."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "All 55 own tests pass. Every spec clause is verified by probing.\n\nStrengths:\n- Arguments are validated before the data file is loaded (todo.mjs:84, 96, 104), so `add` with empty text or `done abc` gives exit 2 even on a corrupt file.\n- parseId accepts negatives and enforces Number.isSafeInteger (todo.mjs:67-73). `done -1` gives `not found #-1` (exit 1) and a 20-digit id gives `invalid id`.\n- The data shape is validated down to each item (todo.mjs:24-36), and a bad shape is treated as corrupt without rewriting the file.\n- OS errors become a one-line `Error: cannot access data file (EISDIR|ENOENT|EPERM)` with exit 1, with no path or stack leaked (todo.mjs:119-123).\n- The save is atomic, and the temp file is cleaned up on failure (todo.mjs:56-65).\n\nThe test suite is the strongest of the three, organized with describe blocks:\n- add: blank variants; ids never reused after both remove and clear-done.\n- list: mixed open/done order.\n- done/remove id validation: abc, 1.5, 1abc, empty string, 0x1, 1e0, a 20-digit id, missing id, not found on an empty store, and an already removed id.\n- Usage: includes case sensitivity ('LIST').\n- Corrupt file: two corrupt contents across all 5 commands, checking the file is unchanged and no temp file remains.\n- I/O errors: EISDIR, a missing folder, and a failed write leaving no temp file.\n- Storage: shape errors, the default and custom TODO_FILE, and the file being created on first write.\n- The test helper strips TODO_FILE case-insensitively, which handles Windows environments.\n\nThe README is thorough and accurate. I ran its example session and it matches. It documents I/O errors and exit codes.\n\nDefects:\n(1) The header comment refers to `.team/notes/todo-cli-spec.md` and `todo-data-format.md`, which do not exist in the deliverable (todo.mjs:2).\n(2) load/save is repeated in every command handler, where X and Z centralize it in main.\n(3) It does not check that nextId is greater than the stored ids, so a hand-edited nextId can produce a duplicate id. Z rejects this case.\n(4) The read-only-file test asserts the failure only on win32 (test:230).\n(5) No test covers list sorting when the stored order is out of order."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "All 13 own tests pass. Every spec clause is verified by probing.\n\nStrengths:\n- Shape validation is the strictest of the three. It checks each item's types and the invariant id <= lastId (todo.mjs:30-40), so a hand-edited counter cannot cause duplicate ids.\n- parseId allows negatives and requires a safe integer (todo.mjs:74-79): `-1` gives `not found #-1`, and a 20-digit id gives `invalid id`.\n- OS errors are reported as a friendly one-line `cannot access data file (CODE)` with exit 1 (todo.mjs:128-131).\n- Named exit-code constants (todo.mjs:5-7). Pure command handlers with load/save done once in main.\n- The save is atomic: a dot-prefixed temp file in the same folder, renamed into place, and removed on failure.\n- package.json includes bin and engines.\n\nTests are compact but meaningful. They include tests the others lack: wrong-shape JSON ([], null, id > lastId) treated as corrupt with the file untouched, a huge id, and checking the persisted file contents after done.\n\nDefects:\n(1) The friendly I/O-error path is implemented but has no test.\n(2) Arguments are validated after the file loads. `add` with empty text on a corrupt or inaccessible file reports corrupt or access errors instead of `text required`. The spec allows this.\n(3) The README exit-code table lists 1 only as `not found` and omits the I/O-error exit 1 (README.md:43).\n(4) Usage is produced by throwing a CliError whose message is the usage text (todo.mjs:118), which is a little indirect.\n(5) The error path calls process.exit right after writing to stderr. Messages are short, so this works, but setting exitCode would be safer.\n(6) No test covers sort order when storage is out of order.\n\nThe README is accurate. I ran its example session and it matches."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "reasoning": "All three meet the core spec, and their own tests pass (X 12/12, Y 55/55, Z 13/13). The ranking comes from how they handle edge cases, how robust they are, and how complete their tests and docs are.\\n\\nY ranks first. It validates arguments before loading the file, validates ids as safe integers, checks item-level shape and turns I/O errors into a friendly message. It also has by far the most thorough tests, covering corrupt variants across every command, I/O failures, temp-file cleanup and the TODO_FILE default and override. Its README is the most complete and accurate. Its flaws are small: a header comment pointing to notes that do not exist, load/save repeated in each handler, and no nextId-versus-max-id invariant.\\n\\nZ is a close second. Its code is as clean as X's, it has the strictest data validation (including the id <= lastId invariant) and it handles I/O errors gracefully. It drops behind Y because its tests are thinner (nothing tests the I/O-error path) and its README exit-code table leaves out the I/O error.\\n\\nX is the most elegant and smallest, but it is the weakest on robustness. I/O errors produce raw Node stack traces, a 20-digit id is echoed back as `not found #100000000000000000000`, items are not validated (`#x [ ] undefined`), and negative ids are treated as invalid rather than not found. Its tests also skip shape and I/O cases.",
+    "judge": 1
+  },
+  {
+    "pair": "hard-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 6.5,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 6.5,
+      "notes": "All 25 own tests pass. My HTTP probe of `node server.mjs` and a browser run found every core spec item works: listening line, DB file created, 415/413/400/409/429/201, stats, redirect, DELETE 401/404/204 and empty ADMIN_TOKEN -> 401. The frontend works and uses textContent. Strengths: toHeaderSafeUrl (server.mjs:102-104) encodes non-ASCII Location, so a URL like /路径 redirects correctly. JSON Content-Type is exactly application/json. Token compare is timing-safe (138-143). The traversal guard works (145-164). The CLI is covered by an integration test. Defects: (1) The rate limiter (server.mjs:58-69) appends every hit with no cap, so one IP's timestamp array grows without bound during a flood. Each POST re-filters that array and also sweeps the whole Map (64-66), so the work is O(n) per request. (2) isValidUrl (94-98) accepts 'http:example.com', URLs with spaces, and URLs with CR/LF. Such URLs are stored verbatim and differ from the Location sent; api.test.mjs:135-144 even asserts a URL containing a newline is accepted. (3) HEAD /<code> increments clicks (212-217); the probe saw clicks=2 after one GET and one HEAD. (4) createLink checks then inserts (175-179) with no constraint handling, so a UNIQUE race returns 500. (5) readBody drains an entire oversized chunked body before answering 413. (6) No listen-error handling in main (238-244), and no nosniff header. (7) createServer silently defaults adminToken from process.env (166). Tests are thinner than the others: no chunked 413, no persistence test, no rate-limit boundary test, few traversal variants, and only 6 shallow frontend tests. app.js is never exercised. The README is accurate but brief, with one curl example. The frontend is minimal: no busy state and no CSS file."
+    },
+    "Y": {
+      "correctness": 8.5,
+      "codeQuality": 8.5,
+      "tests": 9,
+      "robustnessSecurity": 8.5,
+      "docsUsability": 9,
+      "overall": 8.5,
+      "notes": "All 83 own tests pass. In my probe every spec status code and content type was correct, the redirect encodes non-ASCII Location, persistence across restarts works, and the browser UI works for create, 409 error, stats and 404. Strengths: clean modules in lib/ (db, http, links, rate-limit, static), each small and focused. INSERT OR IGNORE (db.mjs:13,20) avoids a TOCTOU race on codes. The rate limiter (rate-limit.mjs:16-24) keeps at most limit+1 stamps and sweeps the Map, so memory is bounded, and every POST including 429s counts. readBody (http.mjs:40-61) checks Content-Length and stops a streamed body early; the 413 is sent with Connection: close (http.mjs:25). Token compare uses sha256 plus timingSafeEqual (links.mjs:68-73). Non-ASCII Location is encoded (links.mjs:87). Responses carry Cache-Control no-store and nosniff. PORT is validated at startup (server.mjs:88-92). Defects: (1) server.mjs:27 returns 404 for a code that does not match the pattern before auth runs, so DELETE /api/links/a.b with no token gives 404, not 401. This is documented in README:101 but deviates from the literal spec. (2) HEAD returns 405 for / and /<code> (server.mjs:33). (3) validUrl (links.mjs:13-21) accepts 'http:example.com' and 'https://example.com/a b'; the latter is sent in Location with a literal space, because PRINTABLE_ASCII includes space. (4) index.html:7-9 loads Google Fonts, an external runtime dependency in a built-ins-only app. (5) Minor test weaknesses: backend-smoke.test.mjs:66 accepts 404 for GET /, and line 84 does not await close(). Tests are excellent overall: per-route suites, a chunked 413 test, header-injection and unicode tests, a flood unit test with an injected clock, server-process tests (bad PORT, persistence), and frontend api.js tests including a real-server round trip. The README is thorough and accurate: check order, config table, PowerShell example, layout."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7.5,
+      "notes": "All 32 own tests pass. My probe and a browser run confirmed the spec flow works, and Z has the strictest URL validation of the three (server.mjs:22-25): it rejects 'http:example.com', spaces and control characters. Main defect: server.mjs:125 writes `Location: row.url` raw. A non-Latin-1 URL such as https://example.com/路径 is accepted with 201, but GET /uni then returns 500 with ERR_INVALID_CHAR in stderr. clicks is still incremented, because click.get on line 123 runs before writeHead throws. A Latin-1 URL like café goes out as a raw 0xE9 byte in the header. Other points: rateLimited (68-74) stores at most 21 stamps, so 429s after the first do not extend the lockout. This is defensible but the logic is subtle. A Content-Length over 10 KB gets a 413 without draining the body, and a chunked oversized body is read to the end. Strengths: the rate check runs before validation (82). tryInsert relies on PK constraint error codes (76-79), so there is no TOCTOU race. Token compare is timing-safe (27-31), and auth is checked before existence (114-115). HEAD redirects do not count clicks (123). lib/static.mjs guards traversal, NUL bytes and malformed encoding, and sets nosniff. close() is clean. The code is compact: 163-line server plus a static helper, readable though route() is dense. Tests are strong (32): an exact-20 rate-limit boundary, 429 ordering, chunked 413, many traversal variants against a temp public dir, CLI env integration, persistence, CRLF injection, and an innerHTML scan. They miss the non-ASCII redirect, and app.js DOM logic is untested. The README is complete and accurate, with a status table, curl examples, and test helper usage."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "reasoning": "All three meet the core spec, pass their own tests, and have working frontends that use textContent. I checked each with the same black-box HTTP probe of `node server.mjs` and in a browser.\n\nY ranks first because it has no real failure. It handles the non-ASCII redirect edge case, bounds rate-limiter memory, rejects oversized streams early, has the best-structured code, by far the most thorough tests (83, including a real-server frontend round trip and process tests), and an excellent README. Its gaps are small and mostly documented: 404 before 401 for a DELETE with a malformed code, HEAD returning 405, lenient URL parsing, and an external font load.\n\nZ is second. Its validation, tests and docs are better than X's: strict http(s):// check, CRLF rejection, constraint-based duplicate detection, HEAD support, chunked 413 and traversal tests. But it has a concrete bug: a URL with non-Latin-1 characters is accepted with 201, then its redirect returns 500 while still counting a click.\n\nX is last. It is correct on the main paths, including the unicode redirect. But its rate limiter stores an unbounded per-IP history and sweeps the whole map on every POST. It accepts and stores control-character and `http:example.com` URLs, counts clicks on HEAD, and uses check-then-insert for duplicate codes. Its test suite is noticeably thinner and its README minimal.",
+    "judge": 2
+  },
+  {
+    "pair": "hard-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "npm test: 34/34 pass. Passed my 100-case black-box probe: the 415/413/400 ordering, an exact 10240-byte body (201) vs 10241 (413), chunked 413, the 2048-character url boundary, rejection of 'http:/x', 'http:x' and whitespace or CR/LF in the url, 409, the 21st POST returning 429 with rejected requests counted, stats, clicks, DELETE 401/404/204 with the token unset or empty, and path traversal. Strengths: clean module split (src/store.mjs, rate-limit.mjs, http-utils.mjs, static.mjs). Codes are inserted atomically using the primary key, with a CodeTakenError. Token compare is SHA-256 plus timingSafeEqual. 413 sends Connection: close. The rate limiter prunes idle keys. 405 is returned for wrong methods. The UI is polished (busy state, copy button, safe links built with textContent). Tests are strong: exact body and url boundaries, CRLF url, non-ASCII redirect, traversal against a secret-file fixture outside publicDir, clock-injected rolling window, 429 checked before 415, limiter pruning. Defects: (1) server.mjs:70 always sends new URL(url).href as Location, so the stored url is normalised. 'https://example.com' redirects to 'https://example.com/', 'HTTPS://Example.COM/A' to 'https://example.com/A', and 'http://a.com/x/../y' to 'http://a.com/y'. That breaks the spec's 'Location set to the stored url', and an exact-match check would fail on the most common input. (2) server.mjs:128 uses Number(PORT ?? 3000), so PORT='' listens on a random port instead of 3000. (3) createApp reads process.env.ADMIN_TOKEN as a default parameter (server.mjs:111), a hidden coupling that the tests work around with 'delete process.env.ADMIN_TOKEN'. (4) No tests for DOM rendering (app.js only runs in a browser) and none for DB_FILE persistence. Also no CSP and no graceful shutdown. The README is accurate and documents the order of checks."
+    },
+    "Y": {
+      "correctness": 6,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "npm test: 23/23 pass. The main paths work: 415/413/400 ordering, an exact 10240-byte body, chunked 413, 409, 21st POST returning 429 with rejected requests counted, stats, clicks, DELETE semantics, traversal blocked, correct static content types. Defects: (1) validUrl (src/app.mjs:37-40) only runs new URL() and a length check. The WHATWG parser normalises and strips input, so it accepts 'http:/example.com', 'http:example.com', ' http://a.com ' and urls with embedded TAB/CR/LF. The raw string is stored. 'http:example.com' is then sent as a relative Location, and the tab url as a Location containing a literal tab. (2) The redirect (app.mjs:106) writes Location without encoding it. Any accepted url with non-Latin-1 characters (e.g. https://example.org/日本 or an emoji path) or CRLF returns 201 on create, then 500 'Invalid character in header content' on every redirect. I reproduced this. (3) HEAD /<code> counts a click (app.mjs:124). (4) The rate-limit map is never pruned (acknowledged in a comment), so memory grows without bound with distinct IPs. (5) isUnique also falls back to matching the error message. (6) No .gitignore, so data.db can be committed. Tests are thinner: no 2048 boundary test (only over the limit), no exact 10 KB test, no unicode redirect, and the rate-limit test in server.test.mjs depends on the order tests run in a shared server. spec.test.mjs is good, covering PORT=0, the configured port in short, unset ADMIN_TOKEN and an innerHTML scan. Frontend tests cover only the fetch logic in api.js. Code is compact and readable, but routing, validation and SQL statements all sit in app.mjs. The README is detailed and accurate."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "npm test: 54/54 pass. Passed all 100 cases of my black-box probe. Covered: Content-Type handling including charset and letter case, exact 10240 bytes (201) vs 10241 (413), 413 by Content-Length and by chunked body, the 2048-character url boundary, rejection of 'http:/x', 'http:x', whitespace and CR/LF, validation of code type and pattern, 409, case-distinct codes, the 21st POST returning 429 with 415/400/413 requests counted, 429 returned as JSON, stats shape and ISO createdAt, clicks counting, DELETE 401 (missing, wrong or empty token, ADMIN_TOKEN unset), 404, 204 with no body, traversal blocked, persistence across restart, and PORT='' falling back to 3000. Strengths: validateUrl (src/app.mjs:18-27) checks the prefix and control characters before parsing. The redirect sends the stored url verbatim and percent-encodes only when it is not header-safe (app.mjs:91), so Location matches the stored url and unicode urls still work. INSERT OR IGNORE plus a retry loop for codes (store.mjs). SHA-256 plus timingSafeEqual for the token. CSP and nosniff on HTML. The rate limiter is bounded and swept by an unref'd interval. Graceful SIGINT/SIGTERM shutdown closes the DB. The clock and rate limit are injectable for tests. Tests are the most thorough of the three: parameterised invalid urls and codes, chunked 413, clock-injected window reset, a spawn test of server.mjs checking PORT, DB_FILE and ADMIN_TOKEN and persistence, and frontend render/init tests with a fake DOM whose innerHTML throws. Minor issues: src/http.mjs mixes unrelated concerns (JSON I/O, rate limiter, static serving). On 413 the rest of the body is drained instead of closing the connection. No test of an exact 10240-byte body. '//x' request paths parse 'x' as a host, a quirk shared by all three. The README is concise and accurate, with a configuration table, a PowerShell example, curl examples and a note on X-Forwarded-For."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "reasoning": "Z and X are close; Y is clearly behind. I ran each test suite in a temp copy (all pass: Z 54, X 34, Y 23) plus the same 100-case black-box probe and a few targeted probes. Z and X both passed all 100 probe cases; Y failed 3. Z ranks above X on spec fidelity. X always rewrites the redirect Location with new URL(url).href, so the redirect does not return the stored url: 'https://example.com' becomes 'https://example.com/', the host is lower-cased and the port and dot segments are dropped. An exact Location check on the most common input would fail. X also treats PORT='' as port 0, a random port. Z keeps the stored url verbatim and only percent-encodes urls that are not header-safe. Z also adds defence in depth (CSP, graceful shutdown that closes the DB) and has the stronger tests: fake-DOM tests of rendering and form wiring, and a spawned-server test of env config and persistence. X's tests are excellent on exact boundaries but leave DOM rendering and DB_FILE untested. Y ranks last because its validation is weak. It accepts url forms that are not absolute ('http:x', 'http:/x', leading spaces, embedded tab/CR/LF) and stores them raw. Its unencoded Location header then breaks: any url with non-Latin-1 characters (CJK, emoji) or CRLF returns 201 on create but 500 on every redirect. Y also counts HEAD requests as clicks, never prunes the rate-limit map, and has thinner tests that depend on test order.",
+    "judge": 2
+  },
+  {
+    "pair": "hard-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8.7,
+      "notes": "npm test: 34/34 pass. I sent about 80 edge-case requests and every spec rule held: 415, including application/jsonx; 413 at exactly 10241 bytes, both chunked and with a declared length; 400 for invalid JSON and non-object bodies; URL length cut at 2048/2049; code length cut at 3/32; 409; random 7-char code; 429 on the 21st POST with 400s and 415s mixed into the count; stats, 302 redirect with click count, the DELETE 401/404/204 order; ADMIN_TOKEN unset or empty gives 401; defaults PORT 3000 and ./data.db. Strengths: the strictest URL validation of the three (server.mjs:16-22). It rejects whitespace and control characters, which URL.canParse would silently strip, and it rejects 'http:a.com'. The Location header is percent-encoded through new URL().href (server.mjs:70), so non-ASCII and IDN targets redirect correctly. The token compare is constant-time over SHA-256 digests (server.mjs:29-34). Inserts rely on the PRIMARY KEY, so there is no check-then-insert race (store.mjs:45). The rate limiter caps each key at `limit` timestamps and prunes idle keys (rate-limit.mjs:17-25); 50k hits take 25 ms. The createApp factory takes an injectable clock, publicDir and rateLimit. 413 responses close the connection. Static paths are traversal-safe. The frontend is cleanly split into a pure api.js (injectable fetch) and app.js, with a busy state, aria-live regions, a copy button and textContent only; it worked in a real browser. Tests check the exact 10240-byte body, 2048-char acceptance, streamed 413, 429 before 415, window recovery, traversal variants, a spawned smoke test of node server.mjs, and limiter flooding. The README is precise and includes the order of checks. Defects: frontend tests cover only api.js plus a regex scan for innerHTML; the DOM rendering and form wiring in app.js are untested. No test shows data surviving a restart with DB_FILE. PORT='' becomes port 0 (server.mjs:128, Number('')), a minor quirk. Code-length acceptance at exactly 3 and 32 is not tested."
+    },
+    "Y": {
+      "correctness": 6,
+      "codeQuality": 7,
+      "tests": 6.5,
+      "robustnessSecurity": 5,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "npm test: 23/23 pass. The core API matches the spec: 415/413/400/409/201/429 with every POST counted, stats, the DELETE order, the unset-token 401, static types, and the defaults. Defects found by probing: (1) URL validation is too lax (app.mjs:37-40, new URL only). It accepts ' http://a.com' with a leading space, 'http:a.com', 'http:/a.com', and URLs containing CR/LF, tab or space, and stores them verbatim. That violates 'absolute http:// or https:// URL'. (2) The redirect writes the raw stored string into Location (app.mjs:106). Any URL with characters outside Latin-1 (e.g. http://a.com/café/漢) and any stored CRLF URL give HTTP 500 'Invalid character in header content' after the click has already been counted. Latin-1, tab and space characters go out raw in the header, and IDN hosts are not punycoded. Creation accepted these links, then the redirect broke them. (3) The rate limiter (ratelimit.mjs:5-10) keeps every timestamp per key, so per-request cost is O(n) and growth is unbounded. 50k hits from one IP took 8.8 s of event-loop CPU, an amplification vector for denial of service. Idle keys are never pruned, which a comment acknowledges. (4) HEAD /<code> counts a click (app.mjs:124). (5) tokenOk leaks the token length through an early length check (app.mjs:47-48). Code is compact but dense: app.mjs packs validation, SQL and routing together, with one-line try/catch blocks. There is no app factory export, so every server test spawns a process. Tests are black-box and reasonable (21st POST is exactly the first 429, PORT=0 against a configured PORT, chunked 413, unset token). They do not check acceptance at the 2048-char or 10240-byte boundaries, never test unicode or whitespace URLs, and server.test's rate-limit test depends on test order and shared server state. Frontend tests cover only api.js. The README is clear, with curl examples and status tables. The UI worked in a browser."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8.5,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8.5,
+      "overall": 8.9,
+      "notes": "npm test: 54/54 pass. Probing found the same full compliance as X: the 415/413/400 cases including chunked bodies, a declared 100 KB body and the exact 10240-byte body; 2048/2049; 3/32; 409; 429 on the 21st POST with rejected requests counted; stats; redirect with click count; DELETE 401/404/204 with unset or empty token; defaults. Strengths: strict URL validation (app.mjs:18-27) rejects whitespace and control characters, requires a non-empty hostname and rejects 'http:a.com'. Location is sent verbatim only when it is printable ASCII, otherwise as URL.href (app.mjs:16,91), so unicode and IDN targets redirect correctly. INSERT OR IGNORE plus changes===1 handles collisions without control flow by exception (store.mjs:28-44). The rate limiter is bounded (slice(-limit-1)), and an unref'd interval sweeps idle keys and is cleared on close (app.mjs:59, http.mjs:71-89). Bodies are drained on 415/413/429 so error responses arrive cleanly (http.mjs:33-40, app.mjs:64). It sends a CSP and nosniff on HTML, compares the token in constant time over SHA-256, and shuts down on SIGINT/SIGTERM. Tests are the broadest of the three: table-driven invalid URLs and codes, 3/32/2048 acceptance, chunked 413 through a ReadableStream, rate-limit reset with an injected clock, a check that GETs are not limited, non-ASCII redirect encoding, and DB_FILE persistence across a server restart. Frontend tests use a fake DOM whose innerHTML throws, so they cover rendering and the init() form wiring as well as the fetch logic. The README is concise and accurate (PowerShell example, coverage script, note that X-Forwarded-For is not trusted). Defects: http.mjs is a grab-bag (body reading, rate limiter and static serving in one module), and public/app.js mixes fetch and DOM code, though both are injectable. The UI has no busy or disabled state, so double submits are possible, and it shows createdAt as a raw ISO string. server.test.mjs picks a random port in 30000-50000, which can flake on Windows excluded ranges or on collisions. There is no test for the exact 10240-byte boundary and no network-failure test for the frontend. Wrong methods return 404 rather than 405, which the spec does not require."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "reasoning": "Z and X are close; Y is clearly last. In my probing, X and Z both met every explicit rule in the spec. Both reject malformed and whitespace URLs, percent-encode non-ASCII Location headers, cap rate-limiter memory, compare the admin token in constant time and block path traversal. Both frontends worked end to end in a real browser and use textContent only. Z ranks first for its stronger test suite: 54 tests versus 34. Its suite includes DOM-level frontend tests that exercise rendering and the init() form wiring, a DB_FILE persistence-across-restart test, and table-driven invalid-input cases with both-sided 3/32/2048 boundaries. Z also adds hardening X lacks: bodies drained on 413/415/429, a CSP header and graceful shutdown. X has the more polished UI (busy state, copy button, formatted dates), 405 handling, an exact-10240-byte body test and a slightly cleaner module split. That keeps it a near-tie, but its frontend tests stop at api.js. Y implements the happy path and the status codes correctly but has real defects. URL validation accepts leading spaces, 'http:a.com' and URLs containing CR/LF, tab or space, and stores them verbatim. Because the stored string goes straight into Location, redirects to non-Latin-1 or CRLF URLs return HTTP 500, after the click is counted. Its rate limiter grows without bound per key and is quadratic (8.8 s of CPU for 50k hits from one IP). Its tests are thinner and depend on test order, and miss the acceptance boundaries.",
+    "judge": 1
+  },
+  {
+    "pair": "hard-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7.5,
+      "notes": "All 25 tests pass. My probes found every spec line met: 415/413 (Content-Length and chunked)/400/409/429 ordering, a body of exactly 10240 bytes is accepted, generated 7-char code, short uses the real port, stats return a numeric clicks and an ISO createdAt, DELETE gives 401 when ADMIN_TOKEN is unset, 204 with an empty body, and traversal returns 404. It is the only solution that returns Content-Type exactly `application/json`. Strengths: one clear 244-line server.mjs with named constants. toHeaderSafeUrl (server.mjs:100-104) percent-encodes non-ASCII and control-character targets, so a unicode URL redirects correctly, and a test covers this. timingSafeEqual compares the token. The fetch logic in public/api.js is cleanly separated and tested with a fake fetch. Verified in a browser: shorten, 409 error and stats all render through textContent. Defects: (1) The rate limiter (server.mjs:57-69) keeps a timestamp for every POST, including 429s, then filters and copies that array on each request. Under a one-IP flood this is O(n^2): I measured 10k requests at 1.9 s CPU and 40k at 27 s, so the limiter itself becomes a DoS lever. Every request also scans the whole Map. (2) HEAD /<code> increments clicks (server.mjs:212-217). (3) It accepts 'http:example.com' and spaces in URLs, which WHATWG parsing allows but is loose. (4) No handling for a bad PORT or listen errors: the process crashes with a stack trace (server.mjs:238-243). (5) Oversized chunked bodies are read to the end instead of closing early (server.mjs:81-89). (6) public/app.js:16 sets href from API data without a scheme check (low risk). Tests miss chunked 413, the exact 2048-character boundary, rate-window expiry and HEAD. The README is concise and accurate, including the limits of the limiter and the client IP."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "All 83 tests pass. My probes found every spec behaviour correct, including a unicode-URL redirect (encoded Location), a body of exactly 10240 bytes accepted with 10241 rejected, chunked 413, and DELETE returning 401 when the token is unset. Strengths: a clean modular split (lib/db, http, links, rate-limit, static) with a short router in server.mjs. Insertion is atomic (INSERT OR IGNORE plus changes, links.mjs:55-58), so there is no check-then-insert race. Control characters are rejected up front (links.mjs:9-21), which blocks CRLF in Location. Token comparison uses sha256 then timingSafeEqual, so even the length does not leak (links.mjs:68-73). The rate limiter is bounded to limit+1 timestamps with a sweep, and a 5000-request flood unit test with an injected clock covers it (rate-limit.mjs, input-hardening.test.mjs). On overflow the body read stops early and the response sends Connection: close (http.mjs:40-61). Every response carries nosniff, an invalid PORT exits with code 1 and a clear message, and the frontend safeHref allows only http(s) links. The UI was verified in a browser. Tests are the most thorough of the three: both 2048-character boundaries, codes of length 3 and 32, chunked 413, raw-path traversal, persistence across process restarts, CLI startup, the frontend api against the real server, and a DOM-sink scan. The README is extensive and accurate, covering check ordering, PowerShell usage and the project layout. Defects: index.html:7-9 loads Google Fonts, an external request and privacy leak for an otherwise self-contained app. A URL with a space is stored and sent as a raw space in Location (links.mjs:11,87). HEAD returns 405. JSON Content-Type carries a '; charset=utf-8' parameter, which is fine but not a literal match. backend-smoke.test.mjs largely duplicates api.test.mjs and has a weak `[200,404].includes` assertion (line 66), and its `limited.close()` is not awaited (line 84). It also accepts 'http:example.com'."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 8,
+      "robustnessSecurity": 6.5,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "All 32 tests pass. Strengths: the strictest URL validation of the three (server.mjs:23): an explicit `^https?://`, a non-empty host, and whitespace and control characters rejected, so 'http:example.com' and URLs with spaces correctly get 400. Insertion is atomic, using the UNIQUE/PK errcode for 409, with a retry loop for generated codes (server.mjs:76-79,92-96). The rate limiter is bounded and checked before validation. Auth is checked before existence on DELETE. HEAD is supported without counting a click. Static serving, with stat/isFile and nosniff, is factored out. The tests are good: boundary 2048 accepted, exactly 20 POSTs allowed, chunked 413, CR/LF rejection, traversal against a temporary publicDir that holds a secret file, persistence, and a CLI integration test. The frontend was verified in a browser and uses textContent with an http(s)-only href check. Defects: (1) Real correctness bug: the redirect writes the stored URL raw into Location (server.mjs:125). A non-ASCII URL such as http://a.com/日本 is accepted with 201, but GET /<code> then returns 500 (ERR_INVALID_CHAR in stderr). The click was already counted by the UPDATE at line 123 before the failure. Latin-1 targets go out as raw high bytes. No test covers this. (2) An oversized chunked body is read to the end before the 413 is sent (server.mjs:37-41). (3) The code is dense: many long one-liners (server.mjs:23,39,72,83,130) make it harder to read than X or Y. (4) JSON Content-Type includes a charset parameter. (5) createServer defaults to ':memory:', which is fine since main passes DB_FILE. The README is accurate and practical, though it does not mention that the limiter is in-memory per process."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "reasoning": "All three pass their own suites and work end to end in a browser. Y ranks first. It meets every spec line I probed and is the most robust: bounded limiter, early 413 with the connection closed, control characters rejected, atomic insert, a constant-time token check that does not leak length, and non-ASCII redirects that work. It also has the clearest modular structure, the most thorough tests (boundaries, chunked 413, flood behaviour, process restarts) and the best README. Its flaws are minor: Google Fonts, a raw space allowed in Location, HEAD returning 405, and some redundant tests. X ranks second. Its correctness is clean (it is the only one with a literal application/json Content-Type, and it handles unicode redirects with a test), and its code is compact and readable. However, its rate limiter grows without bound and costs O(n^2) under a one-IP flood (27 s of CPU for 40k requests), HEAD counts clicks, and its tests are the thinnest. Z ranks last. It has the best URL validation, solid tests and atomic inserts, but a real functional bug: a URL with non-ASCII characters is accepted with 201, then the redirect fails with 500 after already counting a click. Its code is also the densest. I placed Z below X because Z's bug breaks the core redirect path for valid accepted input, while X's weakness only appears under abusive load.",
+    "judge": 1
+  }
+]
