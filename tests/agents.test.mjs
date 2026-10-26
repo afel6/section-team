@@ -169,6 +169,7 @@ test('helper hand-out keeps the model rules and tells helpers which skills to lo
     const text = agentFile(id)
     assert.ok(text.includes('with `run_in_background: false`'), `${id} foreground helpers`)
     assert.ok(text.includes('Never end your turn while a helper runs'), `${id} no idle turn`)
+    assert.ok(text.includes('If your Agent tool has no such option, helpers run in the background: keep working while they run, and hand back only after all their results are in.'), `${id} no-option fallback`)
     if (BUILDER_IDS.includes(id)) assert.ok(text.includes('Agent `section-team:reviewer` with `run_in_background: false`') || text.includes('Agent `section-team:reviewer`, with `run_in_background: false`'), `${id} foreground reviewer`)
   }
 })
