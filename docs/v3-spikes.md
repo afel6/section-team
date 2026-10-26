@@ -37,7 +37,7 @@ Yes. `spike-helper` was spawned by `spike-lead` (spawn depth 2, `parentAgentId` 
 Evidence, quoted from the helper transcript (`subagents/agent-a46cc605189a96fe4.jsonl`):
 
 - tool call: `Skill {"skill":"tdd-workflow"}`
-- tool result: `Launching skill: tdd-workflow`, then the skill body: `Base directory for this skill: C:\Users\Asus\.claude\skills\tdd-workflow` ... `# Test-Driven Development Workflow` ... `This skill ensures all code development follows TDD principles with comprehensive test coverage.`
+- tool result: `Launching skill: tdd-workflow`, then the skill body: `Base directory for this skill: ~\.claude\skills\tdd-workflow` ... `# Test-Driven Development Workflow` ... `This skill ensures all code development follows TDD principles with comprehensive test coverage.`
 - helper final handback: `{"message":"# Test-Driven Development Workflow"}`
 
 Evidence from `spike.json`: lead final report `HELPER-RESULT: # Test-Driven Development Workflow`. The first heading in the SKILL.md on disk is `# Test-Driven Development Workflow`, so the returned text is real skill content, not a guess.

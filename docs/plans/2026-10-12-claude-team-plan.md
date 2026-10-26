@@ -4,7 +4,7 @@
 
 **Goal:** A global Claude Code plugin that makes every session a supervisor which wakes 12 Opus 5.5 section heads by need, saves their reports to `.team/reports/`, blocks advisors from changing project files, and shows a live Team Board pane.
 
-**Architecture:** One plugin folder (`C:\Users\Asus\claude-team`) loaded through `CLAUDE_CODE_PLUGIN_DIRS`. File-touching logic runs as classic command hooks written in plain Node (`session-start.mjs`, `subagent-stop.mjs`, `pre-tool-use.mjs`) sharing pure helpers in `hooks/lib/`. The Team Board is a mod (`hooks/register.tsx`, mods runtime, `$` API) that reads `$.agent.list()` and today's report files once a second. Section agent files are generated from one roster so their shared text never drifts.
+**Architecture:** One plugin folder (`<path-to-section-team>`) loaded through `CLAUDE_CODE_PLUGIN_DIRS`. File-touching logic runs as classic command hooks written in plain Node (`session-start.mjs`, `subagent-stop.mjs`, `pre-tool-use.mjs`) sharing pure helpers in `hooks/lib/`. The Team Board is a mod (`hooks/register.tsx`, mods runtime, `$` API) that reads `$.agent.list()` and today's report files once a second. Section agent files are generated from one roster so their shared text never drifts.
 
 **Tech Stack:** Node 26 (built-in `node:test`, no npm dependencies), Claude Code 2.1.295 plugin + mods API (TSX hooks module, `claude plugin validate`, `claude plugin test`), git ≥ 2.31.
 
@@ -57,7 +57,7 @@ Expected: Node ≥ v22.18, git ≥ 2.31, Claude Code ≥ 2.1.295. Stop and repor
   "name": "section-team",
   "version": "0.1.0",
   "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board",
-  "author": { "name": "Asus" }
+  "author": { "name": "Raouf" }
 }
 ```
 
@@ -225,7 +225,7 @@ Expected: valid.
 ```bash
 SPIKE="$(mktemp -d)/section-team spike"
 mkdir -p "$SPIKE" && cd "$SPIKE" && git init -q && git commit -q --allow-empty -m init
-claude -p --plugin-dir "C:/Users/Asus/claude-team" \
+claude -p --plugin-dir "<path-to-section-team>" \
   --allowedTools "Agent,SendMessage,Read,Write,Bash(sleep *)" \
   --output-format json \
   "AUTOMATED TEST. Do exactly these steps. Do not invoke skills, do not plan, do not use other agents.
@@ -1721,13 +1721,13 @@ git commit -m "feat: Team Board pane with live section states"
 
 - [ ] **Step 1: Ask the user, then add the env entry with a backup**
 
-Ask in chat: "I'll add `CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team` to your `~/.claude/settings.json` (backup first). OK?" Wait for yes. Then:
+Ask in chat: "I'll add `CLAUDE_CODE_PLUGIN_DIRS = <path-to-section-team>` to your `~/.claude/settings.json` (backup first). OK?" Wait for yes. Then:
 ```bash
 cp ~/.claude/settings.json ~/.claude/settings.json.bak-section-team
 node -e '
 const fs = require("fs"); const p = require("os").homedir() + "/.claude/settings.json";
 const s = JSON.parse(fs.readFileSync(p, "utf8"));
-s.env = { ...(s.env ?? {}), CLAUDE_CODE_PLUGIN_DIRS: "C:\\Users\\Asus\\claude-team" };
+s.env = { ...(s.env ?? {}), CLAUDE_CODE_PLUGIN_DIRS: "<path-to-section-team>" };
 fs.writeFileSync(p, JSON.stringify(s, null, 2) + "\n");
 console.log(JSON.stringify(s.env));'
 ```
@@ -1766,7 +1766,7 @@ Ask the user to open a **new** Code-tab session in any project folder and walk t
 A personal Claude Code plugin: every session is a **supervisor** that wakes specialist **sections** (Opus 5.5) when a task needs them, saves their reports, and shows a live **Team Board**.
 
 ## On / off
-- On: `~/.claude/settings.json` → `env.CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team`. New sessions pick it up.
+- On: `~/.claude/settings.json` → `env.CLAUDE_CODE_PLUGIN_DIRS = <path-to-section-team>`. New sessions pick it up.
 - Off: set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry. Emergency: `claude --safe-mode`.
 
 ## Use

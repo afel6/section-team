@@ -1,6 +1,6 @@
 # section-team — Design
 
-Date: 2026-10-12 · Status: v4 — approved; Phase 0 results applied (no agent names → agentId map + relay; reports read from transcript) · Owner: Asus (personal tool)
+Date: 2026-10-12 · Status: v4 — approved; Phase 0 results applied (no agent names → agentId map + relay; reports read from transcript) · Owner: Raouf (personal tool)
 
 ## 1. Intent
 
@@ -34,7 +34,7 @@ Date: 2026-10-12 · Status: v4 — approved; Phase 0 results applied (no agent n
 
 ## 2. Architecture
 
-One plugin, `section-team`, at `C:\Users\Asus\claude-team` (git repo), loaded globally.
+One plugin, `section-team`, at `<path-to-section-team>` (git repo), loaded globally.
 
 ```
 section-team/
@@ -72,7 +72,7 @@ You ◄── combined summary (also saved)
 
 **Identifiers.** The authoritative section id is the agent type with the `section-team:` prefix stripped (`section-team:frontend` → `frontend`). The Agent tool has no `name` parameter in this build (Phase 0): the supervisor addresses a section only by the agentId its spawn returned, and keeps a section id → agentId map. The saver and the board key on agent type, never on the REPORT header text.
 
-**Loading.** `CLAUDE_CODE_PLUGIN_DIRS=C:\Users\Asus\claude-team` in the `env` block of `~/.claude/settings.json` (Windows separator `;` if more paths are added). The plugin appears as `section-team@inline`; edits apply on `/reload-plugins` or next session. Phase 0 confirms the desktop app honours it. Fallback only if it does not: local marketplace in this repo with a relative `"./"` source, installed with `--scope user` (loads in place, no reinstall after edits). Never both at once.
+**Loading.** `CLAUDE_CODE_PLUGIN_DIRS=<path-to-section-team>` in the `env` block of `~/.claude/settings.json` (Windows separator `;` if more paths are added). The plugin appears as `section-team@inline`; edits apply on `/reload-plugins` or next session. Phase 0 confirms the desktop app honours it. Fallback only if it does not: local marketplace in this repo with a relative `"./"` source, installed with `--scope user` (loads in place, no reinstall after edits). Never both at once.
 
 **Disable.** Remove the env entry (or set `"section-team@inline": false` under `enabledPlugins`) and start a new session. Emergency: `claude --safe-mode`.
 
