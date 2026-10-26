@@ -7,5 +7,6 @@
     "test:board": "claude plugin test .",
     "validate": "claude plugin validate --strict ."
   },
-  "license": "MIT"
+  "license": "MIT",
+  "version": "0.1.1"
 }
