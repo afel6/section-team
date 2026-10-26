@@ -301,6 +301,23 @@ Hidden tests and own tests passed 100% in all 6 runs. Both hard runs had no turn
 - **The gap the judges keep finding:** spec edge cases nobody probed (URL validation that's too loose, a raw non-ASCII Location header, an empty or null code treated as absent, no PORT validation), plus spec ambiguities settled with the lenient reading.
 - **Easy routing slipped once:** one easy run read "a module with … error handling is never small" as covering two small functions that throw, and woke testing ($1.44 against $0.70). The wording now says storage or I/O, and that input checks that throw do not make a function a feature.
 
+## Round 12 — spec probing and the stricter reading (commit 96e5e9c)
+Change: before grading, testing probes every spec line (boundaries, empty and null values, non-ASCII and control characters reaching headers, missing, empty or invalid environment values) and turns each break into a test plus an owner fix list. Builders and the supervisor take the stricter reading of an ambiguous spec line and log the choice.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Robustness | Tests | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.85 | 6.50 | **0.57** | 7.65 | **1.56** | 7.17 | 6.50 | 1–9 | **84.7** |
+| team-v3 (sections for everything bigger) | 3.39 | 7.00 | 7.95 | 3.69 | 8.28 | 5.87 | 7.38 | 7.96 | 3–2 | 72.4 |
+| team-v12 | 2.83 | **7.40** | **8.70** | 1.79 | **8.40** | 6.07 | **8.75** | **8.38** | **8–1** | 74.0 |
+
+Hidden tests and own tests passed 100% in all 6 runs. Both easy runs stayed supervisor-only (the round-11 wording fix held).
+
+### Verdict after round 12
+- **Best result so far against team-v3 on the same panel:** 8.17 against 7.74 (+0.43), with 8 wins and 1 loss, at 17% less cost. Earlier gaps against team-v3: +0.16 (round 9), +0.05 (round 10), −0.35 (round 11).
+- **Robustness rose the most:** 8.75 against 7.38, the dimension that probing targets. Medium rose to 8.70 (robustness 9.0, tests 9.0).
+- **The price is on hard:** $6.07 against $4.96 in round 11, because testing reads about 2M tokens while probing and the probes send real fix lists to backend.
+- **Hard correctness (7.63) is still the weakest score:** some spec violations survive even the probe pass.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
