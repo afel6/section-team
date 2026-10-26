@@ -336,6 +336,23 @@ Hidden tests and own tests passed 100% in all 6 runs.
 - **The price is hard cost:** $7.88 against $6.07, because exact-value probes send real fix lists and backend re-runs its reviewer gate (5 times in one run). Overall cost per task is now about team-v3's ($3.46 against $3.39), for +0.33 quality.
 - **Left on hard:** one run still accepts `http:example.com` (it checks only `new URL().protocol`), and both reject valid non-ASCII URLs, an unstated rule that the stricter reading pushed too far.
 
+## Round 14 — no optional forwarding, proper re-grades, no failing "done" (commit f16d1f9)
+What the round-13 transcripts showed: testing sent at most one fix list per hard run, so capping its fix rounds would save little. The extra cost came from the supervisor forwarding testing's optional findings to backend (two more reviewer runs and about 20 turns at 100–130k context), and from heads re-grading by SendMessage to their finished reviewer, which resumes it in the background and forces a mid-gate handback (one frontend handed back 7/10 marked done).
+Change: after the final review the supervisor sends builders only failing items (a spec violation, a crash, a failing grade) and lists optional findings in its summary; heads re-grade with a new foreground reviewer call and never SendMessage a helper; the handback hook refuses a REPORT that claims done with a grade under 8.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Correctness | Hard correctness | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.90 | 7.20 | **0.57** | 7.78 | **1.56** | 8.54 | 8.38 | 1–7 | **85.6** |
+| team-v3 (sections for everything bigger) | 3.39 | 6.88 | 8.07 | 3.69 | 8.32 | 5.87 | 7.96 | 7.50 | 1–5 | 72.5 |
+| team-v14 | 2.80 | **7.43** | **8.63** | 1.86 | **8.65** | 5.81 | **9.04** | **8.63** | **10–0** | 73.1 |
+
+Hidden tests and own tests passed 100% in all 6 runs. No section was forced to hand back and no "done" with a failing grade reached the hook. One hard run cost $4.50 (one reviewer gate per section, no fix lists); the other $7.12, for real work (one spec fix from the supervisor, two re-grades in testing after real fixes).
+
+### Verdict after round 14
+- **Best result of all rounds:** 8.23 against team-v3's 7.76 on the same panel (+0.47), 10 wins and no losses, at 17% less cost.
+- **Hard correctness 8.63:** above team-v3 (7.50) and, for the first time, above solo (8.38). Overall correctness 9.04.
+- **Cost back down:** $2.80 per task (round 13: $3.46); hard $5.81 (round 13: $7.88), about team-v3's hard cost for much better quality.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
