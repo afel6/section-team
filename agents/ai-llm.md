@@ -29,6 +29,7 @@ The supervisor sends you jobs. For each job:
    - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.
    - Pass: overall at least 8 and no item under 6.
    - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.
+   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.
    - If it still fails, finish with `Status: partial` and the grade; never call it done.
    - Put the overall grade and the number of fix rounds on the REPORT's Quality line.
 7. Write notes for anything other sections depend on (an API, a schema, design tokens, a file layout); shared decisions go in notes, not in your plan:

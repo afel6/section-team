@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate } from '../hooks/lib/report.mjs'
+import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
 
 const CLEAN = `Some work notes first.
 
@@ -132,4 +132,32 @@ test('needsGate: changed code without a reviewer grade, unless the section is bl
   assert.equal(needsGate(report('src/api.mjs', undefined, 'blocked')), false)
   assert.equal(needsGate(report('none')), false)
   assert.equal(needsGate(report('README.md')), false)
+})
+
+test('failsGate: a done REPORT that changed code with a grade under the pass mark', () => {
+  const report = (changed, quality, status = 'done') => parseReport(`## REPORT · frontend
+Status: ${status}
+Changed: ${changed}
+Quality: ${quality}
+`)
+  assert.equal(PASS_OVERALL, 8)
+  assert.equal(failsGate(report('public/app.js', '7/10 (reviewer, 1 fix round; second grade not run)')), true)
+  assert.equal(failsGate(report('public/app.js', '7.9/10 (reviewer, 0 fix rounds)')), true)
+  assert.equal(failsGate(report('public/app.js', '8/10 (reviewer, 1 fix round)')), false)
+  assert.equal(failsGate(report('public/app.js', '8.4/10 (reviewer, 0 fix rounds)')), false)
+  assert.equal(failsGate(report('public/app.js', '6/10 (reviewer, 2 fix rounds)', 'partial')), false)
+  assert.equal(failsGate(report('public/app.js', '5/10 (reviewer)', 'blocked')), false)
+  assert.equal(failsGate(report('README.md', '7/10 (reviewer)')), false)
+  assert.equal(failsGate(report('public/app.js', 'n/a (no code)')), false)
+})
+
+test('the Quality grade is the first X/10 on the line, so a grade history must start with the final grade', () => {
+  const report = quality => parseReport(`## REPORT · backend
+Status: done
+Changed: src/api.mjs
+Quality: ${quality}
+`)
+  assert.equal(report('8.5/10 (reviewer, 1 fix round; first grade 6/10)').quality, 8.5)
+  assert.equal(failsGate(report('8.5/10 (reviewer, 1 fix round; first grade 6/10)')), false)
+  assert.equal(failsGate(report('6/10 -> 8.5/10 (reviewer, 1 fix round)')), true)
 })

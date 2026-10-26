@@ -88,8 +88,24 @@ const handback = (agent_type, report) => ev(agent_type, 'SubagentHandback', { me
 const REPORT_WITH = (status, changed, quality) => `## REPORT · backend · 2026-10-25 10:00\nStatus: ${status}\nJob: api\nChanged: ${changed}\n${quality ? `Quality: ${quality}\n` : ''}`
 
 test('a builder cannot hand back changed code without a reviewer grade', () => {
-  assert.match(decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', 'n/a (no code)')), HOME), /section-team:reviewer/)
-  assert.match(decide(handback('section-team:testing', REPORT_WITH('done', 'test/api.test.mjs', null)), HOME), /run_in_background: false/)
+  for (const reason of [
+    decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', 'n/a (no code)')), HOME),
+    decide(handback('section-team:testing', REPORT_WITH('done', 'test/api.test.mjs', null)), HOME),
+  ]) {
+    assert.match(reason, /no reviewer grade/)
+    assert.match(reason, /run_in_background: false/)
+    assert.doesNotMatch(reason, /under the pass mark/)
+  }
+})
+
+test('a builder cannot hand back a failing grade as done', () => {
+  const reason = decide(handback('section-team:frontend', REPORT_WITH('done', 'public/app.js', '7/10 (reviewer, 1 fix round)')), HOME)
+  assert.match(reason, /under the pass mark/)
+  assert.match(reason, /Never SendMessage the earlier reviewer/)
+  assert.match(reason, /start the Quality line with the final grade/)
+  assert.doesNotMatch(reason, /no reviewer grade/)
+  assert.equal(decide(handback('section-team:frontend', REPORT_WITH('partial', 'public/app.js', '7/10 (reviewer, 2 fix rounds)')), HOME), null)
+  assert.equal(decide(handback('section-team:ai-engineer', REPORT_WITH('done', 'src/a.mjs', '7/10 (reviewer)')), HOME), null)
 })
 
 test('the handback gate lets graded, partial, blocked, docs-only, advisor and report-less handbacks through', () => {

@@ -107,6 +107,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     PASS_RULE,
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
+    'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
     "Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer`",

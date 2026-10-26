@@ -42,10 +42,20 @@ export function changesCode(changed) {
   return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
 }
 
+// The reviewer's pass mark for the overall grade; the generated PASS_RULE uses it too.
+export const PASS_OVERALL = 8
+
+// partial and blocked are the honest ways out, so a section can never be stuck at the gate.
+const claimsDoneWithCode = report => !['blocked', 'partial'].includes(report.status) && changesCode(report.changed)
+
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
-// partial and blocked are the honest ways out, so a section can never be stuck.
 export function needsGate(report) {
-  return !['blocked', 'partial'].includes(report.status) && report.quality === null && changesCode(report.changed)
+  return claimsDoneWithCode(report) && report.quality === null
+}
+
+// A REPORT that claims done with a grade under the pass mark skipped its fix rounds.
+export function failsGate(report) {
+  return claimsDoneWithCode(report) && report.quality !== null && report.quality < PASS_OVERALL
 }
 
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.

@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
+import { ADVISOR_HELPERS, PASS_OVERALL } from '../hooks/lib/report.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { readExtra } from './assign-skill.mjs'
 
@@ -31,7 +31,7 @@ const HOUSE_RULES = "House rules (the user's standards): return new objects inst
 
 // The reviewer's clean-code rubric. Later tasks import RUBRIC_ITEMS and PASS_RULE.
 export const RUBRIC_ITEMS = ['structure', 'naming', 'duplication', 'size', 'errors', 'tests', 'security', 'leftovers']
-export const PASS_RULE = 'Pass: overall at least 8 and no item under 6.'
+export const PASS_RULE = `Pass: overall at least ${PASS_OVERALL} and no item under 6.`
 const RUBRIC_TEXT = {
   structure: 'one clear job per file and function, high cohesion and low coupling, no nesting deeper than 4 levels, new objects returned instead of mutation.',
   naming: 'descriptive names that say what a thing is or does, consistent with the surrounding code.',
@@ -132,6 +132,7 @@ const QUALITY_GATE = [
   "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
+  '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
   '   - Put the overall grade and the number of fix rounds on the REPORT\'s Quality line.',
 ].join('\n')

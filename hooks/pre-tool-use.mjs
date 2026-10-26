@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PASS_OVERALL, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
 import { isMainModule, readStdinJson } from './lib/paths.mjs'
 
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
@@ -17,11 +17,16 @@ export function isInMemory(target, id, cwd, home) {
 
 const GATE_REASON = 'section-team: your REPORT lists changed code but no reviewer grade, so it cannot be handed back yet. Run Agent `section-team:reviewer` on your changed files with `run_in_background: false` (do not pass `model`) and wait for its GRADE. If it fails, have a coder apply the fix list and grade again, at most 2 fix rounds. Then hand back with `Quality: <overall>/10 (reviewer, <n> fix rounds)`. The testing section\'s final review does not replace your own gate. If the gate truly cannot run, hand back with `Status: partial` and say why.'
 
-// The clean-code gate, enforced where the REPORT leaves the section: an ungraded REPORT that changed code is refused.
+const FAILING_REASON = `section-team: your REPORT says done, but its reviewer grade is under the pass mark (${PASS_OVERALL}/10). Give the fix list to a coder and grade again with a new Agent \`section-team:reviewer\` call with \`run_in_background: false\` (do not pass \`model\`), at most 2 fix rounds in all. Never SendMessage the earlier reviewer: that resumes it in the background and you are made to hand back unfinished. If it still fails, hand back with \`Status: partial\` and the grade; start the Quality line with the final grade.`
+
+// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the pass mark, is refused.
 function handbackGate(id, e) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
-  return block && needsGate(parseReport(block)) ? GATE_REASON : null
+  if (!block) return null
+  const report = parseReport(block)
+  if (needsGate(report)) return GATE_REASON
+  return failsGate(report) ? FAILING_REASON : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` on every Agent call. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
