@@ -13,7 +13,7 @@ const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.u
 const BRIEF = fileURLToPath(new URL('../brief/supervisor.md', import.meta.url))
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
 const repo = () => {
-  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
+  const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
   mkdirSync(dir, { recursive: true })
   execFileSync('git', ['-C', dir, 'init', '-q'])
   return dir
@@ -180,7 +180,7 @@ test('a healthy run writes nothing to stderr', () => {
 })
 
 test('a folder outside any git repo gets no .team/ folder, but still gets the brief', () => {
-  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-nogit-'))), 'plain')
+  const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-nogit-'))), 'plain')
   mkdirSync(dir, { recursive: true })
   assert.equal(excludeFile(dir), null, 'the temp folder is inside a git repo')
   assert.ok(buildContext(dir).startsWith(MARKER))
@@ -193,7 +193,7 @@ test('a folder outside any git repo gets no .team/ folder, but still gets the br
 })
 
 test('session start deletes status files older than 7 days and nothing else', () => {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), 'ct-home-')))
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-home-')))
   const dir = join(home, '.claude', 'section-team', 'sessions')
   mkdirSync(join(dir, 'old-dir.json'), { recursive: true })
   const DAY = 24 * 60 * 60 * 1000
