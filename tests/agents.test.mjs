@@ -174,7 +174,7 @@ test('a forwarded question is answered to the asker directly, not back through t
 })
 
 test('each section preloads at most one core skill and the rest become go-to mentions', () => {
-  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'] }
+  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
   for (const s of ROSTER) {
     assert.ok(s.core.length <= 1, `${s.id} preloads more than one skill`)
     assert.deepEqual(s.core, CORE[s.id] ?? [], `${s.id} core`)
