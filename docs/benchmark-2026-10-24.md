@@ -73,7 +73,7 @@ The gains are mostly in **tests (+1.2)**, **robustness (+1.0)** and **docs (+1.1
 2. **Make the delegation rule firmer.** The supervisor skipped sections on the hard task, so team mode behaves like solo plus overhead.
 3. **Trim the about 80k-token global setup** (CLAUDE.md and the always-on plugins). Every section reloads it, so this cuts the team's cost most.
 
-## Round 2 — after the efficiency fixes (commit 99e9d42 + ddb7dcd)
+## Round 2 — after the efficiency fixes (commit [141e67a](https://github.com/afel6/section-team/commit/141e67a) + [8c9bb96](https://github.com/afel6/section-team/commit/8c9bb96))
 The fixes were:
 - cheap `scout` (Haiku) and `coder` (Sonnet) helpers;
 - section heads skip the global CLAUDE.md;
@@ -132,7 +132,7 @@ Share of spend by model:
   - making helpers mandatory for test-writing;
   - a per-task "quality mode" the user switches on.
 
-## Round 3 — v3: solo-builder sections and the clean-code gate (commit 6779fe3)
+## Round 3 — v3: solo-builder sections and the clean-code gate (commit [da246bb](https://github.com/afel6/section-team/commit/da246bb))
 v3 changes (design `docs/specs/2026-10-24-solo-builder-sections-design.md`):
 - sections plan their part, take per-job skills, share notes and message each other directly;
 - an Opus reviewer grades all code (pass 8/10, no item under 6, at most 2 fix rounds);
@@ -175,7 +175,7 @@ The split comes from the subagent transcripts and reconciles exactly with `model
 - **Cost goal: missed, and not because of the gate.** The gate costs little. The extra cost is Opus section heads doing routine work (test runs, edits, writing files) instead of handing it to the Sonnet coder. v2's "delegate the bulk" wording was ignored the same way, so prompt wording alone does not move this.
 - **The lever that would move it is a model change, which is the user's decision:** section heads on Sonnet, with the Opus reviewer as the higher model that checks and grades. The design kept heads on Opus at the user's request, so no tuning rerun was made.
 
-## Round 4 — v4: builder heads on Sonnet, Opus reviewer kept (commit 653e99b)
+## Round 4 — v4: builder heads on Sonnet, Opus reviewer kept (commit [dbcb0bd](https://github.com/afel6/section-team/commit/dbcb0bd))
 Setup: same tasks and setup as round 3, and team only. These were judged blind together with round 3's solo-v3 and team-v3 projects, using 2 new Opus judges per group.
 
 | Way | Cost $ | Minutes | Judge quality /10 | Code quality | Tests | Hard-task quality | 1st places | Last places | Opus share | Grade /100 |
@@ -198,10 +198,10 @@ Hidden tests and own tests passed 100% in all 6 new runs, with no timeouts. Team
 - The gate has to be **enforced by the plugin, not just asked for in the prompt**, or the heads go back to Opus.
 
 ## Rounds 5–6 — forcing the gate with Sonnet heads
-- **v5 (commit d2d16f6): gate forced at SubagentStop.** Quality 7.58, $1.43. It failed in two ways:
+- **v5 (commit [4f01e5a](https://github.com/afel6/section-team/commit/4f01e5a)): gate forced at SubagentStop.** Quality 7.58, $1.43. It failed in two ways:
   - The supervisor already has a section's REPORT at handback, so holding the stop never re-ran the gate. It also lost the backend, frontend and testing REPORTs on the hard task.
   - The brief's "skip a separate full review pass" (aimed at testing's final review) made Sonnet heads skip their own gate. The REPORTs say "the brief said to skip".
-- **v6 (commit f73f159): gate forced at handback.** A PreToolUse hook refuses an ungraded code REPORT, with partial or blocked as the honest ways out. The brief now says each builder runs its own gate.
+- **v6 (commit [0da03a3](https://github.com/afel6/section-team/commit/0da03a3)): gate forced at handback.** A PreToolUse hook refuses an ungraded code REPORT, with partial or blocked as the honest ways out. The brief now says each builder runs its own gate.
   - A live spike confirmed it: the refused section came back `partial` instead of faking a grade.
   - In round 6 the reviewer ran in every run. Sections handed back `partial` first, then `done` with grades of 8–9/10 after fix rounds.
 
@@ -220,7 +220,7 @@ In round 6 the supervisor built the medium task alone and gated it. That run sco
   - For "clean code above cost", run builder heads on Opus.
   - Keep the enforced handback gate either way: it costs little and guarantees every code REPORT carries a real grade.
 
-## Round 7 — cheaper path for single-area tasks (commit 6f1b4a5)
+## Round 7 — cheaper path for single-area tasks (commit [9a0d14b](https://github.com/afel6/section-team/commit/9a0d14b))
 Change: the supervisor builds single-area tasks of up to about 600 lines itself and gates them with the Opus reviewer. Opus sections wake only for multi-area work. Heads run on Opus, and the handback gate is enforced.
 
 | Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Grade /100 |
@@ -236,7 +236,7 @@ Hidden tests and own tests passed 100% in all 6 runs. The routing worked: medium
 - **What it loses is test depth.** The supervisor writes fewer, shallower tests than the dedicated testing section, so medium quality is 7.88 against 8.65. That is still +0.65 over solo.
 - **Hard is unchanged in quality** (8.35). It costs 17% more because the enforced gate now always runs, with fix rounds.
 
-## Round 8 — testing section for single-area tasks (commits 76c098b + 26643c6)
+## Round 8 — testing section for single-area tasks (commits [c7b9a91](https://github.com/afel6/section-team/commit/c7b9a91) + [f8ffc16](https://github.com/afel6/section-team/commit/f8ffc16))
 Change: for single-area tasks the supervisor still builds the code, but wakes only the testing section to write the tests. Tasks of about 150 lines or less stay supervisor-only.
 
 | Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Grade /100 |
@@ -251,8 +251,10 @@ Hidden tests and own tests passed 100% in all 6 runs.
 - **The change was never exercised.** Both medium runs used only the supervisor and the reviewer; the testing section was not woken. The medium task (a CLI with storage and error handling) fell under the new 150-line small tier, so the supervisor built it and its tests alone. Medium results match round 7 (7.65 at $0.84), as expected for the same path.
 - **Fix (after round 8):** the small tier is now about 50 lines (one or two small functions), and a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or error handling) is never a small task. Round 9 should show whether the testing section closes the test gap (7.67 against 8.50).
 
-## Round 9 — the fixed tiers (commit 86c9033)
+## Round 9 — the fixed tiers (commit [ce984bf](https://github.com/afel6/section-team/commit/ce984bf))
 Change: the small tier is about 50 lines, and a feature with its own behaviour to test is never small. Single-area tasks get the supervisor's code plus the testing section's tests.
+
+From this round on, **Wins–losses** means how many of the 12 judges ranked that setup 1st and how many ranked it last among the three setups, as the 1st places and Last places columns did in earlier rounds.
 
 | Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Wins–losses | Grade /100 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -267,7 +269,7 @@ Hidden tests and own tests passed 100% in all 6 runs. The routing worked: easy s
 - **Best overall on this panel:** 8.04, no losses in 12 judge votes, and code quality 8.54. This panel scored team-v3 lower (7.88) than round 8's panel did (8.13), so read the overall lead as a tie with team-v3 at 10% less cost.
 - **Hard is the remaining cost:** $6.88, about 17% above team-v3, for the same quality. The testing section used the most tokens there (3.5–4.8M on Opus), more than any builder.
 
-## Round 10 — helpers in the foreground (commit 033b1c4)
+## Round 10 — helpers in the foreground (commit [f30a201](https://github.com/afel6/section-team/commit/f30a201))
 What the round-9 transcripts showed: the testing section already handed test writing to Sonnet coders. The waste was waiting. Heads launched helpers in the background and ended their turn to wait for them. A subagent that ends its turn must hand back, so backend, frontend and testing each handed back unfinished 1–2 times per hard run, stopped their own coders, and were resumed by the supervisor. Every idle or redone turn re-read 90–130k tokens of Opus context.
 Change: heads pass `run_in_background: false` on every Agent call (several in one message still run in parallel), and the plugin refuses a section's background Agent call.
 
@@ -284,7 +286,7 @@ Hidden tests and own tests passed 100% in all 6 runs. Every helper ran in the fo
 - **Quality ties team-v3 at 21% less cost overall:** 8.05 against 8.00 on this panel, with the best code quality so far (8.71) and no losses. Hard is 0.2 below team-v3 and medium 0.15 below, both inside the noise of 2 runs.
 - **What is left:** after its final review, testing sends "passed, plus optional nits" to the builders. That wakes them to make optional fixes, and their replies reach testing after it has handed back, forcing 1–2 more handbacks. Sending builders only failing fix lists, with optional nits kept in the REPORT, would cut those turns.
 
-## Round 11 — testing sends builders only failing fix lists (commit 7259b26)
+## Round 11 — testing sends builders only failing fix lists (commit [3a4b83b](https://github.com/afel6/section-team/commit/3a4b83b))
 Change: after its final review, testing messages a builder only with a failing fix list. A passing verdict and optional nits stay in its REPORT, and the supervisor no longer asks testing for a verdict per builder.
 
 | Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Code quality | Tests | Wins–losses | Grade /100 |
@@ -301,7 +303,7 @@ Hidden tests and own tests passed 100% in all 6 runs. Both hard runs had no turn
 - **The gap the judges keep finding:** spec edge cases nobody probed (URL validation that's too loose, a raw non-ASCII Location header, an empty or null code treated as absent, no PORT validation), plus spec ambiguities settled with the lenient reading.
 - **Easy routing slipped once:** one easy run read "a module with … error handling is never small" as covering two small functions that throw, and woke testing ($1.44 against $0.70). The wording now says storage or I/O, and that input checks that throw do not make a function a feature.
 
-## Round 12 — spec probing and the stricter reading (commit 96e5e9c)
+## Round 12 — spec probing and the stricter reading (commit [1e18962](https://github.com/afel6/section-team/commit/1e18962))
 Change: before grading, testing probes every spec line (boundaries, empty and null values, non-ASCII and control characters reaching headers, missing, empty or invalid environment values) and turns each break into a test plus an owner fix list. Builders and the supervisor take the stricter reading of an ambiguous spec line and log the choice.
 
 | Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Robustness | Tests | Wins–losses | Grade /100 |
@@ -318,7 +320,7 @@ Hidden tests and own tests passed 100% in all 6 runs. Both easy runs stayed supe
 - **The price is on hard:** $6.07 against $4.96 in round 11, because testing reads about 2M tokens while probing and the probes send real fix lists to backend.
 - **Hard correctness (7.63) is still the weakest score:** some spec violations survive even the probe pass.
 
-## Round 13 — spec-named values are exact (commit ef631f8)
+## Round 13 — spec-named values are exact (commit [1bd7492](https://github.com/afel6/section-team/commit/1bd7492))
 What a traced and verified root-cause check of 12 real spec violations in 4 hard runs (rounds 11–12) showed: the notes carried the spec faithfully. The causes were lenient readings (5: an accepted null or empty code, `application/json; charset=utf-8` twice, loose URL checks), builders departing from a faithful note (3, plus one note testing itself changed: `Location` re-serialized with `new URL(url).href`, `/api` reserved as a code, a rate-limiter reset), and 3 probe misses. Builders "improved" values the spec names exactly, without seeing an ambiguity.
 Change: builders and the supervisor treat every value the spec names as exact (send exactly that value, never extend or normalize it, add no rule the spec does not state); testing asserts spec-named values with exact equality.
 
@@ -336,7 +338,7 @@ Hidden tests and own tests passed 100% in all 6 runs.
 - **The price is hard cost:** $7.88 against $6.07, because exact-value probes send real fix lists and backend re-runs its reviewer gate (5 times in one run). Overall cost per task is now about team-v3's ($3.46 against $3.39), for +0.33 quality.
 - **Left on hard:** one run still accepts `http:example.com` (it checks only `new URL().protocol`), and both reject valid non-ASCII URLs, an unstated rule that the stricter reading pushed too far.
 
-## Round 14 — no optional forwarding, proper re-grades, no failing "done" (commit f16d1f9)
+## Round 14 — no optional forwarding, proper re-grades, no failing "done" (commit [a7f5345](https://github.com/afel6/section-team/commit/a7f5345))
 What the round-13 transcripts showed: testing sent at most one fix list per hard run, so capping its fix rounds would save little. The extra cost came from the supervisor forwarding testing's optional findings to backend (two more reviewer runs and about 20 turns at 100–130k context), and from heads re-grading by SendMessage to their finished reviewer, which resumes it in the background and forces a mid-gate handback (one frontend handed back 7/10 marked done).
 Change: after the final review the supervisor sends builders only failing items (a spec violation, a crash, a failing grade) and lists optional findings in its summary; heads re-grade with a new foreground reviewer call and never SendMessage a helper; the handback hook refuses a REPORT that claims done with a grade under 8.
 
@@ -353,7 +355,7 @@ Hidden tests and own tests passed 100% in all 6 runs. No section was forced to h
 - **Hard correctness 8.63:** above team-v3 (7.50) and, for the first time, above solo (8.38). Overall correctness 9.04.
 - **Cost back down:** $2.80 per task (round 13: $3.46); hard $5.81 (round 13: $7.88), about team-v3's hard cost for much better quality.
 
-## Round 15 — tests must catch near-miss implementations (commit b7267e6)
+## Round 15 — tests must catch near-miss implementations (commit [93f5014](https://github.com/afel6/section-team/commit/93f5014))
 What rounds 12–14 showed: easy-task tests were the lowest real score (7.5–7.6), and every judge noted the same gap: no team test told NFKD from NFD, so a near-miss implementation would pass. Easy tasks go supervisor-only, without testing's spec probing.
 Change: the reviewer's tests item now requires, for each requirement, a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. The same rule is in the supervisor's small-task step and in testing's probe step.
 
@@ -370,7 +372,7 @@ Hidden tests and own tests passed 100% in all 6 runs. The judges ran near-miss m
 - **The price is cost:** $3.68 per task (round 14: $2.80); hard $8.25 (round 14: $5.81). The stricter tests item fails first grades more often, so every builder ran its reviewer gate 2–3 times on hard (once in round 14).
 - Kept, because the user ranks clean code above cost.
 
-## Round 16 — a pass ends the gate; no double tests (commit fa9ab44)
+## Round 16 — a pass ends the gate; no double tests (commit [d00138e](https://github.com/afel6/section-team/commit/d00138e))
 What the round-15 reviewer transcripts showed: the reviewer already gave 4–13 fixes on its first grade, so incremental fix lists were not the cause. Two re-grades came after a pass (a builder applied the optional fixes of a passing grade and graded again), and one builder failed on tests (2/10) in multi-area work where the testing section writes the tests, so it wrote duplicate tests and re-graded. The rest were real fails.
 Change: a pass ends the gate (quick fixes allowed, no new grade); when the job says another section writes the tests, the builder tells the reviewer, which scores tests as n/a and leaves them out of the overall.
 
@@ -388,7 +390,7 @@ Judging note: one judge cleaned up with `rm -rf /tmp/mut-*` and deleted about 32
 - **Quality mostly held:** 8.37 against team-v3's 7.94 (+0.43; round 15: +0.70 on its own panel), 8 wins and 1 loss. Tests rose to 9.21, the best of all rounds; robustness slipped (8.13 against 8.58), mostly on medium. The changes only remove waste, so the gap to round 15 is likely panel noise.
 - Kept.
 
-## Round 17 — user-facing errors stay friendly and leak nothing (commit 2857824)
+## Round 17 — user-facing errors stay friendly and leak nothing (commit [5299d97](https://github.com/afel6/section-team/commit/5299d97))
 What a classification of every judge deduction on the team in rounds 14–16 showed: the largest fixable cluster (about 11 judge points, mostly medium robustness) was raw Node stack traces that leak paths when the data path is a directory or its parent folder is missing. The user's own rule, "user-facing errors stay friendly and leak nothing", was in none of the 13 house-rule copies, and the reviewer and testing run without the global CLAUDE.md, so the reviewer counted a rethrow as handled and testing never probed those failures.
 Change: the rule is in every house-rule copy; the reviewer scores a user-triggerable stack trace under 6 on errors; testing probes a directory as data path, a missing parent folder and a port in use; the supervisor maps OS errors by err.code to one friendly line and fixes a crash path before its gate. A message or exit code the spec names stays exact.
 
