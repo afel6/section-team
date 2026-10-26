@@ -40,6 +40,8 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
   assert.ok(brief.includes('Where a spec line can be read two ways, build the stricter reading and say which one you chose.'))
   assert.ok(brief.includes('probe every spec line'))
+  assert.ok(brief.includes('Map every OS error your code can hit (a data path that is a directory, a missing parent folder, a file you cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
+  assert.ok(brief.includes('A crash path you notice in your own code is a fix before the gate, never a next step.'))
   assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('the user has approved installs that pass its safety review, so do not ask'))

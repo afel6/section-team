@@ -16,7 +16,7 @@ Grade only the changed lines and the functions around them. Score each item 1–
 - naming: descriptive names that say what a thing is or does, consistent with the surrounding code.
 - duplication: no copy-pasted logic that should be one shared function.
 - size: files 200–400 lines typical and 800 max; functions under 50 lines.
-- errors: errors handled explicitly and never swallowed; input validated at boundaries.
+- errors: errors handled explicitly and never swallowed; input validated at boundaries; user-facing errors stay friendly and leak nothing. At the process boundary (CLI main, server startup, request handler) a failure a user can cause ends as one plain line and a non-zero exit: OS errors are told apart by err.code (ENOENT, EISDIR, EACCES, EADDRINUSE), and other errors are never relabelled as I/O or data errors. Rethrowing to the runtime is not handling: a stack trace a user can trigger (a bad env value, a data path that is a directory, a missing parent folder, a port in use) scores errors under 6. A message or exit code the spec names stays exact.
 - tests: new behaviour has tests, written first, and coverage is about 80% or better; each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.
 - security: no hardcoded secrets, no injection or unsafe handling of user input.
 - leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code.

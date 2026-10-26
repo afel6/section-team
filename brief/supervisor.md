@@ -47,6 +47,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 - Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null).
 - If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
 - A pass ends the gate: do not grade again after a pass.
+- Map every OS error your code can hit (a data path that is a directory, a missing parent folder, a file you cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code); detect a missing file by `err.code === 'ENOENT'`, not `existsSync`. Do not create folders or add behaviour the spec does not ask for. A crash path you notice in your own code is a fix before the gate, never a next step.
 - Docs-only and config-value edits skip this.
 
 ## Rules that win inside section-team

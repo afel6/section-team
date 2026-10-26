@@ -124,6 +124,14 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
 })
 
+test('house rules carry the friendly-errors rule; the reviewer fails a user-triggerable stack trace; testing probes I/O and startup failures', () => {
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace);'), `${id} friendly errors`)
+  const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes('user-facing errors stay friendly and leak nothing'), 'reviewer errors item')
+  assert.ok(reviewer.includes('Rethrowing to the runtime is not handling: a stack trace a user can trigger (a bad env value, a data path that is a directory, a missing parent folder, a port in use) scores errors under 6.'), 'reviewer stack-trace threshold')
+  assert.ok(agentFile('testing').includes('Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace.'), 'testing I/O probes')
+})
+
 test('every section may search the skills directory read-only and suggest, never install', () => {
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS]) {
     const text = agentFile(id)
@@ -215,7 +223,7 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   assert.ok(agentFile('testing').includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
   assert.ok(agentFile('testing').includes('Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails.'))
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
-  assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
+  assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
   assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
