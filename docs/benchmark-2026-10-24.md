@@ -353,6 +353,23 @@ Hidden tests and own tests passed 100% in all 6 runs. No section was forced to h
 - **Hard correctness 8.63:** above team-v3 (7.50) and, for the first time, above solo (8.38). Overall correctness 9.04.
 - **Cost back down:** $2.80 per task (round 13: $3.46); hard $5.81 (round 13: $7.88), about team-v3's hard cost for much better quality.
 
+## Round 15 — tests must catch near-miss implementations (commit b7267e6)
+What rounds 12–14 showed: easy-task tests were the lowest real score (7.5–7.6), and every judge noted the same gap: no team test told NFKD from NFD, so a near-miss implementation would pass. Easy tasks go supervisor-only, without testing's spec probing.
+Change: the reviewer's tests item now requires, for each requirement, a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. The same rule is in the supervisor's small-task step and in testing's probe step.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Tests | Code quality | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.78 | 7.23 | **0.57** | 7.40 | **1.56** | – | – | 0–10 | **85.1** |
+| team-v3 (sections for everything bigger) | 3.39 | 6.98 | 8.38 | 3.69 | 8.10 | 5.87 | 7.63 | 8.46 | 1–2 | 72.6 |
+| team-v15 | 3.68 | **7.93** | **8.75** | 2.09 | **8.88** | 8.25 | **9.08** | **8.75** | **11–0** | 73.6 |
+
+Hidden tests and own tests passed 100% in all 6 runs. The judges ran near-miss mutants against each suite: team suites now kill the NFD and trim-instead-of-trimEnd mutants that every earlier round missed.
+
+### Verdict after round 15
+- **Best quality of all rounds:** 8.52 against team-v3's 7.82 on the same panel (+0.70), 11 wins and no losses. Tests 9.08 (round 14: 8.54); easy tests 8.63 (7.63); code quality 8.75.
+- **The price is cost:** $3.68 per task (round 14: $2.80); hard $8.25 (round 14: $5.81). The stricter tests item fails first grades more often, so every builder ran its reviewer gate 2–3 times on hard (once in round 14).
+- Kept, because the user ranks clean code above cost.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.
