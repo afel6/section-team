@@ -40,6 +40,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
   assert.ok(brief.includes('Where a spec line can be read two ways, build the stricter reading and say which one you chose.'))
   assert.ok(brief.includes('probe every spec line'))
+  assert.ok(brief.includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
   assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.'))
   assert.ok(brief.includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."))
   assert.ok(brief.includes('Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes.'))

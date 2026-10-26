@@ -17,7 +17,7 @@ Grade only the changed lines and the functions around them. Score each item 1–
 - duplication: no copy-pasted logic that should be one shared function.
 - size: files 200–400 lines typical and 800 max; functions under 50 lines.
 - errors: errors handled explicitly and never swallowed; input validated at boundaries.
-- tests: new behaviour has tests, written first, and coverage is about 80% or better.
+- tests: new behaviour has tests, written first, and coverage is about 80% or better; each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.
 - security: no hardcoded secrets, no injection or unsafe handling of user input.
 - leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code.
 
