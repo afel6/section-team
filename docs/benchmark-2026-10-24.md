@@ -388,6 +388,46 @@ Judging note: one judge cleaned up with `rm -rf /tmp/mut-*` and deleted about 32
 - **Quality mostly held:** 8.37 against team-v3's 7.94 (+0.43; round 15: +0.70 on its own panel), 8 wins and 1 loss. Tests rose to 9.21, the best of all rounds; robustness slipped (8.13 against 8.58), mostly on medium. The changes only remove waste, so the gap to round 15 is likely panel noise.
 - Kept.
 
+## Round 17 — user-facing errors stay friendly and leak nothing (commit 2857824)
+What a classification of every judge deduction on the team in rounds 14–16 showed: the largest fixable cluster (about 11 judge points, mostly medium robustness) was raw Node stack traces that leak paths when the data path is a directory or its parent folder is missing. The user's own rule, "user-facing errors stay friendly and leak nothing", was in none of the 13 house-rule copies, and the reviewer and testing run without the global CLAUDE.md, so the reviewer counted a rethrow as handled and testing never probed those failures.
+Change: the rule is in every house-rule copy; the reviewer scores a user-triggerable stack trace under 6 on errors; testing probes a directory as data path, a missing parent folder and a port in use; the supervisor maps OS errors by err.code to one friendly line and fixes a crash path before its gate. A message or exit code the spec names stays exact.
+
+| Way | Cost $ | Easy quality | Medium quality | Medium cost | Hard quality | Hard cost | Correctness | Robustness | Wins–losses | Grade /100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| solo-v3 | **0.85** | 6.90 | 6.83 | **0.57** | 7.63 | **1.56** | – | – | 0–9 | **85.1** |
+| team-v3 (sections for everything bigger) | 3.39 | 7.05 | 8.10 | 3.69 | 8.00 | 5.87 | 8.17 | 7.21 | 0–3 | 72.3 |
+| team-v17 | 3.10 | **8.15** | **8.78** | 1.72 | **8.82** | 6.85 | **9.29** | **8.96** | **12–0** | 74.5 |
+
+Hidden tests and own tests passed 100% in all 6 runs.
+
+### Verdict after round 17
+- **Best result of all rounds:** 8.58 against team-v3's 7.72 on the same panel (+0.86), 12 wins and no losses.
+- **The target moved most:** robustness 8.96 (round 16: 8.13); medium robustness 9.00 (7.25). Correctness 9.29, also the best so far.
+- **Cost:** $3.10 per task (round 16: $2.80), hard $6.85 (round 16: $5.89), from fix rounds that now make error paths friendly. Kept.
+
+## Final summary (rounds 1–17)
+**Where the plugin ended up.** The supervisor builds small tasks (about 50 lines) itself with near-miss tests, builds single-area tasks itself while the testing section writes and probes the tests, and wakes builder sections plus testing for multi-area work. Sections run on Opus, delegate to Haiku scouts and Sonnet coders in the foreground, and pass an Opus reviewer gate (overall 8+, no item under 6) enforced at handback. Testing probes every spec line (boundaries, empty and null, encoding, environment, filesystem and startup failures) and asserts spec-named values exactly. Builders take the stricter reading of an ambiguous line, never extend or normalize a value the spec names, and keep user-facing errors friendly. A pass ends the gate, only failing items travel after the final review, and builders whose tests belong to testing get tests scored n/a.
+
+**Rounds 9–17 against team-v3 on the same judge panel each round** (team-v3 = sections for everything bigger than a small task; quality is the judges' 1–10 average):
+
+| Round | Change | Cost $ per task | Hard cost $ | Team quality | team-v3 quality | Margin | Wins–losses |
+|---|---|---|---|---|---|---|---|
+| 9 | testing writes the tests for single-area tasks | 3.07 | 6.88 | 8.04 | 7.88 | +0.16 | 5–0 |
+| 10 | helpers in the foreground | 2.69 | 5.59 | 8.05 | 8.00 | +0.05 | 4–0 |
+| 11 | only failing fix lists to builders | 2.57 | 4.96 | 7.83 | 8.18 | −0.35 | 3–2 |
+| 12 | spec probing, stricter reading | 2.83 | 6.07 | 8.17 | 7.74 | +0.43 | 8–1 |
+| 13 | spec-named values are exact | 3.46 | 7.88 | 8.15 | 7.82 | +0.33 | 8–1 |
+| 14 | no optional forwarding, proper re-grades | 2.80 | 5.81 | 8.23 | 7.76 | +0.47 | 10–0 |
+| 15 | near-miss tests | 3.68 | 8.25 | 8.52 | 7.82 | +0.70 | 11–0 |
+| 16 | a pass ends the gate, no double tests | 2.80 | 5.89 | 8.37 | 7.94 | +0.43 | 8–1 |
+| 17 | friendly, leak-free errors | 3.10 | 6.85 | 8.58 | 7.72 | **+0.86** | **12–0** |
+
+Solo Claude Code (the plugin off) scored 7.0–7.35 in every round at $0.85 per task.
+
+**Verdict.** Against the team as it stood after round 3, the final plugin is about 9% cheaper per task ($3.10 against $3.39) and 0.86 better on the same judges, with correctness 9.29 against 8.17, robustness 8.96 against 7.21 and tests 9.17 against 7.88. Against solo it costs about 3.6× as much for about 1.5 more points.
+
+**Why the rounds stop here.** The remaining fixable deductions are worth 0.1–0.3 each, inside the noise of 2 runs per task (about ±0.3). The last rounds tuned the team on the same three tasks, so more rounds risk fitting this benchmark rather than real projects. Further improvements should come from real use: section REPORTs, reviewer grades and the Team Board show where the team struggles on actual work.
+
 ## Limits of this benchmark
 - **2 runs per cell:** treat small differences (under about 0.5 judge points) as noise.
 - **The tasks were solved fully by every approach**, so harder tasks are needed to test correctness differences.

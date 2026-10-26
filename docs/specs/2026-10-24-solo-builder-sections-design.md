@@ -169,6 +169,7 @@ Rules:
 - After round 13: the supervisor sends builders only failing items after the final review (optional findings go in its summary); heads re-grade with a new foreground reviewer call, never by SendMessage to a helper; the handback hook refuses a REPORT that claims done with a grade under 8. Round 14: 8.23 against team-v3 7.76, hard correctness 8.63 (above solo), $2.80 per task. Kept.
 - After round 14: tests must catch near-miss implementations (reviewer tests item, supervisor small tasks, testing probe). Round 15: 8.52 against team-v3 7.82, tests 9.08, but $3.68 per task (hard $8.25) from extra reviewer fix rounds. Kept.
 - After round 15: a passing grade ends the gate (no re-grade after applying its quick fixes); when another section writes the tests, the builder tells the reviewer, which scores tests as n/a. Round 16: 8.37 against team-v3 7.94, tests 9.21, $2.80 per task (hard $5.89). Kept.
+- After round 16: user-facing errors stay friendly and leak nothing in every house-rule copy; the reviewer fails a user-triggerable stack trace; testing probes filesystem and startup failures. Round 17: 8.58 against team-v3 7.72 (12–0), robustness 8.96, correctness 9.29, $3.10 per task. Kept. Benchmark rounds end here; further tuning comes from real use.
 - If no band exists, the team line may be added to the status line next to the caveman badge.
 
 ## My calls (the user may change these)
