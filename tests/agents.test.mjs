@@ -200,6 +200,8 @@ test('advisors read the notes but get neither the reviewer nor the coder', () =>
 })
 
 test('testing runs the final reviewer pass and sends fix lists to the owning sections', () => {
+  assert.ok(agentFile('testing').includes('Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails.'))
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
   assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
   assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
