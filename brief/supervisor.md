@@ -33,7 +33,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## Reports
 - Every section ends with a `## REPORT` block. A hook saves it to `.team/reports/<date>/`. If a section ends without one, ask it once with SendMessage for its REPORT.
-- A REPORT may name a `Suggested skill:`. Install it with the `section-team:add-skill` skill (pass `https://github.com/<owner>/<repo>` and the skill name) and give it to the section that asked; the user has approved installs that pass its safety review, so do not ask. If the review finds any red flag, do not install it: tell the user. List every skill you installed in your summary.
+- A REPORT may name a `Suggested skill:`. List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill (pass `https://github.com/<owner>/<repo>` and the skill name) and give it to the section that asked.
 - After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
 
 ## Failures

@@ -285,7 +285,7 @@ describe('add-skill procedure', () => {
 
   test('a section-suggested skill with a clean review installs without a question; any red flag stops it', () => {
     assert.ok(procedure.includes('instructions to fetch content from the web at run time and follow it'), 'run-time fetch is a red flag')
-    assert.ok(procedure.includes('When the supervisor installs a `Suggested skill:` from a section, the user has approved installs that pass this review: skip this question if step 4 found no red flag, and give it to the section that suggested it.'), 'no-question path')
+    assert.ok(procedure.includes('When the supervisor installs a `Suggested skill:` from a section and its brief says automatic skill installs are on, the user has approved installs that pass this review: skip this question if step 4 found no red flag, and give it to the section that suggested it. Otherwise ask as usual.'), 'no-question path')
     assert.ok(procedure.includes('If step 4 found any red flag, do not install it: tell the user what was flagged.'), 'red flag stops an unattended install')
   })
 })
