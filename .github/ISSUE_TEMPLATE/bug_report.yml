@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in section-team does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did the supervisor or a section do, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The request you gave, and anything special about the project.
+      placeholder: |
+        1. Open Claude Code in a project with section-team on
+        2. Ask: "..."
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: reports
+    attributes:
+      label: Section reports or errors
+      description: Relevant lines from `.team/reports/` or the error text. Remove secrets first.
+      render: text
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: Claude Code version
+      placeholder: claude --version
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, macOS 15, Ubuntu 24.04 ...
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: section-team commit
+      placeholder: git -C <path-to-section-team> log -1 --format=%h
