@@ -557,7 +557,7 @@ git commit -m "bench: per-agent model split and Opus share in the report"
   - Run: `npm test && npm run test:board && npm run validate && node scripts/gen-agents.mjs --check && node --test bench/*.test.mjs`
   - Expected: all green.
 
-- [ ] **Step 3: Live check** in a fresh desktop session, in `C:\Users\Asus\Downloads\team-test`. Confirm by screenshot or by the user:
+- [ ] **Step 3: Live check** in a fresh desktop session, in `~\Downloads\team-test`. Confirm by screenshot or by the user:
   - the strip shows `Team · idle`;
   - no pane opens;
   - the `Board` button and `/team` open the board;

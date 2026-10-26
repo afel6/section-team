@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, pruneStatus, PRUNE_MS } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
-  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
+  const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
   mkdirSync(dir, { recursive: true })
   return dir
 }

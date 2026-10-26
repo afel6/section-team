@@ -34,8 +34,8 @@ Spec: docs/specs/2026-10-12-claude-team-design.md (v3, approved). Branch: feat/c
 - Ruling 4: HawkScan post-commit prompts are skipped for this plan — the plugin is not a web app, nothing is served, HAWK_API_KEY unset; the hawkscan rules exclude this case — cost if wrong: none.
 
 ## Progress
-- Ruling 5: plugin renamed claude-team → section-team everywhere in spec+plan (agent types section-team:<id>, marker [section-team supervisor], atom plugin key, @inline id); folder/repo path stays C:\Users\Asus\claude-team — validator rejects names starting with "claude-" — cost if wrong: a find/replace rename later; user to be told.
-- Ruling 6: plugin.json gets "author": {"name": "Asus"} — validate --strict fails without author; Windows user name, no email (privacy) — cost if wrong: one-line edit.
+- Ruling 5: plugin renamed claude-team → section-team everywhere in spec+plan (agent types section-team:<id>, marker [section-team supervisor], atom plugin key, @inline id); folder/repo path stays <path-to-section-team> — validator rejects names starting with "claude-" — cost if wrong: a find/replace rename later; user to be told.
+- Ruling 6: plugin.json gets an "author" name — validate --strict fails without author; no email (privacy) — cost if wrong: one-line edit.
 - Ruling 7: implementer reports go to task-N-report.txt (subagents refuse to write .md report files) — cost: none.
 - Task 1: minor (deferred): package.json `test` script fails until tests/ exists (lands in Task 3)
 - Task 1: minor (deferred): .claude-plugin/types/ generation unconfirmed (engine writes it on load)
@@ -86,7 +86,7 @@ Spec: docs/specs/2026-10-12-claude-team-design.md (v3, approved). Branch: feat/c
 - Residual follow-up e3a83f6 re-reviewed: APPROVED (both resolved). Minor (deferred): one vacuous assertion in skill-load test; midnight race in tomorrow test.
 - Controller verification at e3a83f6: npm test 64/64, test:board 10/10, gen --check OK, validate --strict OK.
 - Task 9: waiting on user approval for ~/.claude/settings.json env edit (stop-and-ask: persistent config outside worktree).
-- Task 9 step 1: user approved ("ok install"); ~/.claude/settings.json env.CLAUDE_CODE_PLUGIN_DIRS = C:\Users\Asus\claude-team (backup settings.json.bak-claude-team; non-env keys verified identical; file now LF instead of CRLF).
+- Task 9 step 1: user approved ("ok install"); ~/.claude/settings.json env.CLAUDE_CODE_PLUGIN_DIRS = <path-to-section-team> (backup settings.json.bak-claude-team; non-env keys verified identical; file now LF instead of CRLF).
 - Task 9 step 2 (CLI acceptance, commit 4218d80): a PASS, b PASS, c PASS, d PASS via supervisor-carried contract (SendMessage relay not exercised — desktop must show), e N/A (no reuse), f PASS; advisor guard PARTIAL (advisor self-refused; hook verified directly). Brief's command had --allowedTools before prompt (variadic) — re-run with prompt first.
 - Controller: removed test-only MEMORY.md from ~/.claude/agent-memory/section-team-ai-engineer (it only pointed at the deleted probe note).
 - Task 9 review: Needs fixes (docs) — 2d overstated, missing desktop rows for relay/reuse, stale MEMORY.md line, guard PASS cells, README keep-in-git + plan-first wording, plan Step 2 flag order.

@@ -1,5 +1,7 @@
 # section-team
 
+[![test](https://github.com/afel6/section-team/actions/workflows/test.yml/badge.svg)](https://github.com/afel6/section-team/actions/workflows/test.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Claude Code plugin that turns every session into a **supervisor** of a small engineering team. The supervisor builds small work itself and wakes specialist **sections** (frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile, plus two read-only advisors) for bigger work. Every piece of code passes an Opus **reviewer gate** before it is handed back, section reports are saved in the project, and a live **Team Board** shows who is working.
 
 ## Results
@@ -11,7 +13,9 @@ Measured over 17 benchmark rounds (three tasks of rising size, two runs each, gr
 | An earlier version of this team | $3.39 | 7.7 | 0 wins, 3 losses |
 | **section-team now** | $3.10 | **8.6** | **12 wins, 0 losses** |
 
-It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code. Details: `docs/benchmark-2026-10-24.md` (final summary at the end).
+It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code.
+
+**Method:** each round builds the same three tasks (a small library, a command-line tool and a web app) twice per setup. Hidden tests check correctness, then the solutions are anonymised and graded blind by Opus judges on correctness, code quality, tests, robustness and docs. The tasks, hidden tests, harness and scorer are in [`bench/`](bench/); a round runs real paid Claude sessions. Full results and every round's changes: [docs/benchmark-2026-10-24.md](docs/benchmark-2026-10-24.md) (final summary at the end).
 
 ## Requirements
 - Claude Code with plugin support. The Team Board strip, `/team` and `/chats` use the Mods API (`hooks/register.tsx`).

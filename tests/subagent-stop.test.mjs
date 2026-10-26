@@ -9,7 +9,7 @@ import { saveFromEvent, finalAgentText } from '../hooks/subagent-stop.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/subagent-stop.mjs', import.meta.url))
 const tempDir = () => {
-  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
+  const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
   mkdirSync(dir, { recursive: true })
   return dir
 }

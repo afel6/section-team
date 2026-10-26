@@ -1,15 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { join } from 'node:path'
-import { mkdtempSync, rmdirSync, symlinkSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { mkdtempSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { decide } from '../hooks/pre-tool-use.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/pre-tool-use.mjs', import.meta.url))
-const HOME = join('C:', 'Users', 'Tester')
-const PROJECT = join('C:', 'work', 'my app')
+// Absolute on every OS: C:UsersTester style on Windows, /Users/Tester on Linux and macOS.
+const HOME = resolve('/', 'Users', 'Tester')
+const PROJECT = resolve('/', 'work', 'my app')
 const MEMORY = join(HOME, '.claude', 'agent-memory', 'ai-engineer', 'MEMORY.md')
 const ev = (agent_type, tool_name, tool_input = {}) => ({ agent_type, tool_name, tool_input, cwd: PROJECT })
 
@@ -66,7 +67,9 @@ test('guard still runs when the script is reached through a junction', () => {
     assert.equal(run.status, 0)
     assert.match(run.stdout, /"permissionDecision":"deny"/)
   } finally {
-    rmdirSync(link)
+    // a junction is a directory on Windows; elsewhere the same call made a symlink, which unlink removes
+    if (process.platform === 'win32') rmdirSync(link)
+    else unlinkSync(link)
     rmdirSync(dir)
   }
 })

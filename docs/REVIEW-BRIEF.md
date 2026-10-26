@@ -1,6 +1,6 @@
 # section-team — review brief for an external grader
 
-Repo: `C:\Users\Asus\claude-team` (branch `feat/claude-team`, 26 commits on top of `main`). Platform: Claude Code 2.1.295/2.1.296, Claude desktop app (Code tab) and CLI, native Windows 11, Node 26.
+Repo: `<path-to-section-team>` (branch `feat/claude-team`, 26 commits on top of `main`). Platform: Claude Code 2.1.295/2.1.296, Claude desktop app (Code tab) and CLI, native Windows 11, Node 26.
 
 ## 1. What it is
 
@@ -118,7 +118,7 @@ You ◄── combined summary (also saved)
 
 Commands:
 ```bash
-cd C:/Users/Asus/claude-team
+cd <path-to-section-team>
 npm test
 npm run test:board
 node scripts/gen-agents.mjs --check

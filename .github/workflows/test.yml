@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Hook and agent tests
+        run: npm test
+      - name: Agent files match the generator
+        run: node scripts/gen-agents.mjs --check
+      - name: Benchmark scorer tests
+        run: node --test bench/aggregate.test.mjs bench/score.test.mjs
