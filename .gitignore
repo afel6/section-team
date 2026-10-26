@@ -3,3 +3,6 @@ node_modules/
 .team/
 .claude-plugin/types/
 bench/results/
+bench-*.log
+bench-*.err
+pid.txt
