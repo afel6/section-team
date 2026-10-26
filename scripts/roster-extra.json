@@ -2,7 +2,8 @@
   "frontend": [
     "muapi-models",
     "motionmaxxing",
-    "prototype"
+    "prototype",
+    "web-design-guidelines"
   ],
   "ai-llm": [
     "muapi-models",
@@ -29,6 +30,7 @@
   ],
   "testing": [
     "migrate-to-shoehorn",
-    "scope-creep-detector"
+    "scope-creep-detector",
+    "web-design-guidelines"
   ]
 }
