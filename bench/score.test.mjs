@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentModelSplit, collectRoles, parseTranscript, splitCoverage } from './score.mjs'
+import { agentModelSplit, collectRoles, hiddenTests, parseTranscript, splitCoverage } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
@@ -61,6 +61,51 @@ test('collectRoles: reads the session and subagent transcripts from the project 
     assert.equal(collectRoles('C:/bench-runs/not-run', 'sess1', home), null)
   } finally {
     rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('collectRoles: subagents carry agentId, parentId and start; main stays { role, messages }', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bench-roles-'))
+  try {
+    const project = join(home, '.claude', 'projects', 'C--bench-runs-h1-team-ho-r1')
+    const subs = join(project, 'sess1', 'subagents')
+    mkdirSync(subs, { recursive: true })
+    const jsonl = (...rows) => rows.map(r => JSON.stringify(r)).join('\n') + '\n'
+    const at = (timestamp, row) => ({ ...row, timestamp })
+    writeFileSync(join(project, 'sess1.jsonl'), jsonl(at('2026-10-30T09:00:00.000Z', say('m1', 'claude-opus-5-5', {}))))
+    writeFileSync(join(subs, 'agent-p1.jsonl'), jsonl(at('2026-10-30T09:01:00.000Z', { type: 'user' }), at('2026-10-30T09:09:00.000Z', say('b1', 'claude-opus-5-5', {}))))
+    writeFileSync(join(subs, 'agent-p1.meta.json'), JSON.stringify({ agentType: 'section-team:backend', spawnDepth: 1 }))
+    writeFileSync(join(subs, 'agent-r7.jsonl'), jsonl(at('2026-10-30T09:05:00.000Z', { type: 'user' })))
+    writeFileSync(join(subs, 'agent-r7.meta.json'), JSON.stringify({ agentType: 'section-team:reviewer', parentAgentId: 'p1', spawnDepth: 2 }))
+    writeFileSync(join(subs, 'agent-n0.jsonl'), jsonl({ type: 'user' }, at('2026-10-30T09:06:00.000Z', { type: 'user' })))
+    const roles = collectRoles('C:/bench-runs/h1-team-ho-r1', 'sess1', home)
+    const byId = Object.fromEntries(roles.slice(1).map(r => [r.agentId, r]))
+    assert.deepEqual(Object.keys(roles[0]), ['role', 'messages'])
+    assert.equal(roles[0].role, 'main')
+    assert.deepEqual({ ...byId.r7, messages: undefined }, { role: 'section-team:reviewer', agentId: 'r7', parentId: 'p1', start: '2026-10-30T09:05:00.000Z', messages: undefined })
+    assert.equal(byId.p1.parentId, null)
+    assert.equal(byId.p1.start, '2026-10-30T09:01:00.000Z')
+    assert.equal(byId.n0.start, null, 'start is the first message\'s timestamp, not the first timestamp found')
+    assert.equal(byId.n0.role, 'unknown')
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+// hiddenTests passes process.env on: inside a node --test file, NODE_TEST_CONTEXT makes the child skip its test files (0 tests).
+test('hiddenTests is exported and scores a folder against bench/hidden/<task>.test.mjs', () => {
+  const empty = mkdtempSync(join(tmpdir(), 'bench-hidden-'))
+  const context = process.env.NODE_TEST_CONTEXT
+  delete process.env.NODE_TEST_CONTEXT
+  try {
+    const r = hiddenTests('easy', empty)
+    assert.ok(r.tests > 0)
+    assert.equal(r.pass, 0)
+    assert.equal(r.rate, 0)
+    assert.match(r.tap, /^not ok \d+ - /m)
+  } finally {
+    if (context !== undefined) process.env.NODE_TEST_CONTEXT = context
+    rmSync(empty, { recursive: true, force: true })
   }
 })
 

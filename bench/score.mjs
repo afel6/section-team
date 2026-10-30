@@ -82,11 +82,25 @@ export function splitCoverage(split, modelUsage) {
 }
 
 const readJsonl = path => readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
-const agentType = metaPath => { try { return JSON.parse(readFileSync(metaPath, 'utf8')).agentType ?? 'unknown' } catch { return 'unknown' } }
+// A missing or unreadable .meta.json leaves the agent as role 'unknown' with no parent.
+const readMeta = metaPath => { try { return JSON.parse(readFileSync(metaPath, 'utf8')) ?? {} } catch { return {} } }
+
+function subagentRole(subagents, name) {
+  const meta = readMeta(join(subagents, name.replace(/\.jsonl$/, '.meta.json')))
+  const messages = readJsonl(join(subagents, name))
+  return {
+    role: meta.agentType ?? 'unknown',
+    agentId: name.replace(/^agent-/, '').replace(/\.jsonl$/, ''),
+    parentId: meta.parentAgentId ?? null,
+    start: messages[0]?.timestamp ?? null,
+    messages,
+  }
+}
 
 // Reads a run's session transcript and every subagent transcript (background heads and their depth-2 helpers are only here, not in raw.json):
 // ~/.claude/projects/<run dir with every non-alphanumeric as '-'>/<session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType).
 // Returns [{ role, messages }] with the session as 'main', or null when the session file is missing.
+// Each subagent entry also has agentId (from agent-<id>.jsonl), parentId (meta.parentAgentId, null at depth 1) and start (first message's timestamp or null).
 export function collectRoles(runDir, sessionId, home = homedir()) {
   const project = join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
   const sessionFile = join(project, `${sessionId}.jsonl`)
@@ -95,7 +109,7 @@ export function collectRoles(runDir, sessionId, home = homedir()) {
   const files = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
   return [
     { role: 'main', messages: readJsonl(sessionFile) },
-    ...files.map(name => ({ role: agentType(join(subagents, name.replace(/\.jsonl$/, '.meta.json'))), messages: readJsonl(join(subagents, name)) })),
+    ...files.map(name => subagentRole(subagents, name)),
   ]
 }
 
@@ -108,7 +122,7 @@ export function parseTap(text) {
   return { tests: num('tests'), pass: num('pass'), fail: num('fail') }
 }
 
-function hiddenTests(task, dir) {
+export function hiddenTests(task, dir) {
   const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', join(BENCH, 'hidden', `${task}.test.mjs`)], {
     env: { ...process.env, TARGET_DIR: dir }, encoding: 'utf8', timeout: 300_000, windowsHide: true,
   })
