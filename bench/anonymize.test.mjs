@@ -118,7 +118,23 @@ test('a relative symlink in a run stays relative, so it never points back into t
 test('missingRuns names every run that was not copied, so judging never starts on an incomplete round', t => {
   const box = sandbox(t)
   fakeH2Run(box)
-  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 2, ...box })
-  assert.deepEqual(missingRuns(key, box.judgeDir), ['h2-solo-ho-r1', 'h2-solo-ho-r2', 'h2-team-ho-r2'])
+  // With 3 reps the labels rotate, so r3 lists team before solo: the result is only in this order when sorted.
+  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 3, ...box })
+  assert.deepEqual(missingRuns(key, box.judgeDir), ['h2-solo-ho-r1', 'h2-solo-ho-r2', 'h2-solo-ho-r3', 'h2-team-ho-r2', 'h2-team-ho-r3'])
   assert.deepEqual(missingRuns({}, box.judgeDir), [])
+})
+
+test('the CLI names the unfinished runs and exits 1', t => {
+  const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
+  const bench = dirname(fileURLToPath(import.meta.url))
+  const keyPath = join(bench, 'results', 'blind-key-zzclitest.json')
+  t.after(() => {
+    rmSync(home, { recursive: true, force: true })
+    rmSync(keyPath, { force: true })
+  })
+  mkdirSync(join(bench, 'results'), { recursive: true })
+  const args = [join(bench, 'anonymize.mjs'), '--round=zzclitest', '--conds=a,b', '--tasks=zz', '--reps=1']
+  const res = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  assert.equal(res.status, 1)
+  assert.match(res.stderr, /not finished, so not anonymized: zz-a-r1 zz-b-r1;/)
 })

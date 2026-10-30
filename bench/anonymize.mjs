@@ -61,10 +61,13 @@ export function anonymize({ conds, tasks = TASKS, reps = 2, results = RESULTS, j
 }
 
 // Run ids ('<task>-<cond>-r<rep>') in the key whose run was not copied because it never finished, sorted.
+// Only meaningful on a judge folder that anonymize() just filled from empty: a leftover label folder hides a missing run.
 export function missingRuns(key, judgeDir) {
   return Object.entries(key).flatMap(([pair, labels]) => {
-    const [task, rep] = pair.split('-')
-    return Object.entries(labels).filter(([label]) => !existsSync(join(judgeDir, pair, label))).map(([, cond]) => `${task}-${cond}-${rep}`)
+    const [task, repTag] = pair.split('-')
+    return Object.entries(labels)
+      .filter(([label]) => !existsSync(join(judgeDir, pair, label)))
+      .map(([, cond]) => `${task}-${cond}-${repTag}`)
   }).sort()
 }
 
