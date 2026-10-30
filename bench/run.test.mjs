@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TASKS, TIMEOUT_MIN, freshRepo, parseArgs, plan, taskProblems } from './run.mjs'
+import { TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, freshRepo, isolateSectionMemory, parseArgs, plan, runAll, runFolder, taskProblems } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
 
@@ -133,4 +133,78 @@ test('taskProblems does not take an inherited key such as constructor as a timeo
   writeFileSync(join(bench, 'tasks', 'constructor.md'), '')
   writeFileSync(join(bench, 'hidden', 'constructor.test.mjs'), '')
   assert.deepEqual(taskProblems(['constructor'], bench), ['constructor: missing a timeout in TIMEOUT_MIN'])
+})
+
+test('every builder run turns automatic skill installs off; only solo turns the plugin off', () => {
+  const settingsOf = base => {
+    const args = builderArgs(base, 'the prompt')
+    assert.deepEqual(args.slice(0, 2), ['-p', 'the prompt'])
+    return JSON.parse(args[args.indexOf('--settings') + 1])
+  }
+  assert.deepEqual(settingsOf('team'), { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' } })
+  assert.deepEqual(settingsOf('solo'), { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' }, enabledPlugins: { 'section-team@inline': false } })
+})
+
+test('run folders are named by task and a hash, so the setup never shows in a path or a package name', () => {
+  const team = runFolder({ id: 'h1-team-ho-r1', task: 'h1' })
+  const solo = runFolder({ id: 'h1-solo-ho-r1', task: 'h1' })
+  for (const dir of [team, solo]) assert.match(dir, /\/bench-runs\/h1-[0-9a-f]{8}$/)
+  assert.notEqual(team, solo)
+  assert.equal(runFolder({ id: 'h1-team-ho-r1', task: 'h1' }), team, 'stable, so a rerun reuses the folder')
+})
+
+test('runAll moves section memory aside only when a team run is left, and always moves it back, even when a run throws', async () => {
+  const calls = []
+  const isolate = () => { calls.push('aside'); return () => calls.push('back') }
+  const ok = async run => { calls.push(run.id) }
+  const team = { id: 'h1-team-ho-r1', base: 'team' }
+  const solo = { id: 'h1-solo-ho-r1', base: 'solo' }
+
+  await runAll([solo], { runOne: ok, isolate })
+  assert.deepEqual(calls, ['h1-solo-ho-r1'], 'a solo-only round leaves the memory alone')
+
+  calls.length = 0
+  await runAll([team, solo], { runOne: ok, isolate })
+  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'h1-solo-ho-r1', 'back'])
+
+  calls.length = 0
+  const failing = async run => { calls.push(run.id); throw new Error('claude crashed') }
+  await assert.rejects(runAll([team, solo], { runOne: failing, isolate }), /claude crashed/)
+  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'back'])
+})
+
+test('isolateSectionMemory refuses a different-drive setup before anything moves', () => {
+  let moved = false
+  const volumes = () => { throw new Error('C:/x and D:/y are on different drives') }
+  assert.throws(() => isolateSectionMemory({ volumes, backup: () => { moved = true; return [] }, restore: () => {} }), /different drives/)
+  assert.equal(moved, false)
+})
+
+test('isolateSectionMemory puts the memory back once, and a failed restore is one line with the --restore-memory hint', t => {
+  const lines = []
+  t.mock.method(console, 'log', () => {})
+  t.mock.method(console, 'error', line => lines.push(line))
+  const exitCode = process.exitCode
+  t.after(() => { process.exitCode = exitCode })
+  const listeners = ['SIGINT', 'exit'].map(event => process.listenerCount(event))
+  let restores = 0
+  const release = isolateSectionMemory({ volumes: () => {}, backup: () => ['section-team-testing'], restore: () => { restores++; throw new Error('EBUSY') } })
+  release()
+  release()
+  assert.equal(restores, 1, 'release is idempotent')
+  assert.deepEqual(lines, ['could not restore your section memory: EBUSY; run node bench/run.mjs --restore-memory'])
+  assert.equal(process.exitCode, 1)
+  assert.deepEqual(['SIGINT', 'exit'].map(event => process.listenerCount(event)), listeners, 'its signal and exit handlers are removed')
+})
+
+test('checkVolumes accepts a memory folder that does not exist yet, by its nearest existing parent', t => {
+  const root = tempRoot(t)
+  assert.doesNotThrow(() => checkVolumes({ root: join(root, 'no', 'such', 'agent-memory'), others: [root] }))
+})
+
+// A --settings env value does not reach the plugin's hooks when the shell already sets the variable, so builder
+// runs also get it in their process environment (checked by a preflight on 2026-10-30).
+test('builderEnv turns automatic skill installs off in the process environment and keeps everything else', () => {
+  assert.deepEqual(builderEnv({ PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' }),
+    { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' })
 })

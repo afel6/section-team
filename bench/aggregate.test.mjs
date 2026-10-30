@@ -1,5 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { judgeScores, composite, opusShare } from './aggregate.mjs'
 
 const scores = n => ({ correctness: n, codeQuality: n, tests: n, robustnessSecurity: n, docsUsability: n, overall: n })
@@ -39,4 +41,12 @@ test('opusShare: opus cost over the run total, null when the run has no cost', (
   assert.equal(opusShare(run), 0.75)
   assert.equal(opusShare({ costUSD: 1, modelUsage: { 'claude-haiku-5': { costUSD: 1 } } }), 0)
   assert.equal(opusShare({ costUSD: null, modelUsage: {} }), null)
+})
+
+test('the CLI refuses a --round that is not letters and digits, before reading or writing anything', () => {
+  const cli = new URL('./aggregate.mjs', import.meta.url)
+  const res = spawnSync(process.execPath, [fileURLToPath(cli), '--round=../x'], { encoding: 'utf8' })
+  assert.equal(res.status, 1)
+  assert.match(res.stderr, /round/)
+  assert.equal(res.stdout, '')
 })

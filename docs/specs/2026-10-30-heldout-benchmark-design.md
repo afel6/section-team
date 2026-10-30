@@ -42,10 +42,13 @@ H2 and H3 are chosen so the hidden tests can separate the setups. On the old tas
 ## Runs
 - Setups: **solo** (plugin off) and **team** (plugin at `v0.1.1`). Forced mode is dropped.
 - **3 runs per cell**: 3 tasks × 2 setups × 3 runs = **18 runs**, tag `ho` (`node bench/run.mjs --tag=ho --conds=team,solo --tasks=h1,h2,h3 --reps=3`).
-- Same prompt prefix, allowed tools, model and global setup as round 17.
+- Same prompt prefix, allowed tools, model and global setup as round 17, with three changes that keep the runs independent and blind:
+  - **Section memory:** the user's section-team agent memory is moved aside for the round, and every team run starts with empty section memory (the plugin as a new user installs it). Notes written while H1–H3 were built would otherwise give team runs knowledge of the hidden tests, and each rep would learn from the one before.
+  - **No skill installs:** automatic skill installs are off in every run, so no run changes the skills of the runs after it.
+  - **Neutral folders:** each run folder is named `<task>-<hash>`, so "team" or "solo" never appears in a path or a package name the judges read.
 
 ## Judging
-- Blind X/Y pairs, **2 Opus judges per pair**: 9 pairs, 18 judges.
+- Blind X/Y pairs, **2 Opus judges per pair**: 9 pairs, 18 judges. Judges run with section-team off. Judge 2 of each pair sees X and Y swapped, so each solution is judged once in each position.
 - **Judge-prompt check:** the old judge prompt was not kept, so before judging the held-out pairs, if the round-17 run folders still exist, 2 of their pairs are judged with the new prompt and compared with the stored round-17 scores. The gap is reported; it does not change the success rule.
 
 ## Gate stats (no extra runs)

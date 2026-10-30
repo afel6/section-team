@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { RESULTS } from './run.mjs'
+import { RESULTS, parseArgs } from './run.mjs'
 
 const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
 const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'all']
@@ -64,13 +64,15 @@ export function composite(rows, judged) {
 }
 
 function main() {
-  const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
   // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
-  const roundTag = process.argv.slice(2).find(a => a.startsWith('--round='))?.slice(8) ?? ''
+  const { round: roundTag } = parseArgs(process.argv.slice(2))
+  const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
   const suffix = roundTag ? `-${roundTag}` : ''
   const judgePath = join(RESULTS, `judge${suffix}.json`)
+  const keyPath = join(RESULTS, `blind-key${suffix}.json`)
+  if (existsSync(judgePath) && !existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
   const judged = existsSync(judgePath)
-    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(join(RESULTS, `blind-key${suffix}.json`), 'utf8')))
+    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
     : {}
   const graded = composite(rows, judged)
   const groups = {}
@@ -101,4 +103,12 @@ function main() {
   for (const row of table) console.log(`| ${cols.map(c => row[c] ?? '–').join(' | ')} |`)
 }
 
-if (isMainModule(import.meta.url)) main()
+// One plain line and exit 1 on any failure; a missing input names the step that makes it.
+if (isMainModule(import.meta.url)) {
+  try {
+    main()
+  } catch (err) {
+    console.error(`aggregate: ${err.code === 'ENOENT' ? `missing ${err.path}: run node bench/score.mjs first` : err.message}`)
+    process.exitCode = 1
+  }
+}

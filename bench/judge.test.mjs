@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ALLOWED, fillPrompt, judgeOptions, parseVerdict, pendingJobs, runJobs, withCopy } from './judge.mjs'
+import { ALLOWED, fillPrompt, judgeArgs, judgeOptions, labelSwap, parseVerdict, pendingJobs, prepareJob, runJobs, withCopy } from './judge.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const LABELS = ['X', 'Y']
@@ -184,4 +184,69 @@ test('withCopy keeps a relative symlink inside the copy, so a judge cannot write
   }
   await withCopy(source, async dir => writeFileSync(join(dir, 'X', 'data.txt'), 'written by judge 1'))
   assert.equal(readFileSync(join(source, 'Y', 'data.txt'), 'utf8'), 'original')
+})
+
+// With "verbose": true in the user's settings, `claude -p --output-format json` prints every message as one array.
+test('runJobs reads a verdict from the verbose array output too', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'judge-test-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const rowsPath = join(dir, 'judge-t.json')
+  const result = JSON.parse(envelope(fenced(good)))
+  const verbose = JSON.stringify([{ type: 'system', subtype: 'init' }, { type: 'assistant', message: { content: [] } }, result])
+  const jobs = [{ pair: 'h1-r1', judge: 1, labels: LABELS }]
+  const failed = await runJobs(jobs, { rows: [], call: async () => verbose, rowsPath, rawDir: join(dir, 'raw'), log: () => {} })
+  assert.equal(failed, 0)
+  assert.deepEqual(JSON.parse(readFileSync(rowsPath, 'utf8')), [{ pair: 'h1-r1', ...good, judge: 1, costUSD: 1.25 }])
+})
+
+test('judges run with the section-team plugin off, the Opus model and only the judge tools', () => {
+  const args = judgeArgs('the prompt')
+  const at = flag => args[args.indexOf(flag) + 1]
+  assert.deepEqual(args.slice(0, 2), ['-p', 'the prompt'])
+  assert.equal(at('--model'), 'claude-opus-5-5')
+  assert.equal(at('--allowedTools'), ALLOWED)
+  assert.equal(JSON.parse(at('--settings')).enabledPlugins['section-team@inline'], false)
+})
+
+test('labelSwap: judge 2 of a two-label pair sees X and Y swapped; judge 1 and other pairs do not', () => {
+  assert.equal(labelSwap(1, ['X', 'Y']), null)
+  assert.deepEqual(labelSwap(2, ['X', 'Y']), ['X', 'Y'])
+  assert.equal(labelSwap(2, ['X']), null)
+  assert.equal(labelSwap(2, ['X', 'Y', 'Z']), null)
+})
+
+test('withCopy swaps the X and Y folders in the copy only', async t => {
+  const source = mkdtempSync(join(tmpdir(), 'judge-pair-'))
+  t.after(() => rmSync(source, { recursive: true, force: true }))
+  for (const label of ['X', 'Y']) {
+    mkdirSync(join(source, label))
+    writeFileSync(join(source, label, 'who.txt'), label)
+  }
+  const seen = await withCopy(source, async dir => ['X', 'Y'].map(l => readFileSync(join(dir, l, 'who.txt'), 'utf8')), { swap: ['X', 'Y'] })
+  assert.deepEqual(seen, ['Y', 'X'])
+  assert.equal(readFileSync(join(source, 'X', 'who.txt'), 'utf8'), 'X')
+})
+
+test('runJobs maps a swapped judge\'s verdict back to the real labels', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'judge-test-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const rowsPath = join(dir, 'judge-t.json')
+  // The judge saw the real Y in folder X: it scored its X 6 and its Y 8, and ranked its Y first.
+  const jobs = [{ pair: 'h1-r1', judge: 2, labels: LABELS, swap: ['X', 'Y'] }]
+  const failed = await runJobs(jobs, { rows: [], call: async () => envelope(fenced(good)), rowsPath, rawDir: join(dir, 'raw'), log: () => {} })
+  assert.equal(failed, 0)
+  assert.deepEqual(JSON.parse(readFileSync(rowsPath, 'utf8')), [{ pair: 'h1-r1', X: good.Y, Y: good.X, ranking: ['X', 'Y'], judge: 2, costUSD: 1.25, swapped: true }])
+})
+
+test('prepareJob gives judge 2 of a two-solution pair the X/Y swap, and judge 1 none', t => {
+  const judgeDir = mkdtempSync(join(tmpdir(), 'judge-dir-'))
+  t.after(() => rmSync(judgeDir, { recursive: true, force: true }))
+  for (const label of ['X', 'Y', 'SEED']) mkdirSync(join(judgeDir, 'h2-r1', label), { recursive: true })
+  const template = 'Solutions: {{LABELS}}. {{SEED_NOTE}}\n{{TASK}}'
+  const first = prepareJob({ pair: 'h2-r1', judge: 1 }, judgeDir, template)
+  const second = prepareJob({ pair: 'h2-r1', judge: 2 }, judgeDir, template)
+  assert.deepEqual([first.labels, first.swap], [['X', 'Y'], null])
+  assert.deepEqual(second.swap, ['X', 'Y'])
+  assert.equal(second.prompt, first.prompt, 'both judges get the same prompt')
+  assert.match(first.prompt, /^Solutions: X, Y\. SEED\/ is the repo/)
 })

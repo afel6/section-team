@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentModelSplit, collectRoles, hiddenEnv, hiddenTests, ownTests, parseTranscript, splitCoverage } from './score.mjs'
+import { agentModelSplit, collectRoles, hiddenEnv, hiddenTests, ownTests, parseTranscript, scoreLine, splitCoverage, summaryRow } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
@@ -125,4 +125,13 @@ test("ownTests runs the solution's npm test without the maintainer's keys and to
   writeFileSync(join(dir, 'check.mjs'), 'process.exit(process.env.BENCH_FAKE_SECRET === undefined ? 0 : 1)\n')
   const r = ownTests(dir, { ...process.env, BENCH_FAKE_SECRET: 'sk-probe' })
   assert.equal(r.passed, true, `npm test exit code ${r.exitCode}`)
+})
+
+test('a run that ended in an API error is flagged on the score line and in summary.json', () => {
+  const transcript = { costUSD: 1.4, isError: true, subtype: 'success', tokens: {}, turns: 3, agentSpawns: 0, agentTypes: {}, agentModels: {}, modelUsage: {} }
+  const metrics = { id: 'h1-team-ho-r1', task: 'h1', cond: 'team-ho', rep: 1, timedOut: false, wallMs: 60_000, transcript, split: null, splitCoverage: null, hidden: { tests: 23, pass: 0, fail: 23, rate: 0 }, own: { passed: false }, code: {}, team: {} }
+  assert.match(scoreLine(metrics), /API ERROR/)
+  assert.doesNotMatch(scoreLine({ ...metrics, transcript: { ...transcript, isError: false } }), /ERROR/)
+  assert.equal(summaryRow(metrics).isError, true)
+  assert.equal(summaryRow({ ...metrics, transcript: { ...transcript, isError: null } }).isError, false)
 })

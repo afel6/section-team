@@ -197,14 +197,31 @@ function main() {
     const metrics = { ...run, transcript, split, splitCoverage: splitCoverage(split, transcript.modelUsage), hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own, code: codeStats(run.dir), team: teamStats(run.dir) }
     writeFileSync(join(RESULTS, id, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
     rows.push(metrics)
-    console.log(`${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(run.wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${run.timedOut}`)
+    console.log(scoreLine(metrics))
   }
-  writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(r => ({
-    id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, wallMs: r.wallMs,
-    costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
-    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
-    hidden: r.hidden, own: r.own, code: r.code, team: r.team,
-  })), null, 2) + '\n')
+  writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
-if (isMainModule(import.meta.url)) main()
+// A run whose CLI ended on an API error (usage limit, overload) still has a result, with is_error set: the line
+// says so, because such a run is rerun like a crash, not kept as a result.
+export function scoreLine({ id, hidden, own, transcript, wallMs, timedOut }) {
+  const error = transcript.isError ? '  API ERROR' : ''
+  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}${error}`
+}
+
+export const summaryRow = r => ({
+  id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, isError: r.transcript.isError === true, wallMs: r.wallMs,
+  costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
+  agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
+  hidden: r.hidden, own: r.own, code: r.code, team: r.team,
+})
+
+// One plain line and exit 1 on any failure; a missing input names the step that makes it.
+if (isMainModule(import.meta.url)) {
+  try {
+    main()
+  } catch (err) {
+    console.error(`score: ${err.code === 'ENOENT' ? `missing ${err.path}: run node bench/run.mjs first` : err.message}`)
+    process.exitCode = 1
+  }
+}

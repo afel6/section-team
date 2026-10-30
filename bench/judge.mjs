@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeDirFor } from './anonymize.mjs'
-import { NAME, RESULTS, parseArgs } from './run.mjs'
+import { NAME, PLUGIN_KEY, RESULTS, parseArgs } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const MODEL = 'claude-opus-5-5'
@@ -84,15 +84,28 @@ export function judgeOptions(argv) {
 }
 
 // claude -p --output-format json stdout → saved row; throws when the output or the verdict does not parse.
+// The output is the result message, or every message as one array when the user's settings turn verbose on.
 function rowFromOutput(stdout, { pair, judge, labels }) {
-  let out
+  let parsed
   try {
-    out = JSON.parse(stdout)
+    parsed = JSON.parse(stdout)
   } catch (err) {
     throw new Error(`claude output is not JSON: ${err.message}`)
   }
+  const out = Array.isArray(parsed) ? parsed.findLast(m => m?.type === 'result') : parsed
   if (typeof out?.result !== 'string') throw new Error('claude output has no result text')
   return { ...parseVerdict(out.result, pair, labels), judge, costUSD: typeof out.total_cost_usd === 'number' ? out.total_cost_usd : null }
+}
+
+// Judge 2 of a two-solution pair sees X and Y swapped, so each solution is judged once in each position.
+export const labelSwap = (judge, labels) => (judge % 2 === 0 && labels.length === 2 ? [...labels] : null)
+
+// A swapped judge's row, put back under the real labels. Its notes still name the folders it saw, hence `swapped`.
+function unswap(row, swap) {
+  if (!swap) return row
+  const [a, b] = swap
+  const real = label => (label === a ? b : label === b ? a : label)
+  return { ...row, [a]: row[b], [b]: row[a], ranking: row.ranking.map(real), swapped: true }
 }
 
 function loadRows(path) {
@@ -116,7 +129,7 @@ export async function runJobs(jobs, { rows, call, rowsPath, rawDir, log }) {
     const stdout = await call(job)
     let row
     try {
-      row = rowFromOutput(stdout, job)
+      row = unswap(rowFromOutput(stdout, job), job.swap)
     } catch (err) {
       failed++
       mkdirSync(rawDir, { recursive: true })
@@ -134,22 +147,30 @@ export async function runJobs(jobs, { rows, call, rowsPath, rawDir, log }) {
 
 const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
-function prepareJob(job, judgeDir, template) {
+export function prepareJob(job, judgeDir, template) {
   const source = join(judgeDir, job.pair)
   const labels = subfolders(source).filter(name => /^[A-Z]$/.test(name))
   if (labels.length === 0) throw new Error(`no solution folders in ${source}`)
   const task = readFileSync(join(BENCH, 'tasks', `${job.pair.split('-')[0]}.md`), 'utf8')
-  return { ...job, source, labels, prompt: fillPrompt(template, { labels, task, seed: existsSync(join(source, 'SEED')) }) }
+  const prompt = fillPrompt(template, { labels, task, seed: existsSync(join(source, 'SEED')) })
+  return { ...job, source, labels, prompt, swap: labelSwap(job.judge, labels) }
 }
 
 // Runs fn(dir) on a fresh temp copy of source plus an empty scratch/ folder, then deletes the copy, also when fn
 // throws. A copy that cannot be deleted (a file still locked on Windows) is logged, not thrown: the verdict is paid for.
 // ponytail: Ctrl+C skips the finally and leaves a bench-judge-job-* folder in the temp folder; delete those by hand.
-export async function withCopy(source, fn, { log = console.error, remove = rmSync } = {}) {
+// swap ['X', 'Y'] exchanges those two folders in the copy (see labelSwap).
+export async function withCopy(source, fn, { log = console.error, remove = rmSync, swap = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'bench-judge-job-'))
   try {
     // verbatimSymlinks: a relative link stays relative, so it points inside this copy, not back into source.
     cpSync(source, dir, { recursive: true, verbatimSymlinks: true })
+    if (swap) {
+      const [a, b] = swap
+      renameSync(join(dir, a), join(dir, 'swap'))
+      renameSync(join(dir, b), join(dir, a))
+      renameSync(join(dir, 'swap'), join(dir, b))
+    }
     mkdirSync(join(dir, 'scratch'))
     return await fn(dir)
   } finally {
@@ -161,11 +182,14 @@ export async function withCopy(source, fn, { log = console.error, remove = rmSyn
   }
 }
 
+// Judges run with section-team off, so they never get the supervisor brief of the setup they are judging.
+const JUDGE_SETTINGS = JSON.stringify({ enabledPlugins: { [PLUGIN_KEY]: false } })
+export const judgeArgs = prompt => ['-p', prompt, '--model', MODEL, '--output-format', 'json', '--allowedTools', ALLOWED, '--settings', JUDGE_SETTINGS]
+
 // ponytail: no timeout; a hung judge needs Ctrl+C, and the rerun redoes only that job.
 function callClaude({ prompt, cwd }) {
-  const args = ['-p', prompt, '--model', MODEL, '--output-format', 'json', '--allowedTools', ALLOWED]
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
+    const child = spawn('claude', judgeArgs(prompt), { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
     let stdout = ''
     child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk })
     child.on('error', reject)
@@ -184,7 +208,7 @@ async function main() {
   const jobs = pendingJobs(subfolders(judgeDir), rows, perPair).slice(0, limit).map(job => prepareJob(job, judgeDir, template))
   console.log(`${jobs.length} judge job(s) to run`)
   const log = line => console.log(`${new Date().toISOString()} ${line}`)
-  const call = job => withCopy(job.source, cwd => callClaude({ prompt: job.prompt, cwd }), { log })
+  const call = job => withCopy(job.source, cwd => callClaude({ prompt: job.prompt, cwd }), { log, swap: job.swap })
   const failed = await runJobs(jobs, { rows, call, rowsPath, rawDir: join(RESULTS, `judge-${round}-raw`), log })
   if (failed > 0) {
     console.error(`${failed} judge job(s) failed; rerun to redo only those`)
