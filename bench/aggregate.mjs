@@ -63,18 +63,22 @@ export function composite(rows, judged) {
   })
 }
 
+// The round's judge scores per run id ({} before judging); a judge file without its blind key names the step to run.
+export function loadJudged(results, roundTag) {
+  const suffix = roundTag ? `-${roundTag}` : ''
+  const judgePath = join(results, `judge${suffix}.json`)
+  const keyPath = join(results, `blind-key${suffix}.json`)
+  if (!existsSync(judgePath)) return {}
+  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
+  return judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
+}
+
 function main() {
   // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
   const { round: roundTag } = parseArgs(process.argv.slice(2))
   const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
   const suffix = roundTag ? `-${roundTag}` : ''
-  const judgePath = join(RESULTS, `judge${suffix}.json`)
-  const keyPath = join(RESULTS, `blind-key${suffix}.json`)
-  if (existsSync(judgePath) && !existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
-  const judged = existsSync(judgePath)
-    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
-    : {}
-  const graded = composite(rows, judged)
+  const graded = composite(rows, loadJudged(RESULTS, roundTag))
   const groups = {}
   for (const r of graded) for (const k of [`${r.task}|${r.cond}`, `all|${r.cond}`]) (groups[k] ??= []).push(r)
   const table = Object.entries(groups).map(([k, rs]) => {

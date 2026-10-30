@@ -34,13 +34,24 @@ export function preflightVerdict(base, stdout) {
   ]
 }
 
+// The problems in one spawnSync result: a claude that did not start, or exited non-zero without JSON (with its first
+// stderr line, such as a sign-in error), before the output itself is judged.
+export function spawnProblems(base, r) {
+  if (r.error) return [`${base}: could not run claude (${r.error.code ?? r.error.message})`]
+  let json = true
+  try { JSON.parse(r.stdout) } catch { json = false }
+  if (r.status !== 0 && !json) {
+    const exit = r.status === null ? `was stopped by ${r.signal}` : `exited ${r.status}`
+    return [`${base}: claude ${exit}: ${String(r.stderr ?? '').split('\n')[0].trim() || '(no stderr)'}`]
+  }
+  return preflightVerdict(base, r.stdout)
+}
+
 function check(base) {
   const cwd = mkdtempSync(join(tmpdir(), 'bench-preflight-'))
   try {
     const args = [...builderArgs(base, PROMPT), '--model', MODEL, '--verbose']
-    const r = spawnSync('claude', args, { cwd, env: builderEnv(), encoding: 'utf8', timeout: TIMEOUT_MS, windowsHide: true })
-    if (r.error) return [`${base}: could not run claude (${r.error.code ?? r.error.message})`]
-    return preflightVerdict(base, r.stdout)
+    return spawnProblems(base, spawnSync('claude', args, { cwd, env: builderEnv(), encoding: 'utf8', timeout: TIMEOUT_MS, windowsHide: true }))
   } finally {
     // A timed-out claude can leave a process holding the folder on Windows: say so, keep the verdict.
     try {
@@ -58,7 +69,7 @@ if (isMainModule(import.meta.url)) {
     if (problems.length > 0) process.exitCode = 1
     else console.log('preflight ok: section-team loads for team only, automatic skill installs are off')
   } catch (err) {
-    console.error(`preflight: ${err.code ? `${err.code} at ${err.path ?? tmpdir()}` : err.message}`)
+    console.error(`preflight: ${err.code && err.path ? `${err.code} at ${err.path}` : err.message}`)
     process.exitCode = 1
   }
 }

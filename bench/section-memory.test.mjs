@@ -156,3 +156,23 @@ test('sameVolume is true for two folders in the temp folder', t => {
   const paths = sandbox(t)
   assert.equal(sameVolume(paths.root, paths.results), true)
 })
+
+test('when the move aside and the rollback both fail, the error is one line with the --restore-memory hint, and that restore works', t => {
+  const paths = sandbox(t)
+  let calls = 0
+  const flaky = (from, to) => {
+    calls++
+    if (calls === 2 || calls === 3) throw Object.assign(new Error('locked'), { code: 'ENOENT' })
+    renameSync(from, to)
+  }
+  assert.throws(() => backupSectionMemory({ ...paths, rename: flaky }), /could not move your section memory aside \(ENOENT\) nor back \(ENOENT\): run node bench\/run\.mjs --restore-memory/)
+  restoreSectionMemory({ ...paths, force: true })
+  userIsBack(paths)
+})
+
+test('a corrupt manifest is named in the error, with how to recover', t => {
+  const paths = sandbox(t)
+  mkdirSync(paths.backup)
+  writeFileSync(join(paths.backup, 'manifest.json'), '{"names": [')
+  assert.throws(() => restoreSectionMemory(paths), /manifest\.json is not valid JSON .*remove it/)
+})

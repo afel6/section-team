@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, freshRepo, isolateSectionMemory, parseArgs, plan, runAll, runFolder, taskProblems } from './run.mjs'
+import { TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, killTree, freshRepo, isolateSectionMemory, parseArgs, plan, runAll, runFolder, taskProblems } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
 
@@ -207,4 +207,27 @@ test('checkVolumes accepts a memory folder that does not exist yet, by its neare
 test('builderEnv turns automatic skill installs off in the process environment and keeps everything else', () => {
   assert.deepEqual(builderEnv({ PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' }),
     { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' })
+})
+
+test('killTree is quiet when the process is already gone, and says so when it could not stop it', () => {
+  const lines = []
+  const gone = () => { throw Object.assign(new Error('not found'), { status: 128 }) }
+  killTree({ pid: 42 }, { execFile: gone, log: line => lines.push(line) })
+  assert.deepEqual(lines, [])
+  const denied = () => { throw Object.assign(new Error('Access is denied'), { status: 1 }) }
+  killTree({ pid: 42 }, { execFile: denied, log: line => lines.push(line) })
+  assert.deepEqual(lines, ['could not stop claude (pid 42): Access is denied'])
+})
+
+test('isolateSectionMemory stops the running claude before it puts the memory back', t => {
+  t.mock.method(console, 'log', () => {})
+  const calls = []
+  const release = isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => calls.push('restore'), stop: () => calls.push('stop') })
+  release()
+  assert.deepEqual(calls, ['stop', 'restore'])
+})
+
+test('checkVolumes accepts results and home folders that do not exist yet', t => {
+  const root = tempRoot(t)
+  assert.doesNotThrow(() => checkVolumes({ root: join(root, 'agent-memory'), others: [join(root, 'no', 'results')] }))
 })

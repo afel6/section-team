@@ -2,7 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { judgeScores, composite, opusShare } from './aggregate.mjs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { judgeScores, composite, loadJudged, opusShare } from './aggregate.mjs'
 
 const scores = n => ({ correctness: n, codeQuality: n, tests: n, robustnessSecurity: n, docsUsability: n, overall: n })
 
@@ -49,4 +52,14 @@ test('the CLI refuses a --round that is not letters and digits, before reading o
   assert.equal(res.status, 1)
   assert.match(res.stderr, /round/)
   assert.equal(res.stdout, '')
+})
+
+test('loadJudged: no judge file is no scores; a judge file without its blind key names the anonymize step', t => {
+  const results = mkdtempSync(join(tmpdir(), 'bench-agg-'))
+  t.after(() => rmSync(results, { recursive: true, force: true }))
+  assert.deepEqual(loadJudged(results, 'ho'), {})
+  writeFileSync(join(results, 'judge-ho.json'), '[]')
+  assert.throws(() => loadJudged(results, 'ho'), /blind-key-ho\.json: run node bench\/anonymize\.mjs --round=ho first/)
+  writeFileSync(join(results, 'blind-key-ho.json'), '{}')
+  assert.deepEqual(loadJudged(results, 'ho'), {})
 })

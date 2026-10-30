@@ -17,7 +17,7 @@
 - Success rule (verbatim from spec): team mean blind judge quality ≥ solo's + **0.5**, and team mean hidden-test pass rate not below solo's.
 - Task specs: Node.js built-ins only, no npm install, no outside services. The run prompt prefix in `run.mjs` stays unchanged.
 - Hidden-test calibration: reference passes 100%; at least **3** near-miss versions per task each fail at least 1 hidden test.
-- H1 pick deadline **2026-11-06**; after that, H1 is written in-house and the write-up says so.
+- H1 is written in-house (the user chose on 2026-10-30 not to wait for an outside pick); the write-up says so.
 - **No paid `claude -p` call (runs or judges) without the user's explicit yes**, asked twice: before the 18 runs, and before full judging.
 - Work on branch `bench/heldout`. Commit at the end of each task (the approved plan authorizes these commits). Never push or open a PR without asking.
 - House rules: files 200–400 lines (800 max), functions under 50 lines, no mutation of inputs, explicit errors, no `console.log` debugging left behind (CLI progress output via `console.log` in `main()` is the existing bench style and stays).
@@ -260,21 +260,21 @@ Keep the existing tests passing, add tests for your changes, and update the READ
 - [ ] **Step 5:** `node bench/calibrate.mjs h2`. Expected: exit 0.
 - [ ] **Step 6:** `git commit -m "feat(bench): held-out task h2 (existing service: two bugs and a CSV export)"`.
 
-### Task 8: H1 — outside pick
+### Task 8: H1 — in-house (planned as an outside pick)
 
 **Files:** `bench/tasks/h1.md`, `bench/hidden/h1.test.mjs`, `bench/heldout-calibration/h1/…` (at least 3 near-misses)
 
-- [ ] **Step 1:** Wait for his one-paragraph pick until **2026-11-06**. If none arrives, use the fallback: an `ini2json.mjs` CLI that converts INI to JSON, with sections, duplicate-key and syntax errors on exact stderr lines and exit codes. Record which source was used in `bench/tasks/h1.md`'s commit message.
-- [ ] **Step 2:** Rewrite the pick in the house task format (exact names, messages, exit codes, Node built-ins only, "Also add tests… README" line). If his text is ambiguous, ask him, and do not guess. Send him the final text before freezing.
-- [ ] **Step 3:** Write the hidden tests (each requirement line has at least 1 test), the reference and at least 3 near-misses. Then `node bench/calibrate.mjs h1`. Expected: exit 0.
-- [ ] **Step 4:** `git commit -m "feat(bench): held-out task h1 (<source>)"`.
+- [x] **Step 1 (done 2026-10-30, in-house):** the user chose not to wait for his pick, so H1 is the fallback: an `ini2json.mjs` CLI that converts INI to JSON, with sections, duplicate-key and syntax errors on exact stderr lines and exit codes. Record which source was used in `bench/tasks/h1.md`'s commit message.
+- [x] **Step 2:** The text in the house task format, after an adversarial ambiguity review (4 lenses, a skeptic per issue; 5 ambiguities fixed).
+- [x] **Step 3:** Hidden tests and reference by separate authors; 6 near-misses. `node bench/calibrate.mjs h1`: reference 42/42, each near-miss fails 1-4.
+- [x] **Step 4:** Commits fe13435 and 41c367e.
 
 ### Task 9: Freeze
 
-- [ ] **Step 1:** Run `npm test`, `node --test bench/*.test.mjs` and `node bench/calibrate.mjs h1`, `h2`, `h3`. Expected: all pass, all exit 0.
-- [ ] **Step 2:** `git diff --stat v0.1.1 HEAD -- agents hooks skills brief .claude-plugin scripts types`. Expected: no output.
-- [ ] **Step 3:** Run the reviewer gate (`section-team:reviewer`) on the changed `bench/*.mjs` files. Pass: overall ≥ 8 and no item under 6, with at most 2 fix rounds.
-- [ ] **Step 4:** `git commit` anything left; record `git rev-parse HEAD` as the **freeze commit**. Ask the user whether to push the branch and open a PR now, so the freeze is public before the runs (recommended).
+- [x] **Step 1 (2026-10-30):** `npm test` 157/157, `node --test bench/*.test.mjs` 119/119, `node bench/calibrate.mjs` h1, h2, h3 all ok. Also: h2 seed's own tests 30/30, h1 reference's own tests 37/37, both planted h2 bugs present, and a no-cost dry run of the whole pipeline (fake claude, sandboxed home) for h1-h3 × 3 reps.
+- [x] **Step 2:** `git diff --stat v0.1.1 HEAD -- agents hooks skills brief .claude-plugin scripts types`: no output.
+- [x] **Step 3:** Reviewer gates on every harness change passed (last: 9/10), after a whole-branch adversarial review whose findings were all fixed.
+- [x] **Step 4:** The commit that adds this line is the **freeze commit**, tagged `heldout-freeze` (local tag). Pushing the branch and the tag, so the freeze is public before the runs, needs the user's yes.
 
 ### Task 10: Paid runs (needs the user's yes)
 

@@ -60,7 +60,11 @@ const isAlive = pid => {
 function readManifest(backup) {
   const path = join(backup, MANIFEST)
   if (!existsSync(path)) return { names: null, pid: null }
-  return JSON.parse(readFileSync(path, 'utf8'))
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'))
+  } catch (err) {
+    throw new Error(`${path} is not valid JSON (${err.message}): remove it and run node bench/run.mjs --restore-memory again; with no manifest, only the folders in the backup move back`, { cause: err })
+  }
 }
 
 function writeManifest(backup, manifest) {

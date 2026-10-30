@@ -112,8 +112,15 @@ const baseOf = run => run.base ?? run.cond
 
 // The claude process of the run in progress, so an exit can stop it before section memory is put back.
 let activeChild = null
-const killTree = child => {
-  try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }) } catch {}
+const stopActiveChild = () => { if (activeChild) killTree(activeChild) }
+// taskkill exits 128 when the process is already gone; any other failure is said, since a live claude could still
+// write while section memory is put back.
+export function killTree(child, { execFile = execFileSync, log = console.error } = {}) {
+  try {
+    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+  } catch (err) {
+    if (err.status !== 128) log(`could not stop claude (pid ${child.pid}): ${err.message}`)
+  }
 }
 
 function runClaude(run, dir, outDir) {
@@ -170,7 +177,7 @@ const nearestExisting = path => (existsSync(path) || dirname(path) === path ? pa
 export function checkVolumes({ root = MEMORY_ROOT, others = [homedir(), RESULTS] } = {}) {
   const memory = nearestExisting(root)
   for (const dir of others) {
-    if (!sameVolume(memory, dir)) throw new Error(`${root} and ${dir} are on different drives, so section memory cannot be moved between them`)
+    if (!sameVolume(memory, nearestExisting(dir))) throw new Error(`${root} and ${dir} are on different drives, so section memory cannot be moved between them`)
   }
 }
 
@@ -185,14 +192,14 @@ const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
 // Moves the user's section memory aside for the round (see section-memory.mjs) and returns the function that
 // moves it back. Ctrl+C, a closed console, a kill or a crash skip `finally`; they all end in process exit, whose
 // handler stops the run in progress and then puts the memory back. It runs at most once.
-export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSectionMemory, restore = restoreMemory } = {}) {
+export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSectionMemory, restore = restoreMemory, stop = stopActiveChild } = {}) {
   volumes()
   console.log(`section memory moved aside: ${backup().join(' ') || '(none)'}`)
   let released = false
   const putBack = () => {
     if (released) return
     released = true
-    if (activeChild) killTree(activeChild)
+    stop()
     try {
       restore()
     } catch (err) {
