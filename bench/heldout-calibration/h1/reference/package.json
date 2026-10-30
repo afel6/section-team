@@ -1,0 +1,16 @@
+{
+  "name": "ini2json",
+  "version": "1.0.0",
+  "description": "Convert an INI file to JSON from the command line",
+  "type": "module",
+  "bin": {
+    "ini2json": "ini2json.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
