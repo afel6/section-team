@@ -113,8 +113,8 @@ function main(args) {
   if (input.error !== undefined) return fail(`Error: ${input.error}`, 1);
   const parsed = parseIni(input.text);
   if (parsed.error !== undefined) return fail(`Error: ${parsed.error}`, 3);
-  // A reader that closed the pipe early (`| head`) is not an error; anything else still surfaces.
-  process.stdout.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
+  // A reader that closed the pipe early (`| head`) is not an error; any other write failure is one plain line.
+  process.stdout.on('error', (err) => { if (err.code !== 'EPIPE') fail('Error: cannot write output', 1); });
   // ponytail: output over V8's string limit (~512 MB of JSON) still throws RangeError; the spec defines no message for it.
   process.stdout.write(`${JSON.stringify(parsed.result, null, 2)}\n`);
   process.exitCode = 0;
