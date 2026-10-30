@@ -10,6 +10,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { RESULTS } from './run.mjs'
 
 const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
+const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'all']
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const round = (n, d = 2) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d)
 
@@ -93,7 +94,7 @@ function main() {
       grade: round(mean(rs.map(r => r.grade.total)), 1),
       timeouts: rs.filter(r => r.timedOut).length,
     }
-  }).sort((a, b) => ['easy', 'medium', 'hard', 'all'].indexOf(a.task) - ['easy', 'medium', 'hard', 'all'].indexOf(b.task) || a.cond.localeCompare(b.cond))
+  }).sort((a, b) => TASK_ORDER.indexOf(a.task) - TASK_ORDER.indexOf(b.task) || a.cond.localeCompare(b.cond))
   writeFileSync(join(RESULTS, `report-data${suffix}.json`), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
   const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'opusSharePct', 'grade', 'timeouts']
   console.log(`| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`)
