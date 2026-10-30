@@ -60,6 +60,14 @@ export function anonymize({ conds, tasks = TASKS, reps = 2, results = RESULTS, j
   return Object.fromEntries(all.map(({ pair, labels }) => [pair, labels]))
 }
 
+// Run ids ('<task>-<cond>-r<rep>') in the key whose run was not copied because it never finished, sorted.
+export function missingRuns(key, judgeDir) {
+  return Object.entries(key).flatMap(([pair, labels]) => {
+    const [task, rep] = pair.split('-')
+    return Object.entries(labels).filter(([label]) => !existsSync(join(judgeDir, pair, label))).map(([, cond]) => `${task}-${cond}-${rep}`)
+  }).sort()
+}
+
 // ~/bench-judge, or ~/bench-judge-<round>. main() deletes this folder, so the round is checked here as well as in
 // parseArgs: letters and digits only, so the folder always sits directly in home.
 export function judgeDirFor(round, home = homedir()) {
@@ -75,6 +83,11 @@ function main() {
   const key = anonymize({ conds: round ? conds : CONDITIONS, tasks, reps, judgeDir })
   writeFileSync(join(RESULTS, round ? `blind-key-${round}.json` : 'blind-key.json'), JSON.stringify(key, null, 2) + '\n')
   console.log('anonymized pairs:', Object.keys(key).join(' '))
+  const missing = missingRuns(key, judgeDir)
+  if (missing.length > 0) {
+    console.error(`not finished, so not anonymized: ${missing.join(' ')}; finish them before judging`)
+    process.exitCode = 1
+  }
 }
 
 if (isMainModule(import.meta.url)) {

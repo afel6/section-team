@@ -280,8 +280,8 @@ Keep the existing tests passing, add tests for your changes, and update the READ
 
 - [ ] **Step 1:** Ask: "18 runs, about $36 at round-17 averages. Go?" Wait for yes.
 - [ ] **Step 2:** `node bench/run.mjs --tag=ho --conds=team,solo --tasks=h1,h2,h3 --reps=3` in the background (it resumes after a stop).
-- [ ] **Step 3:** `node bench/score.mjs`. Check every `ho` run: `timedOut=false`, and `hidden x/y` printed. Rerun only crashed runs, and list them for the write-up.
-- [ ] **Step 4:** `node bench/anonymize.mjs --round=ho --conds=solo-ho,team-ho --tasks=h1,h2,h3 --reps=3`.
+- [ ] **Step 3:** `node bench/score.mjs`. Check every `ho` run: `timedOut=false`, and `hidden x/y` printed. Rerun only crashed runs, and list them for the write-up. A crashed run is one that did not time out and whose `raw.json` has no `result` (the CLI failed; the score line shows `$0.00`). `run.mjs` counts it as done, so to rerun it delete `bench/results/<id>/run.json` and run the Step 2 command again; it redoes only that run. A timed-out run is a result, not a crash, and is not rerun.
+- [ ] **Step 4:** `node bench/anonymize.mjs --round=ho --conds=solo-ho,team-ho --tasks=h1,h2,h3 --reps=3`. It exits 1 and names any run that has not finished; finish those first, then anonymize again.
 - [ ] **Step 5:** `node bench/judge.mjs --round=ho --per-pair=2 --limit=1`, the dry run. Read its `costUSD` and its notes (the judge followed the prompt and cleaned only its own temp folder).
 - [ ] **Step 6:** Ask: "Judging: 17 more judges at about $<dry-run cost> each. Go?" Wait for yes. Then run without `--limit` until it exits 0.
 - [ ] **Step 7:** Judge-prompt check: `~/bench-runs` held no round-17 folders on 2026-10-30, so the check is skipped; the write-up says so.

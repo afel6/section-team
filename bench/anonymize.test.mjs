@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlink
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { anonymize, judgeDirFor } from './anonymize.mjs'
+import { anonymize, judgeDirFor, missingRuns } from './anonymize.mjs'
 
 // Fresh results/, judge/ and seeds/ folders under one temp root, removed after the test.
 function sandbox(t) {
@@ -113,4 +113,12 @@ test('a relative symlink in a run stays relative, so it never points back into t
   const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 1, ...box })
   const label = Object.keys(key['h2-r1']).find(l => key['h2-r1'][l] === 'team-ho')
   assert.equal(readlinkSync(join(box.judgeDir, 'h2-r1', label, 'link.mjs')), 'app.mjs')
+})
+
+test('missingRuns names every run that was not copied, so judging never starts on an incomplete round', t => {
+  const box = sandbox(t)
+  fakeH2Run(box)
+  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 2, ...box })
+  assert.deepEqual(missingRuns(key, box.judgeDir), ['h2-solo-ho-r1', 'h2-solo-ho-r2', 'h2-team-ho-r2'])
+  assert.deepEqual(missingRuns({}, box.judgeDir), [])
 })
