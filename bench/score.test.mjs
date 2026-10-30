@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentModelSplit, collectRoles, hiddenTests, parseTranscript, splitCoverage } from './score.mjs'
+import { agentModelSplit, collectRoles, hiddenEnv, hiddenTests, ownTests, parseTranscript, splitCoverage } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
@@ -92,11 +92,9 @@ test('collectRoles: subagents carry agentId, parentId and start; main stays { ro
   }
 })
 
-// hiddenTests passes process.env on: inside a node --test file, NODE_TEST_CONTEXT makes the child skip its test files (0 tests).
+// Run inside node --test, so it also checks that hiddenEnv drops NODE_TEST_CONTEXT (with it the child runs 0 tests).
 test('hiddenTests is exported and scores a folder against bench/hidden/<task>.test.mjs', () => {
   const empty = mkdtempSync(join(tmpdir(), 'bench-hidden-'))
-  const context = process.env.NODE_TEST_CONTEXT
-  delete process.env.NODE_TEST_CONTEXT
   try {
     const r = hiddenTests('easy', empty)
     assert.ok(r.tests > 0)
@@ -104,7 +102,6 @@ test('hiddenTests is exported and scores a folder against bench/hidden/<task>.te
     assert.equal(r.rate, 0)
     assert.match(r.tap, /^not ok \d+ - /m)
   } finally {
-    if (context !== undefined) process.env.NODE_TEST_CONTEXT = context
     rmSync(empty, { recursive: true, force: true })
   }
 })
@@ -113,4 +110,19 @@ test('parseTranscript keeps its fields and carries the session id', () => {
   const t = parseTranscript(JSON.stringify([{ type: 'result', total_cost_usd: 1, session_id: 'sess1' }]))
   assert.equal(t.costUSD, 1)
   assert.equal(t.sessionId, 'sess1')
+})
+
+test('hiddenEnv passes solution code only what node needs plus TARGET_DIR, never keys or tokens', () => {
+  const env = { PATH: '/bin', SystemRoot: 'C:\\Windows', TEMP: 't', TMP: 'u', TMPDIR: 'v', ANTHROPIC_API_KEY: 'sk-x', GITHUB_TOKEN: 'g', DATABASE_URL: 'postgres://u:p@h/db', NODE_TEST_CONTEXT: 'child-v8' }
+  assert.deepEqual(hiddenEnv('/run', env), { PATH: '/bin', SystemRoot: 'C:\\Windows', TEMP: 't', TMP: 'u', TMPDIR: 'v', TARGET_DIR: '/run' })
+  assert.deepEqual(hiddenEnv('/run', { PATH: '/bin' }), { PATH: '/bin', TARGET_DIR: '/run' })
+})
+
+test("ownTests runs the solution's npm test without the maintainer's keys and tokens", t => {
+  const dir = mkdtempSync(join(tmpdir(), 'bench-own-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node check.mjs' } }))
+  writeFileSync(join(dir, 'check.mjs'), 'process.exit(process.env.BENCH_FAKE_SECRET === undefined ? 0 : 1)\n')
+  const r = ownTests(dir, { ...process.env, BENCH_FAKE_SECRET: 'sk-probe' })
+  assert.equal(r.passed, true, `npm test exit code ${r.exitCode}`)
 })

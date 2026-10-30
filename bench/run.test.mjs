@@ -117,3 +117,20 @@ test('taskProblems lists every task missing its prompt, hidden tests or timeout'
 test('taskProblems finds nothing wrong with the shipped tasks', () => {
   assert.deepEqual(taskProblems(TASKS), [])
 })
+
+test('parseArgs rejects a round, tag or task name that is not only letters and digits', () => {
+  for (const bad of ['--round=x/..', '--round=..', '--round=a b', '--tag=x\\..', '--tag=a-b', '--tasks=h1,../x', '--tasks=h1,']) {
+    assert.throws(() => parseArgs([bad]), RangeError, bad)
+  }
+  const ok = parseArgs(['--round=ho', '--tag=ho', '--tasks=h1,h2'])
+  assert.deepEqual([ok.round, ok.tag, ok.tasks], ['ho', 'ho', ['h1', 'h2']])
+})
+
+test('taskProblems does not take an inherited key such as constructor as a timeout', t => {
+  const bench = tempRoot(t)
+  mkdirSync(join(bench, 'tasks'))
+  mkdirSync(join(bench, 'hidden'))
+  writeFileSync(join(bench, 'tasks', 'constructor.md'), '')
+  writeFileSync(join(bench, 'hidden', 'constructor.test.mjs'), '')
+  assert.deepEqual(taskProblems(['constructor'], bench), ['constructor: missing a timeout in TIMEOUT_MIN'])
+})

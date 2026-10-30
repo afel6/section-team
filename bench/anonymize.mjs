@@ -7,7 +7,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { CONDITIONS, RESULTS, SEEDS, TASKS, parseArgs } from './run.mjs'
+import { CONDITIONS, NAME, RESULTS, SEEDS, TASKS, parseArgs } from './run.mjs'
 
 const LABELS = ['X', 'Y', 'Z']
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
@@ -15,7 +15,8 @@ const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite
 
 function copyClean(src, dest) {
   mkdirSync(dest, { recursive: true })
-  cpSync(src, dest, { recursive: true, filter: path => !isHidden(path) })
+  // verbatimSymlinks: a relative link stays relative, so it never points back into the run folder.
+  cpSync(src, dest, { recursive: true, verbatimSymlinks: true, filter: path => !isHidden(path) })
 }
 
 function runDir(runPath) {
@@ -59,10 +60,17 @@ export function anonymize({ conds, tasks = TASKS, reps = 2, results = RESULTS, j
   return Object.fromEntries(all.map(({ pair, labels }) => [pair, labels]))
 }
 
+// ~/bench-judge, or ~/bench-judge-<round>. main() deletes this folder, so the round is checked here as well as in
+// parseArgs: letters and digits only, so the folder always sits directly in home.
+export function judgeDirFor(round, home = homedir()) {
+  if (round !== '' && !NAME.test(round)) throw new RangeError(`round takes letters and digits only, got "${round}"`)
+  return join(home, round ? `bench-judge-${round}` : 'bench-judge')
+}
+
 function main() {
   // --round=v2 --conds=solo,team-v2,forced-v2 → judges those condition labels into ~/bench-judge-v2, key blind-key-v2.json
   const { round, conds, tasks, reps } = parseArgs(process.argv.slice(2))
-  const judgeDir = join(homedir(), round ? `bench-judge-${round}` : 'bench-judge')
+  const judgeDir = judgeDirFor(round)
   rmSync(judgeDir, { recursive: true, force: true })
   const key = anonymize({ conds: round ? conds : CONDITIONS, tasks, reps, judgeDir })
   writeFileSync(join(RESULTS, round ? `blind-key-${round}.json` : 'blind-key.json'), JSON.stringify(key, null, 2) + '\n')

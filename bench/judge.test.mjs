@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fillPrompt, judgeOptions, parseVerdict, pendingJobs, runJobs } from './judge.mjs'
+import { ALLOWED, fillPrompt, judgeOptions, parseVerdict, pendingJobs, runJobs, withCopy } from './judge.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const LABELS = ['X', 'Y']
@@ -119,4 +119,69 @@ test('the CLI prints one usage line and exits 1 on a bad command line, without c
   assert.equal(res.status, 1)
   assert.equal(res.stdout, '')
   assert.match(res.stderr, /^judge: usage: node bench\/judge\.mjs --round=<name> --per-pair=<n> \[--limit=<n>\]\n$/)
+})
+
+test('judges get no rm or mktemp, and the prompt sends probes to scratch/ instead of asking them to delete anything', () => {
+  assert.doesNotMatch(ALLOWED, /Bash\((rm|mktemp) /)
+  const template = readFileSync(join(BENCH, 'judge-prompt.md'), 'utf8')
+  assert.match(template, /`scratch` folder/)
+  assert.doesNotMatch(template, /mktemp|rm -rf/)
+})
+
+test('withCopy gives each judge its own copy of the pair plus an empty scratch/, and deletes it after, also on a throw', async t => {
+  const source = mkdtempSync(join(tmpdir(), 'judge-pair-'))
+  t.after(() => rmSync(source, { recursive: true, force: true }))
+  for (const label of ['X', 'Y']) {
+    mkdirSync(join(source, label))
+    writeFileSync(join(source, label, 'a.mjs'), `// ${label}\n`)
+  }
+  let seen
+  const out = await withCopy(source, async dir => {
+    seen = dir
+    assert.deepEqual(readdirSync(dir).sort(), ['X', 'Y', 'scratch'])
+    assert.deepEqual(readdirSync(join(dir, 'scratch')), [])
+    writeFileSync(join(dir, 'X', 'a.mjs'), 'changed by judge 1')
+    rmSync(join(dir, 'Y'), { recursive: true })
+    return 'verdict'
+  })
+  assert.equal(out, 'verdict')
+  assert.ok(!existsSync(seen), 'copy deleted')
+  assert.equal(readFileSync(join(source, 'X', 'a.mjs'), 'utf8'), '// X\n')
+  assert.ok(existsSync(join(source, 'Y', 'a.mjs')), 'the next judge still gets Y')
+  await assert.rejects(withCopy(source, async dir => { seen = dir; throw new Error('claude failed') }), /claude failed/)
+  assert.ok(!existsSync(seen), 'copy deleted after a throw')
+})
+
+test('withCopy keeps the verdict and logs the folder when the copy cannot be deleted', async t => {
+  const source = mkdtempSync(join(tmpdir(), 'judge-pair-'))
+  const seen = []
+  t.after(() => {
+    for (const dir of [source, ...seen]) rmSync(dir, { recursive: true, force: true })
+  })
+  const lines = []
+  const opts = { log: line => lines.push(line), remove: () => { throw new Error('EBUSY: resource busy or locked') } }
+  const out = await withCopy(source, async dir => { seen.push(dir); return 'verdict' }, opts)
+  assert.equal(out, 'verdict')
+  assert.equal(lines.length, 1)
+  assert.ok(lines[0].startsWith(`could not delete judge folder ${seen[0]}: EBUSY`), lines[0])
+  // When the judge itself fails too, its error wins and the stuck folder is still logged.
+  await assert.rejects(withCopy(source, async dir => { seen.push(dir); throw new Error('claude failed') }, opts), /claude failed/)
+  assert.equal(lines.length, 2)
+  assert.ok(lines[1].startsWith(`could not delete judge folder ${seen[1]}: EBUSY`), lines[1])
+})
+
+test('withCopy keeps a relative symlink inside the copy, so a judge cannot write through it into the shared pair', async t => {
+  const source = mkdtempSync(join(tmpdir(), 'judge-pair-'))
+  t.after(() => rmSync(source, { recursive: true, force: true }))
+  mkdirSync(join(source, 'X'))
+  mkdirSync(join(source, 'Y'))
+  writeFileSync(join(source, 'Y', 'data.txt'), 'original')
+  try {
+    symlinkSync(join('..', 'Y', 'data.txt'), join(source, 'X', 'data.txt'), 'file')
+  } catch (err) {
+    if (err.code === 'EPERM') return t.skip('no permission to make symlinks here')
+    throw err
+  }
+  await withCopy(source, async dir => writeFileSync(join(dir, 'X', 'data.txt'), 'written by judge 1'))
+  assert.equal(readFileSync(join(source, 'Y', 'data.txt'), 'utf8'), 'original')
 })

@@ -11,8 +11,8 @@ The current folder holds solutions to one task, each in its own folder: {{LABELS
 
 1. Read the task above.
 2. Inspect each solution folder: code, tests, docs. Run each solution's own tests (for example `npm --prefix <label> test`, or `node --test` on that folder's test files).
-3. Probes (scratch scripts, edge cases, bad input) run only in a folder made by `mktemp -d`. When you are done, delete that folder by the exact path `mktemp -d` printed (for example `rm -rf /tmp/tmp.Ab12Cd`). Nothing else is ever deleted.
-4. Never edit a solution folder: do not edit, create or delete anything under the current folder yourself (running a solution's own tests is fine). Do not use the network.
+3. Probes (scratch scripts, edge cases, bad input) go only in the empty `scratch` folder in the current folder. It is deleted for you when you finish; do not delete anything yourself.
+4. Never edit a solution folder: do not edit, create or delete anything in {{LABELS}} or `SEED` yourself (running a solution's own tests is fine). Do not use the network.
 
 ## Scores
 

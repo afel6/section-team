@@ -2,18 +2,24 @@
 // bench/judge-prompt.md, and appends each verdict to results/judge-<round>.json (rows that judgeScores reads,
 // plus `judge` and `costUSD`). Resumable: a (pair, judge) already saved is skipped. A verdict that does not
 // parse is saved raw to results/judge-<round>-raw/<pair>-<judge>.json; the other jobs go on and the exit code is 1.
+// Each judge works in its own temp copy of the pair, with an empty scratch/ folder for probes; the harness deletes
+// that copy when the judge exits, so no judge can change what the next one grades.
 // Usage: node bench/judge.mjs --round=ho --per-pair=2 [--limit=1]   (--limit=1 is the paid dry run)
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { RESULTS, parseArgs } from './run.mjs'
+import { judgeDirFor } from './anonymize.mjs'
+import { NAME, RESULTS, parseArgs } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const MODEL = 'claude-opus-5-5'
-const ALLOWED = 'Read,Glob,Grep,Bash(node *),Bash(npm *),Bash(mktemp *),Bash(rm *),Bash(ls *),Bash(cat *)'
+// No rm or mktemp: the harness makes and deletes each judge's folder. node and npm stay because judges run the
+// solutions' tests. That runs untrusted code on this machine, with this shell's environment (claude needs it to
+// sign in), so run judging from a shell with no extra tokens set. The builder runs already ran the same code here.
+export const ALLOWED = 'Read,Glob,Grep,Bash(node *),Bash(npm *),Bash(ls *),Bash(cat *)'
 const SEED_NOTE = 'SEED/ is the repo before the change; judge only what each solution changed and whether it broke anything'
 const SCORE_FIELDS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability', 'overall']
 const USAGE = 'usage: node bench/judge.mjs --round=<name> --per-pair=<n> [--limit=<n>]'
@@ -64,11 +70,16 @@ export function fillPrompt(template, { labels, task, seed }) {
 
 export function judgeOptions(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
-  const { round } = parseArgs(argv)
+  let round
+  try {
+    ({ round } = parseArgs(argv))
+  } catch (err) {
+    throw new Error(USAGE, { cause: err })
+  }
   const perPair = Number(opt('per-pair'))
   const limit = opt('limit') === undefined ? Infinity : Number(opt('limit'))
   const positive = n => Number.isInteger(n) && n >= 1
-  if (!/^[A-Za-z0-9]+$/.test(round) || !positive(perPair) || !(limit === Infinity || positive(limit))) throw new Error(USAGE)
+  if (!NAME.test(round) || !positive(perPair) || !(limit === Infinity || positive(limit))) throw new Error(USAGE)
   return { round, perPair, limit }
 }
 
@@ -124,11 +135,30 @@ export async function runJobs(jobs, { rows, call, rowsPath, rawDir, log }) {
 const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
 function prepareJob(job, judgeDir, template) {
-  const cwd = join(judgeDir, job.pair)
-  const labels = subfolders(cwd).filter(name => /^[A-Z]$/.test(name))
-  if (labels.length === 0) throw new Error(`no solution folders in ${cwd}`)
+  const source = join(judgeDir, job.pair)
+  const labels = subfolders(source).filter(name => /^[A-Z]$/.test(name))
+  if (labels.length === 0) throw new Error(`no solution folders in ${source}`)
   const task = readFileSync(join(BENCH, 'tasks', `${job.pair.split('-')[0]}.md`), 'utf8')
-  return { ...job, cwd, labels, prompt: fillPrompt(template, { labels, task, seed: existsSync(join(cwd, 'SEED')) }) }
+  return { ...job, source, labels, prompt: fillPrompt(template, { labels, task, seed: existsSync(join(source, 'SEED')) }) }
+}
+
+// Runs fn(dir) on a fresh temp copy of source plus an empty scratch/ folder, then deletes the copy, also when fn
+// throws. A copy that cannot be deleted (a file still locked on Windows) is logged, not thrown: the verdict is paid for.
+// ponytail: Ctrl+C skips the finally and leaves a bench-judge-job-* folder in the temp folder; delete those by hand.
+export async function withCopy(source, fn, { log = console.error, remove = rmSync } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'bench-judge-job-'))
+  try {
+    // verbatimSymlinks: a relative link stays relative, so it points inside this copy, not back into source.
+    cpSync(source, dir, { recursive: true, verbatimSymlinks: true })
+    mkdirSync(join(dir, 'scratch'))
+    return await fn(dir)
+  } finally {
+    try {
+      remove(dir, { recursive: true, force: true, maxRetries: 5 })
+    } catch (err) {
+      log(`could not delete judge folder ${dir}: ${err.message}`)
+    }
+  }
 }
 
 // ponytail: no timeout; a hung judge needs Ctrl+C, and the rerun redoes only that job.
@@ -145,7 +175,7 @@ function callClaude({ prompt, cwd }) {
 
 async function main() {
   const { round, perPair, limit } = judgeOptions(process.argv.slice(2))
-  const judgeDir = join(homedir(), 'bench-judge-' + round)
+  const judgeDir = judgeDirFor(round)
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ${round} first`)
   const rowsPath = join(RESULTS, `judge-${round}.json`)
   const rows = loadRows(rowsPath)
@@ -154,7 +184,8 @@ async function main() {
   const jobs = pendingJobs(subfolders(judgeDir), rows, perPair).slice(0, limit).map(job => prepareJob(job, judgeDir, template))
   console.log(`${jobs.length} judge job(s) to run`)
   const log = line => console.log(`${new Date().toISOString()} ${line}`)
-  const failed = await runJobs(jobs, { rows, call: callClaude, rowsPath, rawDir: join(RESULTS, `judge-${round}-raw`), log })
+  const call = job => withCopy(job.source, cwd => callClaude({ prompt: job.prompt, cwd }), { log })
+  const failed = await runJobs(jobs, { rows, call, rowsPath, rawDir: join(RESULTS, `judge-${round}-raw`), log })
   if (failed > 0) {
     console.error(`${failed} judge job(s) failed; rerun to redo only those`)
     process.exitCode = 1

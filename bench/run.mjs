@@ -37,27 +37,34 @@ export function plan({ tag = '', conds = CONDITIONS, tasks = TASKS, reps = 2 } =
   })
 }
 
+// Round, tag and task names end up in folder names, some of which get deleted: letters and digits only.
+export const NAME = /^[A-Za-z0-9]+$/
+
 export function parseArgs(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
   const reps = opt('reps') ?? '2'
   if (!/^\d+$/.test(reps) || !Number.isSafeInteger(Number(reps)) || Number(reps) < 1) {
     throw new RangeError(`--reps must be a whole number of at least 1, got "${reps}"`)
   }
-  return {
+  const args = {
     tag: opt('tag') ?? '',
     conds: opt('conds')?.split(',') ?? CONDITIONS,
     round: opt('round') ?? '',
     tasks: opt('tasks')?.split(',') ?? TASKS,
-    reps: Number(reps),
-    filters: argv.filter(a => !a.startsWith('--')),
   }
+  // An empty round or tag means none; an empty task (--tasks=h1,) is an error.
+  const named = [['round', args.round], ['tag', args.tag]].filter(([, value]) => value !== '')
+  for (const [flag, value] of [...named, ...args.tasks.map(t => ['tasks', t])]) {
+    if (!NAME.test(value)) throw new RangeError(`--${flag} takes letters and digits only, got "${value}"`)
+  }
+  return { ...args, reps: Number(reps), filters: argv.filter(a => !a.startsWith('--')) }
 }
 
 // Every task that cannot run: a missing prompt, missing hidden tests or no timeout. Empty when all are fine.
 export function taskProblems(tasks, bench = BENCH) {
   return tasks.flatMap(t => {
     const missing = [`tasks/${t}.md`, `hidden/${t}.test.mjs`].filter(f => !existsSync(join(bench, f))).map(f => `bench/${f}`)
-    if (!TIMEOUT_MIN[t]) missing.push('a timeout in TIMEOUT_MIN')
+    if (!Object.hasOwn(TIMEOUT_MIN, t)) missing.push('a timeout in TIMEOUT_MIN')
     return missing.length ? [`${t}: missing ${missing.join(', ')}`] : []
   })
 }

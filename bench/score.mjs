@@ -122,22 +122,32 @@ export function parseTap(text) {
   return { tests: num('tests'), pass: num('pass'), fail: num('fail') }
 }
 
+// The hidden tests and the solution's own npm test both run solution code: give them only what node (and npm) needs,
+// so API keys and tokens in the maintainer's shell never reach a solution.
+const HIDDEN_ENV_KEYS = ['PATH', 'SystemRoot', 'TEMP', 'TMP', 'TMPDIR']
+const NPM_ENV_KEYS = [...HIDDEN_ENV_KEYS, 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemDrive', 'ComSpec', 'PATHEXT']
+const pickEnv = (keys, env) => Object.fromEntries(keys.filter(k => env[k] !== undefined).map(k => [k, env[k]]))
+
+export function hiddenEnv(dir, env = process.env) {
+  return { ...pickEnv(HIDDEN_ENV_KEYS, env), TARGET_DIR: dir }
+}
+
 export function hiddenTests(task, dir) {
   const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', join(BENCH, 'hidden', `${task}.test.mjs`)], {
-    env: { ...process.env, TARGET_DIR: dir }, encoding: 'utf8', timeout: 300_000, windowsHide: true,
+    env: hiddenEnv(dir), encoding: 'utf8', timeout: 300_000, windowsHide: true,
   })
   const tap = `${r.stdout ?? ''}\n${r.stderr ?? ''}`
   const counts = parseTap(r.stdout ?? '')
   return { ...counts, rate: counts.tests ? counts.pass / counts.tests : 0, tap }
 }
 
-function ownTests(dir) {
+export function ownTests(dir, env = process.env) {
   const pkgPath = join(dir, 'package.json')
   if (!existsSync(pkgPath)) return { hasScript: false, passed: false }
   let pkg
   try { pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) } catch { return { hasScript: false, passed: false } }
   if (!pkg.scripts?.test) return { hasScript: false, passed: false }
-  const r = spawnSync('npm', ['test'], { cwd: dir, encoding: 'utf8', timeout: 300_000, shell: true, windowsHide: true })
+  const r = spawnSync('npm test', { cwd: dir, env: pickEnv(NPM_ENV_KEYS, env), encoding: 'utf8', timeout: 300_000, shell: true, windowsHide: true })
   const counts = parseTap(r.stdout ?? '')
   const specPass = Number(((r.stdout ?? '').match(/ℹ pass (\d+)/) ?? [])[1] ?? 0)
   const specFail = Number(((r.stdout ?? '').match(/ℹ fail (\d+)/) ?? [])[1] ?? 0)

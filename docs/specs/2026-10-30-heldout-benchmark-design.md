@@ -35,7 +35,7 @@ H2 and H3 are chosen so the hidden tests can separate the setups. On the old tas
 - `anonymize.mjs`: the same `--tasks=` and `--reps=`; for a seeded task it also copies the untouched seed into `<pair>/SEED/` so judges can see what the run changed.
 - `aggregate.mjs`: task order includes `h1`–`h3`.
 - `judge.mjs` (new): runs one blind judge per pair as a headless `claude -p --model claude-opus-5-5` session in the anonymized folder with `bench/judge-prompt.md`, and appends its JSON to `results/judge-<round>.json` in the format `judgeScores` already reads (`pair`, `X`, `Y`, `ranking`, `notes`). Resumable like `run.mjs`.
-- `bench/judge-prompt.md` (new): the judge prompt, committed this time. Same 5 dimensions (correctness, code quality, tests, robustness/security, docs/usability, 1–10) plus overall and a ranking; judges may run tests and probes in a `mktemp -d` folder they delete by exact path.
+- `bench/judge-prompt.md` (new): the judge prompt, committed this time. Same 5 dimensions (correctness, code quality, tests, robustness/security, docs/usability, 1–10) plus overall and a ranking; judges may run tests, and put probes only in an empty `scratch/` folder. Each judge works in its own temp copy of the pair, which the harness deletes afterwards; judges get no `rm`. They keep `node` and `npm` to run the solutions' tests, which means running untrusted code; the write-up lists that as a limit.
 - `gate-stats.mjs` (new): see below.
 - Existing tests in `bench/*.test.mjs` keep passing; new parsing code gets tests.
 

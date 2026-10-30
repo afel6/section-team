@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { anonymize } from './anonymize.mjs'
+import { fileURLToPath } from 'node:url'
+import { anonymize, judgeDirFor } from './anonymize.mjs'
 
 // Fresh results/, judge/ and seeds/ folders under one temp root, removed after the test.
 function sandbox(t) {
@@ -78,4 +80,37 @@ test('a run.json without a run folder names the file', t => {
   const box = sandbox(t)
   put(join(box.results, 'h2-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h2-team-ho-r1' }))
   assert.throws(() => anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 1, ...box }), /h2-team-ho-r1/)
+})
+
+test('judgeDirFor is ~/bench-judge or ~/bench-judge-<round>, and refuses a round that could leave the home folder', () => {
+  const home = join(tmpdir(), 'home')
+  assert.equal(judgeDirFor('ho', home), join(home, 'bench-judge-ho'))
+  assert.equal(judgeDirFor('', home), join(home, 'bench-judge'))
+  for (const bad of ['x/..', '..', 'x\\..\\..', 'a b', '-x']) assert.throws(() => judgeDirFor(bad, home), /round/, bad)
+})
+
+// The CLI deletes the judge folder first; with --round=x/.. that folder would be the home folder itself.
+test('the CLI refuses --round=x/.. and deletes nothing', t => {
+  const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  put(join(home, 'keep.txt'))
+  const cli = join(dirname(fileURLToPath(import.meta.url)), 'anonymize.mjs')
+  const res = spawnSync(process.execPath, [cli, '--round=x/..'], { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  assert.equal(res.status, 1)
+  assert.match(res.stderr, /round/)
+  assert.ok(existsSync(join(home, 'keep.txt')), 'home folder untouched')
+})
+
+test('a relative symlink in a run stays relative, so it never points back into the run folder', t => {
+  const box = sandbox(t)
+  fakeH2Run(box)
+  try {
+    symlinkSync('app.mjs', join(box.root, 'run', 'link.mjs'), 'file')
+  } catch (err) {
+    if (err.code === 'EPERM') return t.skip('no permission to make symlinks here')
+    throw err
+  }
+  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 1, ...box })
+  const label = Object.keys(key['h2-r1']).find(l => key['h2-r1'][l] === 'team-ho')
+  assert.equal(readlinkSync(join(box.judgeDir, 'h2-r1', label, 'link.mjs')), 'app.mjs')
 })
