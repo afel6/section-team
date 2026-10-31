@@ -135,6 +135,52 @@ test('lean tiers keep tests with the supervisor and builders, and testing for th
   }
 })
 
+// Lean and Max differ from Balanced only in the mode table's rules, so Balanced's other tier rules must stay in both.
+test('lean and max tiers keep the balanced tier rules that do not depend on the mode', () => {
+  const balanced = lines(part('tiers-balanced'))
+  const advisor = balanced.find(line => line.startsWith('- An AI or data decision'))
+  const plan = balanced.find(line => line.startsWith('- 3 or more distinct builders'))
+  assert.ok(advisor !== undefined && plan !== undefined, 'tiers-balanced lacks the advisor or the plan rule')
+  const maxPlan = plan.replace('docs and advisors', 'docs, the security pass and advisors')
+  assert.notEqual(maxPlan, plan, 'the plan rule in tiers-balanced no longer says "docs and advisors"')
+  const shared = [
+    'one kind of work (a CLI, an API, a library, a page, a schema)',
+    'up to about 600 lines of new code',
+    'run the reviewer gate on your changed files',
+    'When unsure between this and waking sections for one area, do this.',
+    'Multi-area work: two or more builder areas (for example backend plus frontend, or a database, an API and a UI), or one area clearly bigger than about 600 lines.',
+    'Wake each needed builder',
+    'Do not build multi-area work yourself, even when the plan is pre-approved.',
+    'Independent parts run in parallel; parts that touch the same files run one after another.',
+  ]
+  for (const text of shared) assert.ok(balanced.some(line => line.includes(text)), `tiers-balanced lacks "${text.slice(0, 60)}"`)
+  const own = {
+    lean: {
+      wholeLines: [advisor, plan],
+      phrases: ['add the docs section when the task asks for docs or a README'],
+    },
+    max: {
+      wholeLines: [advisor, maxPlan],
+      phrases: [
+        'about 50 lines of new code or less',
+        'build it and its tests yourself',
+        'Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.',
+        'A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature.',
+        'build the code yourself (and any README it asks for)',
+        "(give it the files, the behaviour to cover and the spec's edge cases, and ask it to probe every spec line)",
+        'run the reviewer gate on your own changed files before you call it done; testing gates its own test files.',
+        'Wake no other builder section.',
+      ],
+    },
+  }
+  for (const mode of ['lean', 'max']) {
+    const tiers = part(`tiers-${mode}`)
+    const tierLines = lines(tiers)
+    for (const line of own[mode].wholeLines) assert.ok(tierLines.includes(line), `tiers-${mode} lacks the whole line "${line.slice(0, 60)}"`)
+    for (const text of [...shared, ...own[mode].phrases]) assert.ok(tiers.includes(text), `tiers-${mode} lacks "${text.slice(0, 60)}"`)
+  }
+})
+
 test('lean and max briefs end the gate with the job-message rule', () => {
   for (const mode of ['lean', 'max']) {
     assert.ok(assembleBrief(mode).includes(JOB_GATE), `${mode} brief lacks the rule`)
