@@ -18,7 +18,7 @@ node --test bench/*.test.mjs
 ```
 
 ## How the code is organised
-- `brief/supervisor.md` is the supervisor's instructions, injected at session start.
+- `brief/` holds the supervisor's instructions: `core.md` with the `{{TIERS}}` and `{{GATE}}` markers, filled from `tiers-<mode>.md` and `gate-<mode>.md` by `hooks/lib/brief.mjs` and injected at session start. The Balanced brief must stay equal to `tests/fixtures/supervisor-v0.1.1.md`.
 - `agents/*.md` are generated. Never edit them by hand: change the roster or the shared text in `scripts/gen-agents.mjs`, then run `node scripts/gen-agents.mjs`.
 - `hooks/` holds the hooks (session start, the handback gate, report saving) and the Team Board (`hooks/register.tsx`).
 - `skills/add-skill/` is the procedure for reviewing and installing a skill from GitHub.

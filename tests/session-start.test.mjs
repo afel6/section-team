@@ -6,11 +6,11 @@ import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { buildContext } from '../hooks/session-start.mjs'
+import { assembleBrief } from '../hooks/lib/brief.mjs'
 import { writeReport, excludeFile } from '../hooks/lib/paths.mjs'
 import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.url))
-const BRIEF = fileURLToPath(new URL('../brief/supervisor.md', import.meta.url))
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
 const repo = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -21,13 +21,13 @@ const repo = () => {
 const run = input => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
 
 test('brief starts with the marker and fits the limit', () => {
-  const brief = readFileSync(BRIEF, 'utf8')
+  const brief = assembleBrief('balanced')
   assert.ok(brief.startsWith('[section-team supervisor]'))
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
 test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders plus testing', () => {
-  const brief = readFileSync(BRIEF, 'utf8')
+  const brief = assembleBrief('balanced')
   assert.ok(brief.includes('Single-area task'))
   assert.ok(brief.includes('about 600 lines'))
   assert.ok(brief.includes('build the code yourself'))
@@ -54,7 +54,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
 })
 
 test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
-  const brief = readFileSync(BRIEF, 'utf8')
+  const brief = assembleBrief('balanced')
   assert.ok(brief.includes('testing, docs and advisors not counted'))
 })
 

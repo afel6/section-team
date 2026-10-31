@@ -69,7 +69,8 @@ export function parseModeFile(text) {
   return { mode, autoInstallSkills, problem: faults.length === 0 ? null : `${FILE}: ${faults.join('; ')}` }
 }
 
-function assertMode(mode) {
+// Throws one plain line unless mode is one of MODES.
+export function assertMode(mode) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: pick lean, balanced or max`)
 }
 

@@ -1,11 +1,7 @@
-import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { assembleBrief } from './lib/brief.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
-
-const HERE = dirname(fileURLToPath(import.meta.url))
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
 export const AUTO_INSTALL_ENV = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
@@ -25,7 +21,7 @@ function attempt(label, fn) {
 }
 
 export function buildContext(cwd, home = homedir(), env = process.env) {
-  const base = readFileSync(join(HERE, '..', 'brief', 'supervisor.md'), 'utf8').trim()
+  const base = assembleBrief('balanced')
   const brief = env[AUTO_INSTALL_ENV] === '1' ? `${base}
 
 ${AUTO_INSTALL_NOTE}` : base
