@@ -145,7 +145,7 @@ export async function runJobs(jobs, { rows, call, rowsPath, rawDir, log }) {
   return failed
 }
 
-const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
+export const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
 export function prepareJob(job, judgeDir, template) {
   const source = join(judgeDir, job.pair)
