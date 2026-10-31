@@ -166,3 +166,20 @@ test('gateStats names the file when a run.json is not valid', () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+// A background section agent ends with a SubagentHandback tool call whose `message` is its answer (seen in the
+// 2026-10-31 held-out runs); the GRADE block lives there, not in a text part.
+test('gateSequences reads the GRADE from a background reviewer\'s SubagentHandback message', () => {
+  const handback = body => ({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }, { type: 'tool_use', name: 'SubagentHandback', input: { message: body } }] } })
+  const roles = [
+    reviewer('r1', null, '2026-10-31T20:00:00Z', text('Reading the diff.'), toolUse(), handback(`Done.\n\n${grade(9, 'pass')}`)),
+    reviewer('r2', 'b1', '2026-10-31T20:01:00Z', handback(`Fixes needed.\n${grade(6, 'fail')}`), text('ok')),
+  ]
+  assert.deepEqual(gateSequences(roles), { main: [pass], b1: [fail] })
+})
+
+test('the last handback is the answer, even when a plain-text message with another GRADE follows it', () => {
+  const handback = body => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'SubagentHandback', input: { message: body } }] } })
+  const roles = [reviewer('r1', null, '2026-10-31T20:00:00Z', handback(grade(6, 'fail')), handback(grade(9, 'pass')), text(grade(5, 'fail')))]
+  assert.deepEqual(gateSequences(roles), { main: [pass] })
+})

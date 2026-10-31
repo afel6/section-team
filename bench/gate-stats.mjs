@@ -32,6 +32,13 @@ const textOf = content => {
   return Array.isArray(content) ? content.filter(part => part?.type === 'text').map(part => part.text).join('\n') : ''
 }
 const lastAssistantText = messages => textOf(messages.findLast(m => m?.type === 'assistant')?.message?.content)
+const handbackOf = m => (Array.isArray(m?.message?.content) ? m.message.content.find(p => p?.type === 'tool_use' && p.name === 'SubagentHandback') : undefined)
+// A reviewer's answer: a background agent hands it back as the message of a SubagentHandback call; otherwise it is
+// the text of its last assistant message.
+const reviewerAnswer = messages => {
+  const handback = handbackOf(messages.findLast(m => m?.type === 'assistant' && handbackOf(m)))
+  return handback ? String(handback.input?.message ?? '') : lastAssistantText(messages)
+}
 const startTime = role => { const t = Date.parse(role.start ?? ''); return Number.isNaN(t) ? Infinity : t }
 
 // { <caller>: [grade | null] } in start order; caller is the agent that hired the reviewer, 'main' at depth 1.
@@ -39,7 +46,7 @@ export function gateSequences(roles) {
   const reviews = roles.filter(r => r.role === REVIEWER).toSorted((a, b) => (startTime(a) - startTime(b)) || 0)
   return reviews.reduce((acc, r) => {
     const caller = r.parentId ?? 'main'
-    return { ...acc, [caller]: [...(acc[caller] ?? []), parseGrade(lastAssistantText(r.messages))] }
+    return { ...acc, [caller]: [...(acc[caller] ?? []), parseGrade(reviewerAnswer(r.messages))] }
   }, {})
 }
 
