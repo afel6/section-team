@@ -1,0 +1,346 @@
+[
+  {
+    "id": "h1-team-ho-r1",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "ae12abc01906951bb": [
+        {
+          "overall": 8,
+          "verdict": "pass"
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "ae12abc01906951bb": {
+        "overall": 8,
+        "verdict": "pass"
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h1-team-ho-r2",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "ac76a2d21a98a7f8d": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "ac76a2d21a98a7f8d": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h1-team-ho-r3",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "a932659f6ee1f3111": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "a932659f6ee1f3111": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h2-team-ho-r1",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 7,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h2-team-ho-r2",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "a486f6e3a00750941": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "a486f6e3a00750941": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h2-team-ho-r3",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9.4,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9.4,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h3-team-ho-r1",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "main": [
+        {
+          "overall": 7,
+          "verdict": "fail"
+        },
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "a651ab4d808f00db5": [
+        {
+          "overall": 8,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "a651ab4d808f00db5": {
+        "overall": 8,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h3-team-ho-r2",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "a93b31e619a248514": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "a93b31e619a248514": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h3-team-ho-r3",
+    "partial": 0,
+    "blocked": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ],
+      "afea0f2c522380071": [
+        {
+          "overall": 9,
+          "verdict": "pass"
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass"
+      },
+      "afea0f2c522380071": {
+        "overall": 9,
+        "verdict": "pass"
+      }
+    },
+    "gateMisses": []
+  }
+]
