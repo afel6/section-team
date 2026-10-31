@@ -7,9 +7,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { RESULTS } from './run.mjs'
+import { RESULTS, parseArgs } from './run.mjs'
 
 const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
+const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'all']
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const round = (n, d = 2) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d)
 
@@ -62,16 +63,22 @@ export function composite(rows, judged) {
   })
 }
 
-function main() {
-  const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
-  // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
-  const roundTag = process.argv.slice(2).find(a => a.startsWith('--round='))?.slice(8) ?? ''
+// The round's judge scores per run id ({} before judging); a judge file without its blind key names the step to run.
+export function loadJudged(results, roundTag) {
   const suffix = roundTag ? `-${roundTag}` : ''
-  const judgePath = join(RESULTS, `judge${suffix}.json`)
-  const judged = existsSync(judgePath)
-    ? judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(join(RESULTS, `blind-key${suffix}.json`), 'utf8')))
-    : {}
-  const graded = composite(rows, judged)
+  const judgePath = join(results, `judge${suffix}.json`)
+  const keyPath = join(results, `blind-key${suffix}.json`)
+  if (!existsSync(judgePath)) return {}
+  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
+  return judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
+}
+
+function main() {
+  // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
+  const { round: roundTag } = parseArgs(process.argv.slice(2))
+  const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
+  const suffix = roundTag ? `-${roundTag}` : ''
+  const graded = composite(rows, loadJudged(RESULTS, roundTag))
   const groups = {}
   for (const r of graded) for (const k of [`${r.task}|${r.cond}`, `all|${r.cond}`]) (groups[k] ??= []).push(r)
   const table = Object.entries(groups).map(([k, rs]) => {
@@ -93,11 +100,19 @@ function main() {
       grade: round(mean(rs.map(r => r.grade.total)), 1),
       timeouts: rs.filter(r => r.timedOut).length,
     }
-  }).sort((a, b) => ['easy', 'medium', 'hard', 'all'].indexOf(a.task) - ['easy', 'medium', 'hard', 'all'].indexOf(b.task) || a.cond.localeCompare(b.cond))
+  }).sort((a, b) => TASK_ORDER.indexOf(a.task) - TASK_ORDER.indexOf(b.task) || a.cond.localeCompare(b.cond))
   writeFileSync(join(RESULTS, `report-data${suffix}.json`), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
   const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'opusSharePct', 'grade', 'timeouts']
   console.log(`| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`)
   for (const row of table) console.log(`| ${cols.map(c => row[c] ?? '–').join(' | ')} |`)
 }
 
-if (isMainModule(import.meta.url)) main()
+// One plain line and exit 1 on any failure; a missing input names the step that makes it.
+if (isMainModule(import.meta.url)) {
+  try {
+    main()
+  } catch (err) {
+    console.error(`aggregate: ${err.code === 'ENOENT' ? `missing ${err.path}: run node bench/score.mjs first` : err.message}`)
+    process.exitCode = 1
+  }
+}

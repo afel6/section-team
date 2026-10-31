@@ -1,0 +1,1370 @@
+[
+  {
+    "id": "h1-solo-ho-r1",
+    "task": "h1",
+    "cond": "solo-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 274184,
+    "costUSD": 1.1351145999999999,
+    "tokens": {
+      "input": 37,
+      "output": 18372,
+      "cacheRead": 1342530,
+      "cacheWrite": 78185,
+      "total": 1439124
+    },
+    "turns": 28,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "sonnet": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 33,
+        "output": 16382,
+        "cacheRead": 1326911,
+        "cacheWrite": 59096,
+        "costUSD": 1.0659222
+      },
+      "claude-sonnet-5-5": {
+        "input": 4,
+        "output": 1990,
+        "cacheRead": 15619,
+        "cacheWrite": 19089,
+        "costUSD": 0.0691924
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1386040
+      },
+      "code-reviewer": {
+        "sonnet": 34712
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0,
+        "sonnet": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 17,
+      "fail": 0
+    },
+    "code": {
+      "files": 2,
+      "lines": 127,
+      "testFiles": 1,
+      "testLines": 152,
+      "docsLines": 57
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h1-solo-ho-r2",
+    "task": "h1",
+    "cond": "solo-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 130311,
+    "costUSD": 0.6575900000000001,
+    "tokens": {
+      "input": 13,
+      "output": 9361,
+      "cacheRead": 434590,
+      "cacheWrite": 47925,
+      "total": 491889
+    },
+    "turns": 10,
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 13,
+        "output": 9361,
+        "cacheRead": 434590,
+        "cacheWrite": 47925,
+        "costUSD": 0.6575900000000001
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 482528
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 22,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 118,
+      "testFiles": 1,
+      "testLines": 156,
+      "docsLines": 57
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h1-solo-ho-r3",
+    "task": "h1",
+    "cond": "solo-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 196029,
+    "costUSD": 0.8033378,
+    "tokens": {
+      "input": 21,
+      "output": 13240,
+      "cacheRead": 599713,
+      "cacheWrite": 68393,
+      "total": 681367
+    },
+    "turns": 14,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 17,
+        "output": 10815,
+        "cacheRead": 584300,
+        "cacheWrite": 49696,
+        "costUSD": 0.730796
+      },
+      "claude-sonnet-5-5": {
+        "input": 4,
+        "output": 2425,
+        "cacheRead": 15413,
+        "cacheWrite": 18697,
+        "costUSD": 0.07254179999999999
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 634013
+      },
+      "code-reviewer": {
+        "sonnet": 34114
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0,
+        "sonnet": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 18,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 121,
+      "testFiles": 1,
+      "testLines": 144,
+      "docsLines": 59
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h1-team-ho-r1",
+    "task": "h1",
+    "cond": "team-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 618084,
+    "costUSD": 2.1651866,
+    "tokens": {
+      "input": 62,
+      "output": 28898,
+      "cacheRead": 1714373,
+      "cacheWrite": 200432,
+      "total": 1943765
+    },
+    "turns": 12,
+    "agentSpawns": 3,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 2
+    },
+    "agentModels": {
+      "inherit": 3
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 62,
+        "output": 28898,
+        "cacheRead": 1714373,
+        "cacheWrite": 200432,
+        "costUSD": 2.1651866
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 827078
+      },
+      "section-team:reviewer": {
+        "opus": 117435
+      },
+      "section-team:testing": {
+        "opus": 970354
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 108,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 131,
+      "testFiles": 1,
+      "testLines": 211,
+      "docsLines": 60
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h1-team-ho-r2",
+    "task": "h1",
+    "cond": "team-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 465640,
+    "costUSD": 2.1886436000000007,
+    "tokens": {
+      "input": 70,
+      "output": 34870,
+      "cacheRead": 2145148,
+      "cacheWrite": 176853,
+      "total": 2356941
+    },
+    "turns": 14,
+    "agentSpawns": 2,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 2
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 70,
+        "output": 34870,
+        "cacheRead": 2145148,
+        "cacheWrite": 176853,
+        "costUSD": 2.1886436000000007
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1538457
+      },
+      "section-team:reviewer": {
+        "opus": 77100
+      },
+      "section-team:testing": {
+        "opus": 706514
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 145,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 123,
+      "testFiles": 1,
+      "testLines": 245,
+      "docsLines": 59
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h1-team-ho-r3",
+    "task": "h1",
+    "cond": "team-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 540140,
+    "costUSD": 1.9126530000000004,
+    "tokens": {
+      "input": 56,
+      "output": 29538,
+      "cacheRead": 1512440,
+      "cacheWrite": 172110,
+      "total": 1714144
+    },
+    "turns": 10,
+    "agentSpawns": 3,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 2
+    },
+    "agentModels": {
+      "inherit": 3
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 56,
+        "output": 29538,
+        "cacheRead": 1512440,
+        "cacheWrite": 172110,
+        "costUSD": 1.9126530000000004
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 592699
+      },
+      "section-team:testing": {
+        "opus": 982348
+      },
+      "section-team:reviewer": {
+        "opus": 109559
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 147,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 130,
+      "testFiles": 1,
+      "testLines": 252,
+      "docsLines": 55
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h2-solo-ho-r1",
+    "task": "h2",
+    "cond": "solo-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 155884,
+    "costUSD": 0.8296576,
+    "tokens": {
+      "input": 24,
+      "output": 7986,
+      "cacheRead": 943968,
+      "cacheWrite": 60131,
+      "total": 1012109
+    },
+    "turns": 21,
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 24,
+        "output": 7986,
+        "cacheRead": 943968,
+        "cacheWrite": 60131,
+        "costUSD": 0.8296576
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1004123
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 37,
+      "fail": 0
+    },
+    "code": {
+      "files": 6,
+      "lines": 320,
+      "testFiles": 6,
+      "testLines": 361,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h2-solo-ho-r2",
+    "task": "h2",
+    "cond": "solo-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 188398,
+    "costUSD": 0.9469666999999999,
+    "tokens": {
+      "input": 32,
+      "output": 9794,
+      "cacheRead": 1074777,
+      "cacheWrite": 83113,
+      "total": 1167716
+    },
+    "turns": 25,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "sonnet": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 26,
+        "output": 8909,
+        "cacheRead": 1040610,
+        "cacheWrite": 61909,
+        "costUSD": 0.8816779999999999
+      },
+      "claude-sonnet-5-5": {
+        "input": 6,
+        "output": 885,
+        "cacheRead": 34167,
+        "cacheWrite": 21204,
+        "costUSD": 0.0652887
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1102545
+      },
+      "code-reviewer": {
+        "sonnet": 55377
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0,
+        "sonnet": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 38,
+      "fail": 0
+    },
+    "code": {
+      "files": 6,
+      "lines": 318,
+      "testFiles": 6,
+      "testLines": 361,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h2-solo-ho-r3",
+    "task": "h2",
+    "cond": "solo-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 116491,
+    "costUSD": 0.7856184,
+    "tokens": {
+      "input": 23,
+      "output": 7169,
+      "cacheRead": 881092,
+      "cacheWrite": 58241,
+      "total": 946525
+    },
+    "turns": 16,
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 23,
+        "output": 7169,
+        "cacheRead": 881092,
+        "cacheWrite": 58241,
+        "costUSD": 0.7856184
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 939356
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 35,
+      "fail": 0
+    },
+    "code": {
+      "files": 5,
+      "lines": 315,
+      "testFiles": 5,
+      "testLines": 343,
+      "docsLines": 57
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h2-team-ho-r1",
+    "task": "h2",
+    "cond": "team-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 208197,
+    "costUSD": 1.1302470000000002,
+    "tokens": {
+      "input": 38,
+      "output": 11670,
+      "cacheRead": 1303695,
+      "cacheWrite": 87518,
+      "total": 1402921
+    },
+    "turns": 18,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "section-team:reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 38,
+        "output": 11670,
+        "cacheRead": 1303695,
+        "cacheWrite": 87518,
+        "costUSD": 1.1302470000000002
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1326705
+      },
+      "section-team:reviewer": {
+        "opus": 64546
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 39,
+      "fail": 0
+    },
+    "code": {
+      "files": 6,
+      "lines": 322,
+      "testFiles": 6,
+      "testLines": 373,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h2-team-ho-r2",
+    "task": "h2",
+    "cond": "team-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 325059,
+    "costUSD": 1.9705334000000003,
+    "tokens": {
+      "input": 65,
+      "output": 21068,
+      "cacheRead": 1874142,
+      "cacheWrite": 190105,
+      "total": 2085380
+    },
+    "turns": 16,
+    "agentSpawns": 2,
+    "agentTypes": {
+      "section-team:reviewer": 1,
+      "section-team:testing": 1
+    },
+    "agentModels": {
+      "inherit": 2
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 65,
+        "output": 21068,
+        "cacheRead": 1874142,
+        "cacheWrite": 190105,
+        "costUSD": 1.9705334000000003
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1420679
+      },
+      "section-team:reviewer": {
+        "opus": 115159
+      },
+      "section-team:testing": {
+        "opus": 528474
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 43,
+      "fail": 0
+    },
+    "code": {
+      "files": 6,
+      "lines": 321,
+      "testFiles": 6,
+      "testLines": 407,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h2-team-ho-r3",
+    "task": "h2",
+    "cond": "team-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 204451,
+    "costUSD": 1.1347343999999997,
+    "tokens": {
+      "input": 36,
+      "output": 12009,
+      "cacheRead": 1236647,
+      "cacheWrite": 89383,
+      "total": 1338075
+    },
+    "turns": 21,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "section-team:reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 36,
+        "output": 12009,
+        "cacheRead": 1236647,
+        "cacheWrite": 89383,
+        "costUSD": 1.1347343999999997
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1257956
+      },
+      "section-team:reviewer": {
+        "opus": 68110
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 39,
+      "fail": 0
+    },
+    "code": {
+      "files": 6,
+      "lines": 321,
+      "testFiles": 6,
+      "testLines": 387,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h3-solo-ho-r1",
+    "task": "h3",
+    "cond": "solo-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 175241,
+    "costUSD": 0.8779568000000001,
+    "tokens": {
+      "input": 28,
+      "output": 14302,
+      "cacheRead": 836213,
+      "cacheWrite": 75368,
+      "total": 925911
+    },
+    "turns": 15,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "sonnet": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 22,
+        "output": 10939,
+        "cacheRead": 797915,
+        "cacheWrite": 49748,
+        "costUSD": 0.776435
+      },
+      "claude-sonnet-5-5": {
+        "input": 6,
+        "output": 3363,
+        "cacheRead": 38298,
+        "cacheWrite": 25620,
+        "costUSD": 0.1015218
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 847685
+      },
+      "code-reviewer": {
+        "sonnet": 63924
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0,
+        "sonnet": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 18,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 140,
+      "testFiles": 1,
+      "testLines": 161,
+      "docsLines": 58
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h3-solo-ho-r2",
+    "task": "h3",
+    "cond": "solo-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 98887,
+    "costUSD": 0.596377,
+    "tokens": {
+      "input": 11,
+      "output": 8460,
+      "cacheRead": 358465,
+      "cacheWrite": 44430,
+      "total": 411366
+    },
+    "turns": 8,
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 11,
+        "output": 8460,
+        "cacheRead": 358465,
+        "cacheWrite": 44430,
+        "costUSD": 0.596377
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 402906
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 15,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 125,
+      "testFiles": 1,
+      "testLines": 124,
+      "docsLines": 40
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h3-solo-ho-r3",
+    "task": "h3",
+    "cond": "solo-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 245193,
+    "costUSD": 1.0963386000000002,
+    "tokens": {
+      "input": 28,
+      "output": 21565,
+      "cacheRead": 932527,
+      "cacheWrite": 76931,
+      "total": 1031051
+    },
+    "turns": 20,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "sonnet": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 24,
+        "output": 18975,
+        "cacheRead": 917214,
+        "cacheWrite": 57006,
+        "costUSD": 1.0190868000000002
+      },
+      "claude-sonnet-5-5": {
+        "input": 4,
+        "output": 2590,
+        "cacheRead": 15313,
+        "cacheWrite": 19925,
+        "costUSD": 0.0772518
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 974244
+      },
+      "code-reviewer": {
+        "sonnet": 35242
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0,
+        "sonnet": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 23,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 152,
+      "testFiles": 1,
+      "testLines": 202,
+      "docsLines": 65
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    }
+  },
+  {
+    "id": "h3-team-ho-r1",
+    "task": "h3",
+    "cond": "team-ho",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 381660,
+    "costUSD": 2.1379494000000006,
+    "tokens": {
+      "input": 63,
+      "output": 37149,
+      "cacheRead": 1500662,
+      "cacheWrite": 184573,
+      "total": 1722447
+    },
+    "turns": 7,
+    "agentSpawns": 3,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 2
+    },
+    "agentModels": {
+      "inherit": 3
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 63,
+        "output": 37149,
+        "cacheRead": 1500662,
+        "cacheWrite": 184573,
+        "costUSD": 2.1379494000000006
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 823347
+      },
+      "section-team:testing": {
+        "opus": 701943
+      },
+      "section-team:reviewer": {
+        "opus": 160008
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 99,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 177,
+      "testFiles": 2,
+      "testLines": 425,
+      "docsLines": 70
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h3-team-ho-r2",
+    "task": "h3",
+    "cond": "team-ho",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 377727,
+    "costUSD": 1.8690252000000003,
+    "tokens": {
+      "input": 58,
+      "output": 32772,
+      "cacheRead": 1659691,
+      "cacheWrite": 142935,
+      "total": 1835456
+    },
+    "turns": 6,
+    "agentSpawns": 2,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 2
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 58,
+        "output": 32772,
+        "cacheRead": 1659691,
+        "cacheWrite": 142935,
+        "costUSD": 1.8690252000000003
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 844668
+      },
+      "section-team:testing": {
+        "opus": 872133
+      },
+      "section-team:reviewer": {
+        "opus": 85883
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 93,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 155,
+      "testFiles": 1,
+      "testLines": 399,
+      "docsLines": 57
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  },
+  {
+    "id": "h3-team-ho-r3",
+    "task": "h3",
+    "cond": "team-ho",
+    "rep": 3,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 333292,
+    "costUSD": 2.3064678,
+    "tokens": {
+      "input": 74,
+      "output": 37551,
+      "cacheRead": 2113424,
+      "cacheWrite": 187338,
+      "total": 2338387
+    },
+    "turns": 7,
+    "agentSpawns": 2,
+    "agentTypes": {
+      "section-team:testing": 1,
+      "section-team:reviewer": 1
+    },
+    "agentModels": {
+      "inherit": 2
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 74,
+        "output": 37551,
+        "cacheRead": 2113424,
+        "cacheWrite": 187338,
+        "costUSD": 2.3064678
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 1376249
+      },
+      "section-team:reviewer": {
+        "opus": 125497
+      },
+      "section-team:testing": {
+        "opus": 799090
+      }
+    },
+    "splitCoverage": {
+      "complete": true,
+      "unattributed": {
+        "opus": 0
+      }
+    },
+    "hidden": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "rate": 1
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 114,
+      "fail": 0
+    },
+    "code": {
+      "files": 1,
+      "lines": 160,
+      "testFiles": 1,
+      "testLines": 408,
+      "docsLines": 67
+    },
+    "team": {
+      "reports": 1,
+      "sections": {
+        "testing": 1
+      },
+      "summaries": 1
+    }
+  }
+]

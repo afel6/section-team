@@ -25,4 +25,4 @@ jobs:
       - name: Agent files match the generator
         run: node scripts/gen-agents.mjs --check
       - name: Benchmark scorer tests
-        run: node --test bench/aggregate.test.mjs bench/score.test.mjs
+        run: node --test bench/*.test.mjs

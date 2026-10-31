@@ -15,7 +15,7 @@ Measured over 17 benchmark rounds (three tasks of rising size, two runs each, gr
 
 It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code.
 
-**Limits:** every setup, plain Claude Code included, passed all the hidden tests, so the gains are in blind-judged quality, not in whether the code works. Each cell is 2 runs (about ±0.3 judge noise), and the team was tuned over 17 rounds on these same three tasks, so expect smaller gains on real projects.
+**Limits:** every setup, plain Claude Code included, passed all the hidden tests, so the gains are in blind-judged quality, not in whether the code works. Each cell is 2 runs (about ±0.3 judge noise), and the team was tuned over 17 rounds on these same three tasks. A pre-registered held-out round on three new tasks it had never seen measured a smaller gain that still cleared the bar set in advance: blind judge quality 8.8 against 8.2 for plain Claude Code, both passing every hidden test, at about 2.2 times the cost ([details](docs/benchmark-heldout-2026-11.md)).
 
 **Method:** each round builds the same three tasks (a small library, a command-line tool and a web app) twice per setup. Hidden tests check correctness, then the solutions are anonymised and graded blind by Opus judges on correctness, code quality, tests, robustness and docs. The tasks, hidden tests, harness and scorer are in [`bench/`](bench/), and every round's raw scores and judge notes are in [`bench/data/`](bench/data/); a round runs real paid Claude sessions. Full results and every round's changes: [docs/benchmark-2026-10-24.md](docs/benchmark-2026-10-24.md) (final summary at the end).
 

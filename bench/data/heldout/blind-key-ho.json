@@ -1,0 +1,38 @@
+{
+  "h1-r1": {
+    "X": "team-ho",
+    "Y": "solo-ho"
+  },
+  "h1-r2": {
+    "X": "solo-ho",
+    "Y": "team-ho"
+  },
+  "h1-r3": {
+    "X": "team-ho",
+    "Y": "solo-ho"
+  },
+  "h2-r1": {
+    "X": "solo-ho",
+    "Y": "team-ho"
+  },
+  "h2-r2": {
+    "X": "team-ho",
+    "Y": "solo-ho"
+  },
+  "h2-r3": {
+    "X": "solo-ho",
+    "Y": "team-ho"
+  },
+  "h3-r1": {
+    "X": "team-ho",
+    "Y": "solo-ho"
+  },
+  "h3-r2": {
+    "X": "solo-ho",
+    "Y": "team-ho"
+  },
+  "h3-r3": {
+    "X": "team-ho",
+    "Y": "solo-ho"
+  }
+}

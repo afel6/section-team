@@ -82,11 +82,25 @@ export function splitCoverage(split, modelUsage) {
 }
 
 const readJsonl = path => readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
-const agentType = metaPath => { try { return JSON.parse(readFileSync(metaPath, 'utf8')).agentType ?? 'unknown' } catch { return 'unknown' } }
+// A missing or unreadable .meta.json leaves the agent as role 'unknown' with no parent.
+const readMeta = metaPath => { try { return JSON.parse(readFileSync(metaPath, 'utf8')) ?? {} } catch { return {} } }
+
+function subagentRole(subagents, name) {
+  const meta = readMeta(join(subagents, name.replace(/\.jsonl$/, '.meta.json')))
+  const messages = readJsonl(join(subagents, name))
+  return {
+    role: meta.agentType ?? 'unknown',
+    agentId: name.replace(/^agent-/, '').replace(/\.jsonl$/, ''),
+    parentId: meta.parentAgentId ?? null,
+    start: messages[0]?.timestamp ?? null,
+    messages,
+  }
+}
 
 // Reads a run's session transcript and every subagent transcript (background heads and their depth-2 helpers are only here, not in raw.json):
 // ~/.claude/projects/<run dir with every non-alphanumeric as '-'>/<session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType).
 // Returns [{ role, messages }] with the session as 'main', or null when the session file is missing.
+// Each subagent entry also has agentId (from agent-<id>.jsonl), parentId (meta.parentAgentId, null at depth 1) and start (first message's timestamp or null).
 export function collectRoles(runDir, sessionId, home = homedir()) {
   const project = join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
   const sessionFile = join(project, `${sessionId}.jsonl`)
@@ -95,7 +109,7 @@ export function collectRoles(runDir, sessionId, home = homedir()) {
   const files = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
   return [
     { role: 'main', messages: readJsonl(sessionFile) },
-    ...files.map(name => ({ role: agentType(join(subagents, name.replace(/\.jsonl$/, '.meta.json'))), messages: readJsonl(join(subagents, name)) })),
+    ...files.map(name => subagentRole(subagents, name)),
   ]
 }
 
@@ -108,22 +122,32 @@ export function parseTap(text) {
   return { tests: num('tests'), pass: num('pass'), fail: num('fail') }
 }
 
-function hiddenTests(task, dir) {
+// The hidden tests and the solution's own npm test both run solution code: give them only what node (and npm) needs,
+// so API keys and tokens in the maintainer's shell never reach a solution.
+const HIDDEN_ENV_KEYS = ['PATH', 'SystemRoot', 'TEMP', 'TMP', 'TMPDIR']
+const NPM_ENV_KEYS = [...HIDDEN_ENV_KEYS, 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemDrive', 'ComSpec', 'PATHEXT']
+const pickEnv = (keys, env) => Object.fromEntries(keys.filter(k => env[k] !== undefined).map(k => [k, env[k]]))
+
+export function hiddenEnv(dir, env = process.env) {
+  return { ...pickEnv(HIDDEN_ENV_KEYS, env), TARGET_DIR: dir }
+}
+
+export function hiddenTests(task, dir) {
   const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', join(BENCH, 'hidden', `${task}.test.mjs`)], {
-    env: { ...process.env, TARGET_DIR: dir }, encoding: 'utf8', timeout: 300_000, windowsHide: true,
+    env: hiddenEnv(dir), encoding: 'utf8', timeout: 300_000, windowsHide: true,
   })
   const tap = `${r.stdout ?? ''}\n${r.stderr ?? ''}`
   const counts = parseTap(r.stdout ?? '')
   return { ...counts, rate: counts.tests ? counts.pass / counts.tests : 0, tap }
 }
 
-function ownTests(dir) {
+export function ownTests(dir, env = process.env) {
   const pkgPath = join(dir, 'package.json')
   if (!existsSync(pkgPath)) return { hasScript: false, passed: false }
   let pkg
   try { pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) } catch { return { hasScript: false, passed: false } }
   if (!pkg.scripts?.test) return { hasScript: false, passed: false }
-  const r = spawnSync('npm', ['test'], { cwd: dir, encoding: 'utf8', timeout: 300_000, shell: true, windowsHide: true })
+  const r = spawnSync('npm test', { cwd: dir, env: pickEnv(NPM_ENV_KEYS, env), encoding: 'utf8', timeout: 300_000, shell: true, windowsHide: true })
   const counts = parseTap(r.stdout ?? '')
   const specPass = Number(((r.stdout ?? '').match(/ℹ pass (\d+)/) ?? [])[1] ?? 0)
   const specFail = Number(((r.stdout ?? '').match(/ℹ fail (\d+)/) ?? [])[1] ?? 0)
@@ -173,14 +197,31 @@ function main() {
     const metrics = { ...run, transcript, split, splitCoverage: splitCoverage(split, transcript.modelUsage), hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own, code: codeStats(run.dir), team: teamStats(run.dir) }
     writeFileSync(join(RESULTS, id, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
     rows.push(metrics)
-    console.log(`${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(run.wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${run.timedOut}`)
+    console.log(scoreLine(metrics))
   }
-  writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(r => ({
-    id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, wallMs: r.wallMs,
-    costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
-    agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
-    hidden: r.hidden, own: r.own, code: r.code, team: r.team,
-  })), null, 2) + '\n')
+  writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
-if (isMainModule(import.meta.url)) main()
+// A run whose CLI ended on an API error (usage limit, overload) still has a result, with is_error set: the line
+// says so, because such a run is rerun like a crash, not kept as a result.
+export function scoreLine({ id, hidden, own, transcript, wallMs, timedOut }) {
+  const error = transcript.isError ? '  API ERROR' : ''
+  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}${error}`
+}
+
+export const summaryRow = r => ({
+  id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, isError: r.transcript.isError === true, wallMs: r.wallMs,
+  costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
+  agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
+  hidden: r.hidden, own: r.own, code: r.code, team: r.team,
+})
+
+// One plain line and exit 1 on any failure; a missing input names the step that makes it.
+if (isMainModule(import.meta.url)) {
+  try {
+    main()
+  } catch (err) {
+    console.error(`score: ${err.code === 'ENOENT' ? `missing ${err.path}: run node bench/run.mjs first` : err.message}`)
+    process.exitCode = 1
+  }
+}
