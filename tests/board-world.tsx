@@ -23,8 +23,11 @@ export function world(on: On, now = 0) {
     // The status folder the /chats pane reads: file texts by name (mtimes by name, T0 when not given), a refusal, and what was asked of it.
     chats: { files: {} as Record<string, string>, mtimes: {} as Record<string, number>, deny: undefined as string | undefined, lists: 0, reads: [] as string[] },
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown,
-    // Where the session is, whether git finds a repository there, and the files on disk by path (a path holding text is a file, the folders above it exist).
-    cwd: 'C:/proj', projectRoot: 'C:/proj', gitExit: 0, disk: {} as Record<string, string>, descriptions: {} as Record<string, string | undefined>, toasts: [] as string[] }
+    // Where the session is, whether git finds a repository there and its root, and the files on disk by path (a path holding text is a file,
+    // the folders above it exist); denyModeRead refuses reading any mode.json.
+    cwd: 'C:/proj', projectRoot: 'C:/proj', gitExit: 0, gitRoot: 'C:/proj', disk: {} as Record<string, string>, denyModeRead: undefined as string | undefined,
+    holdModeRead: undefined as Promise<void> | undefined,
+    descriptions: {} as Record<string, string | undefined>, toasts: [] as string[] }
   const under = (path: string, dir: string) => path.startsWith(`${dir}/`)
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
@@ -53,7 +56,7 @@ export function world(on: On, now = 0) {
   on('turn.complete', async (_$, e) => ({ text: e.answer }))
   on('process.run', async (_$, e) => {
     seen.runs.push({ argv: e.argv, timeoutMs: e.init?.timeoutMs })
-    const stdout = seen.gitExit === 0 ? 'C:/proj/.git\n' : ''
+    const stdout = seen.gitExit === 0 ? `${seen.gitRoot}/.git\n` : ''
     return { value: { exitCode: seen.gitExit, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('command.register', async (_$, e) => {
@@ -77,6 +80,15 @@ export function world(on: On, now = 0) {
   on('fs.read', async (_$, e) => {
     const path = slashes(e.path)
     if (!path.startsWith(`${STATUS_DIR}/`)) {
+      if (seen.denyModeRead && path.endsWith('/mode.json')) return { deny: seen.denyModeRead }
+      const held = path.endsWith('/mode.json') ? seen.holdModeRead : undefined
+      if (held) {
+        // One mode read that answers late, with the text the file had when it was asked.
+        seen.holdModeRead = undefined
+        const text = seen.disk[path]
+        await held
+        return text === undefined ? { deny: 'ENOENT: no such file or directory' } : { value: text }
+      }
       if (path in seen.disk) return { value: seen.disk[path] }
       return path.endsWith('/mode.json') ? { deny: 'ENOENT: no such file or directory' } : { value: REPORT }
     }

@@ -20,7 +20,7 @@ export const MODE_LABELS = Object.freeze({
 
 // Where a project keeps its mode, relative to the project root.
 export const MODE_FILE = '.team/mode.json'
-const NOT_FOLDER = '.team is not a folder'
+export const NOT_FOLDER = '.team is not a folder'
 const codeOf = err => err?.code ?? 'unknown error'
 
 // Node's fs, loaded on first use: the board UI imports this module where Node APIs do not exist and never calls readMode or writeMode.
@@ -38,7 +38,7 @@ const withoutBom = text => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
 const noFile = () => ({ mode: DEFAULT_MODE, autoInstallSkills: null, problem: null, modeUsable: true })
 
 // The file's mode cannot be used, so Balanced stands in until the file is fixed.
-const balancedBecause = reason => ({
+export const balancedBecause = reason => ({
   mode: DEFAULT_MODE,
   autoInstallSkills: null,
   problem: `${MODE_FILE}: ${reason}, so Balanced is used`,
@@ -106,7 +106,7 @@ const teamIsNotFolder = root => {
   return info !== undefined && !info.isDirectory()
 }
 
-const readReason = err => (err?.code === 'ENOTDIR' ? NOT_FOLDER : `could not be read (${codeOf(err)})`)
+export const readReason = err => (err?.code === 'ENOTDIR' ? NOT_FOLDER : `could not be read (${codeOf(err)})`)
 
 function whenFileMissing(root) {
   try {

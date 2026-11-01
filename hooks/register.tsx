@@ -4,7 +4,7 @@ import type { BoardCard, BoardData, ChatCard, ChatsData, Mode, SessionState, Ses
 import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
-import { MODE_OPTIONS, modeSummary, savedLine, saveFailedLine, unknownModeLine } from './mode-lines.mjs'
+import { MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
 import { dashboardCards, HIDE_MS, parseStatus, statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -29,29 +29,47 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 // The git main root, as the command hooks find it; outside git, the session's project root, never the folder the session moved to.
-async function findRoot($: EngineInterface): Promise<string> {
-  const cwd = await $.session.cwd()
+async function findRoot($: EngineInterface, cwd: string, sessionRoot: string): Promise<string> {
   const result = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, timeoutMs: GIT_TIMEOUT_MS }).catch(() => undefined)
   const common = result?.exitCode === 0 ? result.stdout.trim() : ''
-  return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : $.session.root()
+  return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : sessionRoot
 }
 
-// For showing the mode only: a missing or unreadable file reads as none, as the hooks then fall back to Balanced.
-const shownModeText = ($: EngineInterface, root: string) => $.fs.read(`${root}/${MODE_FILE}`).catch(() => null)
+// The one root the board's reports, the strip and /team mode use. A /cd or a host's directory change raises no event, so each use
+// compares the session's cwd and root with the ones the root came from, and asks git again only when one of them moved.
+async function projectRoot($: EngineInterface, ctx: Ctx): Promise<string> {
+  const [cwd, sessionRoot] = [await $.session.cwd(), await $.session.root()]
+  const from = `${cwd}\n${sessionRoot}`
+  if (ctx.root === '' || from !== ctx.rootFrom) {
+    ctx.root = await findRoot($, cwd, sessionRoot)
+    ctx.rootFrom = from
+  }
+  return ctx.root
+}
+
+// The mode file's text, or null when there is none. Rejects when .team is not a folder (checked first: Windows says ENOENT under a
+// file) or the file cannot be read. A failed stat or exists (no .team yet, or one that cannot be looked into) counts as no file here.
+async function readModeText($: EngineInterface, root: string): Promise<string | null> {
+  const teamStat = await $.fs.stat(`${root}/.team`).catch(() => undefined)
+  if (teamStat !== undefined && teamStat.kind !== 'dir') throw notAFolder()
+  const file = `${root}/${MODE_FILE}`
+  return (await $.fs.exists(file)) ? $.fs.read(file) : null
+}
+
+// The mode file as the hooks read it, a file it cannot read being Balanced with the hooks' problem line.
+const shownModeFile = ($: EngineInterface, root: string) => readModeText($, root).then(parseModeFile, unreadableModeFile)
 // What /team mode shows: the mode the hooks will use and the three to pick from.
-const describeMode = async ($: EngineInterface) => modeSummary(await shownModeText($, await findRoot($)))
+const describeMode = async ($: EngineInterface, ctx: Ctx) => modeSummary(await shownModeFile($, await projectRoot($, ctx)))
 
 // Saves the project's mode where the command hooks read it, keeping the skill setting already there. Returns the one line to show.
-async function setMode($: EngineInterface, mode: string): Promise<string> {
+async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<string> {
   const unknown = unknownModeLine(mode)
   if (unknown !== null) return unknown
   try {
-    const root = await findRoot($)
-    // No .team yet is fine (the write makes it); any other stat failure falls through to the write, which reports it.
-    const teamStat = await $.fs.stat(`${root}/.team`).catch(() => undefined)
-    if (teamStat !== undefined && teamStat.kind !== 'dir') return saveFailedLine('.team is not a folder')
-    const file = `${root}/${MODE_FILE}`
-    await $.fs.write(file, serializeMode((await $.fs.exists(file)) ? await $.fs.read(file) : null, mode))
+    const root = await projectRoot($, ctx)
+    const previous = await readModeText($, root)
+    // $.fs has no rename, so this save is not atomic: a write cut off midway reads as Balanced with a problem line, as bad JSON does.
+    await $.fs.write(`${root}/${MODE_FILE}`, serializeMode(previous, mode))
   } catch (error) {
     return saveFailedLine(error)
   }
@@ -65,7 +83,7 @@ type Spawn = { parentAgentId?: string; subagentType: string; model: string }
 type Used = { total: number; out: number }
 // spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
 type Ctx = {
-  root: string; request: string; lastJson: string; lastError: string; stop?: Timer
+  root: string; rootFrom: string; request: string; lastJson: string; lastError: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
   chatsOpen: boolean; lastChats: string
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
@@ -102,8 +120,8 @@ function recordStep(ctx: Ctx, agentId: string | undefined, result: { usage?: Rec
   }
 }
 
-async function readReports($: EngineInterface, ctx: Ctx) {
-  const dir = `${ctx.root}/.team/reports/${today()}`
+async function readReports($: EngineInterface, ctx: Ctx, root: string) {
+  const dir = `${root}/.team/reports/${today()}`
   const entries = await $.fs.list(dir).catch(() => [])
   const { byId, summary } = latestReportFiles(entries)
   const reports: Record<string, Report> = {}
@@ -127,8 +145,8 @@ async function readReports($: EngineInterface, ctx: Ctx) {
 async function refresh($: EngineInterface, ctx: Ctx) {
   const agents = await $.agent.list()
   // Looked up here, not at session.start, so the session start never waits on git.
-  if (ctx.root === '') ctx.root = await findRoot($)
-  const { reports, lastSummary } = await readReports($, ctx)
+  const root = await projectRoot($, ctx)
+  const { reports, lastSummary } = await readReports($, ctx, root)
   const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
   const next = boardModel({ agents, reports, request: ctx.request, lastSummary, usage })
   ctx.board = next
@@ -203,11 +221,12 @@ async function pollChats($: EngineInterface, ctx: Ctx) {
   }
 }
 
-// The picker shows what the file says now, so an edit made outside it shows on the next tick.
+// The picker shows what the file says now, so an edit made outside it shows on the next tick. A pick made while the file was being
+// read has already changed the picker since `before`: the older read then leaves it alone.
 async function refreshMode($: EngineInterface, ctx: Ctx) {
-  if (ctx.root === '') return
-  const mode = parseModeFile(await shownModeText($, ctx.root)).mode as Mode
-  if (mode !== (await read($, modeState))) await update($, modeState, () => mode)
+  const before = await read($, modeState)
+  const mode = (await shownModeFile($, await projectRoot($, ctx))).mode as Mode
+  if (mode !== before) await update($, modeState, current => (current === before ? mode : current))
 }
 
 // A failed tick is retried by the next one (lastJson, lastStatus and lastChats only move after a write lands). The mode and the chats come after the board and cannot hold it back.
@@ -231,7 +250,7 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: "Show the Team Board, or set this project's mode: /team mode lean|balanced|max" })
@@ -273,7 +292,7 @@ export const register: Register = on => {
   on('command.run', { command: 'team' }, async ($, e) => {
     // A caller that sends no args at all (a test's $.command.run) means no arguments, as before.
     const modeArgs = /^mode(?:\s+(.*))?$/s.exec((e.args ?? '').trim())
-    if (modeArgs) return { text: modeArgs[1] === undefined ? await describeMode($) : await setMode($, modeArgs[1]) }
+    if (modeArgs) return { text: modeArgs[1] === undefined ? await describeMode($, ctx) : await setMode($, ctx, modeArgs[1]) }
     startPoll($, ctx)
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: 'Team Board opened.' }
@@ -322,12 +341,12 @@ export const register: Register = on => {
     const { Box, Button, Text } = table
     const data = await read($, board)
     const mode = await read($, modeState)
-    const toast = (line: Promise<string>) => void line.then(text => $.ui.toast(text)).catch(error => logFailure($, ctx, 'mode picker', error))
-    // Mobile draws no Select (its table answers one with an empty box): there the mode is a button that shows what /team mode shows.
+    const pick = (value: string) => void setMode($, ctx, value).then(line => $.ui.toast(line)).catch(error => logFailure($, ctx, 'mode picker', error))
+    // Mobile draws no Select (its table answers one with an empty box): there the mode is a button that names it and how to set it.
     // Not $.command.run: a plugin's own run skips the plugin's own command hook, so nothing would answer it.
     const picker = e.surface !== 'mobile' && 'Select' in table
-      ? <table.Select key="mode" label="Mode" options={MODE_OPTIONS} value={mode} onSelect={value => toast(setMode($, value))} />
-      : <Button key="mode" label={`● ${modeName(mode)}`} onPress={() => toast(describeMode($))} />
+      ? <table.Select key="mode" label="Mode" options={MODE_OPTIONS} value={mode} onSelect={pick} />
+      : <Button key="mode" label={`● ${modeName(mode)}`} onPress={() => $.ui.toast(modeHint(mode))} />
     return (
       <Box key="strip" gap={1}>
         <Text wrap="truncate-end">{stripLine(data)}</Text>
