@@ -14,6 +14,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
+import { PLUGIN_KEY } from './clean-run.mjs'
 import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -25,7 +26,7 @@ export const TASKS = ['easy', 'medium', 'hard']
 export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45 }
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
-export const PLUGIN_KEY = 'section-team@inline'
+export { PLUGIN_KEY } from './clean-run.mjs'
 // Automatic skill installs stay off in every run: an install changes ~/.claude/skills for every later run of both setups.
 const NO_AUTO_INSTALL = { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' } }
 const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the building to the sections; do not build it yourself.\n'

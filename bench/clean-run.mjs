@@ -1,0 +1,211 @@
+// Run hygiene shared by run.mjs, preflight.mjs and judge.mjs (spec: docs/specs/2026-11-01-mode-round-design.md):
+// the round's pinned model and effort, the child environment, the clean --settings, reading claude's output, and the
+// init and transcript checks that void a run whose setup differs from the one the preflight pinned.
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { isAbsolute, join, relative, resolve } from 'node:path'
+
+export const PLUGIN_KEY = 'section-team@inline'
+export const BENCH_MODEL = 'claude-opus-5-5'
+export const BENCH_EFFORT = 'medium'
+export const SECTION_TEAM_VERSION = '0.2.1'
+// The user's own checkout: no round run may load anything from it.
+export const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
+const PLUGIN_AUTHORING = 'cc-plugin-plugin-authoring@builtin'
+const SETUPS = ['solo', 'lean', 'team', 'max', 'judge']
+const BUILDERS = ['lean', 'team', 'max']
+// Session, model, key and switch variables from the parent: a round started inside a Claude Code session must behave
+// like one started from a plain terminal.
+const STRIPPED = /^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_)/
+const RECORDED = /^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI)/
+
+const isObject = value => typeof value === 'object' && value !== null && !Array.isArray(value)
+const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
+
+function requirePluginDir(pluginDir, caller) {
+  if (typeof pluginDir !== 'string' || pluginDir === '') throw new TypeError(`${caller} needs a pluginDir`)
+}
+
+// The round's switches, set both in the child environment and in --settings.
+const roundEnv = pluginDir => ({
+  SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: pluginDir,
+})
+
+export function childEnv(parent, { pluginDir } = {}) {
+  requirePluginDir(pluginDir, 'childEnv')
+  const kept = Object.entries(parent).filter(([name]) => !STRIPPED.test(name))
+  return { ...Object.fromEntries(kept), ...roundEnv(pluginDir) }
+}
+
+// The names (never the values) that run.json records.
+export const envNames = env => Object.keys(env).filter(name => RECORDED.test(name)).sort()
+
+export function installedPluginKeys(home = homedir()) {
+  const path = join(home, '.claude', 'plugins', 'installed_plugins.json')
+  let plugins
+  try {
+    plugins = JSON.parse(readFileSync(path, 'utf8'))?.plugins
+  } catch (err) {
+    throw new Error(`cannot read installed plugins: ${path} (${err.code ?? err.name})`, { cause: err })
+  }
+  if (!isObject(plugins)) throw new Error(`cannot read installed plugins: ${path} (no plugins object)`)
+  return Object.keys(plugins)
+}
+
+// --settings for one run: every installed and synced plugin off, section-team as the setup says.
+export function cleanSettings({ installedKeys, sectionTeam, pluginDir } = {}) {
+  requirePluginDir(pluginDir, 'cleanSettings')
+  if (!Array.isArray(installedKeys)) throw new TypeError('cleanSettings needs the installed plugin keys')
+  if (typeof sectionTeam !== 'boolean') throw new TypeError('cleanSettings needs sectionTeam true or false')
+  return {
+    syncClaudeAiPlugins: false,
+    syncClaudeAiSkills: false,
+    enabledPlugins: { ...Object.fromEntries(installedKeys.map(key => [key, false])), [PLUGIN_AUTHORING]: false, [PLUGIN_KEY]: sectionTeam },
+    env: roundEnv(pluginDir),
+  }
+}
+
+export function commonArgs({ sessionId } = {}) {
+  if (typeof sessionId !== 'string' || sessionId === '') throw new TypeError('commonArgs needs a sessionId')
+  return ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', '--session-id', sessionId]
+}
+
+// undefined when the text is not JSON: callers expect cut-off and non-JSON lines and skip them.
+function parseOrUndefined(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+// The JSON objects among a text's lines, in order; a line cut off by a kill does not parse and is left out.
+const jsonLines = text => String(text).split(/\r?\n/).map(parseOrUndefined).filter(isObject)
+
+// Messages from `--output-format json` (one array, or one object) or `stream-json` (one object per line).
+export function outputMessages(stdout) {
+  const whole = parseOrUndefined(stdout)
+  if (Array.isArray(whole)) return whole
+  if (isObject(whole)) return [whole]
+  return jsonLines(stdout)
+}
+
+export const initOf = messages => messages.find(m => m?.type === 'system' && m.subtype === 'init') ?? null
+export const resultOf = messages => messages.findLast(m => m?.type === 'result') ?? null
+
+// p relative to folder, compared case-insensitively; null when p is not an absolute path (built-ins have 'builtin').
+function relativeTo(p, folder) {
+  if (typeof p !== 'string' || !isAbsolute(p)) return null
+  return relative(resolve(folder).toLowerCase(), resolve(p).toLowerCase())
+}
+
+export function isUnder(p, folder) {
+  const rel = relativeTo(p, folder)
+  return rel === '' || (rel !== null && !rel.startsWith('..') && !isAbsolute(rel))
+}
+
+// One line when two lists differ as sets, naming what is extra and what is missing.
+function setProblems(label, actual, expected) {
+  const actualSet = new Set(actual)
+  const expectedSet = new Set(expected)
+  const extra = [...actualSet].filter(item => !expectedSet.has(item))
+  const missing = [...expectedSet].filter(item => !actualSet.has(item))
+  if (extra.length === 0 && missing.length === 0) return []
+  return [`${label} differ from the pin (extra: ${extra.join(', ') || 'none'}; missing: ${missing.join(', ') || 'none'})`]
+}
+
+// Builders load exactly one section-team, from the plugin dir itself, at the round's version.
+function loadedOnceProblems(entries, pluginDir) {
+  if (entries.length !== 1) return [`expected 1 section-team plugin, found ${entries.length}`]
+  const [{ path, version }] = entries
+  return [
+    ...(relativeTo(path, pluginDir) === '' ? [] : [`section-team path ${path}, expected ${pluginDir}`]),
+    ...(version === SECTION_TEAM_VERSION ? [] : [`section-team version ${version}, expected ${SECTION_TEAM_VERSION}`]),
+  ]
+}
+
+// Any plugin entry under the live checkout fails, whatever its source (the stricter reading of the spec).
+function sectionTeamProblems(plugins, setup, pluginDir) {
+  const entries = plugins.filter(p => p?.source === PLUGIN_KEY)
+  const live = plugins.filter(p => isUnder(p?.path, LIVE_CHECKOUT))
+  const fromLive = live.length > 0 ? [`loaded from the live checkout ${LIVE_CHECKOUT}: ${live.map(p => p.source).join(', ')}`] : []
+  if (BUILDERS.includes(setup)) return [...loadedOnceProblems(entries, pluginDir), ...fromLive]
+  return [...(entries.length > 0 ? [`section-team loaded in ${setup}`] : []), ...fromLive]
+}
+
+// Without the pin's built-ins (the preflight), every other plugin must be a built-in other than plugin-authoring.
+function otherPluginProblems(plugins, pin) {
+  const sources = plugins.map(p => p?.source).filter(source => source !== PLUGIN_KEY)
+  if (pin.builtins !== undefined) return setProblems('plugins', sources, pin.builtins)
+  const stray = sources.filter(source => !String(source).endsWith('@builtin'))
+  return [
+    ...(stray.length > 0 ? [`plugins that are not built-ins: ${stray.join(', ')}`] : []),
+    ...(sources.includes(PLUGIN_AUTHORING) ? [`${PLUGIN_AUTHORING} is loaded`] : []),
+  ]
+}
+
+function mcpProblems(servers) {
+  if (!Array.isArray(servers)) return ['the init has no mcp_servers list']
+  return servers.length > 0 ? [`MCP servers loaded: ${servers.map(s => s?.name).join(', ')}`] : []
+}
+
+// Judges run with section-team off, so they are held to solo's lists.
+function listProblems(init, setup, pin) {
+  if (pin.setups === undefined) return []
+  const key = setup === 'judge' ? 'solo' : setup
+  const lists = pin.setups[key]
+  if (!isObject(lists)) return [`the pin has no ${key} setup`]
+  return ['agents', 'skills'].flatMap(name => setProblems(name, listOr(init[name], []), listOr(lists[name], [])))
+}
+
+function versionProblems(init, pin) {
+  const pinned = [['model', BENCH_MODEL], ['claude_code_version', pin.version], ['apiKeySource', pin.apiKeySource]]
+  return pinned.filter(([key, want]) => want !== undefined && init[key] !== want).map(([key, want]) => `${key} ${init[key]}, expected ${want}`)
+}
+
+// One line per failed rule; empty when the init matches the setup and the pin.
+export function initProblems(init, { setup, pin, pluginDir } = {}) {
+  if (!SETUPS.includes(setup)) throw new RangeError(`initProblems takes a setup of ${SETUPS.join(', ')}, got "${setup}"`)
+  if (!isObject(pin)) throw new TypeError('initProblems needs a pin')
+  if (BUILDERS.includes(setup)) requirePluginDir(pluginDir, 'initProblems')
+  if (!init) return ['no init message']
+  const plugins = listOr(init.plugins, [])
+  return [
+    ...(Array.isArray(init.plugins) ? [] : ['the init has no plugins list']),
+    ...sectionTeamProblems(plugins, setup, pluginDir),
+    ...otherPluginProblems(plugins, pin),
+    ...mcpProblems(init.mcp_servers),
+    ...listProblems(init, setup, pin),
+    ...versionProblems(init, pin),
+  ]
+}
+
+// One line per effort other than the round's on an assistant line. Lines that record no effort (synthetic messages)
+// are not checked.
+export function effortProblems(jsonlTexts, effort = BENCH_EFFORT) {
+  if (!Array.isArray(jsonlTexts) || jsonlTexts.some(text => typeof text !== 'string')) {
+    throw new TypeError('effortProblems takes a list of transcript texts')
+  }
+  const others = jsonlTexts.flatMap(jsonLines)
+    .filter(m => m.type === 'assistant' && 'effort' in m && m.effort !== effort)
+    .map(m => m.effort)
+  return [...new Set(others)].map(other => `assistant effort ${other}, expected ${effort}`)
+}
+
+export function compacted(jsonlText) {
+  if (typeof jsonlText !== 'string') throw new TypeError('compacted takes a transcript text')
+  return jsonLines(jsonlText).some(m => m.type === 'system' && m.subtype === 'compact_boundary')
+}
+
+export function readPin(results, round) {
+  const path = join(results, `preflight-${round}.json`)
+  let pin
+  try {
+    pin = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (err) {
+    const message = err.code === 'ENOENT' ? `missing ${path}: run node bench/preflight.mjs --round=${round} first` : `cannot read ${path} (${err.code ?? err.name})`
+    throw new Error(message, { cause: err })
+  }
+  if (!isObject(pin)) throw new Error(`cannot read ${path} (no pin object)`)
+  return pin
+}
