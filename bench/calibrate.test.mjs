@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { calibrate, calibrationVerdict } from './calibrate.mjs'
+import { calibrate, calibrationVerdict, seedTests } from './calibrate.mjs'
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'calibrate.mjs')
 const ref = { rate: 1 }
@@ -75,7 +75,8 @@ test('calibrate overlays seed, then reference, then each near-miss in a temp fol
   try {
     const seen = []
     const lines = []
-    const verdict = calibrate('t1', { root, seeds, run: fakeRun(seen), log: l => lines.push(l) })
+    const seedRun = () => assert.fail('a seed without test files has no seed tests to run')
+    const verdict = calibrate('t1', { root, seeds, run: fakeRun(seen), seedRun, log: l => lines.push(l) })
     assert.deepEqual(seen.map(s => s.files), [
       { 'a.txt': 'ref', 's.txt': 'seed', 'sub/b.txt': 'ref' },
       { 'a.txt': 'n1', 's.txt': 'seed', 'sub/b.txt': 'ref' },
@@ -98,10 +99,61 @@ test('calibrate without a seed folder starts each variant from the reference', (
   const { tmp, root, seeds } = fixture('t2')
   try {
     const seen = []
-    calibrate('t2', { root, seeds, run: fakeRun(seen), log: () => {} })
+    const seedRun = () => assert.fail('a task without a seed runs no seed tests')
+    calibrate('t2', { root, seeds, run: fakeRun(seen), seedRun, log: () => {} })
     assert.deepEqual(seen[0].files, { 'a.txt': 'ref', 'sub/b.txt': 'ref' })
     assert.deepEqual(seen[1].files, { 'a.txt': 'n1', 'sub/b.txt': 'ref' })
   } finally { rmSync(tmp, { recursive: true, force: true }) }
+})
+
+test('a seeded near-miss that breaks a seed test fails calibration', () => {
+  const { tmp, root, seeds } = fixture('t1')
+  try {
+    for (const rel of ['test/a.test.mjs', 'test/helpers.mjs', 'lib/c_test.cjs', 'test-d.ts', 'b-test.js', 'test.mts']) write(seeds, `t1/${rel}`, 'seed test')
+    for (const rel of ['lib/helper.mjs', 'x.spec.js', 'README.md', 'node_modules/dep/test/x.test.mjs']) write(seeds, `t1/${rel}`, 'not a seed test')
+    write(root, 't1/reference/test/a.test.mjs', "the reference's own version") // as h2's reference replaces test/api.test.mjs
+    const hidden = []
+    const seedRuns = []
+    // A fake seed-test runner: the seed's tests break when a.txt reads 'n1'.
+    const seedRun = (dir, files) => {
+      const a = readFileSync(join(dir, 'a.txt'), 'utf8')
+      seedRuns.push({ dir, files, a, testFile: readFileSync(join(dir, 'test/a.test.mjs'), 'utf8') })
+      if (a === 'n1') return { tests: 4, pass: 3, fail: 1, ok: false, error: null }
+      return seedRuns.length === 3 ? { tests: 1, pass: 0, fail: 0, ok: false, error: 'ETIMEDOUT' } : { tests: 4, pass: 4, fail: 0, ok: true, error: null }
+    }
+    const lines = []
+    const verdict = calibrate('t1', { root, seeds, run: fakeRun(hidden), seedRun, log: l => lines.push(l) })
+    const files = ['b-test.js', 'lib/c_test.cjs', 'test-d.ts', 'test.mts', 'test/a.test.mjs', 'test/helpers.mjs']
+    const seedTest = 'seed test'
+    assert.deepEqual(seedRuns.map(s => [s.a, s.files, s.testFile]), [['n1', files, seedTest], ['ref', files, seedTest], ['ref', files, seedTest]], "each near-miss, not the reference, with the seed's own test files")
+    assert.deepEqual(seedRuns.map(s => s.dir), hidden.slice(1).map(h => h.dir), "in the near-miss's own temp folder")
+    assert.equal(seedRuns.some(s => existsSync(s.dir)), false, 'temp folders deleted')
+    assert.deepEqual(verdict, { ok: false, problems: ['near-miss n3 fails no hidden test', "near-miss n1 fails the seed's own tests", "near-miss n3 fails the seed's own tests"] })
+    assert.deepEqual(lines, [
+      'reference 3/3',
+      'near-miss n1 2/3 (1 fail); seed tests 3/4 FAILED',
+      'near-miss n2 2/3 (1 fail); seed tests 4/4 ok',
+      'near-miss n3 3/3 (0 fail); seed tests 0/1 FAILED (ETIMEDOUT)',
+    ])
+  } finally { rmSync(tmp, { recursive: true, force: true }) }
+})
+
+test("calibrationVerdict: a near-miss that fails the seed's own tests is a problem; one without a seed result is not", () => {
+  const nearMisses = [{ name: 'a', fail: 1, seedOk: true }, { name: 'b', fail: 2, seedOk: false }, { name: 'c', fail: 1 }]
+  assert.deepEqual(calibrationVerdict({ reference: ref, nearMisses }), { ok: false, problems: ["near-miss b fails the seed's own tests"] })
+})
+
+test('seedTests runs the given test files with node --test inside the folder, with only the hidden-test env', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'calibrate-seedtests-'))
+  try {
+    write(dir, 'test/env.test.mjs', "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('env', () => { assert.equal(process.env.BENCH_SECRET, undefined) })\n")
+    write(dir, 'test/bad.test.mjs', "import { test } from 'node:test'\ntest('bad', () => { throw new Error('broken') })\n")
+    const env = { ...process.env, BENCH_SECRET: 'must not reach the seed tests' }
+    const pick = ({ tests, pass, fail, ok, error }) => ({ tests, pass, fail, ok, error })
+    assert.deepEqual(pick(seedTests(dir, ['test/env.test.mjs'], env)), { tests: 1, pass: 1, fail: 0, ok: true, error: null })
+    assert.deepEqual(pick(seedTests(dir, ['test/env.test.mjs', 'test/bad.test.mjs'], env)), { tests: 2, pass: 1, fail: 1, ok: false, error: null })
+    assert.deepEqual(pick(seedTests(join(dir, 'no-such-folder'), ['test/env.test.mjs'], env)), { tests: 0, pass: 0, fail: 0, ok: false, error: 'ENOENT' }, 'a spawn error is not ok and says why')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('calibrate deletes the temp folder even when the hidden-test run throws', () => {
