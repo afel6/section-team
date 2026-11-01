@@ -29,7 +29,8 @@ const project = text => {
 const setMode = (dir, text) => writeFileSync(join(dir, '.team', 'mode.json'), text)
 const recordPath = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
 const recordText = (home, id) => readFileSync(recordPath(home, id), 'utf8')
-const notice = (from, to) => `Mode is now ${modeName(to)} (was ${modeName(from)}). From your next step on:\n\n${modeRules(to)}`
+const REPLACES_LINE = "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate."
+const notice = (from, to) => `Mode is now ${modeName(to)} (was ${modeName(from)}). From your next step on:\n${REPLACES_LINE}\n\n${modeRules(to)}`
 const staysIn = (reason, mode) => `mode switch check skipped: .team/mode.json: ${reason}, so this session stays in ${modeName(mode)} mode`
 const run = (input, home, script = SCRIPT) => spawnSync(process.execPath, [script], { input, encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
 const promptInput = (cwd, extra = {}) => JSON.stringify({ hook_event_name: 'UserPromptSubmit', cwd, session_id: 's1', prompt: 'hi', ...extra })
@@ -44,7 +45,9 @@ test('a switch from Balanced to Max is announced once with the Max rules and rec
   const h = tempHome()
   recordMode(h, 's1', 'balanced')
   const e = event(project('{"mode":"max"}'))
-  assert.equal(modeSwitch(e, h), 'Mode is now Max (was Balanced). From your next step on:\n\n' + modeRules('max'))
+  const text = modeSwitch(e, h)
+  assert.equal(text, 'Mode is now Max (was Balanced). From your next step on:\nThese sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode\'s gate.\n\n' + modeRules('max'))
+  assert.equal(text.split('\n')[1], "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate.")
   assert.equal(recordText(h, 's1'), '{"mode":"max"}')
   assert.equal(modeSwitch(e, h), null)
   assert.deepEqual(promptCheck(e, h), { notice: null, warnings: [] })

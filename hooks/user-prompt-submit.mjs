@@ -6,6 +6,8 @@ import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from '
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
+// The notice's sections take the place of the same-headed ones in the brief, so a switch back to Balanced cancels Lean or Max rules.
+const REPLACES = "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate."
 
 function attempt(label, fn) {
   try {
@@ -15,7 +17,7 @@ function attempt(label, fn) {
   }
 }
 
-const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n\n${modeRules(mode)}`
+const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n${REPLACES}\n\n${modeRules(mode)}`
 
 // A session with a record keeps its mode while the file is unusable (the handback gate does the same), so the problem line says so.
 const keptModeEnding = previous => (previous === null ? undefined : `so this session stays in ${modeName(previous)} mode`)
