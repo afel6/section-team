@@ -264,8 +264,14 @@ test("suggested skills are installed only on the user's yes, unless SECTION_TEAM
   const off = buildContext(repo(), home, {})
   assert.ok(off.includes('ask the user whether to install it'))
   assert.ok(!off.includes('Automatic skill installs are on'))
-  for (const value of ['0', 'true', 'yes', '']) assert.ok(!buildContext(repo(), home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: value }).includes('Automatic skill installs are on'), value)
+  assert.ok(off.includes('- Automatic skill installs: off (default).'))
+  for (const value of ['0', 'true', ' 1', '01', '']) {
+    const ctx = buildContext(repo(), home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: value })
+    assert.ok(!ctx.includes('Automatic skill installs are on'), JSON.stringify(value))
+    assert.ok(ctx.includes('- Automatic skill installs: off (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'), JSON.stringify(value))
+  }
   const on = buildContext(repo(), home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: '1' })
+  assert.ok(on.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(on.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
   assert.ok(on.includes('without asking when the add-skill safety review finds no red flag'))
   assert.ok(on.includes('List every skill you installed in your summary.'))
@@ -315,6 +321,13 @@ test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
   assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
   assert.ok(contextFor('{"mode":"lean"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.ok(contextFor(null, {}).includes('- Automatic skill installs: off (default).'))
+  const fileOffEnvOn = contextFor('{"autoInstallSkills":false}', ENV_ON)
+  assert.ok(fileOffEnvOn.includes('- Automatic skill installs: off (from .team/mode.json).'))
+  assert.ok(!fileOffEnvOn.includes('Automatic skill installs are on'))
+  const fileOnEnvOff = contextFor('{"autoInstallSkills":true}', { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' })
+  assert.ok(fileOnEnvOff.includes('- Automatic skill installs: on (from .team/mode.json).'))
+  assert.ok(fileOnEnvOff.includes('Automatic skill installs are on (.team/mode.json)'))
 })
 
 for (const [text, problem] of [

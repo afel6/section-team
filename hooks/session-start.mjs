@@ -15,10 +15,12 @@ const autoInstallNote = source => [
   `- Automatic skill installs are on (${source}), which replaces asking first: install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
-// Whether skill installs are automatic, and where that came from: the mode file wins over the environment.
+// Whether skill installs are automatic, and where that came from: the mode file wins, then the environment when it is set
+// (only exactly '1' turns installs on, and any other set value is named as the source of off), else off by default.
 function skillSetting(autoInstallSkills, env) {
   if (autoInstallSkills !== null) return { on: autoInstallSkills, from: MODE_FILE }
-  return env[AUTO_INSTALL_ENV] === '1' ? { on: true, from: AUTO_INSTALL_ENV } : { on: false, from: null }
+  if (env[AUTO_INSTALL_ENV] === undefined) return { on: false, from: null }
+  return { on: env[AUTO_INSTALL_ENV] === '1', from: AUTO_INSTALL_ENV }
 }
 
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
