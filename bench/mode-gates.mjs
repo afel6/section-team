@@ -32,7 +32,8 @@ export function wakeUps(roles) {
 }
 
 const startTime = start => { const t = Date.parse(start ?? ''); return Number.isNaN(t) ? Infinity : t }
-const firstModel = messages => messages.find(m => m?.type === 'assistant')?.message?.model ?? null
+// The first assistant line's model; Claude Code's own <synthetic> lines (API errors, interrupts) are not the reviewer's model.
+const firstModel = messages => messages.find(m => m?.type === 'assistant' && m.message?.model !== '<synthetic>')?.message?.model ?? null
 
 // Reviewer calls in start order: [{ caller, start, model, grade }]; caller is the agent that hired it ('main' at depth 1).
 export function reviewerCalls(roles) {

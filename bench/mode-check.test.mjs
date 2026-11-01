@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, wakeUps } from './mode-check.mjs'
+import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, wakeUps } from './mode-check.mjs'
 
 // Fixtures copy the real transcript shapes (held-out team runs, 2026-10-31): line timestamps, Agent and SendMessage
 // tool_use inputs, queued_command attachments, SubagentHandback answers, and roles as collectRolesFrom returns them.
@@ -48,6 +48,11 @@ test('HEADS and BUILDERS are the brief\'s lists', () => {
   assert.deepEqual(BUILDERS, ['backend', 'frontend', 'database', 'devops', 'mobile', 'uiux', 'ai-llm'])
 })
 
+test('toolUses lists the named tool calls in line order with their line timestamps', () => {
+  const lines = [write(1, 'a.md', 'Edit'), wake(2, 'testing'), write(3, 'b.md')]
+  assert.deepEqual(toolUses(lines, 'Write', 'Edit').map(use => [use.at, use.input.file_path]), [[at(1), 'a.md'], [at(3), 'b.md']])
+})
+
 test('reviewer, scout and coder calls are not wake-ups', () => {
   const roles = [
     main_(wake(1, 'backend'), wake(2, 'reviewer'), wake(3, 'scout'), wake(4, 'coder'), wake(5, 'ai-engineer'), wake(6, 'data-scientist'),
@@ -75,16 +80,23 @@ test('lean h5 run that woke testing is unfaithful', t => {
   const dir = runDir(t, modeFile('lean'))
   assert.deepEqual(checkRun({ cond: 'lean-mo', task: 'h5', roles: leanH5(), runDir: dir, record: 'lean' }), { faithful: true, broken: [], tier: 'small' })
   const result = checkRun({ cond: 'lean-mo', task: 'h5', roles: leanH5([wake(10, 'testing')]), runDir: dir, record: 'lean' })
-  assert.equal(result.faithful, false)
-  assert.equal(result.broken.length, 1)
-  assert.match(result.broken[0], /testing/)
+  assert.deepEqual(result, { faithful: false, broken: ['h5 woke testing (none allowed)'], tier: 'single' })
 })
 
 test('lean reviewer on Opus is unfaithful', t => {
   const roles = [main_(wake(2, 'reviewer')), ...reviews(null, [[3, 9]], OPUS)]
   const result = checkRun({ cond: 'lean-mo', task: 'h5', roles, runDir: runDir(t, modeFile('lean')), record: 'lean' })
-  assert.equal(result.broken.length, 1)
-  assert.match(result.broken[0], /sonnet/i)
+  assert.deepEqual(result.broken, ['reviewer not on sonnet: claude-opus-5-5'])
+})
+
+test('a reviewer\'s model skips <synthetic> assistant lines', () => {
+  const synthetic = t => ({ type: 'assistant', timestamp: at(t), message: { model: '<synthetic>', content: [{ type: 'text', text: 'API Error' }] } })
+  const roles = [
+    main_(),
+    { role: 'section-team:reviewer', agentId: 'r1', parentId: null, start: at(5), messages: [userLine(5, 'Grade.'), synthetic(6), answer(7, 9, SONNET)] },
+    { role: 'section-team:reviewer', agentId: 'r2', parentId: null, start: at(8), messages: [userLine(8, 'Grade.'), synthetic(9)] },
+  ]
+  assert.deepEqual(reviewerCalls(roles).map(call => call.model), [SONNET, null])
 })
 
 // A Balanced h6 run: main wakes testing, testing's own reviewer passes first time.
@@ -98,8 +110,7 @@ test('team h6 run that woke only testing is faithful', t => {
   const dir = runDir(t)
   assert.deepEqual(checkRun({ cond: 'team-mo', task: 'h6', roles: teamH6(), runDir: dir, record: 'balanced' }), { faithful: true, broken: [], tier: 'single' })
   const other = checkRun({ cond: 'team-mo', task: 'h6', roles: teamH6([wake(9, 'backend')]), runDir: dir, record: 'balanced' })
-  assert.equal(other.faithful, false)
-  assert.match(other.broken.join('\n'), /backend/)
+  assert.deepEqual(other, { faithful: false, broken: ['h6 woke backend (only testing allowed)'], tier: 'multi' })
   const none = checkRun({ cond: 'team-mo', task: 'h6', roles: [main_()], runDir: dir, record: 'balanced' })
   assert.deepEqual(none.broken, ['testing not woken'])
 })
@@ -128,8 +139,7 @@ test('max gate failing after 3 fix rounds is faithful; after 2 with no later cal
   const two = three.slice(0, -1)
   assert.equal(gates(two, 'max')[0].endsEarly, true)
   const result = checkRun({ cond: 'max-mo', task: 'h5', roles: two, runDir: dir, record: 'max' })
-  assert.equal(result.faithful, false)
-  assert.match(result.broken.join('\n'), /ended early/)
+  assert.deepEqual(result.broken, ['gate of main ended early'])
   const later = [main_(wake(1, 'testing'), wake(2, 'security'), wake(8, 'backend')), ...reviews(null, [[5, 7], [10, 9.5]])]
   assert.deepEqual(gates(later, 'max').map(g => [g.fixRounds, g.endsEarly]), [[0, false], [0, false]])
 })
@@ -138,8 +148,7 @@ test('team gate with 3 fix rounds is unfaithful', t => {
   const roles = teamH6().slice(0, 2).concat(reviews('t1', [[4, 7], [10, 7], [20, 7], [30, 9]]))
   assert.equal(gates(roles, 'balanced')[0].fixRounds, 3)
   const result = checkRun({ cond: 'team-mo', task: 'h6', roles, runDir: runDir(t), record: 'balanced' })
-  assert.equal(result.faithful, false)
-  assert.match(result.broken.join('\n'), /3 fix rounds/)
+  assert.deepEqual(result.broken, ['gate of t1 had 3 fix rounds (at most 2)'])
   const two = teamH6().slice(0, 2).concat(reviews('t1', [[4, 7], [10, 7], [20, 7]]))
   assert.deepEqual(checkRun({ cond: 'team-mo', task: 'h6', roles: two, runDir: runDir(t), record: 'balanced' }).broken, [])
 })
@@ -154,8 +163,7 @@ test('a re-grade after a pass is unfaithful', t => {
   const roles = [main_(wake(2, 'reviewer'), wake(5, 'reviewer')), ...reviews(null, [[3, 9], [6, 9]], SONNET)]
   assert.equal(gates(roles, 'lean')[0].regradeAfterPass, true)
   const result = checkRun({ cond: 'lean-mo', task: 'h5', roles, runDir: runDir(t, modeFile('lean')), record: 'lean' })
-  assert.equal(result.faithful, false)
-  assert.match(result.broken.join('\n'), /after a pass/)
+  assert.deepEqual(result.broken, ['gate of main graded again after a pass'])
 })
 
 test('a queued_command from main between two section reviewer calls starts a new gate; the section\'s own reviewer hand-back does not; a skill-load user line does not', () => {
@@ -205,8 +213,7 @@ test('max run with a near-miss copy left in src is unfaithful', t => {
   const dir = maxDir(t, { 'src/range.mjs': COPY, 'src/ok.mjs': 'export const ok = 1\n' })
   assert.deepEqual(nearMissState(dir), { copies: 1, outside: ['src/range.mjs'] })
   const result = checkRun({ cond: 'max-mo', task: 'h5', roles: maxH5(), runDir: dir, record: 'max' })
-  assert.equal(result.faithful, false)
-  assert.match(result.broken.join('\n'), /outside \.team\/.*src\/range\.mjs/)
+  assert.deepEqual(result, { faithful: false, broken: ['near-miss copy outside .team/: src/range.mjs'], tier: 'single' })
 })
 
 test('nearMissState finds copies by bytes, path words and first line, outside .team/, .git/ and node_modules/', t => {
@@ -238,6 +245,14 @@ test('max run whose copies are gone counts any testing-section write into .team/
   assert.deepEqual(check([write(3, join(tmpdir(), 'elsewhere', '.team', 'near-miss', '1-range.mjs'))]), NONE)
   assert.deepEqual(check([write(3, join(dir, '.team', 'notes.md')), toolLine(4, 'PowerShell', { command: 'Get-ChildItem .team' })]), NONE)
   assert.deepEqual(check([toolLine(3, 'Read', { file_path: join(dir, '.team', 'near-miss', '1-range.mjs') })]), NONE)
+  const shell = (name, command) => check([toolLine(3, name, { command })])
+  assert.deepEqual(shell('Bash', 'cp x.mjs .team/near-miss'), [])
+  assert.deepEqual(shell('Bash', 'mkdir -p ".team/near-miss" && cp x.mjs "$_"'), [])
+  assert.deepEqual(shell('PowerShell', 'Copy-Item x -Destination .team\\near-miss'), [])
+  assert.deepEqual(shell('PowerShell', 'Copy-Item x -Destination .team\\near-miss; Get-Item x'), [])
+  assert.deepEqual(shell('Bash', 'cp x.mjs .team/near-missing/x.mjs'), NONE)
+  assert.deepEqual(shell('PowerShell', 'Copy-Item x .team\\near-miss-old'), NONE)
+  assert.deepEqual(shell('Bash', 'ls .team/near-miss_list'), NONE)
   const byMain = [main_(wake(1, 'testing'), wake(2, 'security'), write(3, `${dir}/.team/near-miss/1-range.mjs`)), ...reviews(null, [[6, 9.5]])]
   assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: byMain, runDir: dir, record: 'max' }).broken, NONE)
 })
@@ -373,6 +388,34 @@ test('main stops with one line only when results/ cannot be read', t => {
   assert.equal(exitCode, 1)
   assert.equal(errors.length, 1)
   assert.match(errors[0], /^mode-check: cannot read .*no-results \(ENOENT\)$/)
+})
+
+test('only file errors and the readers\' known one-line errors become rows; a TypeError or ERR_* stops main with one line', t => {
+  const results = runDir(t)
+  writeRun(results, 'h5-lean-mo-r1', { dir: runDir(t, modeFile('lean')), roles: leanH5(), record: 'lean' })
+  const failing = err => ({ record: () => { throw err } })
+  const coded = code => Object.assign(new Error(`${code}: refused`), { code })
+  const row = readers => modeCheck({ results, round: 'mo', readers })['h5-lean-mo-r1'].broken
+  for (const code of ['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY']) assert.deepEqual(row(failing(coded(code))), ['mode record unreadable'])
+  assert.deepEqual(row(failing(new Error('no usable session id (letters, digits, - and _ only)'))), ['mode record unreadable'])
+  assert.throws(() => row(failing(new TypeError('boom'))), { name: 'Error', message: 'h5-lean-mo-r1: boom' })
+  assert.throws(() => row(failing(new TypeError('x is not valid JSON'))), { message: 'h5-lean-mo-r1: x is not valid JSON' })
+  assert.throws(() => row(failing(coded('ERR_INVALID_ARG_TYPE'))), { message: 'h5-lean-mo-r1: ERR_INVALID_ARG_TYPE: refused' })
+  assert.throws(() => row(failing(new Error('something else'))), { message: 'h5-lean-mo-r1: something else' })
+  const errors = []
+  t.mock.method(console, 'error', line => errors.push(line))
+  const before = process.exitCode
+  main(['--round=mo'], { results, readers: failing(new TypeError('boom')) })
+  const exitCode = process.exitCode
+  process.exitCode = before
+  assert.equal(exitCode, 1)
+  assert.deepEqual(errors, ['mode-check: h5-lean-mo-r1: boom'])
+})
+
+test('a run folder path Node refuses (ERR_INVALID_ARG_VALUE) is not turned into a row', t => {
+  const results = runDir(t)
+  writeRun(results, 'h5-lean-mo-r1', { dir: `bad${String.fromCharCode(0)}dir`, roles: leanH5(), record: 'lean' })
+  assert.throws(() => modeCheck({ results, round: 'mo' }), err => err.cause?.code === 'ERR_INVALID_ARG_VALUE' && err.message.startsWith('h5-lean-mo-r1: '))
 })
 
 test('main refuses a round that is not letters and digits', t => {
