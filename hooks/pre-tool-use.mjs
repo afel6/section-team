@@ -8,11 +8,11 @@ const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
 const READ_ONLY_HELPERS = new Set(ADVISOR_HELPERS)
 
-// The advisor's own memory folder (memory: local): <project root>/.claude/agent-memory-local/<id or section-team-<id>>/.
-// cwd is the session's project dir; without one there is no memory folder, so nothing is allowed.
+// The advisor's own memory folder (memory: local) under one root: <cwd>/.claude/agent-memory-local/<id or section-team-<id>>/.
+// Claude Code builds that path from the agent's working folder, never the git main root; with no root nothing is allowed.
 export function isInMemory(target, id, cwd) {
   if (typeof target !== 'string' || target === '' || typeof cwd !== 'string' || cwd === '') return false
-  const rel = relative(join(projectRoot(cwd), '.claude', 'agent-memory-local'), resolve(cwd, target))
+  const rel = relative(join(cwd, '.claude', 'agent-memory-local'), resolve(cwd, target))
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
   const folder = rel.split(/[\\/]/)[0]
   return folder === id || folder === `section-team-${id}`
@@ -62,7 +62,9 @@ function advisorRule(id, e, env) {
   const tool = e.tool_name
   if (SHELL_TOOLS.has(tool)) return `section-team: the ${id} advisor is read-only; ${tool} is not allowed.`
   if (WRITE_TOOLS.has(tool)) {
-    return isInMemory(e.tool_input?.file_path, id, projectDirOf(e, env)) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
+    // Claude Code builds local memory from the agent's working folder (the event's cwd); the session's project dir counts too.
+    const inMemory = [e.cwd, projectDirOf(e, env)].some(root => isInMemory(e.tool_input?.file_path, id, root))
+    return inMemory ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
   }
   if (tool === 'Agent' && !READ_ONLY_HELPERS.has(e.tool_input?.subagent_type)) {
     return `section-team: the ${id} advisor may only use read-only helpers (${ADVISOR_HELPERS.join(', ')}).`

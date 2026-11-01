@@ -7,7 +7,6 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { decide, gateReasons } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
-import { projectRoot } from '../hooks/lib/paths.mjs'
 
 // The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
 delete process.env.CLAUDE_PROJECT_DIR
@@ -117,21 +116,50 @@ const PARTIAL_ENDING = 'If it still fails, hand back with `Status: partial` and 
 const NOT_OBJECT = { systemMessage: 'section-team pre-tool-use: the hook input is not a JSON object, so no rule was checked' }
 const spawnHook = input => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
 
-test('the memory folder is at the project root: a session in a subfolder, CLAUDE_PROJECT_DIR, and no project at all', () => {
+const write = (file_path, extra) => ({ ...ev('section-team:ai-engineer', 'Write', { file_path }), ...extra })
+const memoryIn = (base, id = 'section-team-ai-engineer') => join(base, '.claude', 'agent-memory-local', id, 'x.md')
+
+test('the memory folder is under the session cwd or CLAUDE_PROJECT_DIR, never the git main root', () => {
   const root = tempDir()
   execFileSync('git', ['-C', root, 'init', '-q'])
   const sub = join(root, 'src')
   mkdirSync(sub)
-  const write = (file_path, extra) => ({ ...ev('section-team:ai-engineer', 'Write', { file_path }), ...extra })
-  const memoryIn = (base, id = 'section-team-ai-engineer') => join(base, '.claude', 'agent-memory-local', id, 'x.md')
-  assert.equal(decide(write(memoryIn(root), { cwd: sub }), {}), null)
-  assert.match(decide(write(memoryIn(sub), { cwd: sub }), {}), /memory folder/)
+  // the git root alone no longer counts
+  assert.equal(decide(write(memoryIn(sub), { cwd: sub }), {}), null)
+  assert.match(decide(write(memoryIn(root), { cwd: sub }), {}), /memory folder/)
+  // either root works
+  assert.equal(decide(write(memoryIn(root), { cwd: sub }), { CLAUDE_PROJECT_DIR: root }), null)
+  assert.equal(decide(write(memoryIn(sub), { cwd: sub }), { CLAUDE_PROJECT_DIR: root }), null)
   const other = tempDir()
+  const third = tempDir()
   assert.equal(decide(write(memoryIn(other, 'ai-engineer'), { cwd: PROJECT }), { CLAUDE_PROJECT_DIR: other }), null)
-  assert.match(decide(write(join(LOCAL, 'ai-engineer', 'x.md'), { cwd: PROJECT }), { CLAUDE_PROJECT_DIR: other }), /memory folder/)
+  assert.equal(decide(write(join(LOCAL, 'ai-engineer', 'x.md'), { cwd: PROJECT }), { CLAUDE_PROJECT_DIR: other }), null)
+  assert.match(decide(write(memoryIn(third, 'ai-engineer'), { cwd: PROJECT }), { CLAUDE_PROJECT_DIR: other }), /memory folder/)
   assert.match(decide(write(join(LOCAL, 'ai-engineer', 'x.md'), { cwd: undefined }), {}), /memory folder/)
+  // a bad cwd is no root, but it does not knock out the project-dir root
+  assert.equal(decide(write(memoryIn(other, 'ai-engineer'), { cwd: undefined }), { CLAUDE_PROJECT_DIR: other }), null)
+  assert.equal(decide(write(memoryIn(other, 'ai-engineer'), { cwd: '' }), { CLAUDE_PROJECT_DIR: other }), null)
   // An empty cwd is no project either; it must not fall back to the hook process's own folder.
-  assert.match(decide(write(join(projectRoot(process.cwd()), '.claude', 'agent-memory-local', 'ai-engineer', 'x.md'), { cwd: '' }), {}), /memory folder/)
+  assert.match(decide(write(join(process.cwd(), '.claude', 'agent-memory-local', 'ai-engineer', 'x.md'), { cwd: '' }), {}), /memory folder/)
+})
+
+test('an advisor in a git worktree keeps its memory under the worktree, not the main repo', () => {
+  const main = tempDir()
+  execFileSync('git', ['-C', main, 'init', '-q'])
+  execFileSync('git', ['-C', main, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  const wt = join(tempDir(), 'wt')
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', wt])
+  assert.equal(decide(write(memoryIn(wt), { cwd: wt }), {}), null)
+  // neither the cwd nor CLAUDE_PROJECT_DIR is the main root
+  assert.match(decide(write(memoryIn(main), { cwd: wt }), {}), /memory folder/)
+  const deep = join(wt, 'src')
+  mkdirSync(deep)
+  assert.equal(decide(write(memoryIn(wt), { cwd: deep }), { CLAUDE_PROJECT_DIR: wt }), null)
+  assert.match(decide(write(memoryIn(main), { cwd: deep }), { CLAUDE_PROJECT_DIR: wt }), /memory folder/)
+  // the existing refusals still hold from the worktree
+  assert.match(decide(write(join(wt, '.claude', 'agent-memory-local') + '/../settings.json', { cwd: wt }), {}), /memory folder/)
+  assert.match(decide(write(memoryIn(wt, 'section-team-data-scientist'), { cwd: wt }), {}), /memory folder/)
+  assert.match(decide(write(join(HOME, '.claude', 'agent-memory', 'section-team-ai-engineer', 'x.md'), { cwd: wt }), {}), /memory folder/)
 })
 
 test('a builder cannot hand back changed code without a reviewer grade', () => {
