@@ -24,12 +24,13 @@ Version 0.2.0 lets each project pick Lean, Balanced or Max. The picker shows Bal
 - **No tuning on h4–h6**, before or after. Once published they are no longer held out.
 
 ## The plugin under test: v0.2.1
-- **Change:** the Max brief (`brief/tiers-max.md`, `brief/gate-max.md`) says:
-  - the testing section keeps every near-miss copy only under `.team/near-miss/` in the project root, named `<n>-<original file name>`, with a first-line comment `near-miss: <the one bug>`;
-  - it swaps a copy in only after every builder has reported, runs the tests and always restores the original, also when the run fails;
-  - the copies stay in `.team/near-miss/` after the work, and no copy is ever left in the project's own folders.
+- **Change, Max brief** (`brief/tiers-max.md`, `brief/gate-max.md`): near-miss copies live only in `.team/near-miss/` and stay there; a copy is swapped in only after every builder has reported, and the original is always restored.
+- **Change, testing section's instructions** (generated `agents/testing.md`): when a job asks for near-miss copies (only Max's jobs do):
+  - name each copy `.team/near-miss/<n>-<original file name>`, with a first-line comment `near-miss: <the one bug>`;
+  - restore the original also when a test run fails;
+  - never leave a copy anywhere else.
 
-  The README's Modes row says the same. Lean's and Balanced's briefs do not change; assembled Balanced stays word for word.
+  The assembled Max brief is at its 9000-character limit (the SessionStart context cap), so these details live with the section that does the work. The README's Modes row says where the copies live. Lean's and Balanced's briefs do not change; assembled Balanced stays word for word.
 - **Why:** a copy left in the project is deliberately broken code a user could import or commit by mistake, and it marks a solution as Max for any judge (`bench/anonymize.mjs` already drops `.team/`).
 - **Release:** version 0.2.1 in `package.json` and `.claude-plugin/plugin.json`, the usual tests and reviewer gate, tag `v0.2.1`.
 - **Pinned load:** runs load the plugin from a git worktree of tag `v0.2.1` outside the repo, never from the live `C:\Users\Asus\claude-team`. The user's `~/.claude/settings.json` `env` also sets `CLAUDE_CODE_PLUGIN_DIRS` (to the live checkout), so the worktree's absolute path goes both in the runs' process environment and in the `env` block of every run's `--settings`, which outranks the user's file; `--plugin-dir` is not used. Loading is proven from the init message, not assumed:
@@ -68,7 +69,7 @@ Three tasks, `h4`, `h5`, `h6` (no dashes). Specs in `bench/tasks/<task>.md`, hid
   - `"syncClaudeAiSkills": false`, which hides the skills synced from claude.ai (`~/.claude/skills/synced/`, 146 on 2026-11-01) for that run only, so a re-sync during the round cannot change them.
 
   Runs also pass `--strict-mcp-config` with no MCP config and set `ENABLE_CLAUDEAI_MCP_SERVERS=false`, so no MCP server loads. The built-ins `cc-plugin-agents-md@builtin` (it reads `~/AGENTS.md`, which stays) and `cc-plugin-telemetry@builtin` are left on in every setup as shared baseline. The user-level skills, agents, commands and rules in `~/.claude` (not synced ones) stay for every setup; section-team's sections use the user-level agents as helpers, and solo can call the same agents. Automatic skill installs are off in the process environment and in `--settings`.
-- **Init check:** every run passes `--verbose`, so its output always holds the init message. The preflight records each setup's init `plugins`, `mcp_servers`, `agents` and `skills`, and every `run.json` saves the same four lists. A run is **void** when:
+- **Init check:** every builder run passes `--output-format stream-json` with `--verbose`, so its output holds the init message as its first line even when the run is killed at its time limit (judges keep `--output-format json --verbose`). The preflight records each setup's init `plugins`, `mcp_servers`, `agents` and `skills`, and every `run.json` saves the same four lists. A run is **void** when:
   - its `plugins` hold anything but section-team (none for solo) plus the built-ins the preflight recorded;
   - its `mcp_servers` is not empty;
   - its `agents` or `skills` differ from the preflight's for that setup;
