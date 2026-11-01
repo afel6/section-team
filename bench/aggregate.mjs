@@ -10,7 +10,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { RESULTS, parseArgs } from './run.mjs'
 
 const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
-const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'all']
+const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'all']
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const round = (n, d = 2) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d)
 
