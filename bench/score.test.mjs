@@ -267,3 +267,15 @@ test('collectRolesFrom and sessionTexts read an evidence folder', t => {
   assert.deepEqual(sessionTexts(evidence, 'other'), [])
   assert.deepEqual(sessionTexts(evidence, null), [])
 })
+
+test('collectRolesFrom and sessionTexts refuse a session id that is not plain in one line, since it becomes part of a path', t => {
+  const evidence = mkdtempSync(join(tmpdir(), 'bench-evidence-bad-'))
+  t.after(() => rmSync(evidence, { recursive: true, force: true }))
+  writeFileSync(join(evidence, 'sess1.jsonl'), jsonl({ type: 'user' }))
+  for (const id of ['../sess1', 'a/b', 'x\ny', 'C:', '..', 42]) {
+    assert.throws(() => collectRolesFrom(evidence, id), oneLine(/session id is not plain/), JSON.stringify(id))
+    assert.throws(() => sessionTexts(evidence, id), oneLine(/session id is not plain/), JSON.stringify(id))
+  }
+  assert.equal(collectRolesFrom(evidence, undefined), null, 'no id is still no transcript')
+  assert.equal(collectRolesFrom(evidence, ''), null)
+})

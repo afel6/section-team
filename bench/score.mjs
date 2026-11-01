@@ -104,11 +104,17 @@ function subagentRole(subagents, name) {
   }
 }
 
+// The same rule as copyEvidence's: the id becomes a file name, so it holds letters, digits and dashes only.
+const isPlainSessionId = id => typeof id === 'string' && /^[A-Za-z0-9-]+$/.test(id)
+
 // A session's files in a project folder (~/.claude/projects/<slug>/ or a run's evidence/ copy):
 // <session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType); null without the session file.
+// The id becomes part of a path, so an id that is not plain throws one line here, for every caller.
 function sessionFiles(projectDir, sessionId) {
+  if (!sessionId) return null
+  if (!isPlainSessionId(sessionId)) throw new Error(`${projectDir}: session id is not plain (letters, digits and dashes only)`)
   const sessionFile = join(projectDir, `${sessionId}.jsonl`)
-  if (!sessionId || !existsSync(sessionFile)) return null
+  if (!existsSync(sessionFile)) return null
   const subagents = join(projectDir, sessionId, 'subagents')
   const names = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
   return { sessionFile, subagents, names }
@@ -142,9 +148,6 @@ export function costOf({ transcript, evidenceTexts }) {
   return { costUSD: evidenceTexts?.length ? transcriptCost(evidenceTexts).costUSD : NaN, costComputed: true }
 }
 
-// The same rule as copyEvidence's: the id becomes a file name, so it holds letters, digits and dashes only.
-const PLAIN_SESSION_ID = /^[A-Za-z0-9-]+$/
-
 // The run's session id: session.json's (written before every attempt), else raw.json's (runs made before session.json); null without either.
 // The id becomes part of a path, so an id that is not plain throws, as does a session.json that does not parse. Each error is one fixed line.
 export function runSession(outDir) {
@@ -153,12 +156,12 @@ export function runSession(outDir) {
     const text = readFileSync(sessionPath, 'utf8')
     let record
     try { record = JSON.parse(text) } catch { throw new Error(`${sessionPath} is not valid JSON`) }
-    if (typeof record?.sessionId !== 'string' || !PLAIN_SESSION_ID.test(record.sessionId)) throw new Error(`${sessionPath} has no plain sessionId`)
+    if (!isPlainSessionId(record?.sessionId)) throw new Error(`${sessionPath} has no plain sessionId`)
     return record.sessionId
   }
   const rawPath = join(outDir, 'raw.json')
   const sessionId = existsSync(rawPath) ? parseTranscript(readFileSync(rawPath, 'utf8')).sessionId : null
-  if (sessionId !== null && (typeof sessionId !== 'string' || !PLAIN_SESSION_ID.test(sessionId))) throw new Error(`${rawPath} has no plain session id`)
+  if (sessionId !== null && !isPlainSessionId(sessionId)) throw new Error(`${rawPath} has no plain session id`)
   return sessionId
 }
 

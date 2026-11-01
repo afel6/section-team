@@ -1,21 +1,30 @@
-// Reviewer gate stats for one round's team runs: each reviewer call's GRADE (from the subagent transcripts),
-// fix rounds, partial/blocked/ungraded REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
+// Reviewer gate stats for one round's team, lean and max runs: each reviewer call's GRADE with its items (from the
+// subagent transcripts), first tries and final grades judged by the run's mode's own mark, fix rounds,
+// partial/blocked/ungraded REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
 // Writes results/gate-stats-<round>.json and prints one markdown row per run.
-// Usage: node bench/gate-stats.mjs --round=ho
+// Usage: node bench/gate-stats.mjs --round=mo
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { GATES } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { parseReport } from '../hooks/lib/report.mjs'
 import { RESULTS } from './run.mjs'
-import { collectRoles, parseTranscript } from './score.mjs'
+import { collectRolesFrom, runSession, transcriptDir } from './score.mjs'
 
 const REVIEWER = 'section-team:reviewer'
 const GRADE_HEADING = /^[ \t]*#{1,6}[ \t]*GRADE[ \t]*$/gm
+const ITEMS = ['structure', 'naming', 'duplication', 'size', 'errors', 'tests', 'security', 'leftovers']
 const isPass = entry => entry?.verdict === 'pass'
 const isFail = entry => entry?.verdict === 'fail'
 
-// The reviewer's last GRADE block → { overall, verdict }; null when there is none or it was cut off before Overall or Verdict.
+// Each item's score in a GRADE block; an item scored n/a (or absent) is left out.
+const itemsOf = block => Object.fromEntries(ITEMS.flatMap(name => {
+  const m = new RegExp(`^[ \\t]*${name}:[ \\t]*(\\d+(?:\\.\\d+)?)`, 'm').exec(block)
+  return m ? [[name, Number(m[1])]] : []
+}))
+
+// The reviewer's last GRADE block → { overall, verdict, items }; null when there is none or it was cut off before Overall or Verdict.
 export function parseGrade(text) {
   if (typeof text !== 'string') return null
   const lf = text.replace(/\r\n?/g, '\n').replace(/\*\*/g, '')
@@ -24,7 +33,20 @@ export function parseGrade(text) {
   const block = lf.slice(heading.index)
   const overall = /^[ \t]*Overall:[ \t]*(\d+(?:\.\d+)?)[ \t]*\/[ \t]*10\b/m.exec(block)
   const verdict = /^[ \t]*Verdict:[ \t]*(pass|fail)\b/im.exec(block)
-  return overall && verdict ? { overall: Number(overall[1]), verdict: verdict[1].toLowerCase() } : null
+  return overall && verdict ? { overall: Number(overall[1]), verdict: verdict[1].toLowerCase(), items: itemsOf(block) } : null
+}
+
+const MODE_OF_COND = { lean: 'lean', team: 'balanced', max: 'max' }
+// A run setup's mode: team runs Balanced; solo (or anything else) has none.
+export const modeOfCond = cond => (Object.hasOwn(MODE_OF_COND, cond) ? MODE_OF_COND[cond] : null)
+
+// Whether a review reaches the mode's own mark (GATES): overall at least passOverall and, when the mode sets
+// minItem, every scored item at least minItem. No readable grade never does.
+export function meetsMark(grade, mode) {
+  if (!Object.hasOwn(GATES, mode)) throw new Error(`meetsMark: unknown mode ${String(mode)}`)
+  if (!grade) return false
+  const { passOverall, minItem } = GATES[mode]
+  return grade.overall >= passOverall && (minItem === null || Object.values(grade.items).every(n => n >= minItem))
 }
 
 const textOf = content => {
@@ -77,16 +99,23 @@ export function gateMisses(sequences, tap) {
   return lasts.length > 0 && lasts.every(isPass) ? failingTests(tap) : []
 }
 
-// One run's row. roles null (no transcript: timed out, crashed or unfinished) → noData. tap null (no hidden.tap) → gateMisses null.
-export function gateRow({ id, roles, tap, reports, codeQuality }) {
+// One run's row. roles null (no transcript found: no run.json, or no session id or session file) → noData. tap null (no hidden.tap) → gateMisses null.
+// firstTryMeetsMark counts callers whose first review met the mode's mark; finalMeetsMark: { <caller>: boolean }.
+export function gateRow({ id, mode, roles, tap, reports, codeQuality }) {
   const statuses = reports.map(text => parseReport(text).status)
   const count = status => statuses.filter(s => s === status).length
   // ungradedReports: REPORTs that handed back Status: ungraded; summarize's `ungraded` counts reviewer calls with no GRADE.
-  const base = { id, partial: count('partial'), blocked: count('blocked'), ungradedReports: count('ungraded'), judgeCodeQuality: codeQuality }
+  const base = { id, mode, partial: count('partial'), blocked: count('blocked'), ungradedReports: count('ungraded'), judgeCodeQuality: codeQuality }
   if (!roles) return { ...base, noData: true }
   const sequences = gateSequences(roles)
-  const finalGrades = Object.fromEntries(Object.entries(sequences).map(([caller, list]) => [caller, list.at(-1)]))
-  return { ...base, noData: false, ...summarize(sequences), sequences, finalGrades, gateMisses: tap === null ? null : gateMisses(sequences, tap) }
+  const perCaller = pick => Object.fromEntries(Object.entries(sequences).map(([caller, list]) => [caller, pick(list)]))
+  return {
+    ...base, noData: false, ...summarize(sequences), sequences,
+    finalGrades: perCaller(list => list.at(-1)),
+    firstTryMeetsMark: Object.values(sequences).filter(list => meetsMark(list[0], mode)).length,
+    finalMeetsMark: perCaller(list => meetsMark(list.at(-1), mode)),
+    gateMisses: tap === null ? null : gateMisses(sequences, tap),
+  }
 }
 
 // { <run id>: mean codeQuality over its judges }, de-anonymized like judgeScores in aggregate.mjs (pair '<task>-r<rep>').
@@ -121,12 +150,13 @@ function readReports(dir) {
     readdirSync(join(base, day.name)).filter(name => name.endsWith('.md') && !name.includes('supervisor-summary')).map(name => readFileSync(join(base, day.name, name), 'utf8')))
 }
 
+// Roles come from results/<id>/evidence when the run has one, else (held-out runs) from Claude Code's project folder.
 function readRun(folder, home) {
   const run = readJson(join(folder, 'run.json'))
   if (run === null) return { roles: null, tap: null, reports: [] }
   if (typeof run?.dir !== 'string') throw new Error(`${join(folder, 'run.json')}: no run dir`)
-  const { sessionId } = parseTranscript(readText(join(folder, 'raw.json')) ?? '')
-  return { roles: collectRoles(run.dir, sessionId, home), tap: readText(join(folder, 'hidden.tap')), reports: readReports(run.dir) }
+  const roles = collectRolesFrom(transcriptDir(folder, run.dir, home), runSession(folder))
+  return { roles, tap: readText(join(folder, 'hidden.tap')), reports: readReports(run.dir) }
 }
 
 // Joined only once aggregate has written report-data-<round>.json; the scores come from judge-<round>.json through blind-key-<round>.json.
@@ -140,23 +170,26 @@ function codeQualityByRun(results, round) {
   return judgeCodeQuality(judge, key)
 }
 
+// Every team (Balanced), lean and max run of the round; solo runs have no gate.
 export function gateStats({ results = RESULTS, round, home = homedir() }) {
-  const marker = `-team-${round}-r`
-  const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && d.name.includes(marker)).map(d => d.name).sort()
+  const runId = new RegExp(`-(team|lean|max)-${round}-r\\d+$`)
+  const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
   const quality = codeQualityByRun(results, round)
-  return ids.map(id => gateRow({ id, ...readRun(join(results, id), home), codeQuality: quality[id] ?? null }))
+  return ids.map(id => gateRow({ id, mode: modeOfCond(runId.exec(id)[1]), ...readRun(join(results, id), home), codeQuality: quality[id] ?? null }))
 }
 
-const HEADER = ['id', 'calls', 'first-try passes/callers', 'fix rounds', 'final grades', 'partial/blocked/ungraded', 'gate misses', 'judge code quality']
+const HEADER = ['id', 'mode', 'calls', 'first-try passes/callers', 'first-try at mark/callers', 'fix rounds', 'final grades', 'finals at mark/callers', 'partial/blocked/ungraded', 'gate misses', 'judge code quality']
 const cell = value => String(value).replaceAll('|', '\\|')
 
 function cells(row) {
   const judge = row.judgeCodeQuality === null ? '–' : String(Math.round(row.judgeCodeQuality * 100) / 100)
   const reports = `${row.partial}/${row.blocked}/${row.ungradedReports}`
-  if (row.noData) return [row.id, 'no data', '–', '–', '–', reports, '–', judge]
+  const mode = row.mode ?? '–'
+  if (row.noData) return [row.id, mode, 'no data', '–', '–', '–', '–', '–', reports, '–', judge]
   const finals = Object.values(row.finalGrades).map(g => (g ? `${g.overall} ${g.verdict}` : 'no grade')).join(', ') || '–'
+  const finalsAtMark = Object.values(row.finalMeetsMark).filter(Boolean).length
   const misses = row.gateMisses === null ? '–' : row.gateMisses.join('; ') || 'none'
-  return [row.id, row.calls, `${row.firstTryPasses}/${row.callers}`, row.fixRounds, finals, reports, misses, judge]
+  return [row.id, mode, row.calls, `${row.firstTryPasses}/${row.callers}`, `${row.firstTryMeetsMark}/${row.callers}`, row.fixRounds, finals, `${finalsAtMark}/${row.callers}`, reports, misses, judge]
 }
 
 export function formatTable(rows) {
