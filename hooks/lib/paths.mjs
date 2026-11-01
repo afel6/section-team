@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 function git(cwd, args) {
@@ -120,10 +120,11 @@ export function latestSummary(root, now = new Date()) {
 
 // The folder a hook works from: the project the session started in (CLAUDE_PROJECT_DIR, which Claude Code sets for hooks),
 // else the hook input's cwd, which moves when the session changes folder; null when neither is usable.
+// Only an absolute path counts: a relative one ('', '.') would follow the hook process's own folder.
 export function projectDirOf(input, env = process.env) {
-  const dir = env.CLAUDE_PROJECT_DIR
-  if (typeof dir === 'string' && dir !== '') return dir
-  return typeof input?.cwd === 'string' ? input.cwd : null
+  const usable = dir => typeof dir === 'string' && isAbsolute(dir)
+  if (usable(env.CLAUDE_PROJECT_DIR)) return env.CLAUDE_PROJECT_DIR
+  return usable(input?.cwd) ? input.cwd : null
 }
 
 // One line for the user: the error code alone (so no path reaches the screen), or the message on one line.

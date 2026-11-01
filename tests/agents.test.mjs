@@ -260,6 +260,7 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))
   assert.ok(testing.includes('send each owning section its part of the fix list'))
+  assert.ok(testing.includes('let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade.'), 'testing final review takes the mode gate fix rounds')
 })
 
 test('scout is a cheap read-only helper, not a section', () => {

@@ -1,11 +1,11 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { join, resolve } from 'node:path'
+import { join, posix, resolve, win32 } from 'node:path'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide, gateReasons } from '../hooks/pre-tool-use.mjs'
+import { decide, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
 
 // The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
@@ -160,6 +160,34 @@ test('an advisor in a git worktree keeps its memory under the worktree, not the 
   assert.match(decide(write(join(wt, '.claude', 'agent-memory-local') + '/../settings.json', { cwd: wt }), {}), /memory folder/)
   assert.match(decide(write(memoryIn(wt, 'section-team-data-scientist'), { cwd: wt }), {}), /memory folder/)
   assert.match(decide(write(join(HOME, '.claude', 'agent-memory', 'section-team-ai-engineer', 'x.md'), { cwd: wt }), {}), /memory folder/)
+})
+
+test('isInMemory splits on the platform separator: a backslash is part of a POSIX file name', () => {
+  assert.equal(isInMemory('/p/.claude/agent-memory-local/ai-engineer/x.md', 'ai-engineer', '/p', posix), true)
+  // one backslash in the string: on POSIX that write lands as a sibling file in agent-memory-local/
+  assert.equal(isInMemory('/p/.claude/agent-memory-local/ai-engineer\\x', 'ai-engineer', '/p', posix), false)
+  assert.equal(isInMemory('/p/.claude/agent-memory-local/section-team-ai-engineer/notes/x.md', 'ai-engineer', '/p', posix), true)
+  // win32 resolve turns / into \
+  assert.equal(isInMemory('C:\\p\\.claude\\agent-memory-local\\ai-engineer/x.md', 'ai-engineer', 'C:\\p', win32), true)
+  assert.equal(isInMemory('C:\\p\\.claude\\agent-memory-local\\ai-engineer\\x.md', 'ai-engineer', 'C:\\p', win32), true)
+})
+
+test('the memory folder needs a file inside it, a separator after its name, and an absolute root', () => {
+  // one segment is a file where the folder belongs
+  assert.match(decide(write(join(LOCAL, 'ai-engineer'), { cwd: PROJECT }), {}), /memory folder/)
+  assert.match(decide(write(join(LOCAL, 'section-team-ai-engineer'), { cwd: PROJECT }), {}), /memory folder/)
+  // a sibling without a separator
+  assert.match(decide(write(join(PROJECT, '.claude', 'agent-memory-localai-engineer', 'x.md'), { cwd: PROJECT }), {}), /memory folder/)
+  // control: a file inside the folder
+  assert.equal(decide(write(join(LOCAL, 'ai-engineer', 'x.md'), { cwd: PROJECT }), {}), null)
+  // a relative root is no root
+  const inHookFolder = join(process.cwd(), '.claude', 'agent-memory-local', 'ai-engineer', 'x.md')
+  assert.match(decide(write(inHookFolder, { cwd: '.' }), {}), /memory folder/)
+  assert.match(decide(write(inHookFolder, { cwd: undefined }), { CLAUDE_PROJECT_DIR: '.' }), /memory folder/)
+  // targets that would land inside the folder, so only the absolute-root check refuses them
+  const relativeTarget = join('.claude', 'agent-memory-local', 'ai-engineer', 'x.md')
+  assert.equal(isInMemory(relativeTarget, 'ai-engineer', '.'), false)
+  assert.equal(isInMemory(relativeTarget, 'ai-engineer', 'work'), false)
 })
 
 test('a builder cannot hand back changed code without a reviewer grade', () => {

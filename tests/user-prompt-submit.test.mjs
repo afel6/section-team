@@ -210,12 +210,12 @@ test('hook: a switch prints only the notice as UserPromptSubmit context; no swit
   assert.equal(second.stdout, '')
 })
 
-test('hook: input without a cwd says so in one line', () => {
+test('hook: input without an absolute cwd says so in one line', () => {
   const h = tempHome()
-  for (const input of ['{}', 'not json', JSON.stringify({ session_id: 's1' })]) {
+  for (const input of ['{}', 'not json', JSON.stringify({ session_id: 's1' }), JSON.stringify({ session_id: 's1', cwd: '.' })]) {
     const r = run(input, h)
     assert.equal(r.status, 0, input)
-    assert.deepEqual(JSON.parse(r.stdout), { systemMessage: PREFIX + 'mode switch check skipped: the hook input has no cwd' }, input)
+    assert.deepEqual(JSON.parse(r.stdout), { systemMessage: PREFIX + 'mode switch check skipped: the hook input has no absolute cwd' }, input)
   }
 })
 

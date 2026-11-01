@@ -209,13 +209,21 @@ test('pruneStatus removes only regular .json files older than 7 days; a missing 
   assert.doesNotThrow(() => pruneStatus(join(dir, 'no-such-folder'), now))
 })
 
-test('projectDirOf prefers CLAUDE_PROJECT_DIR, then the input cwd', () => {
-  assert.equal(projectDirOf({ cwd: 'C' }, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
-  assert.equal(projectDirOf({ cwd: 'C' }, {}), 'C')
-  assert.equal(projectDirOf({ cwd: 'C' }, { CLAUDE_PROJECT_DIR: '' }), 'C')
-  assert.equal(projectDirOf({}, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
-  assert.equal(projectDirOf(null, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
+test('projectDirOf prefers an absolute CLAUDE_PROJECT_DIR, then an absolute input cwd', () => {
+  const P = resolve('/', 'proj')
+  const C = resolve('/', 'cwd')
+  assert.equal(projectDirOf({ cwd: C }, { CLAUDE_PROJECT_DIR: P }), P)
+  assert.equal(projectDirOf({ cwd: C }, {}), C)
+  assert.equal(projectDirOf({ cwd: C }, { CLAUDE_PROJECT_DIR: '' }), C)
+  assert.equal(projectDirOf({}, { CLAUDE_PROJECT_DIR: P }), P)
+  assert.equal(projectDirOf(null, { CLAUDE_PROJECT_DIR: P }), P)
   assert.equal(projectDirOf(null, {}), null)
   assert.equal(projectDirOf({ cwd: 5 }, {}), null)
   assert.equal(projectDirOf({}, {}), null)
+  // a relative path is no project folder: it would follow the hook process's own folder
+  assert.equal(projectDirOf({ cwd: C }, { CLAUDE_PROJECT_DIR: '.' }), C)
+  assert.equal(projectDirOf({ cwd: C }, { CLAUDE_PROJECT_DIR: 'proj' }), C)
+  assert.equal(projectDirOf({ cwd: '.' }, {}), null)
+  assert.equal(projectDirOf({ cwd: '' }, {}), null)
+  assert.equal(projectDirOf({ cwd: 'src' }, { CLAUDE_PROJECT_DIR: 'proj' }), null)
 })

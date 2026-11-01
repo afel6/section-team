@@ -82,7 +82,7 @@ async function main() {
   const input = await readStdinJson()
   const dir = projectDirOf(input)
   const result = dir === null
-    ? { notice: null, warnings: [`${SKIPPED}: the hook input has no cwd`] }
+    ? { notice: null, warnings: [`${SKIPPED}: the hook input has no absolute cwd`] }
     : promptCheck({ cwd: dir, session_id: input?.session_id }, homedir())
   const output = hookOutput(result)
   if (Object.keys(output).length > 0) process.stdout.write(JSON.stringify(output))

@@ -242,6 +242,22 @@ test('CLAUDE_PROJECT_DIR picks where the REPORT is saved, not the event cwd', ()
   assert.equal(saveFromEvent({ agent_type: 'section-team:backend', last_assistant_message: REPORT }, NOW, {}), null)
 })
 
+test('a relative or empty cwd saves nothing, never into the hook process folder', () => {
+  // Run from a fresh folder, so a wrong save lands there and not in the repo that runs the tests.
+  const original = process.cwd()
+  const folder = tempDir()
+  process.chdir(folder)
+  try {
+    const event = cwd => ({ agent_type: 'section-team:backend', cwd, last_assistant_message: REPORT })
+    assert.equal(saveFromEvent(event(''), NOW, {}), null)
+    assert.equal(saveFromEvent(event('.'), NOW, {}), null)
+    assert.equal(saveFromEvent(event('.'), NOW, { CLAUDE_PROJECT_DIR: 'rel' }), null)
+    assert.deepEqual(readdirSync(folder), [], 'a REPORT was written into the hook process folder')
+  } finally {
+    process.chdir(original)
+  }
+})
+
 test('without CLAUDE_PROJECT_DIR a session in a repo subfolder saves at the repo root', () => {
   const root = tempDir()
   execFileSync('git', ['-C', root, 'init', '-q'])

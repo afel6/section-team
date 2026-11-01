@@ -1,4 +1,4 @@
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import nodePath from 'node:path'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
@@ -9,13 +9,13 @@ const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
 const READ_ONLY_HELPERS = new Set(ADVISOR_HELPERS)
 
 // The advisor's own memory folder (memory: local) under one root: <cwd>/.claude/agent-memory-local/<id or section-team-<id>>/.
-// Claude Code builds that path from the agent's working folder, never the git main root; with no root nothing is allowed.
-export function isInMemory(target, id, cwd) {
-  if (typeof target !== 'string' || target === '' || typeof cwd !== 'string' || cwd === '') return false
-  const rel = relative(join(cwd, '.claude', 'agent-memory-local'), resolve(cwd, target))
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
-  const folder = rel.split(/[\\/]/)[0]
-  return folder === id || folder === `section-team-${id}`
+// Claude Code builds that path from the agent's working folder, never the git main root; a missing or relative root allows nothing.
+// path is injectable so tests can apply POSIX rules on any OS, where a backslash is part of a file name, not a separator.
+export function isInMemory(target, id, cwd, path = nodePath) {
+  if (typeof target !== 'string' || target === '' || typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false
+  const parts = path.relative(path.join(cwd, '.claude', 'agent-memory-local'), path.resolve(cwd, target)).split(path.sep)
+  // The folder, then something inside it: a file named like the folder is not memory. '..' or another drive never equals the id.
+  return parts.length >= 2 && (parts[0] === id || parts[0] === `section-team-${id}`)
 }
 
 const CANNOT_RUN = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
