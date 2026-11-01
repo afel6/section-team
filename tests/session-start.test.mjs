@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -19,6 +19,7 @@ const MARKER = '[section-team supervisor]'
 const UNGRADED_LINE = 'A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode\'s gate before you call that work done.'
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
 const tempHome = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-home-')))
+const tempDir = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-cwd-')))
 const repo = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
   mkdirSync(dir, { recursive: true })
@@ -131,12 +132,33 @@ test('hook prints SessionStart additionalContext', () => {
   assert.equal(out.systemMessage, undefined)
 })
 
-test('empty or malformed stdin: exit 0, no output', () => {
-  for (const input of ['', 'not json', '{}']) {
-    const result = run(input)
-    assert.equal(result.status, 0)
-    assert.equal(result.stdout, '')
+const SKIPPED_PREFIX = 'section-team session-start: skipped: '
+const NOT_JSON_MESSAGE = `${SKIPPED_PREFIX}the hook input is not JSON, so the team brief was not added`
+const NO_CWD_MESSAGE = `${SKIPPED_PREFIX}the hook input has no absolute cwd, so the team brief was not added`
+const assertSkipped = (result, message, label = 'hook output') => {
+  assert.equal(result.status, 0, label)
+  assert.equal(result.stderr, '', label)
+  assert.notEqual(result.stdout, '', `${label}: the hook printed nothing`)
+  assert.doesNotMatch(result.stdout, /\n/, label)
+  assert.deepEqual(JSON.parse(result.stdout), { systemMessage: message }, label)
+}
+
+test('hook input that is not JSON: exit 0 and one systemMessage line saying the brief was skipped', () => {
+  for (const input of ['', 'not json']) assertSkipped(run(input), NOT_JSON_MESSAGE, JSON.stringify(input))
+})
+
+test('hook input with no absolute cwd: exit 0 and one systemMessage line saying the brief was skipped', () => {
+  for (const input of ['{}', '{"cwd":"."}', '{"cwd":"rel/dir","session_id":"s"}', '{"session_id":"s"}', '5', '[]']) {
+    assertSkipped(run(input), NO_CWD_MESSAGE, input)
   }
+})
+
+test('hook input with a relative cwd writes nothing into the hook process folder', () => {
+  const folder = tempDir()
+  const home = tempHome()
+  const result = spawnSync(process.execPath, [SCRIPT], { input: '{"cwd":"."}', encoding: 'utf8', cwd: folder, env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
+  assertSkipped(result, NO_CWD_MESSAGE)
+  assert.deepEqual(readdirSync(folder), [], 'something was written into the hook process folder')
 })
 
 const quietStderr = fn => {

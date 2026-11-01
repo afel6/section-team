@@ -41,8 +41,22 @@ export function saveFromEvent(e, now = new Date(), env = process.env) {
   return block ? writeReport(projectRoot(dir), id, block, now) : null
 }
 
+// The line the hook shows when it cannot do its job, or null: input that is not JSON, or a section event with no usable project dir.
+// Any other event is not a section's, so there is nothing to save and nothing to say.
+export function skipNotice(e, env = process.env) {
+  if (e === null) return 'skipped: the hook input is not JSON, so no REPORT was saved'
+  const id = sectionIdFromType(e?.agent_type)
+  return id && projectDirOf(e, env) === null ? `skipped: the hook input has no absolute cwd, so the ${id} REPORT was not saved` : null
+}
+
+const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
+
 if (isMainModule(import.meta.url)) {
   readStdinJson()
-    .then(e => saveFromEvent(e))
-    .catch(err => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: the REPORT was not saved: ${lineOf(err)}` })))
+    .then(e => {
+      const skipped = skipNotice(e)
+      if (skipped === null) saveFromEvent(e)
+      else notice(skipped)
+    })
+    .catch(err => notice(`the REPORT was not saved: ${lineOf(err)}`))
 }

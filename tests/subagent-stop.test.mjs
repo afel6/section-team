@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { saveFromEvent, finalAgentText } from '../hooks/subagent-stop.mjs'
+import { saveFromEvent, finalAgentText, skipNotice } from '../hooks/subagent-stop.mjs'
 
 // The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
 delete process.env.CLAUDE_PROJECT_DIR
@@ -172,17 +172,62 @@ test('null rows and null parts are skipped without throwing', () => {
   assert.equal(finalAgentText(transcript), 'last words')
 })
 
-test('hook end to end, and malformed stdin exits 0 silently', () => {
+const NOT_JSON_MESSAGE = 'section-team subagent-stop: skipped: the hook input is not JSON, so no REPORT was saved'
+const noCwdMessage = id => `section-team subagent-stop: skipped: the hook input has no absolute cwd, so the ${id} REPORT was not saved`
+const assertSystemMessage = (result, message, label = 'hook output') => {
+  assert.equal(result.status, 0, label)
+  assert.equal(result.stderr, '', label)
+  assert.equal(result.stdout, JSON.stringify({ systemMessage: message }), label)
+}
+
+test('hook end to end: a good run is silent, input that is not JSON gets one skipped line, a non-section event stays silent', () => {
   const dir = tempDir()
   const ok = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:docs', cwd: dir, last_assistant_message: '## REPORT · docs\nStatus: done\n' }), encoding: 'utf8' })
   assert.equal(ok.status, 0)
   assert.equal(ok.stdout, '')
   assert.ok(existsSync(join(dir, '.team', 'reports')))
-  for (const input of ['', 'not json', '{}']) {
-    const bad = spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
-    assert.equal(bad.status, 0)
-    assert.equal(bad.stdout, '')
+  for (const input of ['', 'not json']) {
+    assertSystemMessage(spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' }), NOT_JSON_MESSAGE, JSON.stringify(input))
   }
+  for (const input of ['{}', '{"agent_type":"general-purpose"}']) {
+    const quiet = spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
+    assert.equal(quiet.status, 0, input)
+    assert.equal(quiet.stderr, '', input)
+    assert.equal(quiet.stdout, '', input)
+  }
+})
+
+test('a non-section event stays silent with or without a cwd, and saves nothing', () => {
+  const dir = tempDir()
+  for (const event of [{}, { agent_type: 'general-purpose' }, { agent_type: 'general-purpose', cwd: dir }, { cwd: dir }, { cwd: '.' }]) {
+    const run = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ ...event, last_assistant_message: REPORT }), encoding: 'utf8' })
+    assert.equal(run.status, 0, JSON.stringify(event))
+    assert.equal(run.stderr, '', JSON.stringify(event))
+    assert.equal(run.stdout, '', JSON.stringify(event))
+  }
+  assert.equal(existsSync(join(dir, '.team')), false)
+})
+
+test('a section event with no usable project dir prints one skipped line naming the section, and saves nothing', () => {
+  const docsReport = '## REPORT · docs · 2026-10-12 14:32\nStatus: done\nJob: readme\n'
+  const cases = [
+    ['backend', { agent_type: 'section-team:backend', last_assistant_message: REPORT }],
+    ['backend', { agent_type: 'section-team:backend', cwd: '', last_assistant_message: REPORT }],
+    ['backend', { agent_type: 'section-team:backend', cwd: '.', last_assistant_message: REPORT }],
+    ['docs', { agent_type: 'section-team:docs', last_assistant_message: docsReport }],
+  ]
+  for (const [id, event] of cases) {
+    const input = JSON.stringify({ hook_event_name: 'SubagentStop', ...event })
+    assertSystemMessage(spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' }), noCwdMessage(id), input)
+  }
+})
+
+test('a section event with a relative cwd writes nothing into the hook process folder', () => {
+  const folder = tempDir()
+  const input = JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:backend', cwd: '.', last_assistant_message: REPORT })
+  const run = spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', cwd: folder, env: process.env })
+  assertSystemMessage(run, noCwdMessage('backend'))
+  assert.deepEqual(readdirSync(folder), [], 'a REPORT was written into the hook process folder')
 })
 
 
@@ -266,4 +311,15 @@ test('without CLAUDE_PROJECT_DIR a session in a repo subfolder saves at the repo
   const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: sub, last_assistant_message: REPORT }, NOW, {})
   assert.equal(file, join(root, '.team', 'reports', '2026-10-12', '143205-backend.md'))
   assert.equal(existsSync(join(sub, '.team')), false)
+})
+
+test('with CLAUDE_PROJECT_DIR set, a section event without a cwd is not skipped: the hook saves the REPORT there', () => {
+  const project = tempDir()
+  const event = { agent_type: 'section-team:backend', last_assistant_message: REPORT }
+  assert.equal(skipNotice(event, { CLAUDE_PROJECT_DIR: project }), null)
+  const run = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify(event), encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: project } })
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  assert.equal(run.stdout, '')
+  assert.equal(readdirSync(join(project, '.team', 'reports')).length, 1)
 })

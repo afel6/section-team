@@ -85,10 +85,12 @@ export function buildContext(cwd, home = homedir(), env = process.env, sessionId
   return startContext(cwd, home, env, sessionId).context
 }
 
+const skipped = why => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: skipped: ${why}, so the team brief was not added` }))
+
 async function main() {
   const input = await readStdinJson()
   const dir = projectDirOf(input)
-  if (dir === null) return
+  if (dir === null) return skipped(input === null ? 'the hook input is not JSON' : 'the hook input has no absolute cwd')
   const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null)
   const output = { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
   process.stdout.write(JSON.stringify(warnings.length === 0 ? output : { systemMessage: `${MESSAGE_PREFIX}: ${warnings.join('; ')}`, ...output }))
