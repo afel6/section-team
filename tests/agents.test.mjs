@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { ROSTER, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
@@ -23,7 +23,7 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
     assert.equal(fm.name, s.id)
     // Every section head runs on Opus: benchmark rounds 4–6 showed Sonnet heads land at solo quality even with the Opus gate.
     assert.equal(fm.model, 'claude-opus-5-5', `${file} model`)
-    assert.equal(fm.memory, 'user')
+    assert.equal(fm.memory, 'local', `${file} memory`)
     assert.ok(COLORS.includes(fm.color), `${file} colour ${fm.color}`)
     assert.ok(text.includes('## REPORT · '), `${file} has no REPORT template`)
     assert.ok(text.includes('pass `model` explicitly'), `${file} has no model routing`)
@@ -209,6 +209,36 @@ test('every REPORT has a Quality line between Tests and Coordination', () => {
     const text = agentFile(s.id)
     assert.match(text, /^Tests: .*\nQuality:      <overall>\/10 \(reviewer, <n> fix rounds\) \| n\/a \(no code\)\nCoordination: /m, `${s.id} Quality line`)
   }
+})
+
+test('every REPORT template offers the ungraded status', () => {
+  // The Job line pins the template's column alignment: an edit to the Status line once shifted it.
+  for (const s of ROSTER) assert.ok(agentFile(s.id).includes('\nStatus:       done | partial | blocked | ungraded\nJob:          <one line>\n'), `${s.id} ungraded status`)
+})
+
+test('sections keep memory per project: memory: local everywhere, memory: user nowhere, and the memory step says so', () => {
+  const MEMORY_STEP = "Use your memory folder to remember this project's conventions and the user's preferences for your area."
+  for (const s of ROSTER) {
+    const text = agentFile(s.id)
+    assert.equal(front(text).memory, 'local', `${s.id} memory`)
+    assert.ok(text.includes(MEMORY_STEP), `${s.id} memory step`)
+    assert.ok(!text.includes('across projects'), `${s.id} still says "across projects"`)
+  }
+  for (const file of readdirSync(AGENTS).filter(f => f.endsWith('.md'))) {
+    assert.doesNotMatch(readFileSync(new URL(file, AGENTS), 'utf8'), /^memory: user$/m, file)
+  }
+})
+
+test('every builder lets a stated mode gate replace its numbers and reviewer model, and reports ungraded without an Agent tool', () => {
+  const MODE_GATE = 'If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.'
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes('If the job states a mode gate, it replaces the numbers here'), `${id} mode gate`)
+    assert.ok(text.includes('Status: ungraded'), `${id} ungraded status`)
+    assert.ok(text.includes(MODE_GATE), `${id} full mode-gate sentence`)
+    assert.ok(text.indexOf(MODE_GATE) > text.indexOf('Quality gate (skip it when') && text.indexOf(MODE_GATE) < text.indexOf('\n7. Write notes'), `${id} mode gate is outside the quality-gate step`)
+  }
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('If the job states a mode gate'), `${id} is read-only and has no gate`)
 })
 
 test('advisors read the notes but get neither the reviewer nor the coder', () => {

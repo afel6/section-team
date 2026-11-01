@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { relative, sep } from 'node:path'
 import { assembleBrief } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, assertMode, modeName, readMode } from './lib/mode.mjs'
-import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
+import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -41,11 +42,15 @@ function skillSetting(autoInstallSkills, env) {
   return env[AUTO_INSTALL_ENV] === '1' ? { on: true, from: AUTO_INSTALL_ENV } : { on: false, from: null }
 }
 
+// Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
+const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode's gate before you call that work done."
+
 function modeSection(mode, skills, problem) {
   return [
     '## Mode',
     `- This project runs in ${modeName(mode)} mode (${mode === DEFAULT_MODE ? 'default' : `from ${MODE_FILE}`}).`,
     `- Automatic skill installs: ${skills.on ? 'on' : 'off'} (${skills.from === null ? 'default' : `from ${skills.from}`}).`,
+    `- ${UNGRADED_LINE}`,
     ...(problem === null ? [] : [`- ${problem}.`]),
   ].join('\n')
 }
@@ -69,8 +74,14 @@ function attempt(label, fn) {
   } catch (err) {
     const detail = String(err?.message ?? err).replace(/\s+/g, ' ').trim()
     process.stderr.write(`${MESSAGE_PREFIX}: ${label} failed: ${detail}\n`)
-    return { value: null, warning: `${label} failed: ${err?.code ?? detail}` }
+    return { value: null, warning: `${label} failed: ${lineOf(err)}` }
   }
+}
+
+// The latest summary from the project root, with forward slashes: short and bounded, and no home folder in the context.
+function summaryPath(root) {
+  const file = latestSummary(root)
+  return file === null ? null : relative(root, file).split(sep).join('/')
 }
 
 // The session context, and the one-line warnings for the user: the mode file's problem, then each failed side effect.
@@ -86,7 +97,7 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
     ...(sessionId === undefined ? [] : [['mode record', () => recordMode(home, sessionId, setting.mode)]]),
   ]
   const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
-  const summary = attempt('summary lookup', () => latestSummary(root))
+  const summary = attempt('summary lookup', () => summaryPath(root))
   const warnings = [setting.problem, ...stepWarnings, summary.warning].filter(warning => warning !== null)
   return { context: composeContext(setting, env, summary.value), warnings }
 }
@@ -105,5 +116,5 @@ async function main() {
 }
 
 if (isMainModule(import.meta.url)) {
-  main().catch(err => process.stderr.write(`${MESSAGE_PREFIX}: ${err.message}\n`))
+  main().catch(err => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${lineOf(err)}` })))
 }

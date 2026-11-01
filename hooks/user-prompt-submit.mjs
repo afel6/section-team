@@ -2,14 +2,11 @@ import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { modeRules } from './lib/brief.mjs'
 import { MODES, modeName, readMode } from './lib/mode.mjs'
-import { isMainModule, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 import { modeRecordFile, recordMode } from './session-start.mjs'
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
-
-// One line for the user: the error code alone (so no path reaches the screen), or our own one-line message.
-const lineOf = err => err?.code ?? String(err?.message ?? err).replace(/\s+/g, ' ').trim()
 
 function attempt(label, fn) {
   try {

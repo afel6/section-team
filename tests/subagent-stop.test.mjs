@@ -1,11 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { saveFromEvent, finalAgentText } from '../hooks/subagent-stop.mjs'
+
+// The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
+delete process.env.CLAUDE_PROJECT_DIR
 
 const SCRIPT = fileURLToPath(new URL('../hooks/subagent-stop.mjs', import.meta.url))
 const tempDir = () => {
@@ -191,4 +194,60 @@ test('every section REPORT is saved, graded or not: the gate runs at handback, n
   assert.equal(run.status, 0)
   assert.equal(run.stdout, '')
   assert.ok(existsSync(join(dir, '.team', 'reports')))
+})
+
+const UNGRADED_STATUS = '## REPORT · backend · 2026-10-12 14:32\nStatus: ungraded\nJob: login api\nChanged: src/api.mjs\nProblems: no Agent tool, so the reviewer gate could not run\n'
+const runHook = event => spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:backend', ...event }), encoding: 'utf8' })
+
+test('a REPORT with Status: ungraded is saved as is, by the function and by the hook', () => {
+  const dir = tempDir()
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: `notes\n${UNGRADED_STATUS}` }, NOW)
+  assert.equal(readFileSync(file, 'utf8'), UNGRADED_STATUS)
+  const dir2 = tempDir()
+  const run = runHook({ cwd: dir2, last_assistant_message: UNGRADED_STATUS })
+  assert.equal(run.status, 0)
+  assert.equal(run.stdout, '')
+  const days = readdirSync(join(dir2, '.team', 'reports'))
+  assert.equal(days.length, 1)
+  const files = readdirSync(join(dir2, '.team', 'reports', days[0]))
+  assert.equal(files.length, 1)
+  assert.equal(readFileSync(join(dir2, '.team', 'reports', days[0], files[0]), 'utf8'), UNGRADED_STATUS)
+})
+
+test('a save that fails (the reports path is a file) prints one systemMessage line instead of failing silently', () => {
+  const dir = tempDir()
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'reports'), 'a file where the reports folder should be')
+  const run = runHook({ cwd: dir, last_assistant_message: REPORT })
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  assert.doesNotMatch(run.stdout, /\n/)
+  const out = JSON.parse(run.stdout)
+  assert.deepEqual(Object.keys(out), ['systemMessage'])
+  assert.match(out.systemMessage, /^section-team subagent-stop: the REPORT was not saved: E[A-Z]+$/)
+  assert.ok(!out.systemMessage.includes(dir), 'the message leaks the path')
+})
+
+test('CLAUDE_PROJECT_DIR picks where the REPORT is saved, not the event cwd', () => {
+  const expected = project => join(project, '.team', 'reports', '2026-10-12', '143205-backend.md')
+  const project = tempDir()
+  const elsewhere = tempDir()
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: elsewhere, last_assistant_message: REPORT }, NOW, { CLAUDE_PROJECT_DIR: project })
+  assert.equal(file, expected(project))
+  assert.equal(existsSync(join(elsewhere, '.team')), false)
+  const project2 = tempDir()
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', last_assistant_message: REPORT }, NOW, { CLAUDE_PROJECT_DIR: project2 }), expected(project2))
+  const cwd = tempDir()
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd, last_assistant_message: REPORT }, NOW, { CLAUDE_PROJECT_DIR: '' }), expected(cwd))
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', last_assistant_message: REPORT }, NOW, {}), null)
+})
+
+test('without CLAUDE_PROJECT_DIR a session in a repo subfolder saves at the repo root', () => {
+  const root = tempDir()
+  execFileSync('git', ['-C', root, 'init', '-q'])
+  const sub = join(root, 'src')
+  mkdirSync(sub)
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: sub, last_assistant_message: REPORT }, NOW, {})
+  assert.equal(file, join(root, '.team', 'reports', '2026-10-12', '143205-backend.md'))
+  assert.equal(existsSync(join(sub, '.team')), false)
 })

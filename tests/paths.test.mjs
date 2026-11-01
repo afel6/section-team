@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpa
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, projectDirOf, pruneStatus, PRUNE_MS } from '../hooks/lib/paths.mjs'
+import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, projectDirOf, pruneStatus, PRUNE_MS, lineOf } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -153,6 +153,23 @@ test('latestSummary orders by time, then by collision number', () => {
   const two = writeReport(written, 'supervisor-summary', 'two', at)
   assert.ok(two.endsWith('090000-supervisor-summary-2.md'))
   same(latestSummary(written, NOW), two)
+})
+
+test('latestSummary accepts a collision number of at most 3 digits', () => {
+  const dir = tempDir()
+  const capped = touch(dir, '2026-10-12', '090000-supervisor-summary-999.md')
+  touch(dir, '2026-10-12', '100000-supervisor-summary-1000.md')
+  same(latestSummary(dir, NOW), capped)
+  const lone = tempDir()
+  touch(lone, '2026-10-12', '090000-supervisor-summary-0001.md')
+  assert.equal(latestSummary(lone, NOW), null)
+})
+
+test('lineOf gives the error code when there is one, else the message on one line', () => {
+  assert.equal(lineOf(Object.assign(new Error('C:\\secret\\path\nmore'), { code: 'EACCES' })), 'EACCES')
+  assert.equal(lineOf(new Error('brief part core.md\n  could not be read')), 'brief part core.md could not be read')
+  assert.equal(lineOf('  plain\ttext '), 'plain text')
+  assert.equal(lineOf(undefined), 'undefined')
 })
 
 const STDIN_CHILD =`const { readStdinJson } = await import(${JSON.stringify(new URL('../hooks/lib/paths.mjs', import.meta.url).href)}); const e = await readStdinJson(); if (e === null) process.stderr.write('NULL'); else process.stdout.write(e.text)`

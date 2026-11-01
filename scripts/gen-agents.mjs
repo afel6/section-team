@@ -86,7 +86,7 @@ export const HELPER_AGENTS = [
 ]
 
 const REPORT = (id) => `## REPORT · ${id} · <YYYY-MM-DD HH:MM>
-Status:       done | partial | blocked
+Status:       done | partial | blocked | ungraded
 Job:          <one line>
 Changed:      <files, or "none">
 Tests:        <what ran, pass/fail, or "none">
@@ -137,6 +137,8 @@ const QUALITY_GATE = [
   "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
+  // Lean and Max job messages state their own gate (brief/gate-lean.md, gate-max.md); Balanced jobs use the defaults above.
+  '   - If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
   '   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.',
   '   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
@@ -170,7 +172,7 @@ const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
 
 export function render(s, extra = {}) {
   const isAdvisor = s.kind === 'advisor'
-  const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL[s.kind]}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: user']
+  const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL[s.kind]}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: local']
   if (isAdvisor) lines.push(`tools: ${ADVISOR_TOOLS}`)
   if (s.core.length > 0) lines.push('skills:', ...s.core.map(k => `  - ${k}`))
   lines.push('---')
@@ -184,7 +186,7 @@ export function render(s, extra = {}) {
     ...(isAdvisor ? [] : [QUALITY_GATE, WRITE_NOTES]),
     isAdvisor ? ADVISOR_COORDINATION : BUILDER_COORDINATION,
     finalStep(s, isAdvisor),
-    "Use your memory folder to remember this user's preferences for your area across projects.",
+    "Use your memory folder to remember this project's conventions and the user's preferences for your area.",
     'Finish with exactly this block, filled in, and nothing after it:',
   ]
   const body = [

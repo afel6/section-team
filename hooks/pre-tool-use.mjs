@@ -1,17 +1,18 @@
-import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
-import { isMainModule, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team pre-tool-use'
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
 const READ_ONLY_HELPERS = new Set(ADVISOR_HELPERS)
 
-export function isInMemory(target, id, cwd, home) {
-  if (typeof target !== 'string' || target === '') return false
-  const rel = relative(join(home, '.claude', 'agent-memory'), resolve(cwd ?? '.', target))
+// The advisor's own memory folder (memory: local): <project root>/.claude/agent-memory-local/<id or section-team-<id>>/.
+// cwd is the session's project dir; without one there is no memory folder, so nothing is allowed.
+export function isInMemory(target, id, cwd) {
+  if (typeof target !== 'string' || target === '' || typeof cwd !== 'string' || cwd === '') return false
+  const rel = relative(join(projectRoot(cwd), '.claude', 'agent-memory-local'), resolve(cwd, target))
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
   const folder = rel.split(/[\\/]/)[0]
   return folder === id || folder === `section-team-${id}`
@@ -56,12 +57,12 @@ function foregroundRule(e) {
   return e.tool_name === 'Agent' && e.tool_input?.run_in_background === true ? FOREGROUND_REASON : null
 }
 
-function advisorRule(id, e, home) {
+function advisorRule(id, e, env) {
   if (!ADVISOR_IDS.includes(id)) return null
   const tool = e.tool_name
   if (SHELL_TOOLS.has(tool)) return `section-team: the ${id} advisor is read-only; ${tool} is not allowed.`
   if (WRITE_TOOLS.has(tool)) {
-    return isInMemory(e.tool_input?.file_path, id, e.cwd, home) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
+    return isInMemory(e.tool_input?.file_path, id, projectDirOf(e, env)) ? null : `section-team: the ${id} advisor may only write inside its memory folder.`
   }
   if (tool === 'Agent' && !READ_ONLY_HELPERS.has(e.tool_input?.subagent_type)) {
     return `section-team: the ${id} advisor may only use read-only helpers (${ADVISOR_HELPERS.join(', ')}).`
@@ -69,15 +70,13 @@ function advisorRule(id, e, home) {
   return null
 }
 
-export function decide(e, home = homedir(), env = process.env) {
+export function decide(e, env = process.env) {
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null
-  return handbackGate(id, e, env) ?? advisorRule(id, e, home) ?? foregroundRule(e)
+  return handbackGate(id, e, env) ?? advisorRule(id, e, env) ?? foregroundRule(e)
 }
 
-// One line for the user: the error code alone (so no path reaches the screen), or the message on one line.
-const lineOf = err => err?.code ?? String(err?.message ?? err).replace(/\s+/g, ' ').trim()
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
 
 // A hook that cannot check says so in one line and denies nothing.

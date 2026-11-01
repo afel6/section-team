@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -15,6 +15,7 @@ const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.u
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
 const FIXTURE = readFileSync(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url), 'utf8').trim()
 const MARKER = '[section-team supervisor]'
+const UNGRADED_LINE = 'A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode\'s gate before you call that work done.'
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
 const tempHome = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-home-')))
 const repo = () => {
@@ -103,11 +104,20 @@ test('with S2 direct the brief tells the supervisor to list the awake agent ids 
 
 test('context names the latest summary and excludes .team/', () => {
   const dir = repo()
-  const summary = writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
+  writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const context = buildContext(dir, tempHome())
   assert.ok(context.startsWith('[section-team supervisor]'))
-  assert.ok(context.includes(summary))
+  assert.ok(context.includes('\n\nLast team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it before new team work.\n\n'))
+  assert.ok(!context.includes(dir))
   assert.ok(readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
+})
+
+test('a session in a subfolder names the summary relative to the project root', () => {
+  const dir = repo()
+  writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
+  const sub = join(dir, 'src')
+  mkdirSync(sub)
+  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
 })
 
 test('hook prints SessionStart additionalContext', () => {
@@ -258,7 +268,7 @@ test('a Max mode file at the repo root applies to a session started in a subfold
 test('without a mode file the context is the v0.1.1 brief plus a Balanced mode section', () => {
   assert.equal(
     buildContext(repo(), tempHome(), {}),
-    `${FIXTURE}\n\n## Mode\n- This project runs in Balanced mode (default).\n- Automatic skill installs: off (default).`,
+    `${FIXTURE}\n\n## Mode\n- This project runs in Balanced mode (default).\n- Automatic skill installs: off (default).\n- ${UNGRADED_LINE}`,
   )
 })
 
@@ -394,6 +404,22 @@ test('hook: input without a session id warns that the mode record failed, and st
   assert.ok(out.hookSpecificOutput.additionalContext.startsWith(MARKER))
 })
 
+test('hook: an error outside the side effects (no brief files) gives one systemMessage line and exits 0', () => {
+  // A copy of the hooks folder with no brief/ folder next to it, so assembling the brief fails.
+  const plugin = realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-nobrief-')))
+  try {
+    cpSync(fileURLToPath(new URL('../hooks', import.meta.url)), join(plugin, 'hooks'), { recursive: true })
+    const home = tempHome()
+    const result = spawnSync(process.execPath, [join(plugin, 'hooks', 'session-start.mjs')], { input: startInput(repo()), encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
+    assert.equal(result.status, 0)
+    assert.equal(result.stderr, '')
+    assert.doesNotMatch(result.stdout, /\n/)
+    assert.deepEqual(JSON.parse(result.stdout), { systemMessage: 'section-team session-start: brief part core.md could not be read (ENOENT)' })
+  } finally {
+    rmSync(plugin, { recursive: true, force: true })
+  }
+})
+
 test('composeContext builds the same text as buildContext, and puts the summary before the Mode section', () => {
   const dir = withModeFile(repo(), '{"mode":"lean","autoInstallSkills":true}')
   assert.equal(buildContext(dir, tempHome(), {}), composeContext(readMode(dir), {}, null))
@@ -402,13 +428,30 @@ test('composeContext builds the same text as buildContext, and puts the summary 
 })
 
 for (const mode of MODES) {
+  test(`${mode}: the Mode section tells the supervisor to grade an ungraded REPORT`, () => {
+    const bullet = `- ${UNGRADED_LINE}`
+    const ctx = contextFor(`{"mode":"${mode}"}`, {})
+    const lines = ctx.split('\n')
+    assert.equal(lines.filter(line => line === bullet).length, 1, 'the ungraded bullet must be one whole line')
+    const at = lines.indexOf(bullet)
+    assert.ok(lines.indexOf('## Mode') >= 0 && at > lines.indexOf('## Mode'), 'the bullet belongs under ## Mode')
+    assert.ok(lines[at - 1]?.startsWith('- Automatic skill installs: '), `the line before it is: ${lines[at - 1]}`)
+    assert.equal(ctx.split(UNGRADED_LINE).length, 2, 'the ungraded text must appear exactly once')
+    const withProblem = contextFor(`{"mode":"${mode}","autoInstallSkills":"yes"}`, {})
+    assert.ok(withProblem.endsWith('\n- .team/mode.json: autoInstallSkills must be true or false, so it is ignored.'))
+    assert.ok(withProblem.includes(`\n${bullet}\n- .team/mode.json:`))
+  })
+}
+
+for (const mode of MODES) {
   test(`${mode}: the worst-case session context stays within 10,000 characters`, () => {
     const { problem } = parseModeFile('{"mode":"abcdefghijklmnopqrst","autoInstallSkills":"yes"}')
     assert.ok(problem.length >= 130, `the longest problem line is only ${problem.length} characters`)
-    const summary = `C:\\${'x'.repeat(257)}`
-    assert.equal(summary.length, 260)
+    // The longest relative path latestSummary can give: the latest time of day and the highest same-second suffix.
+    const summary = '.team/reports/2026-10-12/235959-supervisor-summary-999.md'
+    assert.equal(summary.length, 57)
     const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary)
-    for (const part of ['Automatic skill installs are on', summary, '## Mode', problem]) assert.ok(ctx.includes(part), `lacks: ${part}`)
+    for (const part of ['Automatic skill installs are on', summary, '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }

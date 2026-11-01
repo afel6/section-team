@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
-import { isMainModule, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+
+const MESSAGE_PREFIX = 'section-team subagent-stop'
 
 // A job starts at a coordinator message (even though the harness flags it isMeta) or at a real user row.
 // Harness rows (isMeta: skill loads, hook feedback, system reminders) and tool results arrive mid-job and never start one.
@@ -29,17 +31,18 @@ export function finalAgentText(transcriptPath) {
   return lastText
 }
 
-// Every section REPORT is saved. The clean-code gate is enforced earlier, when the REPORT is handed back (pre-tool-use.mjs):
-// by the time a section stops, the supervisor already has its REPORT.
-export function saveFromEvent(e, now = new Date()) {
+// Every section REPORT is saved, ungraded ones too, at the root of the session's project (CLAUDE_PROJECT_DIR, else the event's cwd).
+// The clean-code gate is enforced earlier, when the REPORT is handed back (pre-tool-use.mjs): by the time a section stops, the supervisor already has its REPORT.
+export function saveFromEvent(e, now = new Date(), env = process.env) {
   const id = sectionIdFromType(e?.agent_type)
-  if (!id || typeof e.cwd !== 'string') return null
+  const dir = projectDirOf(e, env)
+  if (!id || dir === null) return null
   const block = extractReport(e.last_assistant_message || finalAgentText(e.agent_transcript_path))
-  return block ? writeReport(projectRoot(e.cwd), id, block, now) : null
+  return block ? writeReport(projectRoot(dir), id, block, now) : null
 }
 
 if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => saveFromEvent(e))
-    .catch(err => process.stderr.write(`section-team subagent-stop: ${err.message}\n`))
+    .catch(err => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: the REPORT was not saved: ${lineOf(err)}` })))
 }

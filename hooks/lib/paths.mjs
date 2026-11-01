@@ -96,8 +96,8 @@ export function writeReport(root, id, text, now = new Date()) {
   throw new Error(`section-team: over 999 reports for ${id} in one second`)
 }
 
-// Only names writeReport can produce: the path goes into trusted session context, so a committed file must not shape it.
-const SUMMARY_NAME = /^(\d{6})-supervisor-summary(?:-(\d+))?\.md$/
+// Only names shaped like writeReport's, with a collision suffix of at most 3 digits: the path goes into trusted session context, so a committed file must not shape or lengthen it.
+const SUMMARY_NAME = /^(\d{6})-supervisor-summary(?:-(\d{1,3}))?\.md$/
 
 export function latestSummary(root, now = new Date()) {
   const base = join(root, '.team', 'reports')
@@ -125,6 +125,9 @@ export function projectDirOf(input, env = process.env) {
   if (typeof dir === 'string' && dir !== '') return dir
   return typeof input?.cwd === 'string' ? input.cwd : null
 }
+
+// One line for the user: the error code alone (so no path reaches the screen), or the message on one line.
+export const lineOf = err => err?.code ?? String(err?.message ?? err).replace(/\s+/g, ' ').trim()
 
 export function isMainModule(moduleUrl) {
   const entry = process.argv[1]
