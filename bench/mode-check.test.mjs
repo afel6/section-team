@@ -222,15 +222,24 @@ test('nearMissState finds copies by bytes, path words and first line, outside .t
   assert.deepEqual(nearMissState(join(tmpdir(), 'bench-mode-missing-run')), { copies: 0, outside: [] })
 })
 
-test('max run whose copies are gone counts a testing-section Write or Bash into .team/near-miss/', t => {
+test('max run whose copies are gone counts any testing-section write into .team/near-miss/', t => {
   const dir = runDir(t, modeFile('max'))
+  const NONE = ['no near-miss copy in .team/near-miss/']
   const testing = lines => section('testing', 't1', [userLine(1.5, 'job'), ...lines])
   const check = lines => checkRun({ cond: 'max-mo', task: 'h5', roles: [...maxH5(), testing(lines)], runDir: dir, record: 'max' }).broken
-  assert.deepEqual(check([]), ['no near-miss copy in .team/near-miss/'])
+  assert.deepEqual(check([]), NONE)
   assert.deepEqual(check([write(3, `${dir}\\.team\\near-miss\\1-range.mjs`)]), [])
+  assert.deepEqual(check([write(3, join(dir, '.team', 'near-miss', '1-range.mjs'), 'Edit')]), [])
+  assert.deepEqual(check([write(3, '.team/near-miss/1-range.mjs', 'MultiEdit')]), [])
   assert.deepEqual(check([toolLine(3, 'Bash', { command: 'cp src/range.mjs .team/near-miss/1-range.mjs' })]), [])
+  assert.deepEqual(check([toolLine(3, 'Bash', { command: 'cp src\\range.mjs .team\\near-miss\\1-range.mjs' })]), [])
+  assert.deepEqual(check([toolLine(3, 'PowerShell', { command: 'Copy-Item src\\range.mjs .team\\near-miss\\1-range.mjs' })]), [])
+  assert.deepEqual(check([toolLine(3, 'PowerShell', { command: 'Copy-Item src/range.mjs .team/near-miss/1-range.mjs' })]), [])
+  assert.deepEqual(check([write(3, join(tmpdir(), 'elsewhere', '.team', 'near-miss', '1-range.mjs'))]), NONE)
+  assert.deepEqual(check([write(3, join(dir, '.team', 'notes.md')), toolLine(4, 'PowerShell', { command: 'Get-ChildItem .team' })]), NONE)
+  assert.deepEqual(check([toolLine(3, 'Read', { file_path: join(dir, '.team', 'near-miss', '1-range.mjs') })]), NONE)
   const byMain = [main_(wake(1, 'testing'), wake(2, 'security'), write(3, `${dir}/.team/near-miss/1-range.mjs`)), ...reviews(null, [[6, 9.5]])]
-  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: byMain, runDir: dir, record: 'max' }).broken, ['no near-miss copy in .team/near-miss/'])
+  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: byMain, runDir: dir, record: 'max' }).broken, NONE)
 })
 
 test('lean run whose mode.json says balanced at the end is unfaithful', t => {
@@ -328,20 +337,42 @@ test('modeCheck reads each run of the round from its evidence; main writes resul
   assert.match(logs.join('\n'), /h5-lean-mo-r2 .*no data/)
 })
 
-test('a bad mode record or a missing run folder stops main with one line naming the run', t => {
+const rowOf = (cond, task, line) => ({ cond, task, faithful: false, broken: [line], tier: null })
+
+test('every run gets a row: a bad mode record, session.json or run.json, or a missing or unreadable run folder', t => {
   const results = runDir(t)
-  writeRun(results, 'h5-lean-mo-r1', { dir: runDir(t, modeFile('lean')), roles: leanH5(), record: 'bogus' })
+  const dir = runDir(t, modeFile('lean'))
+  writeRun(results, 'h5-lean-mo-r1', { dir, roles: leanH5(), record: 'bogus' })
+  writeRun(results, 'h5-lean-mo-r2', { dir, roles: leanH5(), record: 'lean' })
+  writeFileSync(join(results, 'h5-lean-mo-r2', 'session.json'), '{"sessionId":')
+  writeRun(results, 'h5-lean-mo-r3', { dir: join(results, 'no-such-run'), roles: leanH5(), record: 'lean' })
+  writeRun(results, 'h6-lean-mo-r1', { dir, roles: leanH5(), record: 'lean' })
+  writeFileSync(join(results, 'h6-lean-mo-r1', 'run.json'), '{"dir":')
+  writeRun(results, 'h6-lean-mo-r2', { dir: runDir(t, { '.team/mode.json/x': 'a folder, not a file' }), roles: leanH5(), record: 'lean' })
+  writeRun(results, 'h6-lean-mo-r3', { dir, roles: leanH5(), record: 'lean' })
+  writeFileSync(join(results, 'h6-lean-mo-r3', 'run.json'), JSON.stringify({ task: 'h6', cond: 'lean-mo' }))
+  writeRun(results, 'h5-lean-mo-r4', { dir, roles: leanH5(), record: 'lean' })
+  assert.deepEqual(modeCheck({ results, round: 'mo' }), {
+    'h5-lean-mo-r1': rowOf('lean-mo', 'h5', 'mode record unreadable'),
+    'h5-lean-mo-r2': rowOf('lean-mo', 'h5', 'session unreadable'),
+    'h5-lean-mo-r3': rowOf('lean-mo', 'h5', 'no data'),
+    'h5-lean-mo-r4': { cond: 'lean-mo', task: 'h5', faithful: true, broken: [], tier: 'small' },
+    'h6-lean-mo-r1': rowOf('lean-mo', 'h6', 'run.json unreadable'),
+    'h6-lean-mo-r2': rowOf('lean-mo', 'h6', 'run folder unreadable'),
+    'h6-lean-mo-r3': rowOf('lean-mo', 'h6', 'run.json unreadable'),
+  })
+})
+
+test('main stops with one line only when results/ cannot be read', t => {
   const errors = []
   t.mock.method(console, 'error', line => errors.push(line))
   const before = process.exitCode
-  main(['--round=mo'], { results })
+  main(['--round=mo'], { results: join(runDir(t), 'no-results') })
   const exitCode = process.exitCode
   process.exitCode = before
   assert.equal(exitCode, 1)
-  assert.deepEqual(errors, ['mode-check: h5-lean-mo-r1: mode record is not valid'])
-  const gone = runDir(t)
-  writeRun(gone, 'h5-lean-mo-r1', { dir: join(gone, 'no-such-run'), roles: leanH5(), record: 'lean' })
-  assert.throws(() => modeCheck({ results: gone, round: 'mo' }), /^Error: h5-lean-mo-r1: run folder .*no-such-run is missing$/)
+  assert.equal(errors.length, 1)
+  assert.match(errors[0], /^mode-check: cannot read .*no-results \(ENOENT\)$/)
 })
 
 test('main refuses a round that is not letters and digits', t => {

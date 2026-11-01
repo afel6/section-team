@@ -78,13 +78,21 @@ function modeFileRules(mode, runDir) {
 
 const recordRules = (mode, record) => (record === mode ? [] : [`mode record is ${record ?? 'missing'}, not ${mode}`])
 
+const FILE_WRITERS = ['Write', 'Edit', 'MultiEdit']
+const SHELLS = ['Bash', 'PowerShell']
+
+// A tool's file_path as a runDir-relative posix path, or null when it lies outside runDir (or is runDir itself).
+function insideRunDir(runDir, path) {
+  const rel = relative(runDir, resolve(runDir, String(path ?? '')))
+  return rel === '' || rel.split(sep)[0] === '..' || isAbsolute(rel) ? null : toPosix(rel)
+}
+
 // Files main itself wrote inside the run folder, other than docs, package.json, .gitignore and .team/ files.
 function mainWrites(roles, runDir) {
   const main = roles.find(r => r.role === 'main')?.messages ?? []
-  const paths = toolUses(main, 'Write', 'Edit', 'MultiEdit').map(use => String(use.input.file_path ?? ''))
-  const inside = paths.map(path => relative(runDir, resolve(runDir, path))).filter(rel => rel !== '' && !rel.startsWith('..') && !isAbsolute(rel))
+  const inside = toolUses(main, ...FILE_WRITERS).map(use => insideRunDir(runDir, use.input.file_path)).filter(rel => rel !== null)
   const allowed = rel => rel.endsWith('.md') || ['package.json', '.gitignore'].includes(basename(rel)) || rel.startsWith('.team/')
-  return [...new Set(inside.map(toPosix))].filter(rel => !allowed(rel))
+  return [...new Set(inside)].filter(rel => !allowed(rel))
 }
 
 // h4, every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
@@ -127,12 +135,18 @@ function sectionRules(mode, task, woken) {
   return [...missing, ...(extra.length ? [`${task} woke ${listed(extra)} (only ${listed(only) || 'none'} allowed)`] : [])]
 }
 
+// A testing-section tool call wrote into .team/near-miss/: a Write, Edit or MultiEdit of a file under the run's
+// .team/near-miss/, or a Bash or PowerShell command naming .team/near-miss/ (either slash direction).
+function testingWroteCopy(roles, runDir) {
+  return roles.filter(r => r.role === 'section-team:testing').some(({ messages }) =>
+    toolUses(messages, ...FILE_WRITERS).some(use => insideRunDir(runDir, use.input.file_path)?.startsWith(NEAR_MISS))
+    || toolUses(messages, ...SHELLS).some(use => String(use.input.command ?? '').replaceAll('\\', '/').includes(NEAR_MISS)))
+}
+
 // Max: a copy stayed in .team/near-miss/ (or the testing section wrote one there), and none sits outside .team/.
 function nearMissRules(roles, runDir) {
   const { copies, outside } = nearMissState(runDir)
-  const testing = roles.filter(r => r.role === 'section-team:testing').map(r => r.messages)
-  const named = (name, field) => testing.some(messages => toolUses(messages, name).some(use => toPosix(String(use.input[field] ?? '')).includes(NEAR_MISS)))
-  const made = copies > 0 || named('Write', 'file_path') || named('Bash', 'command')
+  const made = copies > 0 || testingWroteCopy(roles, runDir)
   return [...(made ? [] : [`no near-miss copy in ${NEAR_MISS}`]), ...(outside.length ? [`near-miss copy outside .team/: ${listed(outside)}`] : [])]
 }
 
@@ -141,10 +155,13 @@ const tierOf = woken => {
   return woken.some(w => w.section === 'testing') ? 'single' : 'small'
 }
 
+// A row that was not checked: one line says why.
+const failedRow = line => ({ faithful: false, broken: [line], tier: null })
+
 // { faithful, broken, tier } for one run. Solo runs are always faithful; roles null (no evidence) is a no-data row.
 export function checkRun({ cond, task, roles, runDir, record }) {
   if (cond === SOLO) return { faithful: true, broken: [], tier: null }
-  if (roles === null) return { faithful: false, broken: ['no data'], tier: null }
+  if (roles === null) return failedRow('no data')
   if (!Object.hasOwn(MODE_OF, cond)) throw new Error(`unknown setup "${cond}"`)
   const mode = MODE_OF[cond]
   const woken = wakeUps(roles)
@@ -160,38 +177,67 @@ export function checkRun({ cond, task, roles, runDir, record }) {
   return { faithful: broken.length === 0, broken, tier: tierOf(woken) }
 }
 
-const readRun = path => {
+const unreadable = what => failedRow(`${what} unreadable`)
+// Marks a read that threw: a corrupt or unreadable file becomes that run's row, so one bad file never stops the others.
+const FAILED = Symbol('failed')
+const attempt = read => {
   try {
-    return JSON.parse(readFileSync(path, 'utf8'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return null
-    throw new Error(`${path}: ${err instanceof SyntaxError ? 'not valid JSON' : err.message}`)
+    return read()
+  } catch {
+    return FAILED // reported as "<file> unreadable" in the run's row
   }
 }
 
-// One run's row from results/<id>/: run.json, the session's evidence and its mode record. No run.json or no evidence: no data.
-function runRow(folder, { task, cond }) {
-  const run = readRun(join(folder, 'run.json'))
-  if (run === null) return { cond, task, ...checkRun({ cond, task, roles: null, runDir: null, record: null }) }
-  if (typeof run.dir !== 'string') throw new Error('run.json has no run dir')
-  const evidence = join(folder, 'evidence')
-  const sid = run.cond === SOLO ? null : runSession(folder)
-  const roles = sid ? collectRolesFrom(evidence, sid) : null
-  const record = roles === null ? null : readRecord(evidence, sid)
-  // A run folder that is gone would read as empty (a team run would pass the mode.json rule unchecked).
-  if (roles !== null && !statSync(run.dir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`run folder ${run.dir} is missing`)
-  return { cond: run.cond, task: run.task, ...checkRun({ cond: run.cond, task: run.task, roles, runDir: run.dir, record }) }
+// The run's session id and roles from results/<id>/ (session.json, else raw.json) and its evidence/ copy.
+function sessionOf(folder) {
+  const sid = runSession(folder)
+  return { sid, roles: sid ? collectRolesFrom(join(folder, 'evidence'), sid) : null }
 }
 
-// { [runId]: { cond, task, faithful, broken, tier } } for every solo, lean, team and max run of the round.
-// A run whose files cannot be read throws one line naming the run.
+// checkRun over the run folder; a file there that cannot be read (other than a missing one) makes the row.
+function checkFolder(args) {
+  try {
+    return checkRun(args)
+  } catch (err) {
+    if (typeof err.code === 'string') return unreadable('run folder')
+    throw err
+  }
+}
+
+// One run's row: every run of the round gets one. No run.json, run folder or evidence is a no-data row; a file that
+// does not parse or cannot be read names itself (run.json, session, mode record, run folder).
+function runRow(folder, cond, task) {
+  if (cond === SOLO) return checkRun({ cond, task, roles: null, runDir: null, record: null })
+  const run = attempt(() => unlessMissing(() => JSON.parse(readFileSync(join(folder, 'run.json'), 'utf8')), undefined))
+  if (run === undefined) return failedRow('no data')
+  if (run === FAILED || typeof run?.dir !== 'string') return unreadable('run.json')
+  const isFolder = attempt(() => unlessMissing(() => statSync(run.dir).isDirectory(), false))
+  if (isFolder === FAILED) return unreadable('run folder')
+  if (!isFolder) return failedRow('no data')
+  const session = attempt(() => sessionOf(folder))
+  if (session === FAILED) return unreadable('session')
+  if (session.roles === null) return failedRow('no data')
+  const record = attempt(() => readRecord(join(folder, 'evidence'), session.sid))
+  if (record === FAILED) return unreadable('mode record')
+  return checkFolder({ cond, task, roles: session.roles, runDir: run.dir, record })
+}
+
+// { [runId]: { cond, task, faithful, broken, tier } } for every solo, lean, team and max run of the round (cond and
+// task from the run id). Throws one line when results/ cannot be read, or (a bug) naming the run it failed on.
 export function modeCheck({ results = RESULTS, round }) {
   const runId = new RegExp(`^([^-]+)-(solo|lean|team|max)-${round}-r\\d+$`)
-  const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
+  let entries
+  try {
+    entries = readdirSync(results, { withFileTypes: true })
+  } catch (err) {
+    throw new Error(`cannot read ${results} (${err.code ?? err.message})`, { cause: err })
+  }
+  const ids = entries.filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
   return Object.fromEntries(ids.map(id => {
     const [, task, base] = runId.exec(id)
+    const cond = `${base}-${round}`
     try {
-      return [id, runRow(join(results, id), { task, cond: `${base}-${round}` })]
+      return [id, { cond, task, ...runRow(join(results, id), cond, task) }]
     } catch (err) {
       throw new Error(`${id}: ${err.message}`, { cause: err })
     }
