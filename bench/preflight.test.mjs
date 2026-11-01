@@ -233,6 +233,27 @@ test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn
   assert.deepEqual(calls, { run: [], spawn: [] })
 })
 
+test('preflight never overwrites a round\'s pin: an existing one stops it before any spawn', t => {
+  const { home, results, calls, deps } = fakeRound(t)
+  const file = join(results, 'preflight-mo.json')
+  writeFile(file, '{"binary":"earlier"}\n')
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: () => assert.fail('git ran') }),
+    { message: `${file} exists: round mo is already pinned; delete it only if no run of the round has started` })
+  assert.deepEqual(calls, { run: [], spawn: [] })
+  assert.equal(readFileSync(file, 'utf8'), '{"binary":"earlier"}\n')
+})
+
+test('preflight never overwrites a pin that appeared while its setups ran', t => {
+  const file = (results => join(results, 'preflight-mo.json'))
+  const appears = ({ home }) => {
+    writeFile(file(join(dirname(home), 'results')), 'other\n')
+    return { status: 0, stdout: [init('max'), answer('NO')].map(m => JSON.stringify(m)).join('\n'), stderr: '' }
+  }
+  const { home, results, deps } = fakeRound(t, { during: { max: appears } })
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, deps), { code: 'EEXIST' })
+  assert.equal(readFileSync(file(results), 'utf8'), 'other\n')
+})
+
 test('preflight reports every problem, one line each, and writes no pin', t => {
   const timedOut = () => ({ error: Object.assign(new Error('spawnSync ETIMEDOUT'), { code: 'ETIMEDOUT' }), status: null, stdout: '', stderr: '' })
   const syncs = ({ home }) => {

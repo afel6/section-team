@@ -171,6 +171,9 @@ function versionOnPath(run) {
 export function preflight({ round, plugin, home = homedir(), results = RESULTS }, deps = {}) {
   const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS } = deps
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
+  // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
+  const file = join(results, `preflight-${round}.json`)
+  if (existsSync(file)) throw new Error(`${file} exists: round ${round} is already pinned; delete it only if no run of the round has started`)
   // No paid call with a plugin path the batches would refuse.
   pluginCommitOf(plugin, { git })
   checkPluginWorktree(plugin, { git })
@@ -181,10 +184,9 @@ export function preflight({ round, plugin, home = homedir(), results = RESULTS }
   const inits = Object.fromEntries(SETUPS.map((setup, i) => [setup, checks[i].init]))
   const { problems, pin } = pinFor({ version, binary, sha256, pluginDir: plugin, inits })
   const all = [...checks.flatMap(check => check.problems), ...problems]
-  const file = join(results, `preflight-${round}.json`)
   if (all.length === 0) {
     mkdirSync(results, { recursive: true })
-    writeFileSync(file, `${JSON.stringify(pin, null, 2)}\n`)
+    writeFileSync(file, `${JSON.stringify(pin, null, 2)}\n`, { flag: 'wx' })
   }
   return { problems: all, pin, file }
 }
