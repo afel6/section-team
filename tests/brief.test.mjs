@@ -80,6 +80,15 @@ test('max brief: pass mark 9, no item under 7, 3 fix rounds, near-miss copies', 
   }
 })
 
+test('max gate keeps near-miss copies in .team/near-miss, swapped in after builders and always restored', () => {
+  const gate = readFileSync(join(BRIEF_DIR, 'gate-max.md'), 'utf8')
+  for (const s of ['.team/near-miss/', 'after every builder has reported', 'always restore the original']) assert.ok(gate.includes(s), s)
+})
+
+test('lean and balanced briefs do not mention .team/near-miss', () => {
+  for (const m of ['lean', 'balanced']) assert.ok(!assembleBrief(m).includes('.team/near-miss'))
+})
+
 test('each gate part states its mode\'s GATES values', () => {
   for (const mode of MODES) {
     const { passOverall, minItem, fixRounds, reviewerModel, nearMiss } = GATES[mode]
