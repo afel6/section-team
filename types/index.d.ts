@@ -29,8 +29,11 @@ export type SessionStatus = {
 export type ChatCard = SessionStatus & { minutes: number }
 export type ChatsData = { hasHome: boolean; cards: ChatCard[] }
 
+// The project's quality mode, as .team/mode.json names it; the strip's picker shows it.
+export type Mode = 'lean' | 'balanced' | 'max'
+
 declare module 'claude-code' {
   interface PluginState {
-    'section-team': { board: BoardData; chats: ChatsData }
+    'section-team': { board: BoardData; chats: ChatsData; mode: Mode }
   }
 }

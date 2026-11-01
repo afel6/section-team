@@ -16,6 +16,18 @@ test('agent status and report status map to card states', () => {
   assert.equal(cardState('killed'), 'problem')
 })
 
+test('an ungraded handback is a problem card, like partial and blocked, never done', () => {
+  assert.equal(cardState('completed', 'ungraded'), 'problem')
+  const data = boardModel({
+    agents: [{ id: '1', type: 'section-team:backend', status: 'completed', description: 'api' }],
+    reports: { backend: { status: 'ungraded', job: '/api/login + JWT' } },
+  })
+  const backend = data.cards.find(c => c.id === 'backend')
+  assert.equal(backend.state, 'problem')
+  assert.equal(backend.line, 'Problem · ungraded: /api/login + JWT')
+  assert.deepEqual(data.counts, { active: 0, done: 0, problem: 1 })
+})
+
 test('board has 10 builders then 2 advisors and counts states', () => {
   const data = boardModel({
     agents: [

@@ -6,7 +6,7 @@ export function cardState(agentStatus, reportStatus) {
   if (agentStatus === 'pending' || agentStatus === 'running') return 'running'
   if (agentStatus === 'waiting' || agentStatus === 'idle') return 'waiting'
   if (agentStatus === 'failed' || agentStatus === 'killed') return 'problem'
-  if (agentStatus === 'completed') return reportStatus === 'partial' || reportStatus === 'blocked' ? 'problem' : 'done'
+  if (agentStatus === 'completed') return ['partial', 'blocked', 'ungraded'].includes(reportStatus) ? 'problem' : 'done'
   return 'asleep'
 }
 

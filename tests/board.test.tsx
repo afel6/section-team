@@ -1,7 +1,7 @@
-import { test, expect, mock } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import { test, expect } from 'claude-code/testing'
 import { boardModel } from '../hooks/board-model.mjs'
 import { register } from '../hooks/register'
+import { BAND, MINUTE, mountStrip, OTHER, SECTION, slashes, START, STATUS_DIR, T0, world } from './board-world'
 
 const DATA = boardModel({
   agents: [
@@ -29,76 +29,6 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ key: 'card-ai-engineer' })).toBeUndefined()
     expect((await ui.find({ key: 'asleep' }))?.text).toBe('9 asleep')
   })
-}
-
-const FILE = { kind: 'file', size: 1, mtimeMs: 1, isLink: false } as const
-const REPORT = '## REPORT · backend\nStatus: done\nJob: /api/login + JWT\nHelpers used: sonnet ×2\n'
-const START = { cwd: 'C:/proj', surface: 'terminal', isInteractive: true } as const
-const SECTION = { prompt: 'x', description: 'login form', subagentType: 'section-team:frontend' } as const
-const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-purpose' } as const
-
-// Answers, beneath the plugin, everything the board's poll reaches for; `seen` records what it asked.
-function world(on: On, now = 0) {
-  const clock = mock.clock(on, { now })
-  const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false,
-    writes: [] as { path: string; text: string }[], env: { USERPROFILE: 'C:/Users/u' } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined, registered: [] as string[],
-    // The status folder the /chats pane reads: file texts by name (mtimes by name, T0 when not given), a refusal, and what was asked of it.
-    chats: { files: {} as Record<string, string>, mtimes: {} as Record<string, number>, deny: undefined as string | undefined, lists: 0, reads: [] as string[] },
-    agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown }
-  on('session.start', async (_$, e) => ({ cwd: e.cwd }))
-  on('session.end', async (_$, e) => ({ sessionId: e.sessionId }))
-  on('session.cwd', async () => ({ value: 'C:/proj' }))
-  on('session.id', async () => ({ value: seen.sessionId }))
-  on('env.get', async (_$, e) => ({ value: seen.env[e.name] }))
-  on('fs.write', async (_$, e) => {
-    if (seen.denyWrite) return { deny: seen.denyWrite }
-    // The engine hands the path over as the OS spells it (backslashes on Windows).
-    seen.writes.push({ path: e.path.replaceAll('\\', '/'), text: e.text })
-    return { value: undefined }
-  })
-  on('turn.start', async (_$, e) => ({ turnId: e.turnId }))
-  on('turn.complete', async (_$, e) => ({ text: e.answer }))
-  on('process.run', async (_$, e) => {
-    seen.runs.push({ argv: e.argv, timeoutMs: e.init?.timeoutMs })
-    return { value: { exitCode: 0, stdout: 'C:/proj/.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
-  })
-  on('command.register', async (_$, e) => {
-    seen.registered.push(e.name)
-    return { value: { command: e.name } }
-  })
-  on('agent.list', async () => {
-    seen.agentList += 1
-    return { value: seen.agents ?? [{ id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' }, { id: '2', type: 'section-team:backend', status: 'completed', description: 'api' }] }
-  })
-  on('fs.list', async (_$, e) => {
-    if (slashes(e.path) === STATUS_DIR) {
-      seen.chats.lists += 1
-      if (seen.chats.deny) return { deny: seen.chats.deny }
-      return { value: Object.keys(seen.chats.files).map(name => ({ name, ...FILE, mtimeMs: seen.chats.mtimes[name] ?? T0 })) }
-    }
-    seen.listed = e.path
-    return { value: [{ name: '101500-backend.md', ...FILE }, { name: '140200-supervisor-summary.md', ...FILE }] }
-  })
-  on('fs.read', async (_$, e) => {
-    const path = slashes(e.path)
-    if (!path.startsWith(`${STATUS_DIR}/`)) return { value: REPORT }
-    const name = path.slice(STATUS_DIR.length + 1)
-    seen.chats.reads.push(name)
-    return { value: seen.chats.files[name] }
-  })
-  on('prompt.submit', async (_$, e) => ({ text: e.text }))
-  on('agent.spawn', async (_$, e) => (seen.denySpawn ? { deny: 'guard says no' } : seen.spawnAnswer?.(e) ?? { model: 'sonnet' }))
-  // The model's answer to a step, beneath the plugin: one text chunk, then a result carrying the usage the test set.
-  on('turn.step', async function* (_$, e) {
-    yield { kind: 'text', index: 0, text: 'ok' } as const
-    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: seen.stepUsage as never }
-  })
-  on('ui.open', async (_$, e) => {
-    seen.opened.push(e.id)
-    return { value: { isPlaced: true } }
-  })
-  on('ui.log', async (_$, e) => { seen.logs.push({ text: e.text, to: e.to }); return { value: undefined } })
-  return { clock, seen }
 }
 
 test('the poll turns agents, saved reports and the request into cards, and only /team opens the pane', async ($, on) => {
@@ -210,10 +140,6 @@ test('neither session.start nor section spawns open the pane, /team always does'
   await $.command.run({ command: 'team' })
   expect(seen.opened).toEqual(['team-board', 'team-board'])
 })
-
-const BAND = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 9 }, view: {} }
-const mountStrip = ($: { ui: { mount: (t: never) => Promise<{ find: (q: { key: string }) => Promise<{ text: string } | undefined>; press: (t: { key: string }) => Promise<unknown> }> } }, props: object = BAND) =>
-  $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'AbovePrompt', props } as never)
 
 test('the strip sits above the prompt: idle before anyone wakes, then the sections that are awake', async ($, on) => {
   const { clock } = world(on)
@@ -450,11 +376,6 @@ test('a session that ends for any other reason keeps its counts, a new session.s
   expect(restarted).not.toContain('helpers')
 })
 
-// The status file the /chats dashboard reads: one JSON per session id, under the home folder.
-const STATUS_DIR = 'C:/Users/u/.claude/section-team/sessions'
-const T0 = 1_700_000_000_000
-const MINUTE = 60 * 1000
-const slashes = (path: string) => path.replaceAll('\\', '/')
 const IDLE_TEAM = [{ id: '2', type: 'section-team:backend', status: 'completed', description: 'api' }]
 const TURN_DONE = { answer: 'ok', durationMs: 5, isAborted: false, reason: 'answer' } as const
 const statusOf = (seen: { writes: { path: string; text: string }[] }, id: string) => seen.writes.filter(w => w.path === `${STATUS_DIR}/${id}.json`).map(w => JSON.parse(w.text))
