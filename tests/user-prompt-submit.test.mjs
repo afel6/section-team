@@ -14,7 +14,9 @@ const SCRIPT = fileURLToPath(new URL('../hooks/user-prompt-submit.mjs', import.m
 const HOOKS = fileURLToPath(new URL('../hooks/', import.meta.url))
 const HOOKS_JSON = fileURLToPath(new URL('../hooks/hooks.json', import.meta.url))
 const PREFIX = 'section-team user-prompt-submit: '
+const BAD_SKILLS = '.team/mode.json: autoInstallSkills must be true or false, so it is ignored'
 const NO_ID = 'mode switch check skipped: no usable session id (letters, digits, - and _ only)'
+const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
 const tempDir = prefix => realpathSync.native(mkdtempSync(join(tmpdir(), prefix)))
 const tempHome = () => tempDir('ct-home-')
 // A project folder (its path has a space) with .team/ and, when text is given, .team/mode.json.
@@ -28,7 +30,7 @@ const setMode = (dir, text) => writeFileSync(join(dir, '.team', 'mode.json'), te
 const recordPath = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
 const recordText = (home, id) => readFileSync(recordPath(home, id), 'utf8')
 const notice = (from, to) => `Mode is now ${modeName(to)} (was ${modeName(from)}). From your next step on:\n\n${modeRules(to)}`
-const run = (input, home, script = SCRIPT) => spawnSync(process.execPath, [script], { input, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+const run = (input, home, script = SCRIPT) => spawnSync(process.execPath, [script], { input, encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
 const promptInput = (cwd, extra = {}) => JSON.stringify({ hook_event_name: 'UserPromptSubmit', cwd, session_id: 's1', prompt: 'hi', ...extra })
 const ageFile = (file, days) => {
   const when = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -79,7 +81,7 @@ test('every prompt rewrites the record, so a quiet session is not pruned', () =>
   assert.ok(isFresh(recordPath(h, 's1')))
 })
 
-test('a bad mode file announces nothing, keeps and refreshes the record, and the fixed file is announced against it', () => {
+test('an unusable mode announces nothing, keeps and refreshes the record, and the fixed file is announced against it', () => {
   const h = tempHome()
   const file = recordPath(h, 's1')
   recordMode(h, 's1', 'max')
@@ -88,7 +90,7 @@ test('a bad mode file announces nothing, keeps and refreshes the record, and the
   const cases = [
     ['{not json', 'mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'],
     ['{"mode":"turbo"}', 'mode switch check skipped: .team/mode.json: unknown mode "turbo", so Balanced is used'],
-    ['{"mode":"lean","autoInstallSkills":"yes"}', 'mode switch check skipped: .team/mode.json: autoInstallSkills must be true or false, so it is ignored'],
+    ['[1]', 'mode switch check skipped: .team/mode.json: not a JSON object, so Balanced is used'],
   ]
   for (const [text, warning] of cases) {
     setMode(dir, text)
@@ -102,6 +104,29 @@ test('a bad mode file announces nothing, keeps and refreshes the record, and the
   setMode(dir, '{not json')
   assert.equal(promptCheck(event(dir, 'new'), h).notice, null)
   assert.equal(existsSync(recordPath(h, 'new')), false)
+})
+
+test('a valid mode with a bad autoInstallSkills is announced and still warned', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'max')
+  const dir = project('{"mode":"lean","autoInstallSkills":"yes"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: notice('max', 'lean'), warnings: [BAD_SKILLS] })
+  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [BAD_SKILLS] })
+  assert.deepEqual(promptCheck(event(dir, 'fresh'), h), { notice: null, warnings: [BAD_SKILLS] })
+  assert.equal(recordText(h, 'fresh'), '{"mode":"lean"}')
+})
+
+test('hook: a valid mode with a bad autoInstallSkills prints the notice and the warning', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const r = run(promptInput(project('{"mode":"max","autoInstallSkills":"yes"}')), h)
+  assert.equal(r.status, 0)
+  assert.equal(r.stderr, '')
+  assert.deepEqual(JSON.parse(r.stdout), {
+    systemMessage: PREFIX + BAD_SKILLS,
+    hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: notice('balanced', 'max') },
+  })
 })
 
 test('hook: a bad mode file gives one systemMessage line and no context', () => {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { modeRules } from './lib/brief.mjs'
 import { MODES, modeName, readMode } from './lib/mode.mjs'
-import { isMainModule, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { isMainModule, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 import { modeRecordFile, recordMode } from './session-start.mjs'
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
@@ -44,12 +44,14 @@ function readRecord(file) {
 const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n\n${modeRules(mode)}`
 
 // What this prompt does: the notice (or null), the mode to keep in the record (null keeps nothing) and a warning (or null).
-// A mode file with any problem skips the check and keeps the mode the session runs in. The notice is built before the record
-// changes, so a brief part that cannot be read throws with the old record still in place, and the next prompt tries again.
+// A mode the file cannot give skips the check and keeps the mode the session runs in; a usable mode still passes on its problem
+// line (a bad autoInstallSkills). The notice is built before the record changes, so a brief part that cannot be read throws
+// with the old record still in place, and the next prompt tries again.
 function decide(previous, setting) {
-  if (setting.problem !== null) return { notice: null, keep: previous, warning: `${SKIPPED}: ${setting.problem}` }
-  if (previous === null || previous === setting.mode) return { notice: null, keep: setting.mode, warning: null }
-  return { notice: noticeText(previous, setting.mode), keep: setting.mode, warning: null }
+  if (!setting.modeUsable) return { notice: null, keep: previous, warning: `${SKIPPED}: ${setting.problem}` }
+  const warning = setting.problem
+  if (previous === null || previous === setting.mode) return { notice: null, keep: setting.mode, warning }
+  return { notice: noticeText(previous, setting.mode), keep: setting.mode, warning }
 }
 
 // The notice for the supervisor (once, on the first prompt after the project's mode changed) and the one-line warnings for the user.
@@ -81,7 +83,10 @@ function hookOutput({ notice, warnings }) {
 
 async function main() {
   const input = await readStdinJson()
-  const result = typeof input?.cwd === 'string' ? promptCheck(input, homedir()) : { notice: null, warnings: [`${SKIPPED}: the hook input has no cwd`] }
+  const dir = projectDirOf(input)
+  const result = dir === null
+    ? { notice: null, warnings: [`${SKIPPED}: the hook input has no cwd`] }
+    : promptCheck({ cwd: dir, session_id: input?.session_id }, homedir())
   const output = hookOutput(result)
   if (Object.keys(output).length > 0) process.stdout.write(JSON.stringify(output))
 }

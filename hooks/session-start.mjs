@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { assembleBrief } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, assertMode, modeName, readMode } from './lib/mode.mjs'
-import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
+import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -97,8 +97,9 @@ export function buildContext(cwd, home = homedir(), env = process.env, sessionId
 
 async function main() {
   const input = await readStdinJson()
-  if (typeof input?.cwd !== 'string') return
-  const { context, warnings } = startContext(input.cwd, homedir(), process.env, input.session_id ?? null)
+  const dir = projectDirOf(input)
+  if (dir === null) return
+  const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null)
   const output = { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
   process.stdout.write(JSON.stringify(warnings.length === 0 ? output : { systemMessage: `${MESSAGE_PREFIX}: ${warnings.join('; ')}`, ...output }))
 }

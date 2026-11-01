@@ -15,6 +15,7 @@ const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.u
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
 const FIXTURE = readFileSync(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url), 'utf8').trim()
 const MARKER = '[section-team supervisor]'
+const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
 const tempHome = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-home-')))
 const repo = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -27,7 +28,7 @@ const withModeFile = (dir, text) => {
   writeFileSync(join(dir, '.team', 'mode.json'), text)
   return dir
 }
-const run = (input, home = tempHome()) => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+const run = (input, home = tempHome()) => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
 const startInput = (cwd, extra = {}) => JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd, session_id: 'test-session', ...extra })
 const recordFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
 const ageFile = (file, days) => {

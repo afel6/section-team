@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpa
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, pruneStatus, PRUNE_MS } from '../hooks/lib/paths.mjs'
+import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, projectDirOf, pruneStatus, PRUNE_MS } from '../hooks/lib/paths.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -190,4 +190,15 @@ test('pruneStatus removes only regular .json files older than 7 days; a missing 
   assert.equal(existsSync(join(dir, 'old.json')), false)
   for (const kept of ['fresh.json', 'old.txt', 'old-dir.json']) assert.ok(existsSync(join(dir, kept)), `${kept} was removed`)
   assert.doesNotThrow(() => pruneStatus(join(dir, 'no-such-folder'), now))
+})
+
+test('projectDirOf prefers CLAUDE_PROJECT_DIR, then the input cwd', () => {
+  assert.equal(projectDirOf({ cwd: 'C' }, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
+  assert.equal(projectDirOf({ cwd: 'C' }, {}), 'C')
+  assert.equal(projectDirOf({ cwd: 'C' }, { CLAUDE_PROJECT_DIR: '' }), 'C')
+  assert.equal(projectDirOf({}, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
+  assert.equal(projectDirOf(null, { CLAUDE_PROJECT_DIR: 'P' }), 'P')
+  assert.equal(projectDirOf(null, {}), null)
+  assert.equal(projectDirOf({ cwd: 5 }, {}), null)
+  assert.equal(projectDirOf({}, {}), null)
 })

@@ -118,6 +118,14 @@ export function latestSummary(root, now = new Date()) {
   return null
 }
 
+// The folder a hook works from: the project the session started in (CLAUDE_PROJECT_DIR, which Claude Code sets for hooks),
+// else the hook input's cwd, which moves when the session changes folder; null when neither is usable.
+export function projectDirOf(input, env = process.env) {
+  const dir = env.CLAUDE_PROJECT_DIR
+  if (typeof dir === 'string' && dir !== '') return dir
+  return typeof input?.cwd === 'string' ? input.cwd : null
+}
+
 export function isMainModule(moduleUrl) {
   const entry = process.argv[1]
   if (!entry) return false

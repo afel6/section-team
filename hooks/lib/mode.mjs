@@ -34,9 +34,16 @@ const isPlainObject = value => typeof value === 'object' && value !== null && !A
 // Windows editors may start a file with a byte order mark, which JSON.parse rejects.
 const withoutBom = text => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
 
-const balancedWith = problem => ({ mode: DEFAULT_MODE, autoInstallSkills: null, problem })
+// No mode file: the default mode, nothing to report.
+const noFile = () => ({ mode: DEFAULT_MODE, autoInstallSkills: null, problem: null, modeUsable: true })
 
-const balancedBecause = reason => balancedWith(`${MODE_FILE}: ${reason}, so Balanced is used`)
+// The file's mode cannot be used, so Balanced stands in until the file is fixed.
+const balancedBecause = reason => ({
+  mode: DEFAULT_MODE,
+  autoInstallSkills: null,
+  problem: `${MODE_FILE}: ${reason}, so Balanced is used`,
+  modeUsable: false,
+})
 
 function modeOf(data) {
   if (data.mode === undefined) return { mode: DEFAULT_MODE, fault: null }
@@ -51,10 +58,11 @@ function skillsOf(data) {
   return { autoInstallSkills: null, fault: 'autoInstallSkills must be true or false, so it is ignored' }
 }
 
-// The mode, the skill setting and one problem line (or null) from the text of a mode file (null when there is no file).
-// Never throws for any file text; a value that is not a string or null is a caller bug and throws a TypeError.
+// The mode, the skill setting, one problem line (or null) and modeUsable from the text of a mode file (null when there is no file).
+// modeUsable is false when the file's mode could not be used (bad JSON, not an object, an unknown mode), so Balanced is a stand-in;
+// a bad autoInstallSkills alone leaves it true. Never throws for any file text; a value that is not a string or null throws a TypeError.
 export function parseModeFile(text) {
-  if (text === null) return balancedWith(null)
+  if (text === null) return noFile()
   if (typeof text !== 'string') throw new TypeError('parseModeFile takes the file text or null')
   const json = withoutBom(text)
   let data
@@ -67,7 +75,8 @@ export function parseModeFile(text) {
   const { mode, fault: modeFault } = modeOf(data)
   const { autoInstallSkills, fault: skillsFault } = skillsOf(data)
   const faults = [modeFault, skillsFault].filter(fault => fault !== null)
-  return { mode, autoInstallSkills, problem: faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}` }
+  const problem = faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}`
+  return { mode, autoInstallSkills, problem, modeUsable: modeFault === null }
 }
 
 // Throws one plain line unless mode is one of MODES.
@@ -101,13 +110,14 @@ const readReason = err => (err?.code === 'ENOTDIR' ? NOT_FOLDER : `could not be 
 
 function whenFileMissing(root) {
   try {
-    return teamIsNotFolder(root) ? balancedBecause(NOT_FOLDER) : balancedWith(null)
+    return teamIsNotFolder(root) ? balancedBecause(NOT_FOLDER) : noFile()
   } catch (err) {
     return balancedBecause(readReason(err))
   }
 }
 
-// The mode, the skill setting and one problem line (or null) for a project root. Never throws and never creates anything.
+// parseModeFile's answer for a project root; an unreadable file or a .team that is not a folder also gives modeUsable false.
+// Never throws and never creates anything.
 export function readMode(root) {
   let text
   try {
