@@ -14,6 +14,7 @@ Follow it as written. Each judge has its own copy of the case set (`codex-judge-
 - The judge never opens anything outside its own case folder.
 - When a verdict is not usable, re-ask: start a new session on the same case. A case gets at most two re-asks.
 - Never judge a case in a session that has seen another case.
+- A fresh or rebuilt set always gets a new folder name. Attempt records are kept per set name, in `bench/results/codex-logs/<case set>/` and `bench/results/ag-logs/<case set>/`, so these folders are never emptied or reused.
 
 ## Codex
 
@@ -23,8 +24,6 @@ Follow it as written. Each judge has its own copy of the case set (`codex-judge-
 - It reads the values in the json block below. `--ignore-user-config` drops the model and effort set in Codex, so they are set here.
 - If the runner stops on a Codex error, read the `.err` file it names and fix the cause. Then run the same command again. It goes on where it stopped, and the stopped try does not count as an attempt.
 - If the same case stops the runner twice for the same reason, stop and report it to the coordinator. Do not hand-write attempt files.
-- A fresh or rebuilt set needs a new folder name, or an emptied `bench/results/codex-logs/<case set>/`, because the runner keeps attempt counts per set name.
-
 ## Antigravity
 
 - Antigravity is run by hand.
@@ -36,10 +35,11 @@ Follow it as written. Each judge has its own copy of the case set (`codex-judge-
   ```
 
 - If it ends without writing `verdict.json`, save its final json block (without the fence) as `verdict.json` in the case folder.
-- To re-ask a case, first move its `verdict.json` to `bench/results/ag-logs/<case set>/<case>-a<n>.verdict.json`, where n is the attempt it came from. Then open a new conversation on that case.
+- To re-ask a case, first record the attempt in `bench/results/ag-logs/<case set>/<case>-a<n>.txt`, where n is that attempt's number. Move the text of its `verdict.json` into that file, or write the words "no verdict" in it when there is no `verdict.json`. Then open a new conversation on that case.
 - After the last case, run `node bench/external-judge.mjs import --round=<r> --out=<ag set> --as=<name>`, for example `--round=mo --out=C:/Users/Asus/ag-judge-mo --as=moag`.
 - The import lists every case that is not usable. Re-ask each one as above, then run the import again.
 - A case still not usable after its second re-ask is left as it is. Antigravity is then reported as "not usable (k of 18)".
+- k is the usable count the last import wrote to `bench/results/outside-usable-<name>.json`; that file stays.
 
 ## Values for the runner
 

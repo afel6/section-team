@@ -53,7 +53,7 @@ test('codexArgs carries model, effort, no memories, the case folder and the sand
     'exec', '--ephemeral', '--ignore-user-config', '-m', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="ultra"', '--disable', 'memories',
     '--skip-git-repo-check', '-C', 'C:/sets/case-01', '-s', 'read-only', '--json', '-o', 'C:/logs/case-01-a1.last.txt', CODEX_PROMPT,
   ])
-  // Frozen with the round: the run sheet repeats it for Antigravity, and the sheet test pins that copy to this one.
+  // Frozen with the round: the run-sheet test checks that Antigravity's text block in the sheet is exactly this string.
   assert.equal(CODEX_PROMPT, 'You are a blind code reviewer. The current folder is one case. Read JUDGE.md here and follow it exactly, '
     + 'without asking questions. Work only inside this folder, and put probes only in scratch/. Never edit, create or delete '
     + 'anything in the solution folders or in SEED. Do not use the network. End your answer with your verdict as one fenced json block.')
@@ -72,18 +72,48 @@ test('sheetValues reads the json block', () => {
   const withSandbox = sheet.replace(/"sandbox":\s*"[^"]*"/, '"sandbox": "read-only"')
   assert.deepEqual(sheetValues(withSandbox), { ...VALUES, codexBin: 'C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe' })
   assert.equal(sheet.split(/\r?\n/)[0], 'Freeze: tag mo-freeze')
-  assert.ok(sheet.includes(CODEX_PROMPT), 'Antigravity is asked with the same words as Codex')
   // Until the sandbox probe writes a real mode, the frozen sheet refuses to start a run.
   if (sheet.includes(PLACEHOLDER)) assert.throws(() => sheetValues(sheet), /^Error: the run sheet's sandbox is "<set in Task 27>": set read-only, workspace-write or danger-full-access/)
   else assert.doesNotThrow(() => sheetValues(sheet))
 })
 
-test('the run sheet keeps every judge inside its case folder and tells Antigravity how to finish', () => {
+// The frozen procedure, whole line by whole line, under its section: a change to any of these lines, or a sentence
+// added to one, fails the test.
+const PROCEDURE = {
+  '## Both judges': [
+    '- The judge never opens anything outside its own case folder.',
+    '- When a verdict is not usable, re-ask: start a new session on the same case. A case gets at most two re-asks.',
+    '- A fresh or rebuilt set always gets a new folder name. Attempt records are kept per set name, in `bench/results/codex-logs/<case set>/` and `bench/results/ag-logs/<case set>/`, so these folders are never emptied or reused.',
+  ],
+  '## Codex': [
+    '- If the same case stops the runner twice for the same reason, stop and report it to the coordinator. Do not hand-write attempt files.',
+  ],
+  '## Antigravity': [
+    '- To re-ask a case, first record the attempt in `bench/results/ag-logs/<case set>/<case>-a<n>.txt`, where n is that attempt\'s number. Move the text of its `verdict.json` into that file, or write the words "no verdict" in it when there is no `verdict.json`. Then open a new conversation on that case.',
+    '- After the last case, run `node bench/external-judge.mjs import --round=<r> --out=<ag set> --as=<name>`, for example `--round=mo --out=C:/Users/Asus/ag-judge-mo --as=moag`.',
+    '- The import lists every case that is not usable. Re-ask each one as above, then run the import again.',
+    '- A case still not usable after its second re-ask is left as it is. Antigravity is then reported as "not usable (k of 18)".',
+    '- k is the usable count the last import wrote to `bench/results/outside-usable-<name>.json`; that file stays.',
+  ],
+}
+
+// A section's text: from its heading to the next "## " heading.
+const section = (sheet, heading) => {
+  const start = sheet.indexOf(`\n${heading}\n`)
+  assert.ok(start >= 0, `the run sheet has a ${heading} section`)
+  const end = sheet.indexOf('\n## ', start + 1)
+  return sheet.slice(start, end < 0 ? undefined : end)
+}
+
+test('the run sheet pins the procedure line by line, and Antigravity\'s prompt block is CODEX_PROMPT exactly', () => {
   const sheet = readFileSync(SHEET, 'utf8')
-  const antigravity = sheet.slice(sheet.indexOf('## Antigravity'), sheet.indexOf('## Values for the runner'))
-  assert.ok(sheet.includes('- The judge never opens anything outside its own case folder.\n'), 'the repo holds the unblinding key')
-  assert.ok(antigravity.includes('`node bench/external-judge.mjs import --round=<r> --out=<ag set> --as=<name>`'), 'Antigravity imports its own set')
-  assert.match(antigravity, /not usable \(k of 18\)/)
+  for (const [heading, lines] of Object.entries(PROCEDURE)) {
+    const own = section(sheet, heading).split(/\r?\n/)
+    for (const line of lines) assert.ok(own.includes(line), `${heading} holds: ${line}`)
+  }
+  const block = /```text\r?\n([\s\S]*?)\r?\n *```/.exec(section(sheet, '## Antigravity'))
+  assert.ok(block, 'the Antigravity section has a fenced text block')
+  assert.equal(block[1].trim(), CODEX_PROMPT)
 })
 
 test('sheetValues refuses a placeholder sandbox and anything else off, with one line', () => {
