@@ -17,3 +17,12 @@ test('the repo is its own marketplace: one entry that points at the plugin at th
   assert.equal(entry.source, './')
   assert.equal(entry.description, plugin.description)
 })
+
+test('package.json, plugin.json and the marketplace entry agree on the version', () => {
+  const pkg = read('../package.json')
+  const plugin = read('../.claude-plugin/plugin.json')
+  const [entry] = read('../.claude-plugin/marketplace.json').plugins
+  assert.match(plugin.version, /^\d+\.\d+\.\d+$/)
+  assert.equal(pkg.version, plugin.version)
+  assert.ok(entry.version === undefined || entry.version === plugin.version, 'marketplace entry version must be absent or equal plugin.json')
+})
