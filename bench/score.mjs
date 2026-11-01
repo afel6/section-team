@@ -218,7 +218,7 @@ export function ownTests(dir, env = process.env) {
 // rel uses '/' separators, relative to the solution folder.
 export const isTestPath = rel => /(^|\/)(test|tests|__tests__)\//.test(rel) || /\.test\.[cm]?js$/.test(rel)
 
-const sameAsSeed = (seedDir, rel, path) => {
+export const sameAsSeed = (seedDir, rel, path) => {
   if (!seedDir) return false
   const seedFile = join(seedDir, rel)
   return existsSync(seedFile) && statSync(seedFile).isFile() && readFileSync(seedFile).equals(readFileSync(path))
