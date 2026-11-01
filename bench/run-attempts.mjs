@@ -9,7 +9,7 @@ import { PLUGIN_KEY, childEnv, effortProblems, envNames, initOf, initProblems, r
 import { renameRetry } from './section-memory.mjs'
 
 // The frozen match rules: a usage or rate limit waits for the next usage window; any other API failure is capped.
-export const LIMIT = /usage limit|rate limit|rate_limit_error|hit your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)/i
+export const LIMIT = /usage limit|rate limit|rate_limit_error|(?:hit|reached) your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)/i
 export const API_FAILURE = /API Error|overloaded|overloaded_error|api_error/i
 // Capped reruns per run id, counted since the last harness-bug rerun.
 const CAPPED = ['api-other', 'void']

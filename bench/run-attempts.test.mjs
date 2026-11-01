@@ -61,7 +61,7 @@ const finish = (outDir, fields = {}) => finishAttempt({
 })
 
 test('LIMIT and API_FAILURE are the frozen match rules', () => {
-  assert.equal(LIMIT.source, 'usage limit|rate limit|rate_limit_error|hit your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)')
+  assert.equal(LIMIT.source, 'usage limit|rate limit|rate_limit_error|(?:hit|reached) your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)')
   assert.equal(LIMIT.flags, 'i')
   assert.equal(API_FAILURE.source, 'API Error|overloaded|overloaded_error|api_error')
   assert.equal(API_FAILURE.flags, 'i')
@@ -80,6 +80,7 @@ test('classifyEnd: timeout, crash, no result, usage and rate limits, other API f
     // Real API-error texts from ~/.claude/projects transcripts (2026-11-01); a -p result carries the same text.
     [{ is_error: true, result: "You've hit your session limit · resets 12pm (Europe/Istanbul)" }, 'api-limit'],
     [{ is_error: true, result: "You've hit your weekly limit · resets Sep 26, 10pm (Europe/Istanbul)" }, 'api-limit'],
+    [{ is_error: true, result: "You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue." }, 'api-limit'],
     [{ is_error: true, result: 'Failed to authenticate. API Error: 401 OAuth access token has expired. Re-authenticate to continue.' }, 'api-other'],
     [{ is_error: true, result: 'API Error: Connection lost mid-response. The response above may be incomplete.' }, 'api-other'],
     [{ is_error: true, result: 'Request failed', api_error_status: 429 }, 'api-limit'],

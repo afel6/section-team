@@ -205,8 +205,8 @@ export function killTree(child, { execFile = execFileSync, log = console.error }
 }
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
-// Resolves once raw.json and stderr.txt are flushed, so the caller can read them.
-function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn }) {
+// Resolves once raw.json and stderr.txt are flushed, so the caller can read them. At timeoutMs it kills the child.
+function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs }) {
   const base = baseOf(run)
   const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const { binary } = ctx.pin
@@ -222,8 +222,8 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn }) {
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
-      killTree(child)
-    }, TIMEOUT_MIN[run.task] * 60_000)
+      kill(child)
+    }, timeoutMs)
     const finish = () => {
       activeChild = null
       clearTimeout(timer)
@@ -233,7 +233,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn }) {
     // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory.
     child.on('error', spawnErr => {
       finish()
-      reject(new Error(`could not start ${binary} (${spawnErr.code ?? spawnErr.message})`))
+      reject(new Error(`could not start claude (${binary}: ${spawnErr.code ?? spawnErr.message})`))
     })
     child.on('close', code => {
       finish()
@@ -245,8 +245,9 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn }) {
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
 // ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main; deps let tests replace the
-// spawn, the home folder and the run folder.
-export async function runOne(run, outDir, ctx, { spawn = nodeSpawn, home = homedir(), dir = runFolder(run), root = RUNS } = {}) {
+// spawn, the kill and the time limit, the home folder and the run folder.
+export async function runOne(run, outDir, ctx, deps = {}) {
+  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home = homedir(), dir = runFolder(run), root = RUNS } = deps
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -255,7 +256,7 @@ export async function runOne(run, outDir, ctx, { spawn = nodeSpawn, home = homed
   prepareRun(run, { dir, root })
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
-  const info = await runClaude(run, dir, outDir, ctx, { sessionId, env, spawn })
+  const info = await runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs })
   const messages = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
   if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })

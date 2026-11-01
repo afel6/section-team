@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
+import { outputMessages } from './clean-run.mjs'
 import { BatchStop, projectDirFor } from './run-attempts.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPluginWorktree, checkRoundTag, checkVolumes, killTree, freshRepo,
@@ -399,8 +400,9 @@ test('checkConds refuses any setup but solo, lean, team and max, so a round neve
 })
 
 // A stand-in for the pinned binary: it writes the session transcript where Claude Code would and streams an init and a result.
-// With transcript false it writes no session file, as when the API fails before the first turn is saved.
-function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true }) {
+// With transcript false it writes no session file, as when the API fails before the first turn is saved. With hang
+// true it streams only the init and runs until it is killed (its streams ended), then closes with code null.
+function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false }) {
   return (command, args, options) => {
     calls.push({ command, args, options })
     const sessionId = args[args.indexOf('--session-id') + 1]
@@ -408,10 +410,12 @@ function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'su
     mkdirSync(project, { recursive: true })
     if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
     const child = Object.assign(new EventEmitter(), { pid: 4242, stdout: new PassThrough(), stderr: new PassThrough() })
-    const lines = [{ ...init, session_id: sessionId }, result]
-    Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', 0))
+    const lines = hang ? [{ ...init, session_id: sessionId }] : [{ ...init, session_id: sessionId }, result]
+    Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', hang ? null : 0))
     setImmediate(() => {
-      child.stdout.end(`${lines.map(line => JSON.stringify(line)).join('\n')}\n`)
+      const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
+      if (hang) return child.stdout.write(text)
+      child.stdout.end(text)
       child.stderr.end()
     })
     return child
@@ -441,6 +445,34 @@ test('runOne stops the batch on an API failure that left no session file, instea
   const deps = { spawn: fakeClaude({ home, calls: [], init, result, transcript: false }), home, dir, root: join(root, 'runs') }
   await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8')).map(e => e.kind), ['api-other'])
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+})
+
+test('runOne kills a run at its time limit; raw.json keeps the init streamed before the kill and run.json ends timeout, not void', async t => {
+  const { root, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const killed = []
+  const kill = child => {
+    killed.push(child.pid)
+    child.stdout.end()
+    child.stderr.end()
+  }
+  const deps = { spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 50, home, dir, root: join(root, 'runs') }
+  await runOne(run, outDir, ctx, deps)
+  assert.deepEqual(killed, [4242], 'the injected kill stops the child once')
+  const raw = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
+  assert.deepEqual(raw.map(m => [m.type, m.subtype]), [['system', 'init']], 'the init line written before the kill is kept')
+  const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+  assert.deepEqual([record.timedOut, record.exitCode, record.end, record.subtype, record.resultText], [true, null, 'timeout', null, null])
+  assert.ok(!existsSync(join(outDir, 'void.json')), 'a timeout with a good init is a counted run')
+})
+
+test('runOne rejects with one friendly line when the pinned binary cannot start', async t => {
+  const { root, home, dir, outDir, ctx, run } = soloAttempt(t)
+  const binary = join(root, 'no-such-folder', 'claude-2.1.296.exe')
+  // The real spawn of a path that cannot exist: nothing runs.
+  await assert.rejects(runOne(run, outDir, { ...ctx, pin: { ...ctx.pin, binary } }, { home, dir, root: join(root, 'runs') }),
+    { message: `could not start claude (${binary}: ENOENT)` })
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8')).attempt, 1)
   assert.ok(!existsSync(join(outDir, 'run.json')))
 })
 
