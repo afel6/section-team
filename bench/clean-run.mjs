@@ -3,7 +3,7 @@
 // init and transcript checks that void a run whose setup differs from the one the preflight pinned.
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { join, win32 } from 'node:path'
 
 export const PLUGIN_KEY = 'section-team@inline'
 export const BENCH_MODEL = 'claude-opus-5-5'
@@ -15,9 +15,9 @@ const PLUGIN_AUTHORING = 'cc-plugin-plugin-authoring@builtin'
 const SETUPS = ['solo', 'lean', 'team', 'max', 'judge']
 const BUILDERS = ['lean', 'team', 'max']
 // Session, model, key and switch variables from the parent: a round started inside a Claude Code session must behave
-// like one started from a plain terminal.
-const STRIPPED = /^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_)/
-const RECORDED = /^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI)/
+// like one started from a plain terminal. Case-insensitive, as variable names are on Windows.
+const STRIPPED = /^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_)/i
+const RECORDED = /^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI)/i
 
 const isObject = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
@@ -94,14 +94,15 @@ export const initOf = messages => messages.find(m => m?.type === 'system' && m.s
 export const resultOf = messages => messages.findLast(m => m?.type === 'result') ?? null
 
 // p relative to folder, compared case-insensitively; null when p is not an absolute path (built-ins have 'builtin').
+// Init paths are Windows paths, so path.win32 compares them the same way on any OS.
 function relativeTo(p, folder) {
-  if (typeof p !== 'string' || !isAbsolute(p)) return null
-  return relative(resolve(folder).toLowerCase(), resolve(p).toLowerCase())
+  if (typeof p !== 'string' || !win32.isAbsolute(p)) return null
+  return win32.relative(win32.resolve(folder).toLowerCase(), win32.resolve(p).toLowerCase())
 }
 
 export function isUnder(p, folder) {
   const rel = relativeTo(p, folder)
-  return rel === '' || (rel !== null && !rel.startsWith('..') && !isAbsolute(rel))
+  return rel === '' || (rel !== null && !rel.startsWith('..') && !win32.isAbsolute(rel))
 }
 
 // One line when two lists differ as sets, naming what is extra and what is missing.
@@ -181,14 +182,15 @@ export function initProblems(init, { setup, pin, pluginDir } = {}) {
 }
 
 // One line per effort other than the round's on an assistant line. Lines that record no effort (synthetic messages)
-// are not checked.
+// are skipped, but when no non-synthetic assistant line records one, the check could not run: 'no effort recorded'.
 export function effortProblems(jsonlTexts, effort = BENCH_EFFORT) {
   if (!Array.isArray(jsonlTexts) || jsonlTexts.some(text => typeof text !== 'string')) {
     throw new TypeError('effortProblems takes a list of transcript texts')
   }
-  const others = jsonlTexts.flatMap(jsonLines)
-    .filter(m => m.type === 'assistant' && 'effort' in m && m.effort !== effort)
-    .map(m => m.effort)
+  const assistant = jsonlTexts.flatMap(jsonLines).filter(m => m.type === 'assistant')
+  const real = assistant.filter(m => m.message?.model !== '<synthetic>')
+  if (real.length > 0 && !real.some(m => 'effort' in m)) return ['no effort recorded']
+  const others = assistant.filter(m => 'effort' in m && m.effort !== effort).map(m => m.effort)
   return [...new Set(others)].map(other => `assistant effort ${other}, expected ${effort}`)
 }
 

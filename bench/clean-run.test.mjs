@@ -55,6 +55,17 @@ test('childEnv strips session, model and key variables and sets the round switch
   assert.throws(() => childEnv(parent, {}), { name: 'TypeError', message: 'childEnv needs a pluginDir' })
 })
 
+test('childEnv and envNames ignore the case of variable names, as Windows does', () => {
+  const parent = {
+    Path: 'C:/bin', anthropic_api_key: 'test-key', Claude_Code_Entrypoint: 'cli', claudecode: '1', Disable_Telemetry: '1',
+    section_team_mode: 'max', claude_code_plugin_dirs: 'live',
+  }
+  // The child gets one spelling of each round variable: the parent's other spellings are dropped.
+  assert.deepEqual(childEnv(parent, { pluginDir: 'C:/w' }), { Path: 'C:/bin', ...childEnv({}, { pluginDir: 'C:/w' }) })
+  assert.deepEqual(envNames({ Path: 'p', anthropic_api_key: 'k', Claude_Code_Entrypoint: 'cli', enable_claudeai_mcp_servers: 'true' }),
+    ['Claude_Code_Entrypoint', 'anthropic_api_key', 'enable_claudeai_mcp_servers'])
+})
+
 test('envNames lists the names of the round variables, sorted, never their values', () => {
   assert.deepEqual(envNames(childEnv({ PATH: 'p', HOME: 'h', CLAUDECODE: '1' }, { pluginDir: 'C:/w' })),
     ['CLAUDE_CODE_PLUGIN_DIRS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])
@@ -193,6 +204,22 @@ test('effortProblems flags a high-effort assistant line', () => {
   assert.deepEqual(effortProblems([session, subagent]), ['assistant effort high, expected medium'])
   assert.deepEqual(effortProblems([session], 'xhigh'), ['assistant effort medium, expected xhigh'])
   assert.throws(() => effortProblems([session, undefined]), TypeError)
+})
+
+test('effortProblems reports no effort recorded when no assistant line records one', () => {
+  const real = { type: 'assistant', message: { model: BENCH_MODEL } }
+  const synthetic = { type: 'assistant', message: { model: '<synthetic>' } }
+  assert.deepEqual(effortProblems([jsonl([real, synthetic]), jsonl([real])]), ['no effort recorded'])
+  // One line recording the effort is enough: other lines without one are skipped.
+  assert.deepEqual(effortProblems([jsonl([real]), jsonl([{ ...real, effort: 'medium' }])]), [])
+  // With no non-synthetic assistant line there is nothing to check.
+  assert.deepEqual(effortProblems([jsonl([synthetic, { type: 'user' }])]), [])
+})
+
+test('effortProblems reports nothing when only <synthetic> lines lack effort', () => {
+  const medium = { type: 'assistant', effort: 'medium', message: { model: BENCH_MODEL } }
+  const synthetic = { type: 'assistant', message: { model: '<synthetic>' } }
+  assert.deepEqual(effortProblems([jsonl([medium, synthetic]), jsonl([synthetic, medium])]), [])
 })
 
 test('compacted finds a compact_boundary line', () => {
