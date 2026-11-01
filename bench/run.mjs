@@ -125,8 +125,8 @@ export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
   if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
 }
 
-// initProblems judges these setups only, so a round runs no other (forced included).
-const ROUND_CONDS = ['solo', 'lean', 'team', 'max']
+// initProblems judges these setups only, so a round runs no other (forced included); the preflight checks each.
+export const ROUND_CONDS = ['solo', 'lean', 'team', 'max']
 export function checkConds(conds) {
   const other = conds.find(cond => !ROUND_CONDS.includes(cond))
   if (other !== undefined) throw new RangeError(`a round runs solo, lean, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
@@ -329,7 +329,6 @@ async function main() {
   const pluginCommit = pluginCommitOf(plugin)
   checkPluginWorktree(plugin)
   const pin = readPin(RESULTS, tag)
-  if (typeof pin.binary !== 'string' || pin.binary === '') throw new Error(`the round ${tag} pin names no binary: run node bench/preflight.mjs --round=${tag} again`)
   const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, pluginCommit }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })

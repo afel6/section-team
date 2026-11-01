@@ -25,7 +25,7 @@ const SECTION_TEAM = { name: 'section-team', path: 'C:\\Users\\Asus\\section-tea
 const TEAM_LISTS = { agents: ['general-purpose', 'section-team:backend'], skills: ['tdd-workflow', 'section-team:add-skill'] }
 const SOLO_LISTS = { agents: ['general-purpose'], skills: ['tdd-workflow'] }
 const PIN = {
-  version: '2.1.296', apiKeySource: 'none', builtins: BUILTINS.map(p => p.source), pluginDir: PLUGIN_DIR,
+  version: '2.1.296', binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', apiKeySource: 'none', builtins: BUILTINS.map(p => p.source), pluginDir: PLUGIN_DIR,
   setups: { solo: SOLO_LISTS, lean: TEAM_LISTS, team: TEAM_LISTS, max: TEAM_LISTS },
 }
 
@@ -255,6 +255,10 @@ test('readPin reads the round pin and names the preflight command when it is mis
   for (const text of ['null', '[]']) {
     writeFileSync(file, text)
     assert.throws(() => readPin(results, 'mo'), { message: `cannot read ${file} (no pin object)` })
+  }
+  for (const binary of [undefined, '', 42]) {
+    writeFileSync(file, JSON.stringify({ ...PIN, binary }))
+    assert.throws(() => readPin(results, 'mo'), { message: 'the round mo pin names no binary: run node bench/preflight.mjs --round=mo again' })
   }
   writeFileSync(file, JSON.stringify(PIN))
   assert.deepEqual(readPin(results, 'mo'), PIN)

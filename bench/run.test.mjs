@@ -412,9 +412,11 @@ function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'su
     const child = Object.assign(new EventEmitter(), { pid: 4242, stdout: new PassThrough(), stderr: new PassThrough() })
     const lines = hang ? [{ ...init, session_id: sessionId }] : [{ ...init, session_id: sessionId }, result]
     Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', hang ? null : 0))
-    setImmediate(() => {
-      const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
-      if (hang) return child.stdout.write(text)
+    const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
+    // A hanging child's init is written at once (the stream holds it until runOne pipes it): written from setImmediate,
+    // a 50 ms stop sometimes came first under the full suite's load, and the run was void with no init.
+    if (hang) child.stdout.write(text)
+    else setImmediate(() => {
       child.stdout.end(text)
       child.stderr.end()
     })

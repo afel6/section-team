@@ -1,44 +1,256 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { preflightVerdict, spawnProblems } from './preflight.mjs'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
+import { BENCH_MODEL, PLUGIN_KEY } from './clean-run.mjs'
+import { builderArgs } from './run.mjs'
+import { copyBinary, pinFor, preflight, preflightProblems, syncedListing, versionOf } from './preflight.mjs'
 
-const init = agents => ({ type: 'system', subtype: 'init', agents })
-const result = text => ({ type: 'result', is_error: false, result: text })
-const output = (...messages) => JSON.stringify(messages)
-const TEAM_AGENTS = ['general-purpose', 'section-team:backend', 'section-team:reviewer']
+// A temp folder removed after the test, even when the test fails.
+function tempRoot(t) {
+  const root = mkdtempSync(join(tmpdir(), 'bench-preflight-'))
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3 }))
+  return root
+}
 
-test('team passes with section-team agents loaded and no automatic skill installs', () => {
-  assert.deepEqual(preflightVerdict('team', output(init(TEAM_AGENTS), result('NO'))), [])
+const writeFile = (file, text) => {
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, text)
+}
+
+const sha256 = text => createHash('sha256').update(text).digest('hex')
+const VERSION = '2.1.296'
+const PLUGIN_DIR = 'C:/Users/Asus/section-team-v0.2.1'
+const BUILTINS = [
+  { name: 'cc-plugin-agents-md', path: 'builtin', source: 'cc-plugin-agents-md@builtin' },
+  { name: 'cc-plugin-telemetry', path: 'builtin', source: 'cc-plugin-telemetry@builtin' },
+]
+const BUILTIN_SOURCES = BUILTINS.map(p => p.source)
+const SECTION_TEAM = { name: 'section-team', path: 'C:\\Users\\Asus\\section-team-v0.2.1', source: PLUGIN_KEY, version: '0.2.1' }
+const SOLO_LISTS = { agents: ['general-purpose'], skills: ['tdd-workflow'] }
+const TEAM_LISTS = { agents: ['general-purpose', 'section-team:backend'], skills: ['tdd-workflow', 'section-team:add-skill'] }
+const SETUPS = ['solo', 'lean', 'team', 'max']
+const EXPECTED_RECORD = { solo: null, lean: 'lean', team: 'balanced', max: 'max' }
+
+// One setup's init as Claude Code 2.1.296 writes it, with any fields replaced.
+function init(setup, fields = {}) {
+  const team = setup !== 'solo'
+  return {
+    type: 'system', subtype: 'init', model: BENCH_MODEL, claude_code_version: VERSION, apiKeySource: 'none',
+    plugins: [...BUILTINS, ...(team ? [SECTION_TEAM] : [])], mcp_servers: [], ...(team ? TEAM_LISTS : SOLO_LISTS), ...fields,
+  }
+}
+const answer = (text, fields = {}) => ({ type: 'result', is_error: false, result: text, ...fields })
+
+function problemsOf(setup, { initMessage = init(setup), result = answer('NO'), record = EXPECTED_RECORD[setup] } = {}) {
+  const messages = [initMessage, result].filter(Boolean)
+  return preflightProblems({ setup, messages, record, pluginDir: PLUGIN_DIR, version: VERSION })
+}
+
+test('versionOf reads 2.1.296 from "2.1.296 (Claude Code)"', () => {
+  assert.equal(versionOf('2.1.296 (Claude Code)\n'), '2.1.296')
+  assert.throws(() => versionOf('claude 2.1.296'), { message: 'claude --version printed "claude 2.1.296", expected a version like 2.1.296' })
+  assert.throws(() => versionOf('claude: command not found\n'), { message: 'claude --version printed "claude: command not found", expected a version like 2.1.296' })
 })
 
-test('solo passes with no section-team agent', () => {
-  assert.deepEqual(preflightVerdict('solo', output(init(['general-purpose']), result('NO'))), [])
+test('each setup\'s expected mode record', () => {
+  for (const setup of SETUPS) assert.deepEqual(problemsOf(setup), [], setup)
+  assert.deepEqual(problemsOf('solo', { record: 'balanced' }), ['solo: mode record balanced, expected none'])
+  assert.deepEqual(problemsOf('team', { record: null }), ['team: mode record none, expected balanced'])
+  assert.deepEqual(problemsOf('lean', { record: 'max' }), ['lean: mode record max, expected lean'])
+  assert.deepEqual(problemsOf('max', { record: 'balanced' }), ['max: mode record balanced, expected max'])
+  assert.throws(() => problemsOf('forced'), { message: 'preflightProblems takes a setup of solo, lean, team, max, got "forced"' })
 })
 
-test('team without the plugin fails: the --settings env replaced the user\'s env and dropped the plugin dir', () => {
-  assert.deepEqual(preflightVerdict('team', output(init(['general-purpose']), result('NO'))), ['team: section-team did not load'])
+test('a stray plugin, an MCP server or plugin-authoring fails', () => {
+  const stray = { name: 'caveman', path: 'C:\\Users\\Asus\\.claude\\plugins\\cache\\caveman', source: 'caveman@caveman' }
+  const authoring = { name: 'cc-plugin-plugin-authoring', path: 'builtin', source: 'cc-plugin-plugin-authoring@builtin' }
+  assert.deepEqual(problemsOf('solo', { initMessage: init('solo', { plugins: [...BUILTINS, stray] }) }), ['solo: plugins that are not built-ins: caveman@caveman'])
+  assert.deepEqual(problemsOf('team', { initMessage: init('team', { mcp_servers: [{ name: 'notion', status: 'connected' }] }) }), ['team: MCP servers loaded: notion'])
+  assert.deepEqual(problemsOf('max', { initMessage: init('max', { plugins: [...BUILTINS, SECTION_TEAM, authoring] }) }), ['max: cc-plugin-plugin-authoring@builtin is loaded'])
+  assert.deepEqual(problemsOf('lean', { initMessage: init('lean', { plugins: BUILTINS }) }), ['lean: expected 1 section-team plugin, found 0'])
+  assert.deepEqual(problemsOf('lean', { initMessage: init('lean', { model: 'claude-haiku-5-5', claude_code_version: '2.1.297' }) }), [
+    'lean: model claude-haiku-5-5, expected claude-opus-5-5', 'lean: claude_code_version 2.1.297, expected 2.1.296',
+  ])
 })
 
-test('solo with the plugin, or automatic installs still on, fails', () => {
-  assert.deepEqual(preflightVerdict('solo', output(init(TEAM_AGENTS), result('NO'))), ['solo: section-team loaded although it is turned off'])
-  assert.deepEqual(preflightVerdict('team', output(init(TEAM_AGENTS), result('YES'))), ['team: automatic skill installs are still on'])
+test('the answer must say NO to automatic skill installs, from a result that is not an error, after a full init', () => {
+  assert.deepEqual(problemsOf('team', { result: answer('YES') }), ['team: the answer about automatic skill installs is "YES", expected NO'])
+  assert.deepEqual(problemsOf('team', { result: answer('YES or NO') }), ['team: the answer about automatic skill installs is "YES or NO", expected NO'])
+  for (const text of ['Maybe', '', 'UNKNOWN']) {
+    assert.deepEqual(problemsOf('lean', { result: answer(text) }), [`lean: the answer about automatic skill installs is "${text}", expected NO`])
+  }
+  assert.deepEqual(problemsOf('solo', { result: answer('No.') }), [])
+  assert.deepEqual(problemsOf('team', { result: answer('API Error: overloaded\nmore', { is_error: true }) }), ['team: claude ended on an error: API Error: overloaded'])
+  assert.deepEqual(problemsOf('team', { result: null }), ['team: no result message'])
+  assert.deepEqual(problemsOf('solo', { initMessage: null }), ['solo: no init message'])
+  assert.deepEqual(problemsOf('max', { initMessage: init('max', { agents: undefined, apiKeySource: undefined }) }), [
+    'max: the init has no agents list', 'max: the init has no apiKeySource',
+  ])
 })
 
-test('output it cannot read is a problem, never a pass', () => {
-  assert.deepEqual(preflightVerdict('team', 'not json'), ['team: claude output is not JSON'])
-  assert.deepEqual(preflightVerdict('team', output(result('NO'))), ['team: no init message with an agents list'])
-  assert.deepEqual(preflightVerdict('team', output(init(TEAM_AGENTS), { type: 'result', is_error: true, result: 'API Error' })), ['team: claude ended on an error: API Error'])
+test('copyBinary refuses differing bytes and a wrong --version', t => {
+  const home = tempRoot(t)
+  const source = join(home, '.local', 'share', 'claude', 'versions', VERSION)
+  const binary = join(home, 'bench-runs', `claude-${VERSION}.exe`)
+  writeFile(source, 'claude bytes')
+  const calls = []
+  const printing = stdout => (command, args, options) => {
+    calls.push([command, args, options.encoding])
+    return { status: 0, stdout, stderr: '' }
+  }
+  assert.throws(() => copyBinary({ home, version: VERSION, run: printing('2.1.2960 (Claude Code)\n') }),
+    { message: `${binary} --version printed "2.1.2960 (Claude Code)" (exit 0), expected ${VERSION}` })
+  assert.deepEqual(calls, [[binary, ['--version'], 'utf8']], 'the copy runs, never claude from PATH')
+  assert.deepEqual(copyBinary({ home, version: VERSION, run: printing(`${VERSION} (Claude Code)\n`) }), { binary, sha256: sha256('claude bytes') })
+  assert.equal(readFileSync(binary, 'utf8'), 'claude bytes')
+  writeFileSync(binary, 'other bytes')
+  assert.throws(() => copyBinary({ home, version: VERSION, run: printing(`${VERSION} (Claude Code)\n`) }),
+    { message: `${binary} differs from ${source}: delete it and run the preflight again` })
+  assert.equal(calls.length, 2, 'a copy with other bytes is never run')
 })
 
-test('spawnProblems: a claude that could not start, or exited non-zero with no JSON, says so with its status and stderr', () => {
-  assert.deepEqual(spawnProblems('team', { error: Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }) }), ['team: could not run claude (ENOENT)'])
-  assert.deepEqual(spawnProblems('team', { status: 1, stdout: '', stderr: 'Error: not logged in\nmore\n' }), ['team: claude exited 1: Error: not logged in'])
-  assert.deepEqual(spawnProblems('solo', { status: 0, stdout: JSON.stringify([{ type: 'system', subtype: 'init', agents: [] }, { type: 'result', is_error: false, result: 'NO' }]), stderr: '' }), [])
+test('copyBinary names a missing version, a copy that cannot start and a version that is not x.y.z', t => {
+  const home = tempRoot(t)
+  const missing = join(home, '.local', 'share', 'claude', 'versions', '2.1.297')
+  assert.throws(() => copyBinary({ home, version: '2.1.297', run: () => assert.fail('no run') }), { message: `cannot read ${missing} (ENOENT)` })
+  writeFile(join(home, '.local', 'share', 'claude', 'versions', VERSION), 'claude bytes')
+  const binary = join(home, 'bench-runs', `claude-${VERSION}.exe`)
+  const noStart = () => ({ error: Object.assign(new Error('spawn EACCES'), { code: 'EACCES' }), status: null, stdout: null })
+  assert.throws(() => copyBinary({ home, version: VERSION, run: noStart }), { message: `could not run ${binary} (EACCES)` })
+  const failing = () => ({ status: 1, stdout: `${VERSION} (Claude Code)\n`, stderr: 'crashed' })
+  assert.throws(() => copyBinary({ home, version: VERSION, run: failing }), { message: `${binary} --version printed "${VERSION} (Claude Code)" (exit 1), expected ${VERSION}` })
+  assert.throws(() => copyBinary({ home, version: '../2', run: noStart }), { message: 'copyBinary takes a version like 2.1.296, got "../2"' })
 })
 
-test('spawnProblems keeps the API error of a claude that exited non-zero but printed JSON, and names a signal or empty stderr', () => {
-  const apiError = output(init(TEAM_AGENTS), { type: 'result', is_error: true, result: 'API Error' })
-  assert.deepEqual(spawnProblems('team', { status: 1, stdout: apiError, stderr: 'x' }), ['team: claude ended on an error: API Error'])
-  assert.deepEqual(spawnProblems('team', { status: 1, stdout: '', stderr: '' }), ['team: claude exited 1: (no stderr)'])
-  assert.deepEqual(spawnProblems('team', { status: null, signal: 'SIGTERM', stdout: '', stderr: '' }), ['team: claude was stopped by SIGTERM: (no stderr)'])
+test('syncedListing lists both synced folders, sorted, and treats a missing folder as empty', t => {
+  const home = tempRoot(t)
+  assert.deepEqual(syncedListing(home), [])
+  writeFile(join(home, '.claude', 'skills', 'synced', 'b-skill', 'SKILL.md'), 'b')
+  writeFile(join(home, '.claude', 'plugins', 'synced', 'b', 'plugin.json'), '{}')
+  writeFile(join(home, '.claude', 'plugins', 'synced', 'a', 'plugin.json'), '{}')
+  assert.deepEqual(syncedListing(home), [
+    'plugins/synced/a', 'plugins/synced/a/plugin.json', 'plugins/synced/b', 'plugins/synced/b/plugin.json',
+    'skills/synced/b-skill', 'skills/synced/b-skill/SKILL.md',
+  ])
+})
+
+const BASE = { version: VERSION, binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', sha256: 'ab12', pluginDir: PLUGIN_DIR }
+const INITS = Object.fromEntries(SETUPS.map(setup => [setup, init(setup)]))
+
+test('pinFor records the round\'s reference from the four inits', () => {
+  const teamSetup = { plugins: [...BUILTIN_SOURCES, PLUGIN_KEY], ...TEAM_LISTS }
+  assert.deepEqual(pinFor({ ...BASE, inits: INITS }), {
+    problems: [],
+    pin: {
+      ...BASE, apiKeySource: 'none', builtins: BUILTIN_SOURCES, pluginDir: PLUGIN_DIR,
+      setups: { solo: { plugins: BUILTIN_SOURCES, ...SOLO_LISTS }, lean: teamSetup, team: teamSetup, max: teamSetup },
+    },
+  })
+  assert.deepEqual(Object.keys(pinFor({ ...BASE, inits: INITS }).pin), ['version', 'binary', 'sha256', 'apiKeySource', 'builtins', 'pluginDir', 'setups'])
+})
+
+test('built-in sets that differ between setups fail', () => {
+  const extra = { name: 'cc-plugin-x', path: 'builtin', source: 'cc-plugin-x@builtin' }
+  const inits = { ...INITS, team: init('team', { plugins: [extra, ...BUILTINS, SECTION_TEAM] }) }
+  const both = BUILTIN_SOURCES.join(', ')
+  assert.deepEqual(pinFor({ ...BASE, inits }).problems, [
+    `the built-in plugins differ between setups: solo ${both}; lean ${both}; team ${both}, cc-plugin-x@builtin; max ${both}`,
+  ])
+  assert.deepEqual(pinFor({ ...BASE, inits: { ...INITS, max: init('max', { apiKeySource: 'ANTHROPIC_API_KEY' }) } }).problems, [
+    'the apiKeySource differs between setups: solo none; lean none; team none; max ANTHROPIC_API_KEY',
+  ])
+  assert.deepEqual(pinFor({ ...BASE, inits: { ...INITS, solo: null } }).problems, [], 'a setup without an init is reported by its own check')
+})
+
+// The git of a plugin worktree at v0.2.1 (head 'tagged'), or at another commit.
+const gitAt = head => args => {
+  if (args.includes('--show-toplevel')) return PLUGIN_DIR
+  if (args.includes('HEAD')) return head
+  return args.includes('rev-parse') ? 'tagged' : ''
+}
+
+// A fake home with the CLI's version file and installed plugins, and a fake CLI that answers like 2.1.296 would.
+function fakeRound(t, { initFields = {}, during = {} } = {}) {
+  const root = tempRoot(t)
+  const home = join(root, 'home')
+  writeFile(join(home, '.local', 'share', 'claude', 'versions', VERSION), 'claude bytes')
+  writeFile(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'caveman@caveman': [] } }))
+  const calls = { run: [], spawn: [] }
+  const run = (command, args) => {
+    calls.run.push([command, args])
+    return { status: 0, stdout: `${VERSION} (Claude Code)\n`, stderr: '' }
+  }
+  const spawn = (binary, args, options) => {
+    calls.spawn.push({ binary, args, options })
+    const sessionId = args[args.indexOf('--session-id') + 1]
+    const on = JSON.parse(args[args.indexOf('--settings') + 1]).enabledPlugins[PLUGIN_KEY]
+    const modeFile = join(options.cwd, '.team', 'mode.json')
+    const mode = existsSync(modeFile) ? JSON.parse(readFileSync(modeFile, 'utf8')).mode : 'balanced'
+    const setup = on ? { balanced: 'team' }[mode] ?? mode : 'solo'
+    if (on) recordMode(home, sessionId, mode)
+    if (during[setup]) return during[setup]({ home, sessionId })
+    const stdout = [init(setup, initFields[setup]), answer('NO')].map(m => JSON.stringify(m)).join('\n')
+    return { status: 0, stdout: `${stdout}\n`, stderr: '' }
+  }
+  const runs = join(root, 'runs')
+  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs }
+  return { home, results: join(root, 'results'), calls, deps, binary: join(home, 'bench-runs', `claude-${VERSION}.exe`) }
+}
+
+test('preflight runs the four setups on the copied binary with the builders\' arguments and writes the pin', t => {
+  const { home, results, calls, deps, binary } = fakeRound(t)
+  const { problems, pin, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, deps)
+  assert.deepEqual(problems, [])
+  assert.equal(file, join(results, 'preflight-mo.json'))
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), pin)
+  assert.deepEqual({ version: pin.version, binary: pin.binary, sha256: pin.sha256 }, { version: VERSION, binary, sha256: sha256('claude bytes') })
+  assert.deepEqual(calls.run, [['claude', ['--version']], [binary, ['--version']]])
+  assert.equal(calls.spawn.length, 4)
+  for (const [i, { binary: command, args, options }] of calls.spawn.entries()) {
+    const sessionId = args[args.indexOf('--session-id') + 1]
+    const expected = builderArgs(SETUPS[i], args[1], { sessionId, installedKeys: ['caveman@caveman'], pluginDir: PLUGIN_DIR })
+    assert.equal(command, binary)
+    assert.deepEqual(args, expected, `${SETUPS[i]} gets exactly the builders' arguments`)
+    assert.match(args[1], /YES/)
+    assert.equal(options.env.CLAUDE_CODE_PLUGIN_DIRS, PLUGIN_DIR)
+    assert.equal(options.env.SECTION_TEAM_AUTO_INSTALL_SKILLS, '0')
+  }
+  assert.deepEqual(Object.keys(pin.setups), SETUPS)
+})
+
+test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn', t => {
+  const { home, results, calls, deps } = fakeRound(t)
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: gitAt('other') }),
+    { message: `${PLUGIN_DIR} is at other, not at v0.2.1 (tagged)` })
+  const dirty = args => (args.includes('status') ? ' M agents/backend.md' : gitAt('tagged')(args))
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: dirty }),
+    { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v0.2.1 worktree` })
+  assert.throws(() => preflight({ round: '', plugin: PLUGIN_DIR, home, results }, deps), { message: '--round= names the round in letters and digits, e.g. --round=mo' })
+  assert.deepEqual(calls, { run: [], spawn: [] })
+})
+
+test('preflight reports every problem, one line each, and writes no pin', t => {
+  const timedOut = () => ({ error: Object.assign(new Error('spawnSync ETIMEDOUT'), { code: 'ETIMEDOUT' }), status: null, stdout: '', stderr: '' })
+  const syncs = ({ home }) => {
+    writeFile(join(home, '.claude', 'skills', 'synced', 'new-skill', 'SKILL.md'), 'x')
+    return { status: 1, stdout: [init('team'), answer('NO')].map(m => JSON.stringify(m)).join('\n'), stderr: 'Error: hook failed\nmore' }
+  }
+  const badRecord = ({ home, sessionId }) => {
+    writeFileSync(modeRecordFile(home, sessionId), '{"mode":"turbo"}')
+    return { status: 0, stdout: [init('max'), answer('NO')].map(m => JSON.stringify(m)).join('\n'), stderr: '' }
+  }
+  const { home, results, deps } = fakeRound(t, { initFields: { lean: { mcp_servers: [{ name: 'notion' }] } }, during: { solo: timedOut, team: syncs, max: badRecord } })
+  const { problems, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, deps)
+  assert.deepEqual(problems, [
+    'solo: could not run claude (ETIMEDOUT)',
+    'lean: MCP servers loaded: notion',
+    'team: claude exited 1: Error: hook failed',
+    'team: the synced plugins or skills changed during the run',
+    'max: mode record unreadable (mode record is not valid), expected max',
+  ])
+  assert.equal(existsSync(file), false)
 })

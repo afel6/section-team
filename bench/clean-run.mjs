@@ -209,5 +209,7 @@ export function readPin(results, round) {
     throw new Error(message, { cause: err })
   }
   if (!isObject(pin)) throw new Error(`cannot read ${path} (no pin object)`)
+  // run.mjs starts pin.binary (judge.mjs is to follow): a pin without one could only fail after a run folder was wiped.
+  if (typeof pin.binary !== 'string' || pin.binary === '') throw new Error(`the round ${round} pin names no binary: run node bench/preflight.mjs --round=${round} again`)
   return pin
 }
