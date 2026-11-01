@@ -12,6 +12,8 @@ The data behind [docs/benchmark-heldout-2026-11.md](../../../docs/benchmark-held
 
 Setup names: `solo-ho` is plain Claude Code (plugin off), `team-ho` is section-team `v0.1.1`.
 
+Re-scoring these runs with the current `bench/score.mjs` reads each run's last result line (the session's true end). For the six runs with several result lines (`h1-team-ho-r2`, `h2-team-ho-r1`, `h2-team-ho-r2`, `h3-team-ho-r1`, `h3-team-ho-r2`, `h3-team-ho-r3`), turns, duration and final text therefore differ from the committed `summary.json`; costs and hidden-test results are unchanged.
+
 ## Recompute
 
 From the repo root (this overwrites anything in the local, git-ignored `bench/results/`):

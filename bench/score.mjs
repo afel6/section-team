@@ -19,7 +19,8 @@ const CODE_EXT = new Set(['.mjs', '.js', '.cjs', '.html', '.css'])
 const SKIP_DIRS = new Set(['node_modules', '.git', '.team', '.claude', '.superpowers'])
 
 // raw.json: stream-json lines (new runs, possibly cut off before the result by a timeout) or one JSON array
-// (older runs). Without a result, the session id comes from the init line.
+// (older runs). With several result lines, the last is the session's true end and is scored (as classifyEnd reads it);
+// without any, the session id comes from the init line.
 export function parseTranscript(raw) {
   const arr = outputMessages(raw)
   const result = resultOf(arr) ?? {}
@@ -145,18 +146,20 @@ export function costOf({ transcript, evidenceTexts }) {
 const PLAIN_SESSION_ID = /^[A-Za-z0-9-]+$/
 
 // The run's session id: session.json's (written before every attempt), else raw.json's (runs made before session.json); null without either.
-// A session.json that does not parse or holds no plain sessionId is a harness fault and throws.
+// The id becomes part of a path, so an id that is not plain throws, as does a session.json that does not parse. Each error is one fixed line.
 export function runSession(outDir) {
   const sessionPath = join(outDir, 'session.json')
   if (existsSync(sessionPath)) {
     const text = readFileSync(sessionPath, 'utf8')
     let record
-    try { record = JSON.parse(text) } catch (err) { throw new Error(`unreadable ${sessionPath}: ${err.message}`) }
+    try { record = JSON.parse(text) } catch { throw new Error(`${sessionPath} is not valid JSON`) }
     if (typeof record?.sessionId !== 'string' || !PLAIN_SESSION_ID.test(record.sessionId)) throw new Error(`${sessionPath} has no plain sessionId`)
     return record.sessionId
   }
   const rawPath = join(outDir, 'raw.json')
-  return existsSync(rawPath) ? parseTranscript(readFileSync(rawPath, 'utf8')).sessionId : null
+  const sessionId = existsSync(rawPath) ? parseTranscript(readFileSync(rawPath, 'utf8')).sessionId : null
+  if (sessionId !== null && (typeof sessionId !== 'string' || !PLAIN_SESSION_ID.test(sessionId))) throw new Error(`${rawPath} has no plain session id`)
+  return sessionId
 }
 
 // Where a run's transcripts are: its evidence/ copy when it has one, else Claude Code's project folder for the run.

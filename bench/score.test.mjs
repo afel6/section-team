@@ -147,6 +147,7 @@ test('a computed cost reaches the summary row and the score line, marked', () =>
 })
 
 const jsonl = (...rows) => rows.map(r => JSON.stringify(r)).join('\n') + '\n'
+const oneLine = pattern => err => pattern.test(err.message) && !/[\r\n]/.test(err.message)
 
 test('costOf falls back to transcripts and marks it', () => {
   const texts = [jsonl(say('a', 'claude-opus-5-5', { input_tokens: 1_000_000 }))]
@@ -171,6 +172,16 @@ test('parseTranscript reads a stream-json raw.json, one cut off before its resul
   const cut = parseTranscript(jsonl(init, spawn) + '{"type":"assistant","mess')
   assert.deepEqual([cut.found, cut.costUSD, cut.sessionId, cut.agentSpawns], [false, null, 'sess-init', 1])
   assert.deepEqual(parseTranscript(JSON.stringify([init, spawn, result])), stream)
+})
+
+// Six held-out team runs have 3–4 result lines: the last one is the session's true end (classifyEnd reads it too).
+test('parseTranscript scores the last of several result lines', () => {
+  const result = (turns, ms, text) => ({ type: 'result', subtype: 'success', num_turns: turns, duration_ms: ms, result: text, session_id: 'sess-1', total_cost_usd: 1 })
+  const rows = [result(3, 1000, 'first stop'), { type: 'user' }, result(7, 5000, 'second stop'), result(9, 8000, 'session end')]
+  for (const raw of [jsonl(...rows), JSON.stringify(rows)]) {
+    const t = parseTranscript(raw)
+    assert.deepEqual([t.turns, t.durationMs, t.finalText], [9, 8000, 'session end'])
+  }
 })
 
 test('codeStats leaves out unchanged seed files', t => {
@@ -220,12 +231,24 @@ test('runSession prefers session.json', t => {
   assert.equal(runSession(out), 'sess-raw')
   writeFileSync(join(out, 'session.json'), JSON.stringify({ sessionId: 'sess-json', attempt: 2 }))
   assert.equal(runSession(out), 'sess-json')
-  writeFileSync(join(out, 'session.json'), '{"sessionId":')
-  assert.throws(() => runSession(out), /unreadable .*session\.json/)
+  // Node's JSON.parse message quotes the bad text, newlines included: the error must still be one line.
+  writeFileSync(join(out, 'session.json'), '{"sessionId":\n  oops\n}')
+  assert.throws(() => runSession(out), oneLine(/session\.json is not valid JSON$/))
   for (const record of [{ attempt: 1 }, { sessionId: '../x' }, { sessionId: '' }]) {
     writeFileSync(join(out, 'session.json'), JSON.stringify(record))
-    assert.throws(() => runSession(out), /session\.json has no plain sessionId/, JSON.stringify(record))
+    assert.throws(() => runSession(out), oneLine(/session\.json has no plain sessionId$/), JSON.stringify(record))
   }
+})
+
+test("runSession refuses a raw.json session id that is not plain, since it becomes part of a path", t => {
+  const out = mkdtempSync(join(tmpdir(), 'bench-session-raw-'))
+  t.after(() => rmSync(out, { recursive: true, force: true }))
+  for (const id of ['../../evil', 'a/b', 'x\ny']) {
+    writeFileSync(join(out, 'raw.json'), jsonl({ type: 'system', subtype: 'init', session_id: id }))
+    assert.throws(() => runSession(out), oneLine(/raw\.json has no plain session id$/), JSON.stringify(id))
+  }
+  writeFileSync(join(out, 'raw.json'), jsonl({ type: 'user' }))
+  assert.equal(runSession(out), null, 'a raw.json without any session id still gives null')
 })
 
 test('collectRolesFrom and sessionTexts read an evidence folder', t => {
