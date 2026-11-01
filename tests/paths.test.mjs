@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { projectRoot, excludeFile, ensureExcluded, ensureNotes, stamp, writeReport, latestSummary, readStdinJson, projectDirOf, pruneStatus, PRUNE_MS, lineOf } from '../hooks/lib/paths.mjs'
 
@@ -39,12 +39,123 @@ test('repo: root is the checkout and exclude is added once', () => {
   assert.equal(lines.length, 1)
 })
 
-test('keep-in-git marker skips the exclude', () => {
-  const dir = repo()
+const MEM = '**/.claude/agent-memory-local/'
+const excludeText = dir => readFileSync(excludeFile(dir), 'utf8')
+const setExclude = (dir, text) => writeFileSync(excludeFile(dir), text)
+const keepInGit = dir => {
   mkdirSync(join(dir, '.team'), { recursive: true })
   writeFileSync(join(dir, '.team', 'keep-in-git'), '')
+}
+const sepOf = text => (text && !text.endsWith('\n') ? '\n' : '')
+const trimmedLines = text => text.split(/\r?\n/).map(l => l.trim())
+const makeFile = (root, rel) => {
+  const file = join(root, ...rel.split('/'))
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, 'x\n')
+}
+const ignoredStatus = (root, rel) => spawnSync('git', ['-C', root, 'check-ignore', '-q', rel]).status
+
+test('fresh repo: both lines are appended once, after the untouched original text', () => {
+  const dir = repo()
+  const before = excludeText(dir)
+  assert.equal(ensureExcluded(dir, dir), true)
+  assert.equal(excludeText(dir), before + sepOf(before) + '.team/\n' + MEM + '\n')
+})
+
+test('keep-in-git marker: only the memory line is added, .team/ is not', () => {
+  const dir = repo()
+  keepInGit(dir)
+  const before = excludeText(dir)
+  assert.equal(ensureExcluded(dir, dir), true)
+  const after = excludeText(dir)
+  assert.equal(after, before + sepOf(before) + MEM + '\n')
+  assert.ok(!trimmedLines(after).includes('.team/'))
+})
+
+test('a second run adds nothing, with or without the keep-in-git marker', () => {
+  for (const keep of [false, true]) {
+    const dir = repo()
+    if (keep) keepInGit(dir)
+    assert.equal(ensureExcluded(dir, dir), true, `first run, keep=${keep}`)
+    const first = excludeText(dir)
+    assert.equal(ensureExcluded(dir, dir), false, `second run, keep=${keep}`)
+    assert.equal(excludeText(dir), first, `text unchanged, keep=${keep}`)
+  }
+})
+
+test("Claude Code's own memory line (no trailing slash) counts as present", () => {
+  const withBlock = dir => {
+    const before = excludeText(dir)
+    const text = before + '# claude-code-runtime\n**/.claude/agent-memory-local\n'
+    setExclude(dir, text)
+    return text
+  }
+  const kept = repo()
+  keepInGit(kept)
+  const keptText = withBlock(kept)
+  assert.equal(ensureExcluded(kept, kept), false)
+  assert.equal(excludeText(kept), keptText)
+  const plain = repo()
+  const plainText = withBlock(plain)
+  assert.equal(ensureExcluded(plain, plain), true)
+  assert.equal(excludeText(plain), plainText + '.team/\n')
+})
+
+test('a repo excluded by an earlier version gets only the memory line', () => {
+  const dir = repo()
+  const old = excludeText(dir) + '.team/\n'
+  setExclude(dir, old)
+  assert.equal(ensureExcluded(dir, dir), true)
+  assert.equal(excludeText(dir), old + MEM + '\n')
+  assert.equal(trimmedLines(excludeText(dir)).filter(l => l === '.team/').length, 1)
+})
+
+test('CRLF exclude file: new lines use CRLF, old text is kept, a second run adds nothing', () => {
+  const dir = repo()
+  setExclude(dir, '# comment\r\n*.log\r\n')
+  assert.equal(ensureExcluded(dir, dir), true)
+  const after = excludeText(dir)
+  assert.equal(after, '# comment\r\n*.log\r\n.team/\r\n' + MEM + '\r\n')
   assert.equal(ensureExcluded(dir, dir), false)
-  assert.ok(!readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
+  assert.equal(excludeText(dir), after)
+  makeFile(dir, '.team/notes/INDEX.md')
+  assert.equal(ignoredStatus(dir, '.team/notes/INDEX.md'), 0)
+})
+
+test('CRLF exclude file without a final newline gets a CRLF before the new lines', () => {
+  const dir = repo()
+  setExclude(dir, '# comment\r\n*.log')
+  assert.equal(ensureExcluded(dir, dir), true)
+  assert.equal(excludeText(dir), '# comment\r\n*.log\r\n.team/\r\n' + MEM + '\r\n')
+})
+
+test('CRLF exclude file that already has both lines is left alone', () => {
+  const dir = repo()
+  const text = '.team/\r\n**/.claude/agent-memory-local\r\n'
+  setExclude(dir, text)
+  assert.equal(ensureExcluded(dir, dir), false)
+  assert.equal(excludeText(dir), text)
+})
+
+test('git honours the memory line at the root and in a sub folder', () => {
+  const dir = repo()
+  assert.equal(ensureExcluded(dir, dir), true)
+  for (const rel of ['.claude/agent-memory-local/x/m.md', 'sub/.claude/agent-memory-local/x/m.md']) {
+    makeFile(dir, rel)
+    assert.equal(ignoredStatus(dir, rel), 0, `${rel} should be ignored`)
+  }
+})
+
+test('keep-in-git repo: memory is ignored by git, .team/ is not', () => {
+  const dir = repo()
+  keepInGit(dir)
+  assert.equal(ensureExcluded(dir, dir), true)
+  for (const rel of ['.claude/agent-memory-local/x/m.md', 'sub/.claude/agent-memory-local/x/m.md']) {
+    makeFile(dir, rel)
+    assert.equal(ignoredStatus(dir, rel), 0, `${rel} should be ignored`)
+  }
+  makeFile(dir, '.team/notes/INDEX.md')
+  assert.equal(ignoredStatus(dir, '.team/notes/INDEX.md'), 1)
 })
 
 test('worktree: root and exclude point at the main checkout', () => {

@@ -20,14 +20,24 @@ export function excludeFile(cwd) {
   return git(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'])
 }
 
+// Each wanted exclude line, with the forms that already count as it: Claude Code's own runtime block writes the memory pattern without the slash.
+// The memory pattern starts with **/ because a pattern with a slash in the middle only matches at the repo root, and sessions start in subfolders too.
+const TEAM_FORMS = ['.team/']
+const MEMORY_FORMS = ['**/.claude/agent-memory-local/', '**/.claude/agent-memory-local']
+
+// Appends the missing lines (.team/ unless .team/keep-in-git exists, and the section memory folders always) in one write,
+// in the file's own line ending; existing lines are never rewritten. True when something was added; false outside git.
 export function ensureExcluded(cwd, root) {
-  if (existsSync(join(root, '.team', 'keep-in-git'))) return false
   const file = excludeFile(cwd)
   if (!file) return false
   const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
-  if (current.split(/\r?\n/).some(line => line.trim() === '.team/')) return false
+  const present = new Set(current.split(/\r?\n/).map(line => line.trim()))
+  const wanted = existsSync(join(root, '.team', 'keep-in-git')) ? [MEMORY_FORMS] : [TEAM_FORMS, MEMORY_FORMS]
+  const missing = wanted.filter(forms => !forms.some(form => present.has(form))).map(([line]) => line)
+  if (missing.length === 0) return false
+  const eol = current.includes('\r\n') ? '\r\n' : '\n'
   mkdirSync(dirname(file), { recursive: true })
-  appendFileSync(file, (current === '' || current.endsWith('\n') ? '' : '\n') + '.team/\n')
+  appendFileSync(file, (current === '' || current.endsWith('\n') ? '' : eol) + missing.map(line => line + eol).join(''))
   return true
 }
 
