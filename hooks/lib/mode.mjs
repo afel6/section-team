@@ -37,18 +37,21 @@ const withoutBom = text => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
 // No mode file: the default mode, nothing to report.
 const noFile = () => ({ mode: DEFAULT_MODE, autoInstallSkills: null, problem: null, modeUsable: true })
 
+// The clause after an unusable mode's reason. A caller that keeps another mode (a session mid-way) passes its own.
+const BALANCED_ENDING = 'so Balanced is used'
+
 // The file's mode cannot be used, so Balanced stands in until the file is fixed.
-export const balancedBecause = reason => ({
+export const balancedBecause = (reason, ending = BALANCED_ENDING) => ({
   mode: DEFAULT_MODE,
   autoInstallSkills: null,
-  problem: `${MODE_FILE}: ${reason}, so Balanced is used`,
+  problem: `${MODE_FILE}: ${reason}, ${ending}`,
   modeUsable: false,
 })
 
-function modeOf(data) {
+function modeOf(data, ending) {
   if (data.mode === undefined) return { mode: DEFAULT_MODE, fault: null }
   if (MODES.includes(data.mode)) return { mode: data.mode, fault: null }
-  return { mode: DEFAULT_MODE, fault: `unknown mode ${shown(data.mode)}, so Balanced is used` }
+  return { mode: DEFAULT_MODE, fault: `unknown mode ${shown(data.mode)}, ${ending}` }
 }
 
 function skillsOf(data) {
@@ -60,8 +63,9 @@ function skillsOf(data) {
 
 // The mode, the skill setting, one problem line (or null) and modeUsable from the text of a mode file (null when there is no file).
 // modeUsable is false when the file's mode could not be used (bad JSON, not an object, an unknown mode), so Balanced is a stand-in;
-// a bad autoInstallSkills alone leaves it true. Never throws for any file text; a value that is not a string or null throws a TypeError.
-export function parseModeFile(text) {
+// a bad autoInstallSkills alone leaves it true. ending replaces "so Balanced is used" after an unusable mode's reason.
+// Never throws for any file text; a value that is not a string or null throws a TypeError.
+export function parseModeFile(text, ending = BALANCED_ENDING) {
   if (text === null) return noFile()
   if (typeof text !== 'string') throw new TypeError('parseModeFile takes the file text or null')
   const json = withoutBom(text)
@@ -69,10 +73,10 @@ export function parseModeFile(text) {
   try {
     data = JSON.parse(json)
   } catch {
-    return balancedBecause('not valid JSON')
+    return balancedBecause('not valid JSON', ending)
   }
-  if (!isPlainObject(data)) return balancedBecause('not a JSON object')
-  const { mode, fault: modeFault } = modeOf(data)
+  if (!isPlainObject(data)) return balancedBecause('not a JSON object', ending)
+  const { mode, fault: modeFault } = modeOf(data, ending)
   const { autoInstallSkills, fault: skillsFault } = skillsOf(data)
   const faults = [modeFault, skillsFault].filter(fault => fault !== null)
   const problem = faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}`
@@ -108,24 +112,24 @@ const teamIsNotFolder = root => {
 
 export const readReason = err => (err?.code === 'ENOTDIR' ? NOT_FOLDER : `could not be read (${codeOf(err)})`)
 
-function whenFileMissing(root) {
+function whenFileMissing(root, ending) {
   try {
-    return teamIsNotFolder(root) ? balancedBecause(NOT_FOLDER) : noFile()
+    return teamIsNotFolder(root) ? balancedBecause(NOT_FOLDER, ending) : noFile()
   } catch (err) {
-    return balancedBecause(readReason(err))
+    return balancedBecause(readReason(err), ending)
   }
 }
 
-// parseModeFile's answer for a project root; an unreadable file or a .team that is not a folder also gives modeUsable false.
+// parseModeFile's answer for a project root (ending as there); an unreadable file or a .team that is not a folder also gives modeUsable false.
 // Never throws and never creates anything.
-export function readMode(root) {
+export function readMode(root, ending = BALANCED_ENDING) {
   let text
   try {
     text = nodeFs().readFileSync(modeFile(root), 'utf8')
   } catch (err) {
-    return err?.code === 'ENOENT' ? whenFileMissing(root) : balancedBecause(readReason(err))
+    return err?.code === 'ENOENT' ? whenFileMissing(root, ending) : balancedBecause(readReason(err), ending)
   }
-  return parseModeFile(text)
+  return parseModeFile(text, ending)
 }
 
 const saveError = (reason, cause) => new Error(`could not save ${MODE_FILE}: ${reason}`, cause === undefined ? undefined : { cause })

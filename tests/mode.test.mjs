@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_MODE, GATES, MODES, MODE_FILE, MODE_LABELS, modeName, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
+import { DEFAULT_MODE, GATES, MODES, MODE_FILE, MODE_LABELS, balancedBecause, modeName, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -245,4 +245,39 @@ test('the mode file path and the display names are exact', () => {
   for (const bad of ['turbo', '', undefined, 'Max']) {
     assert.throws(() => modeName(bad), /unknown mode/, String(bad))
   }
+})
+
+const MAX_END = 'so this session stays in Max mode'
+const fallback = problem => ({ mode: 'balanced', autoInstallSkills: null, problem, modeUsable: false })
+
+test('an ending replaces the Balanced clause after the reason of an unusable file', () => {
+  assert.deepEqual(parseModeFile('{not json', MAX_END), fallback(`.team/mode.json: not valid JSON, ${MAX_END}`))
+  assert.deepEqual(parseModeFile('[1]', MAX_END), fallback(`.team/mode.json: not a JSON object, ${MAX_END}`))
+})
+
+test('an ending applies to an unknown mode and the skill-setting note keeps its own clause', () => {
+  const lean = 'so this session stays in Lean mode'
+  assert.deepEqual(
+    parseModeFile('{"mode":"turbo","autoInstallSkills":"yes"}', lean),
+    fallback(`.team/mode.json: unknown mode "turbo", ${lean}; autoInstallSkills must be true or false, so it is ignored`),
+  )
+})
+
+test('a usable file ignores the ending', () => {
+  assert.deepEqual(parseModeFile('{"mode":"max","autoInstallSkills":"yes"}', MAX_END), {
+    mode: 'max', autoInstallSkills: null, problem: '.team/mode.json: autoInstallSkills must be true or false, so it is ignored', modeUsable: true,
+  })
+})
+
+test('balancedBecause takes an optional ending and keeps the Balanced one by default', () => {
+  assert.deepEqual(balancedBecause('x', 'so E'), fallback('.team/mode.json: x, so E'))
+  assert.deepEqual(balancedBecause('x'), fallback('.team/mode.json: x, so Balanced is used'))
+})
+
+test('readMode passes the ending to its stand-in problems and leaves the no-file default alone', () => {
+  const blocked = tempDir()
+  writeFileSync(teamDir(blocked), 'not a folder')
+  assert.deepEqual(readMode(blocked, MAX_END), fallback(`.team/mode.json: .team is not a folder, ${MAX_END}`))
+  assert.deepEqual(readMode(withModeFile('{"mode":'), MAX_END), fallback(`.team/mode.json: not valid JSON, ${MAX_END}`))
+  assert.deepEqual(readMode(tempDir(), MAX_END), BALANCED)
 })

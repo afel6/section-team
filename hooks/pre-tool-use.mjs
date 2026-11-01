@@ -1,6 +1,8 @@
+import { homedir } from 'node:os'
 import nodePath from 'node:path'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
+import { readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team pre-tool-use'
@@ -32,19 +34,32 @@ export function gateReasons(gate) {
   }
 }
 
-// The gate of the session's project (CLAUDE_PROJECT_DIR, else the event's cwd); Balanced when there is no folder or its mode file is unusable.
-function projectGate(e, env) {
+// The mode the session runs in, from its record; null when there is none to use (no record, a bad session id, a broken record).
+// Falling back is the rule here, not a lost error: user-prompt-submit reports a broken record on every prompt.
+function recordedMode(home, sessionId) {
+  try {
+    return readRecord(home, sessionId)
+  } catch {
+    return null
+  }
+}
+
+// The gate of the session's project (CLAUDE_PROJECT_DIR, else the event's cwd): its mode file's mode when usable (no file is Balanced),
+// else the session's recorded mode, so a file that breaks mid-session keeps the gate the supervisor works to, else Balanced.
+function projectGate(e, env, home) {
   const dir = projectDirOf(e, env)
-  return GATES[dir === null ? DEFAULT_MODE : readMode(projectRoot(dir)).mode]
+  const setting = dir === null ? null : readMode(projectRoot(dir))
+  if (setting?.modeUsable) return GATES[setting.mode]
+  return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 
 // The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the mode's pass mark, is refused.
-function handbackGate(id, e, env) {
+function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
   if (!block) return null
   const report = parseReport(block)
-  const gate = projectGate(e, env)
+  const gate = projectGate(e, env, home)
   if (needsGate(report)) return gateReasons(gate).ungraded
   return failsGate(report, gate.passOverall) ? gateReasons(gate).failing : null
 }
@@ -72,11 +87,12 @@ function advisorRule(id, e, env) {
   return null
 }
 
-export function decide(e, env = process.env) {
+// home is where the session mode records live; tests pass a temp folder.
+export function decide(e, env = process.env, home = homedir()) {
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null
-  return handbackGate(id, e, env) ?? advisorRule(id, e, env) ?? foregroundRule(e)
+  return handbackGate(id, e, env, home) ?? advisorRule(id, e, env) ?? foregroundRule(e)
 }
 
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))

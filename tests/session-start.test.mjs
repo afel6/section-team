@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { buildContext, composeContext, modeRecordDir, recordMode } from '../hooks/session-start.mjs'
+import { buildContext, composeContext } from '../hooks/session-start.mjs'
 import { assembleBrief } from '../hooks/lib/brief.mjs'
+import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { MODES, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
 import { writeReport, excludeFile } from '../hooks/lib/paths.mjs'
 import { PASS_RULE } from '../scripts/gen-agents.mjs'
@@ -315,10 +316,6 @@ test('an invalid autoInstallSkills is ignored with one problem line, and the env
   assert.ok(ctx.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
 })
 
-test('modeRecordDir is the modes folder under the section-team home', () => {
-  assert.equal(modeRecordDir('H'), 'H/.claude/section-team/modes')
-})
-
 test('the mode is recorded per session, only when the hook knows the session id', () => {
   const h = tempHome()
   buildContext(withModeFile(repo(), '{"mode":"max"}'), h, {}, 'sess-1')
@@ -330,17 +327,6 @@ test('the mode is recorded per session, only when the hook knows the session id'
   assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"lean"}')
   recordMode(h, 's2', 'max')
   assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"max"}')
-})
-
-test('recordMode refuses a bad session id or mode and writes nothing outside the modes folder', () => {
-  const h = tempHome()
-  for (const id of ['../x', 'a/b', 'a\\b', '', 'x'.repeat(129), null, undefined, 42]) {
-    assert.throws(() => recordMode(h, id, 'max'), /session id/, String(id))
-  }
-  assert.equal(existsSync(join(h, '.claude', 'section-team', 'x.json')), false)
-  assert.throws(() => recordMode(h, 'ok', 'turbo'), /unknown mode/)
-  recordMode(h, 'x'.repeat(128), 'max')
-  assert.equal(readFileSync(recordFile(h, 'x'.repeat(128)), 'utf8'), '{"mode":"max"}')
 })
 
 test('session start deletes mode records older than 7 days and nothing else', () => {

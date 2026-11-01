@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { recordMode } from '../hooks/session-start.mjs'
+import { recordMode } from '../hooks/lib/mode-record.mjs'
 
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
 const hook = name => fileURLToPath(new URL(`../hooks/${name}.mjs`, import.meta.url))

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { modeSwitch, promptCheck } from '../hooks/user-prompt-submit.mjs'
-import { modeRecordFile, recordMode } from '../hooks/session-start.mjs'
+import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
 
@@ -30,6 +30,7 @@ const setMode = (dir, text) => writeFileSync(join(dir, '.team', 'mode.json'), te
 const recordPath = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
 const recordText = (home, id) => readFileSync(recordPath(home, id), 'utf8')
 const notice = (from, to) => `Mode is now ${modeName(to)} (was ${modeName(from)}). From your next step on:\n\n${modeRules(to)}`
+const staysIn = (reason, mode) => `mode switch check skipped: .team/mode.json: ${reason}, so this session stays in ${modeName(mode)} mode`
 const run = (input, home, script = SCRIPT) => spawnSync(process.execPath, [script], { input, encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
 const promptInput = (cwd, extra = {}) => JSON.stringify({ hook_event_name: 'UserPromptSubmit', cwd, session_id: 's1', prompt: 'hi', ...extra })
 const ageFile = (file, days) => {
@@ -88,9 +89,9 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
   const dir = project('{not json')
   const e = event(dir)
   const cases = [
-    ['{not json', 'mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'],
-    ['{"mode":"turbo"}', 'mode switch check skipped: .team/mode.json: unknown mode "turbo", so Balanced is used'],
-    ['[1]', 'mode switch check skipped: .team/mode.json: not a JSON object, so Balanced is used'],
+    ['{not json', 'mode switch check skipped: .team/mode.json: not valid JSON, so this session stays in Max mode'],
+    ['{"mode":"turbo"}', 'mode switch check skipped: .team/mode.json: unknown mode "turbo", so this session stays in Max mode'],
+    ['[1]', 'mode switch check skipped: .team/mode.json: not a JSON object, so this session stays in Max mode'],
   ]
   for (const [text, warning] of cases) {
     setMode(dir, text)
@@ -102,8 +103,40 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
   setMode(dir, '{"mode":"lean"}')
   assert.equal(modeSwitch(e, h), notice('max', 'lean'))
   setMode(dir, '{not json')
-  assert.equal(promptCheck(event(dir, 'new'), h).notice, null)
+  assert.deepEqual(promptCheck(event(dir, 'new'), h), { notice: null, warnings: ['mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'] })
   assert.equal(existsSync(recordPath(h, 'new')), false)
+})
+
+test('a Lean record with .team as a file keeps the session in Lean mode', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'lean')
+  const dir = join(tempDir('ct-ups-'), 'with space')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, '.team'), 'not a folder')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [staysIn('.team is not a folder', 'lean')] })
+  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+})
+
+test('a Balanced record with an unknown mode and a bad autoInstallSkills names both problems', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const dir = project('{"mode":"turbo","autoInstallSkills":"yes"}')
+  assert.deepEqual(promptCheck(event(dir), h), {
+    notice: null,
+    warnings: ['mode switch check skipped: .team/mode.json: unknown mode "turbo", so this session stays in Balanced mode; autoInstallSkills must be true or false, so it is ignored'],
+  })
+  assert.equal(recordText(h, 's1'), '{"mode":"balanced"}')
+})
+
+test('a broken record plus a broken mode file falls back to Balanced and reports both', () => {
+  const h = tempHome()
+  mkdirSync(dirname(recordPath(h, 's1')), { recursive: true })
+  writeFileSync(recordPath(h, 's1'), 'not json')
+  const dir = project('{not json')
+  assert.deepEqual(promptCheck(event(dir), h), {
+    notice: null,
+    warnings: ['mode record read failed: mode record is not valid', 'mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'],
+  })
 })
 
 test('a valid mode with a bad autoInstallSkills is announced and still warned', () => {
@@ -135,7 +168,7 @@ test('hook: a bad mode file gives one systemMessage line and no context', () => 
   const r = run(promptInput(project('{not json')), h)
   assert.equal(r.status, 0)
   assert.equal(r.stderr, '')
-  assert.deepEqual(JSON.parse(r.stdout), { systemMessage: PREFIX + 'mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used' })
+  assert.deepEqual(JSON.parse(r.stdout), { systemMessage: PREFIX + 'mode switch check skipped: .team/mode.json: not valid JSON, so this session stays in Max mode' })
 })
 
 test('an unwritable record folder announces nothing and says so in one systemMessage line', () => {
@@ -246,9 +279,4 @@ for (const to of MODES) {
 test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks
   assert.deepEqual(hooks.UserPromptSubmit, [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.mjs"' }] }])
-})
-
-test('modeRecordFile names the session file and refuses a bad id', () => {
-  assert.equal(modeRecordFile('H', 's1'), 'H/.claude/section-team/modes/s1.json')
-  assert.throws(() => modeRecordFile('H', '../x'), /session id/)
 })

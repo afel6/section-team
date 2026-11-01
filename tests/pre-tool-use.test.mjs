@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { decide, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
+import { recordMode } from '../hooks/lib/mode-record.mjs'
 
 // The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
 delete process.env.CLAUDE_PROJECT_DIR
@@ -17,6 +18,17 @@ const HOME = resolve('/', 'Users', 'Tester')
 const PROJECT = resolve('/', 'work', 'my app')
 const LOCAL = join(PROJECT, '.claude', 'agent-memory-local')
 const ev = (agent_type, tool_name, tool_input = {}) => ({ agent_type, tool_name, tool_input, cwd: PROJECT })
+
+const made = []
+after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }) })
+const tempDir = () => {
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-gate-')))
+  made.push(dir)
+  return dir
+}
+// Spawned hooks get a fresh temp home, so no real session record of the machine can decide a gate.
+const hookEnv = home => ({ ...process.env, HOME: home, USERPROFILE: home })
+const spawnHook = (input, home = tempDir()) => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', env: hookEnv(home) })
 
 test('builders and the main session are never blocked', () => {
   assert.equal(decide(ev('section-team:backend', 'Bash', { command: 'rm -rf x' })), null)
@@ -52,12 +64,12 @@ test('advisors may only spawn read-only helper types', () => {
 })
 
 test('hook prints a deny decision, and stays silent otherwise', () => {
-  const deny = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'PreToolUse', ...ev('section-team:ai-engineer', 'Bash', { command: 'ls' }) }), encoding: 'utf8' })
+  const deny = spawnHook(JSON.stringify({ hook_event_name: 'PreToolUse', ...ev('section-team:ai-engineer', 'Bash', { command: 'ls' }) }))
   assert.equal(deny.status, 0)
   const out = JSON.parse(deny.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
-  const quiet = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify(ev('section-team:backend', 'Bash')), encoding: 'utf8' })
+  const quiet = spawnHook(JSON.stringify(ev('section-team:backend', 'Bash')))
   assert.equal(quiet.status, 0)
   assert.equal(quiet.stdout, '')
 })
@@ -67,7 +79,7 @@ test('guard still runs when the script is reached through a junction', () => {
   const link = join(dir, 'hooks-link')
   symlinkSync(fileURLToPath(new URL('../hooks', import.meta.url)), link, 'junction')
   try {
-    const run = spawnSync(process.execPath, [join(link, 'pre-tool-use.mjs')], { input: JSON.stringify(ev('section-team:ai-engineer', 'Bash', { command: 'ls' })), encoding: 'utf8' })
+    const run = spawnSync(process.execPath, [join(link, 'pre-tool-use.mjs')], { input: JSON.stringify(ev('section-team:ai-engineer', 'Bash', { command: 'ls' })), encoding: 'utf8', env: hookEnv(tempDir()) })
     assert.equal(run.status, 0)
     assert.match(run.stdout, /"permissionDecision":"deny"/)
   } finally {
@@ -94,13 +106,6 @@ test('memory folder must be exactly <id> or section-team-<id>', () => {
 const handback = (agent_type, report) => ev(agent_type, 'SubagentHandback', { message: `work notes\n${report}` })
 const REPORT_WITH = (status, changed, quality) => `## REPORT · backend · 2026-10-25 10:00\nStatus: ${status}\nJob: api\nChanged: ${changed}\n${quality ? `Quality: ${quality}\n` : ''}`
 
-const made = []
-after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }) })
-const tempDir = () => {
-  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-gate-')))
-  made.push(dir)
-  return dir
-}
 // A temp project with a .team folder, holding .team/mode.json when modeText is not null.
 const projectWith = modeText => {
   const dir = tempDir()
@@ -114,7 +119,6 @@ const UNGRADED_DONE = REPORT_WITH('done', 'src/api.mjs', null)
 const UNGRADED_WAY_OUT = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
 const PARTIAL_ENDING = 'If it still fails, hand back with `Status: partial` and the grade; start the Quality line with the final grade.'
 const NOT_OBJECT = { systemMessage: 'section-team pre-tool-use: the hook input is not a JSON object, so no rule was checked' }
-const spawnHook = input => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
 
 const write = (file_path, extra) => ({ ...ev('section-team:ai-engineer', 'Write', { file_path }), ...extra })
 const memoryIn = (base, id = 'section-team-ai-engineer') => join(base, '.claude', 'agent-memory-local', id, 'x.md')
@@ -325,7 +329,7 @@ test('a hook input that is not a JSON object gives one systemMessage line and de
 test('a rule that throws gives one systemMessage line and denies nothing', () => {
   // Reading tool_input throws inside the advisor rule (a getter planted by --import); any rule that throws would do.
   const PLANT = "data:text/javascript,Object.defineProperty(Object.prototype,'tool_input',{get(){throw Object.assign(new Error('planted'),{code:'EPLANTED'})}})"
-  const run = spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: '{"agent_type":"section-team:ai-engineer","tool_name":"Write","cwd":"x"}', encoding: 'utf8' })
+  const run = spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: '{"agent_type":"section-team:ai-engineer","tool_name":"Write","cwd":"x"}', encoding: 'utf8', env: hookEnv(tempDir()) })
   assert.equal(run.status, 0)
   assert.equal(run.stderr, '')
   assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: EPLANTED' })
@@ -343,4 +347,112 @@ test("the spawned hook reads the event project's mode", () => {
   const out = JSON.parse(spawnHook(JSON.stringify(handbackIn(max, DONE_AT('8/10 (reviewer, 1 fix round)')))).stdout)
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
   assert.ok(out.hookSpecificOutput.permissionDecisionReason.includes('(9/10)'), out.hookSpecificOutput.permissionDecisionReason)
+})
+
+// The handback gate with a session record: the project's mode file decides when usable, else the session's record, else Balanced.
+const has = (text, part) => typeof text === 'string' && text.includes(part)
+const sessionEvent = (e, session_id = 's1') => ({ ...e, session_id })
+const homeWith = mode => {
+  const home = tempDir()
+  recordMode(home, 's1', mode)
+  return home
+}
+// Every kind of unusable mode file: three bad texts via projectWith, and a project whose .team is a file.
+const brokenProjects = () => {
+  const teamIsFile = tempDir()
+  writeFileSync(join(teamIsFile, '.team'), 'not a folder')
+  return ['{not json', '{"mode":"turbo"}', '[1]'].map(text => projectWith(text)).concat(teamIsFile)
+}
+const gateWith = (dir, report, home, sessionId = 's1') => {
+  let reason
+  assert.doesNotThrow(() => { reason = decide(sessionEvent(handbackIn(dir, report), sessionId), {}, home) })
+  return reason
+}
+const writeRecordText = (home, text) => {
+  const file = join(home, '.claude', 'section-team', 'modes', 's1.json')
+  mkdirSync(join(home, '.claude', 'section-team', 'modes'), { recursive: true })
+  writeFileSync(file, text)
+}
+
+test('a Max record keeps the Max gate when the project mode file is unusable', () => {
+  const home = homeWith('max')
+  for (const dir of brokenProjects()) {
+    const reason = gateWith(dir, DONE_AT('8/10 (reviewer, 1 fix round)'), home)
+    assert.ok(has(reason, '(9/10)'), reason)
+    assert.ok(has(reason, 'at most 3 fix rounds'), reason)
+    assert.equal(gateWith(dir, DONE_AT('9/10 (reviewer, 1 fix round)'), home), null)
+  }
+})
+
+test('a Lean record keeps the Lean gate when the project mode file is unusable', () => {
+  const home = homeWith('lean')
+  for (const dir of brokenProjects()) {
+    const reason = gateWith(dir, UNGRADED_DONE, home)
+    assert.ok(has(reason, 'model: "sonnet"'), reason)
+    assert.ok(has(reason, 'at most 1 fix round'), reason)
+    assert.ok(!has(reason, 'at most 1 fix rounds'), reason)
+  }
+})
+
+test('with no record and an unusable mode file the gate is Balanced', () => {
+  const home = tempDir()
+  for (const dir of brokenProjects()) {
+    assert.equal(gateWith(dir, DONE_AT('8/10 (reviewer)'), home), null)
+    const failing = gateWith(dir, DONE_AT('7/10 (reviewer)'), home)
+    assert.ok(has(failing, '(8/10)'), failing)
+    assert.ok(has(failing, 'at most 2 fix rounds'), failing)
+  }
+})
+
+test('a bad or missing session id gives Balanced without throwing, even with a record for another session', () => {
+  const home = homeWith('max')
+  // The event is built here, not through gateWith: its default id would turn undefined back into 's1'.
+  const gateFor = (dir, report, id) => {
+    let reason
+    assert.doesNotThrow(() => { reason = decide({ ...handbackIn(dir, report), session_id: id }, {}, home) })
+    return reason
+  }
+  for (const id of ['../x', undefined, null, 42]) {
+    for (const dir of brokenProjects()) {
+      assert.equal(gateFor(dir, DONE_AT('8/10 (reviewer)'), id), null, String(id))
+      const failing = gateFor(dir, DONE_AT('7/10 (reviewer)'), id)
+      assert.ok(has(failing, '(8/10)'), `${String(id)}: ${failing}`)
+    }
+  }
+})
+
+test('a broken session record gives Balanced without throwing', () => {
+  for (const text of ['{bad', '{"mode":"turbo"}']) {
+    const home = tempDir()
+    writeRecordText(home, text)
+    for (const dir of brokenProjects()) {
+      assert.equal(gateWith(dir, DONE_AT('8/10 (reviewer)'), home), null, text)
+      const failing = gateWith(dir, DONE_AT('7/10 (reviewer)'), home)
+      assert.ok(has(failing, '(8/10)'), `${text}: ${failing}`)
+    }
+  }
+})
+
+test('a usable project mode wins over the session record, and a missing mode file counts as Balanced', () => {
+  const refused = gateWith(projectWith('{"mode":"max"}'), DONE_AT('8/10 (reviewer)'), homeWith('balanced'))
+  assert.ok(has(refused, '(9/10)'), refused)
+  assert.equal(gateWith(projectWith('{"mode":"balanced"}'), DONE_AT('8/10 (reviewer)'), homeWith('max')), null)
+  assert.equal(gateWith(projectWith(null), DONE_AT('8/10 (reviewer)'), homeWith('max')), null)
+})
+
+test('with no project dir at all the session record decides, else Balanced', () => {
+  const nowhere = quality => sessionEvent({ ...handback('section-team:backend', DONE_AT(quality)), cwd: undefined })
+  const refused = decide(nowhere('8/10 (reviewer)'), {}, homeWith('max'))
+  assert.ok(has(refused, '(9/10)'), refused)
+  assert.equal(decide(nowhere('8/10 (reviewer)'), {}, tempDir()), null)
+})
+
+test('the spawned hook gates on the session record when the project mode file is unusable', () => {
+  const home = homeWith('max')
+  const e = sessionEvent(handbackIn(projectWith('{not json'), DONE_AT('8/10 (reviewer, 1 fix round)')))
+  const run = spawnHook(JSON.stringify(e), home)
+  assert.equal(run.status, 0)
+  const out = JSON.parse(run.stdout)
+  assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
+  assert.ok(has(out.hookSpecificOutput.permissionDecisionReason, '(9/10)'), out.hookSpecificOutput.permissionDecisionReason)
 })
