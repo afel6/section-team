@@ -191,9 +191,10 @@ export function prepareRun(run, { dir = runFolder(run), root = RUNS, seeds = SEE
   return dir
 }
 
-// The claude process of the run in progress, so an exit can stop it before section memory is put back.
+// The claude process of the run in progress and the kill its run was given, so an exit can stop it before section
+// memory is put back. A test's fake child is only ever stopped by its test's own kill.
 let activeChild = null
-const stopActiveChild = () => { if (activeChild) killTree(activeChild) }
+const stopActiveChild = () => { if (activeChild) activeChild.kill(activeChild.child) }
 // taskkill exits 128 when the process is already gone; any other failure is said, since a live claude could still
 // write while section memory is put back.
 export function killTree(child, { execFile = execFileSync, log = console.error } = {}) {
@@ -214,7 +215,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
   return new Promise((resolve, reject) => {
     const started = Date.now()
     const child = spawn(binary, args, { cwd: dir, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-    activeChild = child
+    activeChild = { child, kill }
     const outFile = createWriteStream(join(outDir, 'raw.json'))
     const errFile = createWriteStream(join(outDir, 'stderr.txt'))
     child.stdout.pipe(outFile)

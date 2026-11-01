@@ -310,7 +310,7 @@ test('isolateSectionMemory puts the memory back once, and a failed restore is on
   t.after(() => { process.exitCode = exitCode })
   const listeners = ['SIGINT', 'exit'].map(event => process.listenerCount(event))
   let restores = 0
-  const release = isolateSectionMemory({ volumes: () => {}, backup: () => ['section-team-testing'], restore: () => { restores++; throw new Error('EBUSY') } })
+  const release = isolateSectionMemory({ volumes: () => {}, backup: () => ['section-team-testing'], restore: () => { restores++; throw new Error('EBUSY') }, stop: () => {} })
   release()
   release()
   assert.equal(restores, 1, 'release is idempotent')
@@ -422,41 +422,61 @@ function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'su
   }
 }
 
-// A solo run of task easy into a temp root, with a pin and an init that pass the init check.
+// A kill for fake children: it ends their streams, so they close with code null. The real killTree would run
+// taskkill on the fake pid 4242, which may belong to an unrelated process.
+const endStreams = child => {
+  child.stdout.end()
+  child.stderr.end()
+}
+
+// A solo run of task easy into a temp root, with a pin and an init that pass the init check. deps always carry a
+// fake kill and a short time limit, so no runOne test can hang or reach the real killTree.
 function soloAttempt(t) {
   t.mock.method(console, 'log', () => {})
   const root = tempRoot(t)
   const builtins = ['cc-plugin-agents-md@builtin']
   const pin = { binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', version: '2.1.296', apiKeySource: 'none', builtins, setups: { solo: { agents: ['general-purpose'], skills: [] } } }
+  const home = join(root, 'home')
+  const dir = join(root, 'runs', 'easy-0123abcd')
   return {
-    root, pin, home: join(root, 'home'), dir: join(root, 'runs', 'easy-0123abcd'), outDir: join(root, 'results', 'easy-solo-mo-r1'),
+    root, pin, home, dir, outDir: join(root, 'results', 'easy-solo-mo-r1'),
     ctx: { pin, installedKeys: ['a@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1', pluginCommit: 'c0ffee1' },
     init: {
       type: 'system', subtype: 'init', model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none', mcp_servers: [],
       plugins: [{ name: 'cc-plugin-agents-md', path: 'builtin', source: builtins[0] }], agents: ['general-purpose'], skills: [],
     },
     run: { id: 'easy-solo-mo-r1', task: 'easy', cond: 'solo-mo', base: 'solo', rep: 1 },
+    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs') },
   }
 }
 
+test('stopping the round mid-run stops the child with the kill its run was given, never the real killTree', async t => {
+  const { home, outDir, ctx, init, run, deps } = soloAttempt(t)
+  const killed = []
+  const kill = child => { killed.push(child.pid); endStreams(child) }
+  const running = runOne(run, outDir, ctx, { ...deps, spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 60_000 })
+  await new Promise(resolve => setTimeout(resolve, 50))
+  isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => {} })()
+  await running
+  assert.deepEqual(killed, [4242], 'the default stop used the run\'s own kill')
+  const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+  assert.deepEqual([record.timedOut, record.exitCode, record.end], [false, null, 'crash'])
+})
+
 test('runOne stops the batch on an API failure that left no session file, instead of stopping for missing evidence', async t => {
-  const { root, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const { home, outDir, ctx, init, run, deps: base } = soloAttempt(t)
   const result = { type: 'result', subtype: 'success', is_error: true, result: 'API Error: 529 overloaded' }
-  const deps = { spawn: fakeClaude({ home, calls: [], init, result, transcript: false }), home, dir, root: join(root, 'runs') }
+  const deps = { ...base, spawn: fakeClaude({ home, calls: [], init, result, transcript: false }) }
   await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8')).map(e => e.kind), ['api-other'])
   assert.ok(!existsSync(join(outDir, 'run.json')))
 })
 
 test('runOne kills a run at its time limit; raw.json keeps the init streamed before the kill and run.json ends timeout, not void', async t => {
-  const { root, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const { home, outDir, ctx, init, run, deps: base } = soloAttempt(t)
   const killed = []
-  const kill = child => {
-    killed.push(child.pid)
-    child.stdout.end()
-    child.stderr.end()
-  }
-  const deps = { spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 50, home, dir, root: join(root, 'runs') }
+  const kill = child => { killed.push(child.pid); endStreams(child) }
+  const deps = { ...base, spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 50 }
   await runOne(run, outDir, ctx, deps)
   assert.deepEqual(killed, [4242], 'the injected kill stops the child once')
   const raw = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
@@ -467,19 +487,19 @@ test('runOne kills a run at its time limit; raw.json keeps the init streamed bef
 })
 
 test('runOne rejects with one friendly line when the pinned binary cannot start', async t => {
-  const { root, home, dir, outDir, ctx, run } = soloAttempt(t)
+  const { root, outDir, ctx, run, deps } = soloAttempt(t)
   const binary = join(root, 'no-such-folder', 'claude-2.1.296.exe')
   // The real spawn of a path that cannot exist: nothing runs.
-  await assert.rejects(runOne(run, outDir, { ...ctx, pin: { ...ctx.pin, binary } }, { home, dir, root: join(root, 'runs') }),
+  await assert.rejects(runOne(run, outDir, { ...ctx, pin: { ...ctx.pin, binary } }, deps),
     { message: `could not start claude (${binary}: ENOENT)` })
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8')).attempt, 1)
   assert.ok(!existsSync(join(outDir, 'run.json')))
 })
 
 test('runOne spawns the pinned binary with builderArgs for its own session id, and a second attempt archives the first', async t => {
-  const { root, pin, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const { pin, home, dir, outDir, ctx, init, run, deps: base } = soloAttempt(t)
   const calls = []
-  const deps = { spawn: fakeClaude({ home, calls, init }), home, dir, root: join(root, 'runs') }
+  const deps = { ...base, spawn: fakeClaude({ home, calls, init }) }
 
   await runOne(run, outDir, ctx, deps)
   const first = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))

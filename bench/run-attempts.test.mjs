@@ -373,7 +373,20 @@ test('pendingRuns: a resume with the same --rerun and reason records nothing aga
   const resumed = pendingRuns(runs, { ...flags, at: '2026-11-01T18:00:00.000Z' })
   assert.deepEqual(resumed.map(r => r.id), ['h4-b-mo-r1', 'h4-c-mo-r1'])
   for (const id of ['h4-a-mo-r1', 'h4-c-mo-r1']) assert.equal(readJson(join(results, id, 'attempts.json')).length, 1, `${id}: the cap is not reset again`)
-  assert.equal(pendingRuns(runs, { ...flags, reason: 'fix d4e5f6a' }).length, 3, 'a new fix reruns both again')
+  assert.equal(pendingRuns(runs, { ...flags, reason: 'fix d4e5f6a', at: '2026-11-01T20:00:00.000Z' }).length, 3, 'a new fix reruns both again')
+})
+
+test('pendingRuns: a plain resume still reruns a run the fix named, whose run.json predates the fix', t => {
+  const { results, runs } = batchResults(t)
+  pendingRuns(runs, { results, rerun: ['h4-a-mo-r1', 'h4-c-mo-r1'], reason: 'fix a1b2c3d', at: '2026-11-01T12:00:00.000Z' })
+  // a reran after the fix; then b hit a usage limit, so c never got its turn.
+  put(join(results, 'h4-a-mo-r1', 'run.json'), JSON.stringify({ startedAt: '2026-11-01T12:05:00.000Z' }))
+  const resumed = pendingRuns(runs, { results, rerun: [], reason: '', at: '2026-11-01T18:00:00.000Z' })
+  assert.deepEqual(resumed.map(r => r.id), ['h4-b-mo-r1', 'h4-c-mo-r1'], 'c\'s pre-fix run.json is never scored')
+  assert.equal(readJson(join(results, 'h4-c-mo-r1', 'attempts.json')).length, 1, 'nothing recorded by a plain resume')
+  // A version-mismatch entry comes after its attempt's run.json was archived: the rerun that follows it is not owed again.
+  recordAttempt(join(results, 'h4-a-mo-r1'), { kind: 'harness-bug', reason: 'version or model mismatch', at: '2026-11-01T12:00:00.000Z' })
+  assert.deepEqual(pendingRuns(runs, { results, rerun: [], reason: '', at: 'T' }).map(r => r.id), ['h4-b-mo-r1', 'h4-c-mo-r1'])
 })
 
 test('pendingRuns refuses a --rerun id outside the plan, or without a reason, before it records anything', t => {

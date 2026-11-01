@@ -175,27 +175,28 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
   return { kind, wrote }
 }
 
-const startedAt = outDir => readJsonFile(join(outDir, 'run.json'))?.startedAt
-
-// A rerun is recorded once per reason, so a resume with the same flags neither resets the cap again nor reruns a run
-// whose run.json started after the fix was recorded.
-function owesRerun(outDir, reason, at) {
-  const earlier = readHistory(outDir).findLast(e => e?.kind === 'harness-bug' && e.reason === reason)
-  if (earlier === undefined) {
-    recordAttempt(outDir, { kind: 'harness-bug', reason, at })
-    return true
-  }
-  return !(startedAt(outDir) > earlier.at)
+// A harness-bug rerun is recorded once per reason, so a resume with the same flags does not reset the cap again.
+function recordRerun(outDir, reason, at) {
+  if (!readHistory(outDir).some(e => e?.kind === 'harness-bug' && e.reason === reason)) recordAttempt(outDir, { kind: 'harness-bug', reason, at })
 }
 
-// The runs left to do: those without run.json, plus the --rerun ids of a harness-bug fix.
+// A run is left to do without a run.json, or while its run.json started before its last harness-bug entry: a run a
+// fix named stays owed on every resume, with or without --rerun, until it has run again.
+function owed(outDir) {
+  const record = readJsonFile(join(outDir, 'run.json'))
+  if (record === undefined) return true
+  const fix = readHistory(outDir).findLast(e => e?.kind === 'harness-bug')
+  return fix !== undefined && !(record.startedAt > fix.at)
+}
+
+// The runs left to do, after recording the --rerun ids of a harness-bug fix.
 export function pendingRuns(runs, { results, rerun = [], reason = '', at } = {}) {
   const unknown = rerun.find(id => !runs.some(run => run.id === id))
   if (unknown !== undefined) throw new RangeError(`--rerun names ${unknown}, which is not a run of this batch`)
   if (rerun.length > 0 && reason.trim() === '') throw new RangeError('--rerun needs --reason= naming the harness-bug fix commit')
   if (rerun.length > 0 && typeof at !== 'string') throw new TypeError('pendingRuns needs the time (at) to record a rerun')
-  const owed = rerun.filter(id => owesRerun(join(results, id), reason, at))
-  const pending = runs.filter(run => owed.includes(run.id) || !existsSync(join(results, run.id, 'run.json')))
+  for (const id of rerun) recordRerun(join(results, id), reason, at)
+  const pending = runs.filter(run => owed(join(results, run.id)))
   const capped = pending.find(run => cappedCount(readHistory(join(results, run.id))) > MAX_RERUNS)
   if (capped !== undefined) throw new RoundStop(`${capped.id}: its ${MAX_RERUNS} capped reruns are used; fix the cause as a harness bug, then resume with --rerun=${capped.id} --reason=<fix commit>`)
   return pending
