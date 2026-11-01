@@ -3,20 +3,23 @@
 // - sensitivity: only the groups whose two runs are faithful (results/mode-check-<round>.json; solo always is).
 // Gaps, Balanced's mean and usage ratios are rounded to statDecimals before a bar sees them, hidden-test rates to
 // hiddenDecimals; ranges stay unrounded.
+// The CLI adds each headline's published label, outside confirmation and secondary measures (bars-outside.mjs).
 // Usage: node bench/bars.mjs --round=mo   (writes results/bars-mo.json)
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { DIMS } from './aggregate.mjs'
+import { outsideJudges, outsideLine, outsideReport, secondaryLine } from './bars-outside.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { round, sampleSD, tCrit975 } from './stats.mjs'
 
-const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length
-const groupOf = run => `${run.task}-r${run.rep}`
+export const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length
+export const groupOf = run => `${run.task}-r${run.rep}`
 // Solo runs always count as faithful; a mode run only with a faithful mode-check row.
 const isFaithful = (modeCheck, run) => run.cond.startsWith('solo-') || modeCheck[run.id]?.faithful === true
 const configPath = roundTag => fileURLToPath(new URL(`./bars-${roundTag}.json`, import.meta.url))
+const HELDOUT = fileURLToPath(new URL('./data/heldout/', import.meta.url))
 
 export const readBars = (file = configPath('mo')) => JSON.parse(readFileSync(file, 'utf8'))
 
@@ -137,7 +140,7 @@ const INPUTS = roundTag => [
   [`mode-check-${roundTag}.json`, `node bench/mode-check.mjs --round=${roundTag}`, 'object'],
 ]
 
-function readInput(path, hint, shape) {
+export function readInput(path, hint, shape) {
   let text
   try {
     text = readFileSync(path, 'utf8')
@@ -155,10 +158,14 @@ function readInput(path, hint, shape) {
   return data
 }
 
-const shown = x => `${x >= 0 ? '+' : ''}${round(x, 2).toFixed(2)}`
+// The sign comes from the rounded value, so a float-noise zero always prints +0.00.
+export const shown = x => {
+  const r = round(x, 2)
+  return `${r >= 0 ? '+' : ''}${r.toFixed(2)}`
+}
 
 function lineOf(name, kind, r) {
-  const head = `${name.padEnd(9)}${kind.padEnd(12)}${r.status}`
+  const head = `${name.padEnd(9)}${kind.padEnd(12)}${r.label ?? r.status}`
   if (r.n === 0) return head
   const range = r.lo === null ? '' : ` [${shown(r.lo)}, ${shown(r.hi)}]`
   const ceiling = r.ceiling && `${r.ceiling.setup} mean ${r.ceiling.mean === null ? '–' : round(r.ceiling.mean, 2).toFixed(2)} (scale ceiling above ${r.ceiling.above.toFixed(2)})`
@@ -166,7 +173,13 @@ function lineOf(name, kind, r) {
   return `${head}  n ${r.n}  gap ${shown(r.gap)}${range}  hidden ${r.hidden.mode} vs ${r.hidden.vs}${extra}`
 }
 
-export function main(argv = process.argv.slice(2), { results = RESULTS } = {}) {
+// The committed held-out round, for its "more test lines" agreement.
+function heldOutInputs(dir) {
+  const read = (file, shape) => readInput(join(dir, file), 'the held-out data is committed in bench/data/heldout/', shape)
+  return { summary: read('summary.json', 'array'), judgeRows: read('judge-ho.json', 'array'), key: read('blind-key-ho.json', 'object') }
+}
+
+export function main(argv = process.argv.slice(2), { results = RESULTS, heldout = HELDOUT } = {}) {
   const roundTag = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(roundTag)) {
     console.error('usage: node bench/bars.mjs --round=<tag>   (letters and digits only)')
@@ -177,8 +190,14 @@ export function main(argv = process.argv.slice(2), { results = RESULTS } = {}) {
     const config = readInput(configPath(roundTag), `round ${roundTag} has no pre-registered bars`, 'object')
     const [summary, judgeRows, key, modeCheck] = INPUTS(roundTag).map(([file, step, shape]) => readInput(join(results, file), `run ${step} first`, shape))
     const out = bars({ config, quals: qualities(judgeRows, key), summary, modeCheck })
-    writeFileSync(join(results, `bars-${roundTag}.json`), JSON.stringify(out, null, 2) + '\n')
-    for (const [name, r] of Object.entries(out)) for (const kind of ['headline', 'sensitivity']) console.log(lineOf(name, kind, r[kind]))
+    const judges = outsideJudges({ config, results })
+    const report = outsideReport({ out, config, judges, judgeRows, key, summary, heldOut: heldOutInputs(heldout) })
+    writeFileSync(join(results, `bars-${roundTag}.json`), JSON.stringify(report, null, 2) + '\n')
+    for (const { name } of config.comparisons) {
+      for (const kind of ['headline', 'sensitivity']) console.log(lineOf(name, kind, report[name][kind]))
+      console.log(secondaryLine(name, report[name].headline))
+    }
+    console.log(outsideLine(report.outside))
   } catch (err) {
     console.error(`bars: ${err.message}`)
     process.exitCode = 1

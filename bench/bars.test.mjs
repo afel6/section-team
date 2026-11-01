@@ -12,9 +12,9 @@ const GROUPS = ['h4-r1', 'h4-r2', 'h4-r3', 'h5-r1', 'h5-r2', 'h5-r3', 'h6-r1', '
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-12, `${actual} is not ${expected}`)
 
 // One counted run (a summary.json row) of `cond` in `group`.
-function runRow(group, cond, { cost = 1, rate = 1 } = {}) {
+function runRow(group, cond, { cost = 1, rate = 1, testLines = 100 } = {}) {
   const [task, rep] = group.split('-r')
-  return { id: `${task}-${cond}-r${rep}`, task, cond, rep: Number(rep), costUSD: cost, costComputed: false, hidden: { tests: 10, pass: 10 * rate, fail: 10 - 10 * rate, rate } }
+  return { id: `${task}-${cond}-r${rep}`, task, cond, rep: Number(rep), costUSD: cost, costComputed: false, hidden: { tests: 10, pass: 10 * rate, fail: 10 - 10 * rate, rate }, code: { testLines } }
 }
 
 // Qualities and counted runs in every group; each value is one number for all groups or an array with one per group.
@@ -253,15 +253,18 @@ test('sampleSD divides by n-1 and round rounds half-up to d decimals', () => {
   assert.equal(round(1.5045, 2), 1.5)
 })
 
-function resultsDir(t) {
+const CLI_CONDS = { W: 'solo-mo', X: 'lean-mo', Y: 'team-mo', Z: 'max-mo' }
+const CLI_KEY = Object.fromEntries(GROUPS.map(g => [g, CLI_CONDS]))
+const CLI_DIGITS = { W: '77777', X: '88888', Y: '88888', Z: '99999' }
+const CLI_ROWS = GROUPS.flatMap(pair => [1, 2].map(judge => ({ pair, judge, ranking: ['Z', 'Y', 'X', 'W'], ...Object.fromEntries(Object.entries(CLI_DIGITS).map(([l, d]) => [l, scores(d)])) })))
+
+// A round where every judge scores max 9, lean and team 8, solo 7; max-mo runs have 200 test lines, the rest 100.
+function resultsDir(t, extra = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'bench-bars-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
-  const conds = { W: 'solo-mo', X: 'lean-mo', Y: 'team-mo', Z: 'max-mo' }
-  const digits = { W: '77777', X: '88888', Y: '88888', Z: '99999' }
-  const rows = GROUPS.flatMap(pair => [1, 2].map(judge => ({ pair, judge, ranking: ['Z', 'Y', 'X', 'W'], ...Object.fromEntries(Object.entries(digits).map(([l, d]) => [l, scores(d)])) })))
-  const summary = GROUPS.flatMap(g => Object.values(conds).map(cond => runRow(g, cond, { cost: 2 })))
+  const summary = GROUPS.flatMap(g => Object.values(CLI_CONDS).map(cond => runRow(g, cond, { cost: 2, testLines: cond === 'max-mo' ? 200 : 100 })))
   const modeCheck = Object.fromEntries(summary.map(r => [r.id, { cond: r.cond, task: r.task, faithful: r.id !== 'h4-max-mo-r1', broken: [], tier: null }]))
-  const files = { 'summary.json': summary, 'judge-mo.json': rows, 'blind-key-mo.json': Object.fromEntries(GROUPS.map(g => [g, conds])), 'mode-check-mo.json': modeCheck }
+  const files = { 'summary.json': summary, 'judge-mo.json': CLI_ROWS, 'blind-key-mo.json': CLI_KEY, 'mode-check-mo.json': modeCheck, ...extra }
   for (const [name, data] of Object.entries(files)) writeFileSync(join(dir, name), JSON.stringify(data))
   return dir
 }
@@ -283,10 +286,41 @@ test('the CLI writes results/bars-mo.json with headline and sensitivity per comp
   const { logs, errors, exitCode } = runMain(t, ['--round=mo'], results)
   assert.deepEqual([errors, exitCode], [[], undefined])
   const out = JSON.parse(readFileSync(join(results, 'bars-mo.json'), 'utf8'))
-  assert.deepEqual(Object.keys(out), ['lean', 'balanced', 'max'])
-  assert.deepEqual(Object.values(out).map(c => [c.headline.status, c.headline.n, c.sensitivity.n]), [['met', 9, 9], ['met', 9, 9], ['met', 9, 8]])
-  assert.equal(logs.length, 6)
-  assert.match(logs[0], /^lean +headline +met +n 9 +gap \+1\.00/)
+  assert.deepEqual(Object.keys(out), ['lean', 'balanced', 'max', 'outside'])
+  assert.deepEqual(['lean', 'balanced', 'max'].map(name => out[name]).map(c => [c.headline.status, c.headline.n, c.sensitivity.n]), [['met', 9, 9], ['met', 9, 9], ['met', 9, 8]])
+  assert.equal(logs.length, 10)
+  assert.match(logs[0], /^lean +headline +met, not outside-confirmed \(no outside judge passed its held-out check\) +n 9 +gap \+1\.00/)
+  assert.match(logs[1], /^lean +sensitivity +met +n 9 +gap \+1\.00/)
+})
+
+test('the CLI adds each headline label, outside confirmation, rank wins and size effect, and the outside judges', t => {
+  const PASSED = { gap: 0.93, same: 8, pairs: 9, passed: true }
+  const cases = Array.from({ length: 18 }, (_, i) => ({ case: `case-${String(i + 1).padStart(2, '0')}`, pair: GROUPS[i >> 1], judge: (i % 2) + 1 }))
+  const codexRows = CLI_ROWS.map((row, i) => ({ ...row, case: cases[i].case }))
+  const results = resultsDir(t, { 'outside-check-ho-hocx.json': PASSED, 'judge-mocx.json': codexRows, 'blind-key-mocx.json': CLI_KEY, 'external-key-mo.json': cases })
+  const { logs, errors, exitCode } = runMain(t, ['--round=mo'], results)
+  assert.deepEqual([errors, exitCode], [[], undefined])
+  const out = JSON.parse(readFileSync(join(results, 'bars-mo.json'), 'utf8'))
+  const lean = out.lean.headline
+  assert.equal(lean.label, 'met, outside-confirmed')
+  assert.deepEqual(lean.outside, {
+    Codex: { status: 'usable', passedHeldOut: true, counts: true, gap: 1, n: 9, agree: 9, needed: 7, gapsSameSign: true, confirmed: true },
+    Antigravity: { status: 'not used', passedHeldOut: false, counts: false },
+  })
+  assert.deepEqual(lean.rankWins, { for: 9, against: 0, split: 0, marked: [], p: 0.00390625, judgments: { for: 18, against: 0 } })
+  assert.deepEqual([lean.sizeEffect, out.max.headline.sizeEffect], [{ agree: 0, n: 9 }, { agree: 9, n: 9 }])
+  assert.deepEqual(['label', 'outside', 'rankWins', 'sizeEffect'].filter(k => k in out.lean.sensitivity), [])
+  assert.deepEqual(out.outside, {
+    judges: [
+      { name: 'Codex', passedHeldOut: true, status: 'usable', usableCases: 18, total: 18, check: PASSED },
+      { name: 'Antigravity', passedHeldOut: false, status: 'not used', usableCases: 0, total: null, check: null }],
+    sizeEffectHeldOut: { agree: 8, pairs: 9 },
+  })
+  assert.equal(logs.length, 10)
+  assert.match(logs[0], /^lean +headline +met, outside-confirmed +n 9 +gap \+1\.00/)
+  assert.match(logs[2], /^lean +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 0 of 9 +Codex 9 of 9 groups, gap \+1\.00$/)
+  assert.match(logs[8], /^max +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 9 of 9 +Codex 9 of 9 groups, gap \+1\.00$/)
+  assert.equal(logs[9], 'outside              Codex held-out passed (gap +0.93, same winner 8 of 9), usable; Antigravity no held-out check, not used; more test lines 8 of 9 (held-out)')
 })
 
 test('the CLI names the step that makes a missing input, and refuses a bad round', t => {
