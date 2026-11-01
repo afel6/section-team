@@ -1,13 +1,15 @@
 // Paid preflight before a round (about $0.10, needs the user's yes): one cheap `claude -p` per setup with exactly
 // the settings run.mjs gives builders, to check from the CLI's own init message that section-team loads for team
 // and not for solo (a --settings env block must not drop the user's plugin dir), and that automatic skill installs
-// are off. Usage: node bench/preflight.mjs
+// are off. Usage: node bench/preflight.mjs --plugin=<absolute path of the v0.2.1 worktree>
 import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { builderArgs, builderEnv } from './run.mjs'
+import { installedPluginKeys } from './clean-run.mjs'
+import { builderArgs, builderEnv, parseArgs } from './run.mjs'
 
 const MODEL = 'claude-haiku-5-5'
 const PROMPT = "Reply with exactly one word: YES if your context contains the text 'Automatic skill installs are on', otherwise NO."
@@ -47,11 +49,11 @@ export function spawnProblems(base, r) {
   return preflightVerdict(base, r.stdout)
 }
 
-function check(base) {
+function check(base, pluginDir) {
   const cwd = mkdtempSync(join(tmpdir(), 'bench-preflight-'))
   try {
-    const args = [...builderArgs(base, PROMPT), '--model', MODEL, '--verbose']
-    return spawnProblems(base, spawnSync('claude', args, { cwd, env: builderEnv(), encoding: 'utf8', timeout: TIMEOUT_MS, windowsHide: true }))
+    const args = [...builderArgs(base, PROMPT, { sessionId: randomUUID(), installedKeys: installedPluginKeys(), pluginDir }), '--model', MODEL]
+    return spawnProblems(base, spawnSync('claude', args, { cwd, env: builderEnv(process.env, { pluginDir }), encoding: 'utf8', timeout: TIMEOUT_MS, windowsHide: true }))
   } finally {
     // A timed-out claude can leave a process holding the folder on Windows: say so, keep the verdict.
     try {
@@ -64,7 +66,8 @@ function check(base) {
 
 if (isMainModule(import.meta.url)) {
   try {
-    const problems = ['team', 'solo'].flatMap(check)
+    const { plugin } = parseArgs(process.argv.slice(2))
+    const problems = ['team', 'solo'].flatMap(base => check(base, plugin))
     for (const line of problems) console.error(`preflight: ${line}`)
     if (problems.length > 0) process.exitCode = 1
     else console.log('preflight ok: section-team loads for team only, automatic skill installs are off')

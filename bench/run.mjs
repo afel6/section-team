@@ -1,34 +1,37 @@
-// Runs the section-team benchmark: each task × condition × repetition as a fresh headless `claude -p` session
-// in an empty git repo. Saves the raw JSON transcript per run. Resumable: finished runs are skipped.
+// Runs the section-team benchmark: each task × condition × repetition as a fresh headless session of the CLI the
+// preflight pinned, in an empty git repo, with the clean run of clean-run.mjs (model, effort, settings, environment).
+// Saves claude's stream-json output (raw.json) per run. Resumable: finished runs are skipped.
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
-// Usage: node bench/run.mjs [--tag=v2] [--conds=team,solo] [--tasks=h1,h2,h3] [--reps=3] [id-substring ...]
-//        (--conds runs the setups in the order given; without it: team,solo,forced)
+// Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] [--conds=solo,lean,team,max]
+//          [--tasks=h4,h5,h6] [--reps=3] [id-substring ...]
+//        (needs results/preflight-<tag>.json; --conds runs the setups in the order given; without it: team,solo,forced)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
 import { spawn, execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { PLUGIN_KEY } from './clean-run.mjs'
+import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, installedPluginKeys, readPin } from './clean-run.mjs'
 import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
+const REPO = dirname(BENCH)
+// The plugin under test: rounds load it from a worktree checked out at this tag.
+const PLUGIN_TAG = `v${SECTION_TEAM_VERSION}`
 // Benchmark projects live outside this repo, in the user's home folder (forward slashes: run ids are joined with '/').
 export const RUNS = join(homedir(), 'bench-runs').replaceAll('\\', '/')
 export const RESULTS = join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
-export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45 }
+export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60 }
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
 export { PLUGIN_KEY } from './clean-run.mjs'
-// Automatic skill installs stay off in every run: an install changes ~/.claude/skills for every later run of both setups.
-const NO_AUTO_INSTALL = { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' } }
 const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the building to the sections; do not build it yourself.\n'
 // team   = plugin on, supervisor decides whether to delegate (Balanced mode: no mode file)
 // solo   = plugin off (the old way)
@@ -57,6 +60,8 @@ export function plan({ tag = '', conds = DEFAULT_CONDS, tasks = TASKS, reps = 2 
 
 // Round, tag and task names end up in folder names, some of which get deleted: letters and digits only.
 export const NAME = /^[A-Za-z0-9]+$/
+// Run ids (task-cond-tag-rN) name results folders too: letters, digits and dashes only.
+const RUN_ID = /^[A-Za-z0-9-]+$/
 
 export function parseArgs(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
@@ -69,13 +74,43 @@ export function parseArgs(argv) {
     conds: opt('conds')?.split(',') ?? DEFAULT_CONDS,
     round: opt('round') ?? '',
     tasks: opt('tasks')?.split(',') ?? TASKS,
+    plugin: opt('plugin') ?? '',
+    rerun: opt('rerun')?.split(',') ?? [],
+    reason: opt('reason') ?? '',
   }
-  // An empty round or tag means none; an empty task (--tasks=h1,) is an error.
+  // An empty round or tag means none; an empty task (--tasks=h1,) or rerun id is an error.
   const named = [['round', args.round], ['tag', args.tag]].filter(([, value]) => value !== '')
   for (const [flag, value] of [...named, ...args.tasks.map(t => ['tasks', t])]) {
     if (!NAME.test(value)) throw new RangeError(`--${flag} takes letters and digits only, got "${value}"`)
   }
+  const badRerun = args.rerun.find(id => !RUN_ID.test(id))
+  if (badRerun !== undefined) throw new RangeError(`--rerun takes run ids of letters, digits and dashes, got "${badRerun}"`)
   return { ...args, reps: Number(reps), filters: argv.filter(a => !a.startsWith('--')) }
+}
+
+// The preflight names the round's pin by --round and the run ids carry --tag: both must name the same round.
+export function checkRoundTag({ round, tag }) {
+  if (round && tag && round !== tag) throw new RangeError(`--round=${round} and --tag=${tag} must match`)
+}
+
+// One git command's trimmed output, run from the repo root; a failure is one line naming the command.
+function gitLine(args) {
+  try {
+    return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  } catch (err) {
+    const why = String(err.stderr ?? '').split('\n')[0].trim() || err.code || `exit ${err.status}`
+    throw new Error(`git ${args.join(' ')} failed: ${why}`, { cause: err })
+  }
+}
+
+// Rounds load the plugin from a worktree of PLUGIN_TAG, never the live checkout: --plugin= must be its absolute path,
+// at the tagged commit. Returns that commit, which every run records.
+export function pluginCommitOf(plugin, { git = gitLine } = {}) {
+  if (typeof plugin !== 'string' || !isAbsolute(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
+  const commit = git(['-C', plugin, 'rev-parse', 'HEAD'])
+  const tagged = git(['rev-parse', `${PLUGIN_TAG}^{commit}`])
+  if (commit !== tagged) throw new Error(`${plugin} is at ${commit}, not at ${PLUGIN_TAG} (${tagged})`)
+  return commit
 }
 
 // Every task that cannot run: a missing prompt, missing hidden tests or no timeout. Empty when all are fine.
@@ -107,12 +142,14 @@ export function freshRepo(dir, { seed = null, root = RUNS } = {}) {
 }
 
 // The --settings env value alone does not reach the plugin's hooks when the shell already sets the variable
-// (preflight, 2026-10-30), so builder runs get it in their process environment too.
-export const builderEnv = (env = process.env) => ({ ...env, ...NO_AUTO_INSTALL.env })
+// (preflight, 2026-10-30), so builder runs get the round's switches in their process environment too.
+export const builderEnv = (env, { pluginDir }) => childEnv(env, { pluginDir })
 
-export function builderArgs(base, prompt) {
-  const settings = base === 'solo' ? { ...NO_AUTO_INSTALL, enabledPlugins: { [PLUGIN_KEY]: false } } : NO_AUTO_INSTALL
-  return ['-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, '--settings', JSON.stringify(settings)]
+// stream-json writes the init as raw.json's first line, so a run killed at its time limit keeps it. Every setup
+// loads plugins from the worktree; only solo turns section-team off.
+export function builderArgs(base, prompt, { sessionId, installedKeys, pluginDir }) {
+  const settings = cleanSettings({ installedKeys, sectionTeam: base !== 'solo', pluginDir })
+  return ['-p', prompt, '--output-format', 'stream-json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId }), '--settings', JSON.stringify(settings)]
 }
 
 // <RUNS>/<task>-<8 hex of the id's hash>: the setup never shows in the folder name, so it cannot end up in a
@@ -151,12 +188,16 @@ export function killTree(child, { execFile = execFileSync, log = console.error }
   }
 }
 
-function runClaude(run, dir, outDir) {
+// Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
+function runClaude(run, dir, outDir, ctx, sessionId) {
   const base = baseOf(run)
   const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
+  const { binary } = ctx.pin
+  const args = builderArgs(base, prompt, { sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
+  const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   return new Promise((resolve, reject) => {
     const started = Date.now()
-    const child = spawn('claude', builderArgs(base, prompt), { cwd: dir, env: builderEnv(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(binary, args, { cwd: dir, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     activeChild = child
     const outFile = createWriteStream(join(outDir, 'raw.json'))
     const errFile = createWriteStream(join(outDir, 'stderr.txt'))
@@ -173,10 +214,10 @@ function runClaude(run, dir, outDir) {
       outFile.end()
       errFile.end()
     }
-    // claude missing from PATH: stop the round with one line (main's catch); the finally still restores memory.
+    // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory.
     child.on('error', spawnErr => {
       finish()
-      reject(new Error(`could not start claude (${spawnErr.code ?? spawnErr.message})`))
+      reject(new Error(`could not start ${binary} (${spawnErr.code ?? spawnErr.message})`))
     })
     child.on('close', code => {
       finish()
@@ -185,14 +226,16 @@ function runClaude(run, dir, outDir) {
   })
 }
 
-async function runOne(run, outDir) {
+// ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main.
+async function runOne(run, outDir, ctx) {
   mkdirSync(outDir, { recursive: true })
   const dir = prepareRun(run)
+  const sessionId = randomUUID()
   console.log(`${new Date().toISOString()} start ${run.id}`)
-  const info = await runClaude(run, dir, outDir)
+  const info = await runClaude(run, dir, outDir, ctx, sessionId)
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
   if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })
-  writeFileSync(join(outDir, 'run.json'), JSON.stringify({ ...run, dir, ...info }, null, 2) + '\n')
+  writeFileSync(join(outDir, 'run.json'), JSON.stringify({ ...run, dir, ...info, sessionId, pluginCommit: ctx.pluginCommit }, null, 2) + '\n')
   console.log(`${new Date().toISOString()} end   ${run.id} exit=${info.exitCode} timedOut=${info.timedOut} wall=${Math.round(info.wallMs / 1000)}s`)
 }
 
@@ -246,20 +289,29 @@ export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSe
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, conds, tasks, reps, filters } = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, plugin } = parseArgs(argv)
+  checkRoundTag({ round, tag })
+  // Every run reads its round's pin by the tag, so a run without one cannot start.
+  if (tag === '') throw new Error('--tag= names the round and its preflight pin, e.g. --tag=mo')
   const problems = taskProblems(tasks)
   if (problems.length) throw new Error(`cannot run these tasks: ${problems.join('; ')}`)
+  const pluginCommit = pluginCommitOf(plugin)
+  const pin = readPin(RESULTS, tag)
+  if (typeof pin.binary !== 'string' || pin.binary === '') throw new Error(`the round ${tag} pin names no binary: run node bench/preflight.mjs --round=${tag} again`)
+  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, pluginCommit }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   const todo = runs.filter(run => !existsSync(join(RESULTS, run.id, 'run.json')))
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
-  await runAll(todo)
+  await runAll(todo, { runOne: (r, o) => runOne(r, o, ctx) })
   console.log('all runs finished')
 }
 
 // Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
-// run other than solo is left, and moved back even when a run throws.
-export async function runAll(todo, { runOne: one = runOne, isolate = isolateSectionMemory } = {}) {
+// run other than solo is left, and moved back even when a run throws. runOne is required: main binds it to the
+// batch's ctx, and a default without ctx could only crash mid-batch.
+export async function runAll(todo, { runOne: one, isolate = isolateSectionMemory } = {}) {
+  if (typeof one !== 'function') throw new TypeError('runAll needs a runOne bound to the batch context')
   const release = todo.some(run => baseOf(run) !== 'solo') ? isolate() : () => {}
   try {
     for (const run of todo) await one(run, join(RESULTS, run.id))

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, killTree, freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, prepareRun, runAll, runFolder, taskProblems } from './run.mjs'
+import { CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkRoundTag, checkVolumes, killTree, freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, taskProblems } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
 
@@ -65,8 +65,11 @@ test('modeFileFor gives lean and max their mode file, and team, solo and forced 
   for (const base of ['team', 'solo', 'forced']) assert.strictEqual(modeFileFor(base), null, base)
 })
 
-test('lean and max builder runs get exactly the team run\'s arguments', () => {
-  for (const base of ['lean', 'max']) assert.deepEqual(builderArgs(base, 'the prompt'), builderArgs('team', 'the prompt'), base)
+// A run's options: its session id, the installed plugin keys read when the batch starts, and the v0.2.1 worktree.
+const OPTIONS = { sessionId: '0b7c-sid', installedKeys: ['a@market', 'b@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1' }
+
+test('lean, max and forced builder runs get exactly the team run\'s arguments', () => {
+  for (const base of ['lean', 'max', 'forced']) assert.deepEqual(builderArgs(base, 'the prompt', OPTIONS), builderArgs('team', 'the prompt', OPTIONS), base)
 })
 
 test('prepareRun writes the mode file for lean and max into the fresh run folder, uncommitted, and none for team', t => {
@@ -119,6 +122,28 @@ test('parseArgs rejects bad reps', () => {
 test('TASKS and the held-out timeouts', () => {
   assert.deepEqual(TASKS, ['easy', 'medium', 'hard'])
   assert.deepEqual({ h1: TIMEOUT_MIN.h1, h2: TIMEOUT_MIN.h2, h3: TIMEOUT_MIN.h3 }, { h1: 100, h2: 60, h3: 45 })
+})
+
+test('TIMEOUT_MIN has h4 120, h5 60, h6 60', () => {
+  assert.deepEqual({ h4: TIMEOUT_MIN.h4, h5: TIMEOUT_MIN.h5, h6: TIMEOUT_MIN.h6 }, { h4: 120, h5: 60, h6: 60 })
+})
+
+test('checkRoundTag refuses --round=mo with --tag=ho and accepts either alone', () => {
+  assert.throws(() => checkRoundTag({ round: 'mo', tag: 'ho' }), { name: 'RangeError', message: '--round=mo and --tag=ho must match' })
+  for (const ok of [{ round: 'mo', tag: '' }, { round: '', tag: 'mo' }, { round: 'mo', tag: 'mo' }, { round: '', tag: '' }]) {
+    assert.doesNotThrow(() => checkRoundTag(ok), JSON.stringify(ok))
+  }
+})
+
+test('parseArgs reads --plugin, --rerun and --reason', () => {
+  const args = parseArgs(['--plugin=C:/Users/Asus/section-team-v0.2.1', '--rerun=h4-lean-mo-r1,h5-max-mo-r2', '--reason=fix a1b2c3d: wrong timeout'])
+  assert.deepEqual([args.plugin, args.rerun, args.reason], ['C:/Users/Asus/section-team-v0.2.1', ['h4-lean-mo-r1', 'h5-max-mo-r2'], 'fix a1b2c3d: wrong timeout'])
+  const none = parseArgs([])
+  assert.deepEqual([none.plugin, none.rerun, none.reason], ['', [], ''])
+  // Rerun ids name results folders that get moved: run-id characters only, and no empty id from a stray comma.
+  for (const bad of ['--rerun=', '--rerun=h4-lean-mo-r1,', '--rerun=../x', '--rerun=h4 lean']) {
+    assert.throws(() => parseArgs([bad]), RangeError, bad)
+  }
 })
 
 test('freshRepo with a seed', t => {
@@ -195,14 +220,23 @@ test('taskProblems does not take an inherited key such as constructor as a timeo
   assert.deepEqual(taskProblems(['constructor'], bench), ['constructor: missing a timeout in TIMEOUT_MIN'])
 })
 
-test('every builder run turns automatic skill installs off; only solo turns the plugin off', () => {
-  const settingsOf = base => {
-    const args = builderArgs(base, 'the prompt')
-    assert.deepEqual(args.slice(0, 2), ['-p', 'the prompt'])
-    return JSON.parse(args[args.indexOf('--settings') + 1])
+test('builderArgs uses stream-json, model, effort medium, verbose, strict MCP, the session id and clean settings; solo turns section-team off and still sets the worktree', () => {
+  const settingsFor = sectionTeam => ({
+    syncClaudeAiPlugins: false,
+    syncClaudeAiSkills: false,
+    enabledPlugins: { 'a@market': false, 'b@market': false, 'cc-plugin-plugin-authoring@builtin': false, 'section-team@inline': sectionTeam },
+    env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: 'C:/Users/Asus/section-team-v0.2.1' },
+  })
+  for (const [base, sectionTeam] of [['team', true], ['solo', false]]) {
+    const args = builderArgs(base, 'the prompt', OPTIONS)
+    assert.deepEqual(args.slice(0, 5), ['-p', 'the prompt', '--output-format', 'stream-json', '--allowedTools'], base)
+    assert.match(args[5], /^Task,Agent,SendMessage,Read,Write,Edit,.*,Bash\(node \*\),/, base)
+    assert.deepEqual(args.slice(6, -2), ['--model', 'claude-opus-5-5', '--effort', 'medium', '--verbose', '--strict-mcp-config', '--session-id', '0b7c-sid'], base)
+    assert.equal(args.at(-2), '--settings', base)
+    assert.deepEqual(JSON.parse(args.at(-1)), settingsFor(sectionTeam), base)
   }
-  assert.deepEqual(settingsOf('team'), { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' } })
-  assert.deepEqual(settingsOf('solo'), { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' }, enabledPlugins: { 'section-team@inline': false } })
+  assert.throws(() => builderArgs('team', 'the prompt', { ...OPTIONS, sessionId: undefined }), /sessionId/)
+  assert.throws(() => builderArgs('solo', 'the prompt', { ...OPTIONS, pluginDir: undefined }), /pluginDir/)
 })
 
 test('run folders are named by task and a hash, so the setup never shows in a path or a package name', () => {
@@ -237,6 +271,23 @@ test('runAll moves section memory aside only when a team run is left, and always
   assert.deepEqual(calls, ['aside', 'h1-lean-mo-r1', 'h1-max-mo-r1', 'back'], 'lean and max runs are team runs too')
 })
 
+test('runAll refuses to start without a runOne, before section memory moves', async () => {
+  let moved = false
+  const isolate = () => { moved = true; return () => {} }
+  await assert.rejects(runAll([{ id: 'h4-team-mo-r1', base: 'team' }], { isolate }), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' })
+  assert.equal(moved, false)
+  await assert.rejects(runAll([]), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' }, 'also with no options at all')
+})
+
+test('pluginCommitOf with the real git says in one line that a worktree does not exist', t => {
+  const missing = join(tempRoot(t), 'no-such-worktree')
+  assert.throws(() => pluginCommitOf(missing), err => {
+    assert.match(err.message, /^git -C .*no-such-worktree rev-parse HEAD failed: fatal: /)
+    assert.doesNotMatch(err.message, /\n/)
+    return true
+  })
+})
+
 test('isolateSectionMemory refuses a different-drive setup before anything moves', () => {
   let moved = false
   const volumes = () => { throw new Error('C:/x and D:/y are on different drives') }
@@ -267,10 +318,28 @@ test('checkVolumes accepts a memory folder that does not exist yet, by its neare
 })
 
 // A --settings env value does not reach the plugin's hooks when the shell already sets the variable, so builder
-// runs also get it in their process environment (checked by a preflight on 2026-10-30).
-test('builderEnv turns automatic skill installs off in the process environment and keeps everything else', () => {
-  assert.deepEqual(builderEnv({ PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' }),
-    { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', CLAUDE_CODE_PLUGIN_DIRS: 'C:/p' })
+// runs also get the round's switches in their process environment (checked by a preflight on 2026-10-30).
+test('builderEnv drops session, key and switch variables, sets the round switches and the worktree, and keeps everything else', () => {
+  const parent = { PATH: '/bin', CLAUDECODE: '1', ANTHROPIC_API_KEY: 'k', SECTION_TEAM_AUTO_INSTALL_SKILLS: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/Users/Asus/claude-team' }
+  const copy = { ...parent }
+  assert.deepEqual(builderEnv(parent, { pluginDir: 'C:/w' }),
+    { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w' })
+  assert.deepEqual(parent, copy, 'the parent environment is not changed')
+  assert.throws(() => builderEnv(parent, {}), /pluginDir/, 'no silent fallback to the live checkout')
+})
+
+test('pluginCommitOf refuses a missing or relative --plugin and a worktree not at v0.2.1, and returns its commit', () => {
+  const worktree = join(tmpdir(), 'section-team-v0.2.1')
+  const calls = []
+  const gitWith = ({ head, tagged }) => args => { calls.push(args); return args.includes('HEAD') ? head : tagged }
+  for (const bad of ['', 'section-team-v0.2.1', './w']) {
+    assert.throws(() => pluginCommitOf(bad, { git: gitWith({}) }), { message: `--plugin= takes the absolute path of the v0.2.1 worktree, got "${bad}"` })
+  }
+  assert.deepEqual(calls, [], 'refused before any git call')
+  assert.throws(() => pluginCommitOf(worktree, { git: gitWith({ head: 'aaa', tagged: 'bbb' }) }), { message: `${worktree} is at aaa, not at v0.2.1 (bbb)` })
+  calls.length = 0
+  assert.equal(pluginCommitOf(worktree, { git: gitWith({ head: 'bbb', tagged: 'bbb' }) }), 'bbb')
+  assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', 'v0.2.1^{commit}']])
 })
 
 test('killTree is quiet when the process is already gone, and says so when it could not stop it', () => {
