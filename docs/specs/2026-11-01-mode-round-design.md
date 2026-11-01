@@ -1,0 +1,283 @@
+# Mode round — design (2026-11-01)
+
+## Why
+Version 0.2.0 lets each project pick Lean, Balanced or Max. The picker shows Balanced's usage as measured and Lean's and Max's as targets. This round measures all three against Claude Code without the plugin on three new tasks, by rules fixed in advance, and the picker then shows what was measured. The result is published whatever it shows. The frame is the Measurement section of `docs/specs/2026-11-01-quality-modes-design.md`; this spec replaces its step 2.
+
+## Decided with the user (2026-11-01)
+- **3 runs per setup and task** (36 runs), not 5 or 2.
+- **Clean environment:** builders and judges run with every plugin off except section-team, which is on only in the Lean, Balanced and Max runs, and two built-in plugins left on in every setup (named under Runs). The user's `~/.claude/CLAUDE.md` and `~/AGENTS.md` stay as the baseline every setup shares. Carrying that decision through, MCP servers and the skills synced from claude.ai are off too (proposed with this spec).
+- **Plugin fix first:** Max keeps its near-miss copies out of the project (v0.2.1, below), and the round measures v0.2.1.
+- **Outside judges:** if no outside judge passes its held-out check, the Opus judges decide every bar and the results say "not outside-confirmed".
+
+## Where this differs from quality-modes Measurement step 2 (deliberately)
+- Setups are named `lean` and `max` (as `run.mjs` has them since 0.2.0), not `team-lean` and `team-max`.
+- Opus judges see the labels W, X, Y, Z; only outside judges get A–D.
+- Codex joins Antigravity as an outside judge, and every outside case is judged in a fresh session.
+- Outside confirmation needs 7 of 9 groups (not 6), by the sign of the quality difference (not rank order), a zero counts as disagreement, and the outside judge's gap must point the same way as the Opus gap.
+- Lean's usage bar applies to h5 and h6 only. The hidden-test condition, the scale-ceiling rule and the arithmetic rules are new.
+- The estimate rises from about $65 to about $137, because of the multi-area task h4 and the four-solution judges.
+
+## Pre-registration
+- **Freeze commit:** before the first paid run, one commit holds the tasks, the h5 seed, the hidden tests, the reference solutions, the calibration near-miss versions, the judge prompt, `bench/bars-mo.json` (every number in "Bars and rules"), the mode-check rules, the leak-scan word list, the run sheet for outside judges and this spec. The freeze commit and the tag `v0.2.1` are pushed before the first run, and the write-up cites both.
+- **Plugin paths untouched:** `v0.2.1` is an ancestor of the freeze commit, and harness work touches only `bench/` and `docs/`. At the freeze, before each batch and before publishing, `git diff --stat v0.2.1 <freeze> -- agents hooks skills brief .claude-plugin scripts types package.json` prints nothing.
+- **Harness bugs:** a bug found during the runs may be fixed only if it does not touch a scoring rule. The fix commit names, before any rerun, every run whose inputs or outputs the bug's code path could change; if the bug affects one setup, all four runs of each affected group are rerun. A bug that only affects scoring (`score.mjs`, `aggregate.mjs`, `bars.mjs`, `mode-check.mjs`) is fixed and everything is rescored, with no reruns. The write-up lists each bug, its commit and the rerun ids.
+- **No tuning on h4–h6**, before or after. Once published they are no longer held out.
+
+## The plugin under test: v0.2.1
+- **Change:** the Max brief (`brief/tiers-max.md`, `brief/gate-max.md`) says:
+  - the testing section keeps every near-miss copy only under `.team/near-miss/` in the project root, named `<n>-<original file name>`, with a first-line comment `near-miss: <the one bug>`;
+  - it swaps a copy in only after every builder has reported, runs the tests and always restores the original, also when the run fails;
+  - the copies stay in `.team/near-miss/` after the work, and no copy is ever left in the project's own folders.
+
+  The README's Modes row says the same. Lean's and Balanced's briefs do not change; assembled Balanced stays word for word.
+- **Why:** a copy left in the project is deliberately broken code a user could import or commit by mistake, and it marks a solution as Max for any judge (`bench/anonymize.mjs` already drops `.team/`).
+- **Release:** version 0.2.1 in `package.json` and `.claude-plugin/plugin.json`, the usual tests and reviewer gate, tag `v0.2.1`.
+- **Pinned load:** runs load the plugin from a git worktree of tag `v0.2.1` outside the repo, never from the live `C:\Users\Asus\claude-team`. The user's `~/.claude/settings.json` `env` also sets `CLAUDE_CODE_PLUGIN_DIRS` (to the live checkout), so the worktree's absolute path goes both in the runs' process environment and in the `env` block of every run's `--settings`, which outranks the user's file; `--plugin-dir` is not used. Loading is proven from the init message, not assumed:
+  - in `lean`, `team` and `max` runs, the init lists exactly one section-team entry, whose `path` (resolved, compared ignoring case) is the worktree and whose `version` is `0.2.1`;
+  - in `solo` runs, no entry names section-team or has a `path` under either checkout.
+
+  Anything else voids the run. Before each batch and before publishing, `git -C <worktree> status --porcelain` and `git -C <worktree> diff --stat v0.2.1` print nothing. Each `run.json` records the worktree commit and the init's section-team `path` and `version`.
+
+## Tasks
+Three tasks, `h4`, `h5`, `h6` (no dashes). Specs in `bench/tasks/<task>.md`, hidden tests in `bench/hidden/<task>.test.mjs`, the h5 seed in `bench/seeds/h5/`. Same rules as h1–h3: Node.js built-ins only, no npm install, headless, no outside services. Each task asks for tests with `node:test`, a `package.json` with a `test` script, and a README with usage.
+
+- **H4 — API plus UI (multi-area).**
+  - An HTTP JSON API and a browser page served by the same server, storing its data in one JSON file. Exactly two builder areas (backend and frontend), so every mode wakes builders and no mode reaches the "3 or more builders" plan rule.
+  - The page has its own behaviour, in its own section of the task text: at least one form that calls the API, a list rendered from API data that updates after a change, and the API's error messages shown to the user. The reference's browser-side code (HTML plus script) is at least about 200 of its new lines; the reference is about 500–800 new lines in all.
+  - Hidden tests use HTTP only: API status codes, bodies and error cases, plus the served HTML and script checked for the element ids and text the spec names. The spec fixes the entry file, the port variable and the data file path.
+- **H5 — existing codebase (single-area).**
+  - A seeded Node.js HTTP JSON service of about 500 lines with its own passing `node:test` suite.
+  - Two bug reports written as users would (symptom, not cause), each with its root cause in a function shared by more than one path.
+  - One feature: a new endpoint that validates a JSON body against several named rules with exact error responses and changes the stored data, at least 150 new lines without tests (about 150–300), in a module whose path the spec fixes. The existing tests must keep passing.
+- **H6 — tricky-spec library (single-area).** A library of about 150–400 lines with exact errors, plus a command-line entry that reads a file or stdin, so Max's security review applies. The spec fixes the module path, its exports, the CLI entry path and the CLI's exit codes.
+- **Size floor:** an author who has not read `brief/` counts the reference's new lines and confirms from the task text alone that h4 reads as two areas; a task at or under 80 new lines is rejected.
+- **Difficulty:** the tasks aim to be harder than h1–h3 (where solo scored 8.16, with the user's plugins on), so Balanced has room below the scale ceiling.
+- **Authoring:** each task text goes through an adversarial ambiguity review before any test is written. Each spec requirement line has at least one hidden test.
+- **Calibration:** the reference passes 100% of its hidden tests. At least 3 near-miss versions per task (an off-by-one, a symptom-only fix, a dropped edge case) each fail at least one. Every h5 near-miss still passes the seed's own tests. They live in `bench/heldout-calibration/<task>/reference/` and `.../near-miss/<name>/`, laid over the seed as for h1–h3, so `node bench/calibrate.mjs h4` (and h5, h6) reruns the calibration unchanged.
+
+## Runs
+- **Setups:** `solo` (Claude Code with every plugin off, plus the user's global instructions and the skills, agents and rules in `~/.claude`), `lean`, `team` (Balanced) and `max`, given as `--conds=solo,lean,team,max`. `run.mjs` writes `.team/mode.json` for `lean` and `max`, none for `team`.
+- **Scale:** 3 tasks × 4 setups × 3 runs = **36 runs**, tag `mo`; run ids like `h4-lean-mo-r1`. `run.mjs` refuses a `--round` that disagrees with `--tag`.
+- **Order:** as `plan()` gives it: within each rep, task by task (h4, h5, h6), the setups run solo, lean, team, max in r1 and r3 and in reverse in r2, so no setup always goes first.
+- **Time limits:** h4 120 minutes, h5 60, h6 60.
+- **Clean environment:** each run's `--settings` holds:
+  - `"syncClaudeAiPlugins": false`, which stops every account-synced plugin for that run only;
+  - `enabledPlugins` with every key of `~/.claude/plugins/installed_plugins.json` (read when the batch starts) set to false;
+  - `"section-team@inline"` true for `lean`, `team` and `max`, false for `solo`;
+  - `"cc-plugin-plugin-authoring@builtin": false` (Claude Code 2.1.296 reads `enabledPlugins` for every built-in except `cc-plugin-sec-default`; the preflight confirms it is absent from the init);
+  - `"syncClaudeAiSkills": false`, which hides the skills synced from claude.ai (`~/.claude/skills/synced/`, 146 on 2026-11-01) for that run only, so a re-sync during the round cannot change them.
+
+  Runs also pass `--strict-mcp-config` with no MCP config and set `ENABLE_CLAUDEAI_MCP_SERVERS=false`, so no MCP server loads. The built-ins `cc-plugin-agents-md@builtin` (it reads `~/AGENTS.md`, which stays) and `cc-plugin-telemetry@builtin` are left on in every setup as shared baseline. The user-level skills, agents, commands and rules in `~/.claude` (not synced ones) stay for every setup; section-team's sections use the user-level agents as helpers, and solo can call the same agents. Automatic skill installs are off in the process environment and in `--settings`.
+- **Init check:** every run passes `--verbose`, so its output always holds the init message. The preflight records each setup's init `plugins`, `mcp_servers`, `agents` and `skills`, and every `run.json` saves the same four lists. A run is **void** when:
+  - its `plugins` hold anything but section-team (none for solo) plus the built-ins the preflight recorded;
+  - its `mcp_servers` is not empty;
+  - its `agents` or `skills` differ from the preflight's for that setup;
+  - its init reports a different `claude_code_version`, model or `apiKeySource` than the round's (the preflight records them);
+  - any assistant message in its session or subagent transcripts records an `effort` other than the round's (the init has no effort field, so this is read from the copied transcripts);
+  - it has no init message.
+- **Pinned CLI, model and effort:**
+  - The preflight takes `<v>` from `claude --version` (the binary on PATH), copies `~/.local/share/claude/versions/<v>` (a Windows executable without an extension) to `~/bench-runs/claude-<v>.exe`, checks that the copy is byte-identical and prints `<v>`, and records `<v>` and the copy's SHA-256 as the round's version. `run.mjs`, `preflight.mjs` and `judge.mjs` start that path from one shared export, never `claude` from PATH, so the user's own sessions can keep updating with no change to the user's settings files. `DISABLE_AUTOUPDATER=1` is set in the spawn environment and in `--settings`.
+  - Every builder, preflight and Opus judge run gets `--model claude-opus-5-5 --effort medium`. Medium is the level h1–h3 and their judges actually ran at (every assistant message in their transcripts records `"effort":"medium"`), and the cost estimates come from those runs.
+  - A version or model mismatch is a harness bug: it stops the batch, the mismatched runs are void and rerun on the round's version, and earlier batches stay valid.
+- **Spawn environment:** `run.mjs`, `preflight.mjs` and `judge.mjs` build the child environment the same way:
+  - Start from the parent environment.
+  - Remove every `CLAUDECODE`, `CLAUDE_*`, `ANTHROPIC_*`, `DISABLE_*` and `SECTION_TEAM_*` variable, so a round started from a shell inside a Claude Code session behaves like one started from a plain terminal. Auth then comes from the user's stored Claude login (no API key; the preflight records `apiKeySource`), and no variable can swap the models behind the `opus` and `sonnet` aliases.
+  - Add `CLAUDE_CODE_PLUGIN_DIRS=<worktree>` (builders and preflight), `SECTION_TEAM_AUTO_INSTALL_SKILLS=0`, `ENABLE_CLAUDEAI_MCP_SERVERS=false` and `DISABLE_AUTOUPDATER=1`.
+
+  Each `run.json` records the names, never the values, of the variables passed. The preflight proves the result from its init messages.
+- **Batches:** one batch per rep (all 12 runs of r1, then r2, then r3), so a stop never leaves uneven cells. Between batches, `node bench/score.mjs` runs, and every void run, API failure and rerun so far is listed.
+- **Attempts and reruns:**
+  - Before every attempt, including a rerun, `run.mjs` moves any earlier attempt's `results/<id>/` and the run's Claude Code project folder (transcripts and auto-memory) into `results/<id>/attempt-<n>/`, so nothing is deleted and each attempt starts with no memory of an earlier one.
+  - It picks a fresh random UUID, passes it as `--session-id` and writes it to `results/<id>/session.json`.
+  - A run is an **API failure** when its result has `is_error` and its result text names an API error, usage limit, rate limit or overload; the exact match rule is fixed and tested in the freeze commit. An API failure stops the batch and writes no `run.json`, so a resume reruns it.
+  - Any other `is_error` ending, a timeout, a crash after the run started, or a missing result writes `run.json` with its `subtype` and result text, and is scored as that setup's run on what is on disk.
+  - A run is rerun only when it is an API failure, void, or named by a harness-bug fix commit.
+  - An API failure whose text names a usage limit or rate limit stops the batch and does not count toward any cap; the batch resumes in the next usage window.
+  - Other API failures and void runs are rerun at most 2 times per run id. If a third attempt also fails for one of those reasons, the round stops, and the cause is fixed under the harness-bug rule before it resumes; such a run is never scored as a failure.
+  - A harness-bug rerun replaces the earlier attempt (kept in `attempt-<n>/`, not scored), and its run's count of capped reruns starts again at 0.
+  - A **counted run** is a run with a `run.json` that is not void.
+- **Evidence:** right after each attempt exits (also on timeout), `run.mjs` copies that session's files only into `results/<id>/evidence/`:
+  - `~/.claude/projects/<slug>/<sid>.jsonl`;
+  - `<sid>/` with its subagent transcripts and `.meta.json`;
+  - the mode record `~/.claude/section-team/modes/<sid>.json`.
+
+  `<slug>` is the run folder with every non-alphanumeric character turned into `-`. The copy stops the batch loudly when the session file is missing, or when the mode record is missing for `lean`, `team` or `max`. `score.mjs`, `gate-stats.mjs` and `mode-check.mjs` take the session id from `session.json`.
+- **Cost of a run without `total_cost_usd`** (a timeout): it is computed from the copied transcripts' token usage at the per-token rates written in the freeze commit, by a method tested there, and marked in the table.
+- **Preflight:** one run per setup (solo, lean, team, max), each in a run folder made by `prepareRun` (so lean and max get their mode file), with exactly the builders' binary, arguments, model, effort, `--settings` and environment.
+  - It checks: the init `plugins` and section-team `path` and `version`; that no MCP server loads; the model and `claude_code_version`; that skill installs are off; and each session's mode record (`lean`, `balanced`, `max`; none for solo).
+  - It lists `~/.claude/plugins/synced/` before and after and fails if that changed. It records the reference lists above.
+  - It runs from the same shell the batches will use. About $1.
+
+## Judging
+- **Opus:** 9 groups (task × rep), 2 Opus judges each, with the pinned binary, `--model claude-opus-5-5 --effort medium`, `--verbose`, and the same clean `--settings` and environment as solo (section-team off). Each judge's init and transcript are checked like a solo run's (no plugin but the recorded built-ins, nothing under either section-team checkout, no MCP server, the round's version, model, `apiKeySource` and effort); a judgment that fails the check is void and re-asked under the re-ask rule. Each judge sees all four solutions, labelled W, X, Y, Z by `anonymize.mjs` (positions rotated per group by task index + rep).
+  - Judges see the folders and the label list in alphabetical order (W, X, Y, Z). Judge 2 sees the mirror of judge 1's assignment: the 1st label's folder swapped with the 4th's and the 2nd's with the 3rd's. So across a group's two judges each compared pair is seen in both orders. Edge-position counts per setup are reported.
+  - `bench/judge-prompt.md` changes only its example answer, to show every label and a full four-item ranking; the rest stays word for word the held-out prompt. Judges rank all four with no ties.
+  - Each judge's transcript is kept, and judges whose session compacted are listed (they still count).
+- **Trial judge:** judge 1 of group h4-r1 runs first (`--limit=1`), after its own yes from the user. Its verdict counts as that judgment and is not rerun. Its measured cost sets the estimate for the other 17.
+- **Unusable verdicts:** an Opus or outside verdict that fails the parser (missing score, non-integer, a ranking with ties or missing labels) is re-asked in a fresh session on the same case, in the same label order, at most twice. If the third attempt is still unusable:
+  - an Opus judgment is left out, so that group's qualities use its other judge, and it is listed; a group whose two Opus judgments are both left out drops out of every comparison and is listed;
+  - an outside judge with any case still unusable does not count, and is reported as "not usable (k of 18 cases)".
+
+  Every re-ask is listed.
+- **Leak scan (before any judge runs):** over each anonymized solution, the harness lists file paths outside the task's deliverables, tests and docs, and every case-insensitive whole-word match (letters, digits, `-` and `.` count as word characters, so "boolean" does not match "lean") of the frozen word list: section-team, section, supervisor, REPORT, GRADE, reviewer, near-miss, near miss, nearmiss, mutant, Lean, Balanced, Max mode, .team, ponytail. Nothing is edited or removed, so solutions stay as built. The hits and the test-line counts per setup are published beside the results as known tells.
+- **Outside judges: Codex and Antigravity.**
+  - **Cases:** each judge gets the same 18 cases: each group twice, case numbers shuffled (as `planCases` does).
+    - In one case, A–D are the group's W, X, Y, Z renamed in that order; in the other, in mirrored order.
+    - The case → group and label map is written only to `results/external-key-mo.json`.
+    - The case set's root holds no README addressed to a judge; the user works from the frozen run sheet.
+    - Right after `prepare`, before either judge opens a case, the set is copied once for the second judge, with no `verdict.json` and an empty `scratch/` in every case.
+  - **Fresh session per case:** every case is judged in its own new session, with only that case's folder as the workspace and the tool's cross-conversation memory off where it has one. No case is judged in a session that has seen another case.
+    - **Codex** runs headless per case: `codex exec --ephemeral --ignore-user-config -m <model> -c model_reasoning_effort="<effort>" --disable memories --skip-git-repo-check -C <case folder> -s <sandbox>`. The model and effort are copied from the user's `~/.codex/config.toml` (`gpt-6.1-sol`, `ultra` on 2026-11-01) into the frozen run sheet, because `--ignore-user-config` drops them. The sandbox is the least-privileged mode that works on this machine; on 2026-11-01 `workspace-write` blocked every command, and if only full access works, the user approves it first. Planning runs one throwaway case and shows from its `--json` events that the session loads no plugin, no MCP server and no memory; the runner records each exact command line.
+    - **Antigravity** is run by hand, one new conversation per case. If the user does not run it that way, Antigravity does not count and is reported as not used.
+  - They use no Claude usage. The write-up states how each judge was run.
+- **Held-out check (unchanged rule):** each outside judge is first scored on the held-out round exactly as `docs/specs/2026-11-01-quality-modes-design.md` Measurement step 1 says and as `bench/external-judge` at c5ba259 computes it. The rule:
+  - the team-minus-solo gap in 5-dimension quality is at least +0.5. The gap is the mean over the 9 held-out pairs of (team-ho quality − solo-ho quality), each computed by `judgeScores` in `bench/aggregate.mjs` from `judge-<as>.json` and `blind-key-<as>.json` alone, never through `results/summary.json`, and rounded to 2 decimals before the comparison (a test checks it gives +0.93 for `hoag`);
+  - the outside judge picks the same pair winner as the Opus judges of round `ho` in at least 7 of 9 pairs. Following c5ba259's `pairWinners`, a pair's winner is the setup with the higher `overall` summed over that pair's judges; equal sums give "tie", which matches only a tie.
+- **Fresh-session results decide.** Only a judge that passes counts below, and only results from fresh sessions decide: Codex as `hocx`, Antigravity as `hoag2`, each run per case under the procedure above. Each judges a new copy of the held-out case set, rebuilt from `~/bench-judge-ho` with the existing `external-key-ho.json` (same case numbers, pairs and label orders; `JUDGE.md` as c5ba259 writes it; no root README), made once per judge before that judge opens any case, with no `verdict.json` and an empty `scratch/` in every case. The earlier folders (`C:\Users\Asus\ag-judge`, `C:\Users\Asus\codex-judge`) are never reused.
+- **Earlier one-session results are context only.** Antigravity's earlier verdicts (`hoag`, imported on 2026-11-01) and Codex's one-session run in the Codex app on 2026-11-01 (`hocx1`, over the cases it finished in `C:\Users\Asus\codex-judge`) are reported beside them:
+  - `hoag` passed the rule (gap +0.93, same winner 8 of 9);
+  - it was made in one session (verdicts written 16:11–16:26);
+  - it gave every team solution 10 on every dimension.
+- **Showing the size effect:** "more test lines" names, per pair or group, the setup whose solution has more test lines, counted as `score.mjs`'s `code.testLines` minus lines in files byte-identical to the seed's; equal counts give no prediction. In round `ho` its agreement is matched against c5ba259's `pairWinners` (8 of 9). In round `mo` it is the share of a comparison's groups where that setup matches the sign of the Opus group gap, with a zero gap or an equal count counting as disagreement. It is shown next to each outside judge's count.
+- **Held-out inputs:** `blind-key-ho.json` and `judge-ho.json` are committed in `bench/data/heldout/`; `external-key-ho.json`, `judge-hoag.json` and `blind-key-hoag.json` exist only in the main checkout's git-ignored `bench/results`. All five are copied unchanged into the checkout that runs the round, and their SHA-256 hashes are listed in the write-up.
+- **Recorded once:** each held-out verdict is written once to `results/outside-check-ho-<as>.json` (`gap`, `same`, `pairs`, `passed`), before any mode-round outside verdict is imported.
+
+## Bars and rules (fixed in `bench/bars-mo.json`)
+- **Quality** of a solution = the mean of the 5 judged dimensions (correctness, code quality, tests, robustness/security, docs/usability), averaged over its judges, as `bench/aggregate.mjs` computes it. Overall is reported beside it, not used for bars.
+- **Group gap** for a comparison (mode vs comparator) = the mode's quality minus the comparator's in that group (same task and rep). **Gap** = the mean of the group gaps. **SD** = their sample standard deviation (divisor n−1). **95% range** = gap ± t(0.975, n−1) × SD / √n; with all 9 groups that is gap ± 2.306 × SD / 3.
+- **Arithmetic:**
+  - `bars.mjs` works from the unrounded per-judge scores, never from the rounded report table. It rounds each gap, Balanced's mean quality and the usage ratio to 2 decimals before comparing them with a bar. Each solution's quality is a multiple of 1/10 (1/5 with one judge), so every gap or mean over n ≤ 9 groups is a multiple of 1/(10n) and never lies exactly halfway between two 2-decimal values; the rounding is unambiguous.
+  - Hidden-test pass rates are compared after rounding to 4 decimals.
+  - A range "includes 0" when its unrounded lower end is at or below 0. Ranges are shown rounded to 2 decimals.
+- **Bars:**
+  - **Lean:** gap over solo at least **+0.30**, and usage at most **1.50×** solo's on h5 and h6, where usage = the mean cost over each setup's counted runs on those two tasks. A run's cost is its `total_cost_usd`, or, for a run without one, the cost computed from its transcripts (Runs). Lean's h4 cost is reported against Balanced's, not barred.
+  - **Balanced:** gap over solo at least **+0.50**.
+  - **Max:** gap over Balanced at least **+0.30**. If Balanced's mean quality over its counted runs is above **8.60**, the Max bar is reported as **"not measurable (scale ceiling)"**, and Max's result is its secondary measures. Above 8.60, Max would need more than 8.90; in the held-out round 4 of 180 dimension scores were 10 and the best task-cell mean was 8.93. This is decided once, on all counted Balanced runs, and also holds in the sensitivity check.
+- **Hidden tests:** a bar is met only if the mode's mean hidden-test pass rate is not below its comparator's, over the same groups.
+- **Noise label:** a met bar whose 95% range includes 0 is reported as "met, within noise".
+- **Incomplete groups:** a comparison uses only the groups where both setups have a counted run. With n such groups:
+  - the range uses t with n−1 degrees of freedom;
+  - the hidden-test rule compares the same n groups;
+  - the outside-confirmation threshold is ⌈0.75 × n⌉ of n (7 of 9 when complete);
+  - the Lean usage bar uses the h5 and h6 runs in those groups;
+  - with fewer than 6 groups, the comparison is reported as "not measured (n groups)", neither met nor missed.
+- **Every run counts:** each run is scored as its setup whatever it did.
+- **Faithful-only sensitivity check:** solo runs always count as faithful. A group enters a comparison's check only when both its runs are faithful. The check reports gap, range, n, the hidden-test rule and, for Lean, the usage ratio over the faithful groups' h5 and h6 runs, beside each bar; it has no outside confirmation and no "not measured" floor, and it never changes a bar's headline result or label.
+- **Secondary measures** (reported, never bars):
+  - **Rank wins:** over the 9 groups, a group counts for the mode when both its Opus judges rank it above the comparator, against it when both rank it below, and as split otherwise; a group with one usable judgment counts by that judge's ranking and is marked. Reported with the exact two-sided sign-test p over the non-split groups. The 18-judgment count is shown beside it without a p.
+  - **Test strength (h5, h6):**
+    - A solution's test files are the files Node's `--test` default patterns match in its folder, excluding files byte-identical to the seed's.
+    - For each, a temp folder is built from the seed (h5 only), then the reference with its own test files removed, then the solution's test files. `node --test <file>` runs per file with `score.mjs`'s hidden-test environment and a 300 s limit; a file that passes there is valid.
+    - Each near-miss version is then laid on top, and it is caught when any valid file fails or times out. The share of near-miss versions caught is reported; a solution with no valid file is "n/a".
+    - H4 is not measured, because its tests need not go through a fixed module boundary.
+  - The **tests** dimension on its own.
+- **Outside confirmation** of a comparison. A **counting outside judge** is one that passed its held-out check and has all 18 mode-round cases usable. For each counting judge:
+  - Its gap = the mean of its group gaps, each over its 2 cases; the Opus gap and group directions are the same over the 2 Opus judges. Its direction in a group is the sign of that group gap, and a zero on either side counts as disagreement.
+  - The judge confirms the comparison when both gaps are non-zero with the same sign and the directions agree in at least 7 of 9 groups.
+  - **Labels:** confirmation labels only met bars. The label is "met", then ", within noise" when the range includes 0, then ", outside-confirmed" when at least one outside judge counts and every counting judge confirms it, otherwise ", not outside-confirmed (<reason>)". The reason is one of: no outside judge passed its held-out check; no passing judge was usable in the mode round (each named, with "not usable (k of 18)" or "not used"); or <judge> disagrees (its count and gap).
+  - A missed bar shows each passing judge's gap beside it, with no confirmation label.
+  - The rule is computed for every comparison, including a Max comparison reported as not measurable. The "more test lines wins" agreement rate is shown beside each count.
+
+## Mode fidelity (`bench/mode-check.mjs`)
+Read-only, over `results/<id>/evidence/` and the run folder's `.team/`.
+
+**Definitions:**
+- A section is **woken** when the session or a subagent transcript has an Agent call with `subagent_type: "section-team:<id>"`, where `<id>` is a section head: backend, frontend, database, devops, mobile, uiux, ai-llm, testing, security or docs. Calls to reviewer, scout, coder, ai-engineer and data-scientist are not wake-ups. A later SendMessage does not count. **Builder sections** are every section head except testing, security and docs.
+- A **reviewer call** is an Agent call with `subagent_type: "section-team:reviewer"`; no other agent type counts. Its model is the raw `message.model` of its transcript.
+- A **caller** is the agent that made a reviewer call (`main` at the top level), as `gateSequences` in `bench/gate-stats.mjs` groups them.
+- A **gate** is a run of one caller's reviewer calls in start order. A call starts a new gate when it is the caller's first, or when the caller got a new job between it and its previous reviewer call: for `main`, it made an Agent or SendMessage call to a builder section in between; for a section, a new message from another agent arrived in its transcript in between. Every other call is a **re-grade** of the current gate.
+- A **fix round** is one re-grade. A review **fails** by the mode's mark (Lean: overall under 8; Balanced: overall under 8 or an item under 6; Max: overall under 9 or an item under 7), and a review with no readable GRADE counts as a fail. A gate **ends early** when its last review failed, fewer than the mode's fix rounds were used, and the caller made no further reviewer call before the run ended. **Grades again after a pass** means a re-grade whose previous review passed.
+- A near-miss copy **sits outside `.team/`** when, at the end of the run, a file outside `.team/`, `.git/` and `node_modules/` is byte-identical to a file under `.team/near-miss/`, has `near-miss`, `nearmiss` or `mutant` in its path, or starts with a `near-miss:` comment.
+- A gate's final grade is never a fidelity condition; `gate-stats.mjs` reports it.
+
+A run is **faithful** when all of its mode's rules hold:
+- **All team setups:** the mode record names the expected mode (`lean`, `balanced`, `max`), and `.team/mode.json` still holds it at the end (none for `team`). On h4 only: the supervisor wakes the backend and frontend sections and writes no file under the solution's source itself (docs and config excepted), and the docs section is woken (h4 asks for a README, and every brief wakes docs for multi-area work that asks for one).
+- **Lean:**
+  - Every reviewer call runs on a Sonnet model.
+  - No gate ends early, has more than 1 fix round, or grades again after a pass.
+  - On h4 the testing section is woken (for the final check). On h5 and h6 no section is woken.
+- **Balanced:**
+  - Every reviewer call runs on an Opus model.
+  - No gate ends early, has more than 2 fix rounds, or grades again after a pass.
+  - On h4 the testing section is woken. On h5 and h6 the testing section is woken and no other section is.
+- **Max:**
+  - Every reviewer call runs on an Opus model.
+  - No gate ends early, has more than 3 fix rounds, or grades again after a pass; a gate that still fails after its third fix round is faithful.
+  - The testing and security sections are woken on every task. On h5 and h6 no other section is woken.
+  - At the end, `.team/near-miss/` holds at least one copy, or the testing transcript shows one written there, and no copy sits outside `.team/`.
+
+A run that ends with a copy in place is scored as it is and listed. The write-up reports the tier each run's supervisor chose (from its wake-ups), per task and mode.
+
+## Gate stats
+`bench/gate-stats.mjs` counts `team`, `lean` and `max` runs from their copied evidence. It keeps every graded item (not only overall) and judges first-try passes and final grades by each mode's own pass mark (Lean 8; Balanced 8 and no item under 6; Max 9 and no item under 7).
+
+## Harness changes (all in the freeze commit, with tests)
+- **`run.mjs`:**
+  - h4–h6 time limits; `--round`/`--tag` agreement;
+  - the pinned binary, model, effort, plugin worktree and auto-updater switch;
+  - the clean `--settings`, `--strict-mcp-config` and `--verbose`;
+  - the spawn environment;
+  - `--session-id`, attempt folders, the API-failure rule, rerun caps and void runs;
+  - the evidence copy;
+  - the init checks and lists in `run.json`.
+- **`preflight.mjs`:** all four setups with the builders' exact arguments (no Haiku override), the checks above, the binary copy and the round's recorded version.
+- **`judge.mjs`:** the mirrored order for any number of labels; the pinned binary, model, effort, `--verbose`, clean settings and spawn environment; the init and effort checks; transcripts kept; the re-ask rule.
+- **`judge-prompt.md`:** only its example answer changes.
+- **`aggregate.mjs`:** h4–h6 in its task order.
+- **`external-judge.mjs`:**
+  - Merged from `bench/external-judge` as a real git merge that keeps c5ba259 in history, pushed with the freeze commit.
+  - Extended to 2–4 labels, the mirrored second case, per-comparison agreement, the second judge's copy, the run sheet in place of the root README, and the held-out verdict file.
+  - The held-out check keeps c5ba259's `pairWinners` unchanged and shares no code with the mode-round rule. A test checks that for `hoag` it reproduces c5ba259's same-winner count (8 of 9) and gap.
+- **New scripts:**
+  - `bars.mjs`, which reads `bench/bars-mo.json` and writes `results/bars-mo.json` and a table;
+  - `mode-check.mjs`;
+  - `test-strength.mjs`;
+  - `leak-scan.mjs`;
+  - a per-case Codex runner.
+- **`gate-stats.mjs`:** as above.
+- **`docs/benchmark-heldout-2026-11.md`:** "the mean of those six scores" becomes "five" (the code and the published numbers use five).
+
+## Who builds it
+- section-team sections build v0.2.1, the harness and the tasks, under the usual gate.
+- Codex may implement harness pieces if its held-out check passes. It never authors tasks, hidden tests or references for a round it judges.
+- The hidden-test author, the reference author and the size-floor counter are three different agents, none of which has read `brief/`.
+
+## Publishing
+- **`docs/benchmark-modes-2026-11.md`:**
+  - setup, freeze commit and tag;
+  - every bar with its gap, range, hidden tests, label and outside confirmation;
+  - the sensitivity check and the secondary measures;
+  - mode fidelity and the tier each run's supervisor chose;
+  - gate stats, the leak scan, void runs, reruns and re-asks;
+  - how each outside judge was run;
+  - limits.
+- **Raw data** in `bench/data/modes/` with the recompute command.
+- **README:** the Modes table and the picker labels show the measured quality and usage with the round's date. A mode that misses its bar shows its honest number, and the label names the clean setup it was measured in. The label change ships as the next plugin version.
+
+## Cost and approvals
+- **Runs:** about **$114** of plan usage at measured and old multi-area rates (range $89–137); h4 drives about 60% of it.
+- **Opus judges:** about **$23** (18 four-solution judges at about $1.30, to be measured by the trial judge).
+- **Total:** about **$137** (range $109–163), plus a 5–10% rerun reserve. The preflight is about $1. Building the tasks and harness uses about $45–90 more of ordinary session usage.
+- **Usage windows:** one batch per window (about $38 and 1.8 hours each).
+- **The user says yes before:**
+  - pushing the freeze commit and `v0.2.1`;
+  - the preflight;
+  - the runs, with the estimate;
+  - the trial judge;
+  - the other Opus judges, with the trial judge's measured cost;
+  - running Codex headless, with its sandbox mode.
+
+## Limits stated in advance
+- **Few tasks and runs.** With three tasks and three runs per cell, the smallest reliably detectable gap is about 0.45 for a mode against solo and about 0.6 for Max against Balanced, so +0.3 bars can pass or fail on noise; the ranges show it. The range treats the 9 groups as independent: it describes run and judge noise on h4–h6 only, not how a mode would do on other tasks.
+- **Scale ceiling.** Judges score 1–10 in whole numbers and almost never give 10 (4 of 180 dimension scores in the held-out round), so Max can hit the ceiling (the 8.60 rule).
+- **Size bias.** Outside judges and Opus may both favour larger solutions; the "more test lines wins" rate shows how much agreement that alone explains. The leak scan lists other tells.
+- **Untrusted code.** Outside judges and Opus judges run the solutions' code on the user's machine.
+- **The baseline is the user's, minus plugins.** Builders and Opus judges still read the user's `~/.claude/CLAUDE.md` and `~/AGENTS.md`, and keep the user-level skills, agents and rules (the same set in every setup).
+  - CLAUDE.md names skills from plugins that are off in every run (superpowers, frontend-design), and the synced skills are off too; a session that asks for one gets an error and carries on.
+  - h1–h3 ran from inside the desktop app, with its session environment; this round strips it, so the built-in plugin list may differ from h1–h3's (the preflight records it).
+  - Section agents and the reviewer skip CLAUDE.md, so it steers solo's whole run but only the supervisor in team setups.
+  - Solo here is therefore neither bare Claude Code nor the user's everyday setup, and h1–h3 (solo 8.16) ran with the user's plugins on, so the two rounds' numbers are not directly comparable.
+- **Outside judges' own instructions.** Outside judges read their own global instructions.
+
+## Out of scope
+A gate-off setup, other languages, automatic mode picking, more reps, and any tuning on h4–h6.
