@@ -1,13 +1,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { assembleBrief } from './lib/brief.mjs'
-import { DEFAULT_MODE, assertMode, readMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, MODE_FILE, assertMode, modeName, readMode } from './lib/mode.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
 export const AUTO_INSTALL_ENV = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
-const MODE_FILE = '.team/mode.json'
 const MESSAGE_PREFIX = 'section-team session-start'
 // The id becomes a file name, so only plain characters pass.
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -17,21 +16,23 @@ const autoInstallNote = source => [
   `- Automatic skill installs are on (${source}), which replaces asking first: install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
-// The display name of a mode: 'max' → 'Max'.
-const modeName = mode => mode[0].toUpperCase() + mode.slice(1)
-
 // Where each session's mode is kept, so a later hook can tell when the project's mode changed.
 export function modeRecordDir(home) {
   return `${home}/.claude/section-team/modes`
 }
 
+// The file that keeps one session's mode. Throws one line on a bad session id, since the id becomes the file name.
+export function modeRecordFile(home, sessionId) {
+  if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) throw new Error('no usable session id (letters, digits, - and _ only)')
+  return `${modeRecordDir(home)}/${sessionId}.json`
+}
+
 // Saves the mode a session runs in as {"mode":"<mode>"}. Throws one line on a bad session id or an unknown mode.
 export function recordMode(home, sessionId, mode) {
-  if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) throw new Error('no usable session id (letters, digits, - and _ only)')
+  const file = modeRecordFile(home, sessionId)
   assertMode(mode)
-  const dir = modeRecordDir(home)
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(`${dir}/${sessionId}.json`, JSON.stringify({ mode }))
+  mkdirSync(modeRecordDir(home), { recursive: true })
+  writeFileSync(file, JSON.stringify({ mode }))
 }
 
 // Whether skill installs are automatic, and where that came from: the mode file wins over the environment.

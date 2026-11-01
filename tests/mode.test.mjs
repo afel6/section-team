@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_MODE, GATES, MODES, MODE_LABELS, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
+import { DEFAULT_MODE, GATES, MODES, MODE_FILE, MODE_LABELS, modeName, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -226,4 +226,14 @@ test('a mode.json that is a folder is reported on read, fails the write in one l
   })
   assert.throws(() => writeMode(root, 'lean'), err => /^could not save \.team\/mode\.json: [^\n]+$/.test(err.message))
   assert.deepEqual(readdirSync(teamDir(root)), ['mode.json'])
+})
+
+test('the mode file path and the display names are exact', () => {
+  assert.equal(MODE_FILE, '.team/mode.json')
+  assert.equal(modeName('lean'), 'Lean')
+  assert.equal(modeName('balanced'), 'Balanced')
+  assert.equal(modeName('max'), 'Max')
+  for (const bad of ['turbo', '', undefined, 'Max']) {
+    assert.throws(() => modeName(bad), /unknown mode/, String(bad))
+  }
 })

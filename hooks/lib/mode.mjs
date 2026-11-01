@@ -18,7 +18,8 @@ export const MODE_LABELS = Object.freeze({
   max: 'Max · ~3–4× usage (target)',
 })
 
-const FILE = '.team/mode.json'
+// Where a project keeps its mode, relative to the project root.
+export const MODE_FILE = '.team/mode.json'
 const NOT_FOLDER = '.team is not a folder'
 const codeOf = err => err?.code ?? 'unknown error'
 
@@ -35,7 +36,7 @@ const withoutBom = text => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
 
 const balancedWith = problem => ({ mode: DEFAULT_MODE, autoInstallSkills: null, problem })
 
-const balancedBecause = reason => balancedWith(`${FILE}: ${reason}, so Balanced is used`)
+const balancedBecause = reason => balancedWith(`${MODE_FILE}: ${reason}, so Balanced is used`)
 
 function modeOf(data) {
   if (data.mode === undefined) return { mode: DEFAULT_MODE, fault: null }
@@ -66,12 +67,18 @@ export function parseModeFile(text) {
   const { mode, fault: modeFault } = modeOf(data)
   const { autoInstallSkills, fault: skillsFault } = skillsOf(data)
   const faults = [modeFault, skillsFault].filter(fault => fault !== null)
-  return { mode, autoInstallSkills, problem: faults.length === 0 ? null : `${FILE}: ${faults.join('; ')}` }
+  return { mode, autoInstallSkills, problem: faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}` }
 }
 
 // Throws one plain line unless mode is one of MODES.
 export function assertMode(mode) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: pick lean, balanced or max`)
+}
+
+// The display name of a mode: 'max' → 'Max'. Throws on an unknown mode.
+export function modeName(mode) {
+  assertMode(mode)
+  return mode[0].toUpperCase() + mode.slice(1)
 }
 
 // The text to save for a mode: compact JSON that keeps a valid autoInstallSkills from the previous text. Throws on an unknown mode.
@@ -111,7 +118,7 @@ export function readMode(root) {
   return parseModeFile(text)
 }
 
-const saveError = (reason, cause) => new Error(`could not save ${FILE}: ${reason}`, cause === undefined ? undefined : { cause })
+const saveError = (reason, cause) => new Error(`could not save ${MODE_FILE}: ${reason}`, cause === undefined ? undefined : { cause })
 
 function assertTeamFolder(root) {
   let blocked
