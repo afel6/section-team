@@ -20,7 +20,7 @@ node --test bench/*.test.mjs
 ## How the code is organised
 - `brief/` holds the supervisor's instructions: `core.md` with the `{{TIERS}}` and `{{GATE}}` markers, filled from `tiers-<mode>.md` and `gate-<mode>.md` by `hooks/lib/brief.mjs` and injected at session start. The Balanced brief must stay equal to `tests/fixtures/supervisor-v0.1.1.md`.
 - `agents/*.md` are generated. Never edit them by hand: change the roster or the shared text in `scripts/gen-agents.mjs`, then run `node scripts/gen-agents.mjs`.
-- `hooks/` holds the hooks (session start, the handback gate, report saving) and the Team Board (`hooks/register.tsx`).
+- `hooks/` holds the hooks (session start, the mode switch check on each prompt, the handback gate, report saving) and the Team Board (`hooks/register.tsx`). The modes and their gate numbers live in `hooks/lib/mode.mjs`.
 - `skills/add-skill/` is the procedure for reviewing and installing a skill from GitHub.
 - `bench/` is the benchmark harness. A benchmark round runs real paid Claude sessions, so only run it if you know the cost.
 
