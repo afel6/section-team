@@ -4,19 +4,23 @@
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
-// Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] [--conds=solo,lean,team,max]
-//          [--tasks=h4,h5,h6] [--reps=3] [id-substring ...]
-//        (needs results/preflight-<tag>.json; --conds runs the setups in the order given; without it: team,solo,forced)
+// Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
+// Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] --conds=solo,lean,team,max
+//          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [id-substring ...]
+//        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given)
+//        exit 2: the batch stopped (resume to rerun); exit 3: the round stopped (fix the cause as a harness bug first)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
-import { spawn, execFileSync } from 'node:child_process'
+import { spawn as nodeSpawn, execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
+import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, installedPluginKeys, readPin } from './clean-run.mjs'
+import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, installedPluginKeys, outputMessages, readPin } from './clean-run.mjs'
+import { archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor } from './run-attempts.mjs'
 import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -113,6 +117,21 @@ export function pluginCommitOf(plugin, { git = gitLine } = {}) {
   return commit
 }
 
+// Before each batch the worktree is clean and matches PLUGIN_TAG, and --plugin= is its root folder, not a subfolder.
+export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
+  const top = git(['-C', plugin, 'rev-parse', '--show-toplevel'])
+  if (win32.resolve(top).toLowerCase() !== win32.resolve(plugin).toLowerCase()) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
+  if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${PLUGIN_TAG} worktree`)
+  if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
+}
+
+// initProblems judges these setups only, so a round runs no other (forced included).
+const ROUND_CONDS = ['solo', 'lean', 'team', 'max']
+export function checkConds(conds) {
+  const other = conds.find(cond => !ROUND_CONDS.includes(cond))
+  if (other !== undefined) throw new RangeError(`a round runs solo, lean, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
+}
+
 // Every task that cannot run: a missing prompt, missing hidden tests or no timeout. Empty when all are fine.
 export function taskProblems(tasks, bench = BENCH) {
   return tasks.flatMap(t => {
@@ -156,9 +175,6 @@ export function builderArgs(base, prompt, { sessionId, installedKeys, pluginDir 
 // package name or README the judges read. Stable, so a rerun reuses the folder.
 export const runFolder = run => `${RUNS}/${run.task}-${createHash('sha256').update(run.id).digest('hex').slice(0, 8)}`
 
-// The setup (team, solo, forced, lean or max), without the round tag.
-const baseOf = run => run.base ?? run.cond
-
 // The mode file a setup's run folder starts with; team runs Balanced with no file, as before the modes.
 export const modeFileFor = base => (base === 'lean' || base === 'max' ? `${serializeMode(null, base)}\n` : null)
 
@@ -189,12 +205,12 @@ export function killTree(child, { execFile = execFileSync, log = console.error }
 }
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
-function runClaude(run, dir, outDir, ctx, sessionId) {
+// Resolves once raw.json and stderr.txt are flushed, so the caller can read them.
+function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn }) {
   const base = baseOf(run)
   const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const { binary } = ctx.pin
   const args = builderArgs(base, prompt, { sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
-  const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   return new Promise((resolve, reject) => {
     const started = Date.now()
     const child = spawn(binary, args, { cwd: dir, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -221,22 +237,34 @@ function runClaude(run, dir, outDir, ctx, sessionId) {
     })
     child.on('close', code => {
       finish()
-      resolve({ exitCode: code, timedOut, wallMs: Date.now() - started, startedAt: new Date(started).toISOString() })
+      const info = { exitCode: code, timedOut, wallMs: Date.now() - started, startedAt: new Date(started).toISOString() }
+      Promise.all([finished(outFile), finished(errFile)]).then(() => resolve(info), reject)
     })
   })
 }
 
-// ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main.
-async function runOne(run, outDir, ctx) {
+// One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
+// ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main; deps let tests replace the
+// spawn, the home folder and the run folder.
+export async function runOne(run, outDir, ctx, { spawn = nodeSpawn, home = homedir(), dir = runFolder(run), root = RUNS } = {}) {
+  archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
-  const dir = prepareRun(run)
   const sessionId = randomUUID()
-  console.log(`${new Date().toISOString()} start ${run.id}`)
-  const info = await runClaude(run, dir, outDir, ctx, sessionId)
+  const attempt = nextAttempt(outDir)
+  writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
+  prepareRun(run, { dir, root })
+  const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
+  console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
+  const info = await runClaude(run, dir, outDir, ctx, { sessionId, env, spawn })
+  const messages = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
   if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })
-  writeFileSync(join(outDir, 'run.json'), JSON.stringify({ ...run, dir, ...info, sessionId, pluginCommit: ctx.pluginCommit }, null, 2) + '\n')
-  console.log(`${new Date().toISOString()} end   ${run.id} exit=${info.exitCode} timedOut=${info.timedOut} wall=${Math.round(info.wallMs / 1000)}s`)
+  const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
+  const bestEffort = ended === 'api-limit' || ended === 'api-other'
+  const copied = copyEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, bestEffort })
+  const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
+  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, env })
+  console.log(`${new Date().toISOString()} end   ${run.id} ${kind} exit=${info.exitCode} wall=${Math.round(info.wallMs / 1000)}s`)
 }
 
 const nearestExisting = path => (existsSync(path) || dirname(path) === path ? path : nearestExisting(dirname(path)))
@@ -289,19 +317,21 @@ export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSe
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, round, conds, tasks, reps, filters, plugin } = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, plugin, rerun, reason } = parseArgs(argv)
   checkRoundTag({ round, tag })
   // Every run reads its round's pin by the tag, so a run without one cannot start.
   if (tag === '') throw new Error('--tag= names the round and its preflight pin, e.g. --tag=mo')
+  checkConds(conds)
   const problems = taskProblems(tasks)
   if (problems.length) throw new Error(`cannot run these tasks: ${problems.join('; ')}`)
   const pluginCommit = pluginCommitOf(plugin)
+  checkPluginWorktree(plugin)
   const pin = readPin(RESULTS, tag)
   if (typeof pin.binary !== 'string' || pin.binary === '') throw new Error(`the round ${tag} pin names no binary: run node bench/preflight.mjs --round=${tag} again`)
   const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, pluginCommit }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
-  const todo = runs.filter(run => !existsSync(join(RESULTS, run.id, 'run.json')))
+  const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
   await runAll(todo, { runOne: (r, o) => runOne(r, o, ctx) })
   console.log('all runs finished')
@@ -320,4 +350,5 @@ export async function runAll(todo, { runOne: one, isolate = isolateSectionMemory
   }
 }
 
-if (isMainModule(import.meta.url)) main().catch(err => { console.error(err.message); process.exitCode = 1 })
+// A stop prints its one-line reason and exits 2 (batch) or 3 (round); any other error exits 1.
+if (isMainModule(import.meta.url)) main().catch(err => { console.error(err.message); process.exitCode = exitCodeOf(err) })

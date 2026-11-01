@@ -1,10 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { EventEmitter, once } from 'node:events'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkRoundTag, checkVolumes, killTree, freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, taskProblems } from './run.mjs'
+import { PassThrough } from 'node:stream'
+import { BatchStop, projectDirFor } from './run-attempts.mjs'
+import {
+  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPluginWorktree, checkRoundTag, checkVolumes, killTree, freshRepo,
+  isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, taskProblems,
+} from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
 
@@ -363,4 +369,107 @@ test('isolateSectionMemory stops the running claude before it puts the memory ba
 test('checkVolumes accepts results and home folders that do not exist yet', t => {
   const root = tempRoot(t)
   assert.doesNotThrow(() => checkVolumes({ root: join(root, 'agent-memory'), others: [join(root, 'no', 'results')] }))
+})
+
+test('checkPluginWorktree accepts the clean worktree root, whatever its slashes or case', () => {
+  const calls = []
+  const plugin = 'C:\\Users\\Asus\\Section-Team-v0.2.1\\'
+  const git = args => { calls.push(args); return args.includes('--show-toplevel') ? 'C:/Users/Asus/section-team-v0.2.1' : '' }
+  assert.doesNotThrow(() => checkPluginWorktree(plugin, { git }))
+  assert.deepEqual(calls, [['-C', plugin, 'rev-parse', '--show-toplevel'], ['-C', plugin, 'status', '--porcelain'], ['-C', plugin, 'diff', '--stat', 'v0.2.1']])
+})
+
+test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff from v0.2.1, in one line each', () => {
+  const top = 'C:/Users/Asus/section-team-v0.2.1'
+  const gitWith = ({ status = '', diff = '' }) => args => (args.includes('--show-toplevel') ? top : args.includes('status') ? status : diff)
+  const cases = [
+    [`${top}/agents`, {}, `--plugin= must be the worktree's root folder ${top}, got ${top}/agents`],
+    [top, { status: '?? stray.md' }, `${top} has uncommitted changes: a batch needs a clean v0.2.1 worktree`],
+    [top, { diff: ' agents/backend.md | 2 +-' }, `${top} differs from v0.2.1: a batch needs a clean v0.2.1 worktree`],
+  ]
+  for (const [plugin, out, message] of cases) assert.throws(() => checkPluginWorktree(plugin, { git: gitWith(out) }), { message }, message)
+})
+
+test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {
+  assert.doesNotThrow(() => checkConds(['solo', 'lean', 'team', 'max']))
+  assert.doesNotThrow(() => checkConds(['team']))
+  const message = 'a round runs solo, lean, team and max only, got "forced": pass --conds=solo,lean,team,max'
+  assert.throws(() => checkConds(DEFAULT_CONDS), { name: 'RangeError', message }, 'the default setups include forced')
+  assert.throws(() => checkConds(['solo', 'forced']), { name: 'RangeError', message })
+})
+
+// A stand-in for the pinned binary: it writes the session transcript where Claude Code would and streams an init and a result.
+// With transcript false it writes no session file, as when the API fails before the first turn is saved.
+function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true }) {
+  return (command, args, options) => {
+    calls.push({ command, args, options })
+    const sessionId = args[args.indexOf('--session-id') + 1]
+    const project = projectDirFor(options.cwd, home)
+    mkdirSync(project, { recursive: true })
+    if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
+    const child = Object.assign(new EventEmitter(), { pid: 4242, stdout: new PassThrough(), stderr: new PassThrough() })
+    const lines = [{ ...init, session_id: sessionId }, result]
+    Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', 0))
+    setImmediate(() => {
+      child.stdout.end(`${lines.map(line => JSON.stringify(line)).join('\n')}\n`)
+      child.stderr.end()
+    })
+    return child
+  }
+}
+
+// A solo run of task easy into a temp root, with a pin and an init that pass the init check.
+function soloAttempt(t) {
+  t.mock.method(console, 'log', () => {})
+  const root = tempRoot(t)
+  const builtins = ['cc-plugin-agents-md@builtin']
+  const pin = { binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', version: '2.1.296', apiKeySource: 'none', builtins, setups: { solo: { agents: ['general-purpose'], skills: [] } } }
+  return {
+    root, pin, home: join(root, 'home'), dir: join(root, 'runs', 'easy-0123abcd'), outDir: join(root, 'results', 'easy-solo-mo-r1'),
+    ctx: { pin, installedKeys: ['a@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1', pluginCommit: 'c0ffee1' },
+    init: {
+      type: 'system', subtype: 'init', model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none', mcp_servers: [],
+      plugins: [{ name: 'cc-plugin-agents-md', path: 'builtin', source: builtins[0] }], agents: ['general-purpose'], skills: [],
+    },
+    run: { id: 'easy-solo-mo-r1', task: 'easy', cond: 'solo-mo', base: 'solo', rep: 1 },
+  }
+}
+
+test('runOne stops the batch on an API failure that left no session file, instead of stopping for missing evidence', async t => {
+  const { root, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const result = { type: 'result', subtype: 'success', is_error: true, result: 'API Error: 529 overloaded' }
+  const deps = { spawn: fakeClaude({ home, calls: [], init, result, transcript: false }), home, dir, root: join(root, 'runs') }
+  await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8')).map(e => e.kind), ['api-other'])
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+})
+
+test('runOne spawns the pinned binary with builderArgs for its own session id, and a second attempt archives the first', async t => {
+  const { root, pin, home, dir, outDir, ctx, init, run } = soloAttempt(t)
+  const calls = []
+  const deps = { spawn: fakeClaude({ home, calls, init }), home, dir, root: join(root, 'runs') }
+
+  await runOne(run, outDir, ctx, deps)
+  const first = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  assert.match(first.sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  assert.equal(first.attempt, 1)
+  const [{ command, args, options }] = calls
+  assert.equal(command, pin.binary, 'the pinned binary, never claude from PATH')
+  assert.ok(args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'easy.md'), 'utf8')), 'the task prompt')
+  assert.deepEqual(args, builderArgs('solo', args[1], { sessionId: first.sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir }))
+  assert.deepEqual([options.cwd, options.env], [dir, builderEnv(process.env, { pluginDir: ctx.pluginDir })])
+  const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+  assert.deepEqual([record.end, record.sessionId, record.attempt, record.exitCode, record.pluginCommit], ['ok', first.sessionId, 1, 0, 'c0ffee1'])
+  assert.ok(existsSync(join(outDir, 'evidence', `${first.sessionId}.jsonl`)), 'the session transcript is copied')
+
+  await runOne(run, outDir, ctx, deps)
+  const second = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  assert.equal(second.attempt, 2)
+  assert.notEqual(second.sessionId, first.sessionId, 'a fresh session id per attempt')
+  assert.equal(calls[1].args[calls[1].args.indexOf('--session-id') + 1], second.sessionId)
+  const slug = projectDirFor(dir, home).split(/[\\/]/).at(-1)
+  for (const name of ['run.json', 'raw.json', 'session.json', `evidence/${first.sessionId}.jsonl`, `${slug}/${first.sessionId}.jsonl`]) {
+    assert.ok(existsSync(join(outDir, 'attempt-1', name)), `attempt-1 keeps ${name}`)
+  }
+  assert.ok(!existsSync(join(projectDirFor(dir, home), `${first.sessionId}.jsonl`)), 'the second attempt starts without the first attempt\'s transcripts')
 })
