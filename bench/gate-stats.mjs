@@ -57,7 +57,7 @@ const lastAssistantText = messages => textOf(messages.findLast(m => m?.type === 
 const handbackOf = m => (Array.isArray(m?.message?.content) ? m.message.content.find(p => p?.type === 'tool_use' && p.name === 'SubagentHandback') : undefined)
 // A reviewer's answer: a background agent hands it back as the message of a SubagentHandback call; otherwise it is
 // the text of its last assistant message.
-const reviewerAnswer = messages => {
+export const reviewerAnswer = messages => {
   const handback = handbackOf(messages.findLast(m => m?.type === 'assistant' && handbackOf(m)))
   return handback ? String(handback.input?.message ?? '') : lastAssistantText(messages)
 }
