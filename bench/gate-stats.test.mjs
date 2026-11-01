@@ -80,25 +80,27 @@ test('gateMisses returns the failing tests only when every caller ended on a pas
 })
 
 test('gate stats for a run with no transcript (roles === null) is a no-data row and does not throw', () => {
-  const row = gateRow({ id: 'h2-team-ho-r1', roles: null, tap: 'not ok 1 - x\n', reports: ['Status: partial\n'], codeQuality: null })
+  const reports = ['Status: partial\n', 'Status: ungraded — the reviewer never answered\n']
+  const row = gateRow({ id: 'h2-team-ho-r1', roles: null, tap: 'not ok 1 - x\n', reports, codeQuality: null })
   assert.equal(row.noData, true)
   assert.equal(row.partial, 1)
-  assert.match(formatTable([row]), /\| h2-team-ho-r1 \| no data \|/)
+  assert.equal(row.ungradedReports, 1)
+  assert.match(formatTable([row]), /\| h2-team-ho-r1 \| no data \| – \| – \| – \| 1\/0\/1 \|/)
 })
 
-test('gateRow puts the summary, sequences, final grades, partial/blocked counts and gate misses on one row', () => {
+test('gateRow puts the summary, sequences, final grades, partial/blocked/ungraded counts and gate misses on one row', () => {
   const roles = [{ role: 'main', messages: [] }, reviewer('r1', 'p1', 't1', text(grade(6, 'fail'))), reviewer('r2', 'p1', 't2', text(grade(9, 'pass')))]
-  const reports = ['## REPORT · backend\nStatus: done\nQuality: 9/10\n', '## REPORT · testing\nStatus: blocked — no API\n', '## REPORT · docs\nStatus: partial\n']
+  const reports = ['## REPORT · backend\nStatus: done\nQuality: 9/10\n', '## REPORT · testing\nStatus: blocked — no API\n', '## REPORT · docs\nStatus: partial\n', '## REPORT · security\nStatus: ungraded\nQuality: n/a\n']
   const row = gateRow({ id: 'h1-team-ho-r1', roles, tap: 'not ok 1 - a | b\n', reports, codeQuality: 7.25 })
   assert.deepEqual(row, {
-    id: 'h1-team-ho-r1', partial: 1, blocked: 1, judgeCodeQuality: 7.25, noData: false,
+    id: 'h1-team-ho-r1', partial: 1, blocked: 1, ungradedReports: 1, judgeCodeQuality: 7.25, noData: false,
     calls: 2, graded: 2, passes: 1, fails: 1, ungraded: 0, callers: 1, firstTryPasses: 0, fixRounds: 1,
     sequences: { p1: [fail, pass] }, finalGrades: { p1: pass }, gateMisses: ['a | b'],
   })
   assert.equal(gateRow({ id: 'x', roles, tap: null, reports: [], codeQuality: null }).gateMisses, null, 'no hidden.tap is unknown, not zero misses')
   const table = formatTable([row]).split('\n')
-  assert.equal(table[0], '| id | calls | first-try passes/callers | fix rounds | final grades | partial/blocked | gate misses | judge code quality |')
-  assert.equal(table[2], '| h1-team-ho-r1 | 2 | 0/1 | 1 | 9 pass | 1/1 | a \\| b | 7.25 |')
+  assert.equal(table[0], '| id | calls | first-try passes/callers | fix rounds | final grades | partial/blocked/ungraded | gate misses | judge code quality |')
+  assert.equal(table[2], '| h1-team-ho-r1 | 2 | 0/1 | 1 | 9 pass | 1/1/1 | a \\| b | 7.25 |')
 })
 
 test('judgeCodeQuality means each run\'s codeQuality over its judges through the blind key', () => {
@@ -128,6 +130,7 @@ function fakeRound(root) {
   write(join(project, 's1', 'subagents', 'agent-r1.meta.json'), JSON.stringify({ agentType: 'section-team:reviewer', spawnDepth: 1 }))
   write(join(runDir, '.team', 'reports', '2026-10-30', '101500-backend.md'), '## REPORT · backend\nStatus: partial\n')
   write(join(runDir, '.team', 'reports', '2026-10-30', '101600-supervisor-summary.md'), 'Status: blocked\n')
+  write(join(runDir, '.team', 'reports', '2026-10-30', '101700-security.md'), '## REPORT · security\nStatus: ungraded\n')
   run('h2-team-ho-r1', { timedOut: true })
   write(join(results, 'h2-team-ho-r1', 'raw.json'), '')
   mkdirSync(join(results, 'h3-team-ho-r2'), { recursive: true })
@@ -146,7 +149,7 @@ test('gateStats reads every team run of the round; a timed-out or unfinished run
     const rows = gateStats({ results, round: 'ho', home })
     assert.deepEqual(rows.map(r => [r.id, r.noData]), [['h1-team-ho-r1', false], ['h2-team-ho-r1', true], ['h3-team-ho-r2', true]])
     const [h1] = rows
-    assert.deepEqual([h1.calls, h1.firstTryPasses, h1.gateMisses, h1.partial, h1.blocked, h1.judgeCodeQuality], [1, 1, ['edge case'], 1, 0, 7.5])
+    assert.deepEqual([h1.calls, h1.firstTryPasses, h1.gateMisses, h1.partial, h1.blocked, h1.ungradedReports, h1.judgeCodeQuality], [1, 1, ['edge case'], 1, 0, 1, 7.5])
     rmSync(join(results, 'report-data-ho.json'))
     assert.equal(gateStats({ results, round: 'ho', home })[0].judgeCodeQuality, null, 'no report-data file, no join')
     write(join(results, 'report-data-ho.json'), '{}')

@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, killTree, freshRepo, isolateSectionMemory, parseArgs, plan, runAll, runFolder, taskProblems } from './run.mjs'
+import { CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkVolumes, killTree, freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, prepareRun, runAll, runFolder, taskProblems } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
 
@@ -39,6 +39,66 @@ test('plan alternates the condition order by rep, so no condition always goes fi
     'h1-forced-r2', 'h1-solo-r2', 'h1-team-r2',
     'h1-team-r3', 'h1-solo-r3', 'h1-forced-r3',
   ])
+})
+
+test('plan runs the lean and max setups in the order --conds gives them, tagged like the others', () => {
+  const order = plan({ conds: ['solo', 'lean', 'team', 'max'], tasks: ['h1'], reps: 1 }).map(r => r.cond)
+  assert.deepEqual(order, ['solo', 'lean', 'team', 'max'])
+  const runs = plan({ tag: 'mo', conds: ['lean', 'max'], tasks: ['h1'], reps: 2 })
+  assert.deepEqual(runs.map(r => r.id), ['h1-lean-mo-r1', 'h1-max-mo-r1', 'h1-max-mo-r2', 'h1-lean-mo-r2'])
+  assert.deepEqual(runs.map(r => r.base), ['lean', 'max', 'max', 'lean'])
+  const repeated = plan({ conds: ['team', 'team'], tasks: ['h1'], reps: 1 }).map(r => r.id)
+  assert.deepEqual(repeated, ['h1-team-r1'], 'a repeated setup adds no run')
+  assert.throws(() => plan({ conds: ['lean', 'mxa'], tasks: ['h1'] }), /^RangeError: --conds takes team, solo, forced, lean, max, got "mxa"$/, 'a typo is refused, not silently skipped')
+})
+
+test('the setups are team, solo, forced, lean and max; a round without --conds still plans team, solo and forced', () => {
+  assert.deepEqual(CONDITIONS, ['team', 'solo', 'forced', 'lean', 'max'])
+  assert.deepEqual(DEFAULT_CONDS, ['team', 'solo', 'forced'])
+  assert.deepEqual(parseArgs([]).conds, ['team', 'solo', 'forced'])
+  assert.deepEqual(parseArgs(['--conds=solo,lean,team,max']).conds, ['solo', 'lean', 'team', 'max'])
+})
+
+test('modeFileFor gives lean and max their mode file, and team, solo and forced none', () => {
+  assert.strictEqual(modeFileFor('lean'), '{"mode":"lean"}\n')
+  assert.strictEqual(modeFileFor('max'), '{"mode":"max"}\n')
+  for (const base of ['team', 'solo', 'forced']) assert.strictEqual(modeFileFor(base), null, base)
+})
+
+test('lean and max builder runs get exactly the team run\'s arguments', () => {
+  for (const base of ['lean', 'max']) assert.deepEqual(builderArgs(base, 'the prompt'), builderArgs('team', 'the prompt'), base)
+})
+
+test('prepareRun writes the mode file for lean and max into the fresh run folder, uncommitted, and none for team', t => {
+  const root = tempRoot(t)
+  const seeds = join(root, 'seeds')
+  mkdirSync(join(seeds, 'h1'), { recursive: true })
+  writeFileSync(join(seeds, 'h1', 'a.txt'), 'seeded\n')
+
+  for (const [base, text] of [['lean', '{"mode":"lean"}\n'], ['max', '{"mode":"max"}\n']]) {
+    const dir = join(root, base)
+    const run = { id: `h1-${base}-mo-r1`, task: 'h1', cond: `${base}-mo`, base }
+    assert.strictEqual(prepareRun(run, { dir, root, seeds }), dir)
+    assert.strictEqual(readFileSync(join(dir, '.team', 'mode.json'), 'utf8'), text)
+    assert.ok(existsSync(join(dir, 'a.txt')), `${base}: the seed is copied`)
+    assert.equal(git(dir, 'log', '--format=%s'), 'seed\ninit')
+    assert.equal(git(dir, 'status', '--porcelain'), '?? .team/', `${base}: the mode file is left uncommitted, as when a user picks a mode`)
+  }
+
+  const teamDir = join(root, 'team')
+  prepareRun({ id: 'h1-team-mo-r1', task: 'h1', cond: 'team-mo', base: 'team' }, { dir: teamDir, root, seeds })
+  assert.ok(!existsSync(join(teamDir, '.team')), 'a team run gets no mode file')
+  assert.equal(git(teamDir, 'status', '--porcelain'), '')
+
+  const again = join(root, 'again')
+  prepareRun({ id: 'h1-lean-mo-r1', task: 'h1', cond: 'lean-mo', base: 'lean' }, { dir: again, root, seeds })
+  prepareRun({ id: 'h1-team-mo-r1', task: 'h1', cond: 'team-mo', base: 'team' }, { dir: again, root, seeds })
+  assert.ok(!existsSync(join(again, '.team')), 'a rerun of the folder as a team run removes the old mode file')
+
+  const nobase = join(root, 'nobase')
+  prepareRun({ id: 'h1-max-r1', task: 'zz', cond: 'max' }, { dir: nobase, root, seeds })
+  assert.strictEqual(readFileSync(join(nobase, '.team', 'mode.json'), 'utf8'), '{"mode":"max"}\n', 'a run without base falls back to cond')
+  assert.equal(git(nobase, 'log', '--format=%s'), 'init', 'task zz has no seed')
 })
 
 test('parseArgs reads tasks and reps', () => {
@@ -171,6 +231,10 @@ test('runAll moves section memory aside only when a team run is left, and always
   const failing = async run => { calls.push(run.id); throw new Error('claude crashed') }
   await assert.rejects(runAll([team, solo], { runOne: failing, isolate }), /claude crashed/)
   assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'back'])
+
+  calls.length = 0
+  await runAll([{ id: 'h1-lean-mo-r1', base: 'lean' }, { id: 'h1-max-mo-r1', base: 'max' }], { runOne: ok, isolate })
+  assert.deepEqual(calls, ['aside', 'h1-lean-mo-r1', 'h1-max-mo-r1', 'back'], 'lean and max runs are team runs too')
 })
 
 test('isolateSectionMemory refuses a different-drive setup before anything moves', () => {

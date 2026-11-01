@@ -1,5 +1,5 @@
 // Reviewer gate stats for one round's team runs: each reviewer call's GRADE (from the subagent transcripts),
-// fix rounds, partial/blocked REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
+// fix rounds, partial/blocked/ungraded REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
 // Writes results/gate-stats-<round>.json and prints one markdown row per run.
 // Usage: node bench/gate-stats.mjs --round=ho
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -80,7 +80,9 @@ export function gateMisses(sequences, tap) {
 // One run's row. roles null (no transcript: timed out, crashed or unfinished) → noData. tap null (no hidden.tap) → gateMisses null.
 export function gateRow({ id, roles, tap, reports, codeQuality }) {
   const statuses = reports.map(text => parseReport(text).status)
-  const base = { id, partial: statuses.filter(s => s === 'partial').length, blocked: statuses.filter(s => s === 'blocked').length, judgeCodeQuality: codeQuality }
+  const count = status => statuses.filter(s => s === status).length
+  // ungradedReports: REPORTs that handed back Status: ungraded; summarize's `ungraded` counts reviewer calls with no GRADE.
+  const base = { id, partial: count('partial'), blocked: count('blocked'), ungradedReports: count('ungraded'), judgeCodeQuality: codeQuality }
   if (!roles) return { ...base, noData: true }
   const sequences = gateSequences(roles)
   const finalGrades = Object.fromEntries(Object.entries(sequences).map(([caller, list]) => [caller, list.at(-1)]))
@@ -145,12 +147,12 @@ export function gateStats({ results = RESULTS, round, home = homedir() }) {
   return ids.map(id => gateRow({ id, ...readRun(join(results, id), home), codeQuality: quality[id] ?? null }))
 }
 
-const HEADER = ['id', 'calls', 'first-try passes/callers', 'fix rounds', 'final grades', 'partial/blocked', 'gate misses', 'judge code quality']
+const HEADER = ['id', 'calls', 'first-try passes/callers', 'fix rounds', 'final grades', 'partial/blocked/ungraded', 'gate misses', 'judge code quality']
 const cell = value => String(value).replaceAll('|', '\\|')
 
 function cells(row) {
   const judge = row.judgeCodeQuality === null ? '–' : String(Math.round(row.judgeCodeQuality * 100) / 100)
-  const reports = `${row.partial}/${row.blocked}`
+  const reports = `${row.partial}/${row.blocked}/${row.ungradedReports}`
   if (row.noData) return [row.id, 'no data', '–', '–', '–', reports, '–', judge]
   const finals = Object.values(row.finalGrades).map(g => (g ? `${g.overall} ${g.verdict}` : 'no grade')).join(', ') || '–'
   const misses = row.gateMisses === null ? '–' : row.gateMisses.join('; ') || 'none'

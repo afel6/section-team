@@ -2,7 +2,9 @@
 // in an empty git repo. Saves the raw JSON transcript per run. Resumable: finished runs are skipped.
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
+// lean and max runs start with .team/mode.json set to their mode (see prepareRun).
 // Usage: node bench/run.mjs [--tag=v2] [--conds=team,solo] [--tasks=h1,h2,h3] [--reps=3] [id-substring ...]
+//        (--conds runs the setups in the order given; without it: team,solo,forced)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
 import { spawn, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -10,6 +12,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, cre
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
@@ -26,16 +29,24 @@ export const PLUGIN_KEY = 'section-team@inline'
 // Automatic skill installs stay off in every run: an install changes ~/.claude/skills for every later run of both setups.
 const NO_AUTO_INSTALL = { env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' } }
 const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the building to the sections; do not build it yourself.\n'
-// team   = plugin on, supervisor decides whether to delegate
+// team   = plugin on, supervisor decides whether to delegate (Balanced mode: no mode file)
 // solo   = plugin off (the old way)
 // forced = plugin on, prompt asks the supervisor to delegate to sections
-export const CONDITIONS = ['team', 'solo', 'forced']
+// lean   = team, with the project's mode file set to lean
+// max    = team, with the project's mode file set to max
+export const CONDITIONS = ['team', 'solo', 'forced', 'lean', 'max']
+// The setups of a round without --conds: the three from before the modes, so earlier rounds plan the same runs.
+export const DEFAULT_CONDS = ['team', 'solo', 'forced']
 
 // A tag (e.g. "v2") benchmarks a newer plugin version: ids and condition labels get the tag (easy-team-v2-r1, cond team-v2).
-// Odd reps run the conditions in order, even reps reversed, so no condition always goes first.
-export function plan({ tag = '', conds = CONDITIONS, tasks = TASKS, reps = 2 } = {}) {
+// Odd reps run the setups in the order conds gives them, even reps reversed, so no setup always goes first.
+// A repeated setup adds no run; an unknown one (a typo in --conds) is refused before any run starts.
+export function plan({ tag = '', conds = DEFAULT_CONDS, tasks = TASKS, reps = 2 } = {}) {
+  const unknown = conds.find(c => !CONDITIONS.includes(c))
+  if (unknown !== undefined) throw new RangeError(`--conds takes ${CONDITIONS.join(', ')}, got "${unknown}"`)
+  const setups = [...new Set(conds)]
   return Array.from({ length: reps }, (_, i) => i + 1).flatMap(rep => {
-    const order = (rep % 2 ? CONDITIONS : CONDITIONS.toReversed()).filter(c => conds.includes(c))
+    const order = rep % 2 ? setups : setups.toReversed()
     return tasks.flatMap(task => order.map(base => {
       const cond = tag ? `${base}-${tag}` : base
       return { id: `${task}-${cond}-r${rep}`, task, cond, base, rep }
@@ -54,7 +65,7 @@ export function parseArgs(argv) {
   }
   const args = {
     tag: opt('tag') ?? '',
-    conds: opt('conds')?.split(',') ?? CONDITIONS,
+    conds: opt('conds')?.split(',') ?? DEFAULT_CONDS,
     round: opt('round') ?? '',
     tasks: opt('tasks')?.split(',') ?? TASKS,
   }
@@ -107,8 +118,24 @@ export function builderArgs(base, prompt) {
 // package name or README the judges read. Stable, so a rerun reuses the folder.
 export const runFolder = run => `${RUNS}/${run.task}-${createHash('sha256').update(run.id).digest('hex').slice(0, 8)}`
 
-// team, solo or forced, without the round tag.
+// The setup (team, solo, forced, lean or max), without the round tag.
 const baseOf = run => run.base ?? run.cond
+
+// The mode file a setup's run folder starts with; team runs Balanced with no file, as before the modes.
+export const modeFileFor = base => (base === 'lean' || base === 'max' ? `${serializeMode(null, base)}\n` : null)
+
+// A fresh run folder (see freshRepo) with the setup's mode file, left uncommitted as when a user picks a mode.
+export function prepareRun(run, { dir = runFolder(run), root = RUNS, seeds = SEEDS } = {}) {
+  const seed = join(seeds, run.task)
+  freshRepo(dir, { seed: existsSync(seed) ? seed : null, root })
+  const modeFile = modeFileFor(baseOf(run))
+  if (modeFile !== null) {
+    const file = join(dir, MODE_FILE)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, modeFile)
+  }
+  return dir
+}
 
 // The claude process of the run in progress, so an exit can stop it before section memory is put back.
 let activeChild = null
@@ -159,9 +186,7 @@ function runClaude(run, dir, outDir) {
 
 async function runOne(run, outDir) {
   mkdirSync(outDir, { recursive: true })
-  const dir = runFolder(run)
-  const seed = join(SEEDS, run.task)
-  freshRepo(dir, existsSync(seed) ? { seed } : {})
+  const dir = prepareRun(run)
   console.log(`${new Date().toISOString()} start ${run.id}`)
   const info = await runClaude(run, dir, outDir)
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
@@ -232,7 +257,7 @@ async function main() {
 }
 
 // Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
-// team (or forced) run is left, and moved back even when a run throws.
+// run other than solo is left, and moved back even when a run throws.
 export async function runAll(todo, { runOne: one = runOne, isolate = isolateSectionMemory } = {}) {
   const release = todo.some(run => baseOf(run) !== 'solo') ? isolate() : () => {}
   try {

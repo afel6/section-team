@@ -1,4 +1,4 @@
-// Copies each team/solo pair into neutral folders X, Y (and Z) for blind judging, without anything that reveals
+// Copies each pair's runs (1 to 4 setups) into neutral folders X, Y, Z and W for blind judging, without anything that reveals
 // the condition (.team/, .claude/, .superpowers/, .git, node_modules, databases). For a seeded task it also copies
 // the untouched seed into <pair>/SEED/ so judges see what each run changed. Writes the secret key to
 // results/blind-key.json (or blind-key-<round>.json).
@@ -7,9 +7,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { CONDITIONS, NAME, RESULTS, SEEDS, TASKS, parseArgs } from './run.mjs'
+import { DEFAULT_CONDS, NAME, RESULTS, SEEDS, TASKS, parseArgs } from './run.mjs'
 
-const LABELS = ['X', 'Y', 'Z']
+const LABELS = ['X', 'Y', 'Z', 'W']
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
 const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite)$/i.test(src)
 
@@ -83,7 +83,7 @@ function main() {
   const { round, conds, tasks, reps } = parseArgs(process.argv.slice(2))
   const judgeDir = judgeDirFor(round)
   rmSync(judgeDir, { recursive: true, force: true })
-  const key = anonymize({ conds: round ? conds : CONDITIONS, tasks, reps, judgeDir })
+  const key = anonymize({ conds: round ? conds : DEFAULT_CONDS, tasks, reps, judgeDir })
   writeFileSync(join(RESULTS, round ? `blind-key-${round}.json` : 'blind-key.json'), JSON.stringify(key, null, 2) + '\n')
   console.log('anonymized pairs:', Object.keys(key).join(' '))
   const missing = missingRuns(key, judgeDir)

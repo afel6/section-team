@@ -70,9 +70,21 @@ test('a pair with no finished run gets no folder, even for a seeded task', t => 
   assert.ok(!existsSync(join(box.judgeDir, 'h2-r1')))
 })
 
-test('more conditions than labels X, Y, Z is refused', t => {
+test('four setups get labels X, Y, Z and W, and a finished run is copied under W', t => {
   const box = sandbox(t)
-  assert.throws(() => anonymize({ conds: ['a', 'b', 'c', 'd'], ...box }), RangeError)
+  const runDir = join(box.root, 'solo-run')
+  put(join(runDir, 'app.mjs'), 'export {}\n')
+  put(join(box.results, 'h1-solo-mo-r1', 'run.json'), JSON.stringify({ id: 'h1-solo-mo-r1', dir: runDir }))
+  const key = anonymize({ conds: ['solo-mo', 'lean-mo', 'team-mo', 'max-mo'], tasks: ['h1'], reps: 1, ...box })
+  assert.deepEqual(key, { 'h1-r1': { X: 'lean-mo', Y: 'team-mo', Z: 'max-mo', W: 'solo-mo' } })
+  assert.deepEqual(Object.keys(key['h1-r1']), ['X', 'Y', 'Z', 'W'])
+  assert.ok(existsSync(join(box.judgeDir, 'h1-r1', 'W', 'app.mjs')))
+})
+
+test('more conditions than labels X, Y, Z and W is refused', t => {
+  const box = sandbox(t)
+  assert.throws(() => anonymize({ conds: ['a', 'b', 'c', 'd', 'e'], ...box }), RangeError)
+  assert.throws(() => anonymize({ conds: ['a', 'b', 'c', 'd', 'e'], ...box }), /needs 1 to 4 conditions, got 5/)
   assert.throws(() => anonymize({ conds: [], ...box }), RangeError)
 })
 
