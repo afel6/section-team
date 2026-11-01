@@ -1,3 +1,5 @@
+import { DEFAULT_MODE, GATES } from './mode.mjs'
+
 export const PREFIX = 'section-team:'
 export const BUILDER_IDS = ['frontend', 'backend', 'database', 'testing', 'security', 'devops', 'uiux', 'docs', 'ai-llm', 'mobile']
 export const ADVISOR_IDS = ['ai-engineer', 'data-scientist']
@@ -42,20 +44,21 @@ export function changesCode(changed) {
   return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
 }
 
-// The reviewer's pass mark for the overall grade; the generated PASS_RULE uses it too.
-export const PASS_OVERALL = 8
+// The reviewer's pass mark for the overall grade in the default mode; the generated PASS_RULE uses it too.
+export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
-// partial and blocked are the honest ways out, so a section can never be stuck at the gate.
-const claimsDoneWithCode = report => !['blocked', 'partial'].includes(report.status) && changesCode(report.changed)
+// partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
+const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
+const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
 
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
 export function needsGate(report) {
   return claimsDoneWithCode(report) && report.quality === null
 }
 
-// A REPORT that claims done with a grade under the pass mark skipped its fix rounds.
-export function failsGate(report) {
-  return claimsDoneWithCode(report) && report.quality !== null && report.quality < PASS_OVERALL
+// A REPORT that claims done with a grade under the pass mark (the project mode's, Balanced's by default) skipped its fix rounds.
+export function failsGate(report, passOverall = PASS_OVERALL) {
+  return claimsDoneWithCode(report) && report.quality !== null && report.quality < passOverall
 }
 
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.
@@ -69,7 +72,7 @@ export function parseReport(block) {
     const key = FIELDS[match[1].toLowerCase()]
     if (key && out[key] === '') out[key] = match[2].trim()
   }
-  out.status = (/(partial|blocked|done)/i.exec(out.status)?.[1] ?? out.status.split(/[\s|·,—-]+/)[0] ?? '').toLowerCase()
+  out.status = (/(ungraded|partial|blocked|done)/i.exec(out.status)?.[1] ?? out.status.split(/[\s|·,—-]+/)[0] ?? '').toLowerCase()
   const grade = /(\d+(?:\.\d+)?)\s*\/\s*10\b/.exec(out.quality)
   out.quality = grade ? Number(grade[1]) : null
   return out

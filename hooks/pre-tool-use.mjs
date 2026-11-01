@@ -1,8 +1,10 @@
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PASS_OVERALL, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
-import { isMainModule, readStdinJson } from './lib/paths.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
+import { isMainModule, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
+const MESSAGE_PREFIX = 'section-team pre-tool-use'
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
 const READ_ONLY_HELPERS = new Set(ADVISOR_HELPERS)
@@ -15,18 +17,35 @@ export function isInMemory(target, id, cwd, home) {
   return folder === id || folder === `section-team-${id}`
 }
 
-const GATE_REASON = 'section-team: your REPORT lists changed code but no reviewer grade, so it cannot be handed back yet. Run Agent `section-team:reviewer` on your changed files with `run_in_background: false` (do not pass `model`) and wait for its GRADE. If it fails, have a coder apply the fix list and grade again, at most 2 fix rounds. Then hand back with `Quality: <overall>/10 (reviewer, <n> fix rounds)`. The testing section\'s final review does not replace your own gate. If the gate truly cannot run, hand back with `Status: partial` and say why.'
+const CANNOT_RUN = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
+const fixRounds = n => `${n} fix round${n === 1 ? '' : 's'}`
+const passRule = gate => `Pass: overall at least ${gate.passOverall}${gate.minItem === null ? '' : ` and no item under ${gate.minItem}`}.`
+// Lean names the reviewer's model; the other modes leave it to the reviewer's own file.
+const reviewerCall = gate => `\`run_in_background: false\` ${gate.reviewerModel === null ? '(do not pass `model`)' : `and \`model: "${gate.reviewerModel}"\``}`
 
-const FAILING_REASON = `section-team: your REPORT says done, but its reviewer grade is under the pass mark (${PASS_OVERALL}/10). Give the fix list to a coder and grade again with a new Agent \`section-team:reviewer\` call with \`run_in_background: false\` (do not pass \`model\`), at most 2 fix rounds in all. Never SendMessage the earlier reviewer: that resumes it in the background and you are made to hand back unfinished. If it still fails, hand back with \`Status: partial\` and the grade; start the Quality line with the final grade.`
+// The handback gate's two refusals, worded from one mode's GATES entry.
+export function gateReasons(gate) {
+  return {
+    ungraded: `section-team: your REPORT lists changed code but no reviewer grade, so it cannot be handed back yet. Run Agent \`section-team:reviewer\` on your changed files with ${reviewerCall(gate)} and wait for its GRADE. ${passRule(gate)} If it fails, have a coder apply the fix list and grade again, at most ${fixRounds(gate.fixRounds)}. Then hand back with \`Quality: <overall>/10 (reviewer, <n> fix rounds)\`. The testing section's final review does not replace your own gate. ${CANNOT_RUN}`,
+    failing: `section-team: your REPORT says done, but its reviewer grade is under the pass mark (${gate.passOverall}/10). Give the fix list to a coder and grade again with a new Agent \`section-team:reviewer\` call with ${reviewerCall(gate)}, at most ${fixRounds(gate.fixRounds)} in all. Never SendMessage the earlier reviewer: that resumes it in the background and you are made to hand back unfinished. ${CANNOT_RUN} If it still fails, hand back with \`Status: partial\` and the grade; start the Quality line with the final grade.`,
+  }
+}
 
-// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the pass mark, is refused.
-function handbackGate(id, e) {
+// The gate of the session's project (CLAUDE_PROJECT_DIR, else the event's cwd); Balanced when there is no folder or its mode file is unusable.
+function projectGate(e, env) {
+  const dir = projectDirOf(e, env)
+  return GATES[dir === null ? DEFAULT_MODE : readMode(projectRoot(dir)).mode]
+}
+
+// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the mode's pass mark, is refused.
+function handbackGate(id, e, env) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
   if (!block) return null
   const report = parseReport(block)
-  if (needsGate(report)) return GATE_REASON
-  return failsGate(report) ? FAILING_REASON : null
+  const gate = projectGate(e, env)
+  if (needsGate(report)) return gateReasons(gate).ungraded
+  return failsGate(report, gate.passOverall) ? gateReasons(gate).failing : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
@@ -50,20 +69,27 @@ function advisorRule(id, e, home) {
   return null
 }
 
-export function decide(e, home = homedir()) {
+export function decide(e, home = homedir(), env = process.env) {
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null
-  return handbackGate(id, e) ?? advisorRule(id, e, home) ?? foregroundRule(e)
+  return handbackGate(id, e, env) ?? advisorRule(id, e, home) ?? foregroundRule(e)
+}
+
+// One line for the user: the error code alone (so no path reaches the screen), or the message on one line.
+const lineOf = err => err?.code ?? String(err?.message ?? err).replace(/\s+/g, ' ').trim()
+const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
+
+// A hook that cannot check says so in one line and denies nothing.
+async function main() {
+  const e = await readStdinJson()
+  if (typeof e !== 'object' || e === null || Array.isArray(e)) return notice('the hook input is not a JSON object, so no rule was checked')
+  const reason = decide(e)
+  if (reason) {
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }))
+  }
 }
 
 if (isMainModule(import.meta.url)) {
-  readStdinJson()
-    .then(e => {
-      const reason = decide(e)
-      if (reason) {
-        process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }))
-      }
-    })
-    .catch(err => process.stderr.write(`section-team pre-tool-use: ${err.message}\n`))
+  main().catch(err => notice(`no rule was checked: ${lineOf(err)}`))
 }

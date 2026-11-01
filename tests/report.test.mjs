@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
+import { GATES } from '../hooks/lib/mode.mjs'
 
 const CLEAN = `Some work notes first.
 
@@ -160,4 +161,30 @@ Quality: ${quality}
   assert.equal(report('8.5/10 (reviewer, 1 fix round; first grade 6/10)').quality, 8.5)
   assert.equal(failsGate(report('8.5/10 (reviewer, 1 fix round; first grade 6/10)')), false)
   assert.equal(failsGate(report('6/10 -> 8.5/10 (reviewer, 1 fix round)')), true)
+})
+
+test('parseReport recognises Status: ungraded, an honest way out of the gate', () => {
+  const r = parseReport('Status: ungraded — no Agent tool\nChanged: a.mjs\nQuality: n/a')
+  assert.equal(r.status, 'ungraded')
+  assert.equal(needsGate(r), false)
+  assert.equal(failsGate(r), false)
+  for (const raw of ['`ungraded`', '⚠ ungraded', '**Ungraded** — no Agent tool', 'UNGRADED']) {
+    assert.equal(parseReport(`## REPORT · backend\nStatus: ${raw}\n`).status, 'ungraded', raw)
+  }
+  assert.equal(failsGate(parseReport('Status: ungraded\nChanged: a.mjs\nQuality: 5/10 (reviewer)'), 9), false)
+})
+
+test('failsGate takes the mode pass mark, Balanced by default', () => {
+  const report = (quality, status = 'done') => parseReport(`## REPORT · frontend
+Status: ${status}
+Changed: public/app.js
+Quality: ${quality}
+`)
+  assert.equal(PASS_OVERALL, GATES.balanced.passOverall)
+  assert.equal(failsGate(report('8/10 (reviewer, 1 fix round)')), false)
+  assert.equal(failsGate(report('8/10 (reviewer, 1 fix round)'), 8), false)
+  assert.equal(failsGate(report('8/10 (reviewer, 1 fix round)'), 9), true)
+  assert.equal(failsGate(report('8.9/10 (reviewer)'), 9), true)
+  assert.equal(failsGate(report('9/10 (reviewer)'), 9), false)
+  assert.equal(failsGate(report('5/10 (reviewer)', 'partial'), 9), false)
 })

@@ -1,11 +1,15 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, resolve } from 'node:path'
-import { mkdtempSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide } from '../hooks/pre-tool-use.mjs'
+import { decide, gateReasons } from '../hooks/pre-tool-use.mjs'
+import { GATES, MODES } from '../hooks/lib/mode.mjs'
+
+// The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
+delete process.env.CLAUDE_PROJECT_DIR
 
 const SCRIPT = fileURLToPath(new URL('../hooks/pre-tool-use.mjs', import.meta.url))
 // Absolute on every OS: C:UsersTester style on Windows, /Users/Tester on Linux and macOS.
@@ -51,11 +55,9 @@ test('hook prints a deny decision, and stays silent otherwise', () => {
   const out = JSON.parse(deny.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
-  for (const input of ['', 'not json', JSON.stringify(ev('section-team:backend', 'Bash'))]) {
-    const quiet = spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
-    assert.equal(quiet.status, 0)
-    assert.equal(quiet.stdout, '')
-  }
+  const quiet = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify(ev('section-team:backend', 'Bash')), encoding: 'utf8' })
+  assert.equal(quiet.status, 0)
+  assert.equal(quiet.stdout, '')
 })
 
 test('guard still runs when the script is reached through a junction', () => {
@@ -90,6 +92,28 @@ test('memory folder must be exactly <id> or section-team-<id>', () => {
 const handback = (agent_type, report) => ev(agent_type, 'SubagentHandback', { message: `work notes\n${report}` })
 const REPORT_WITH = (status, changed, quality) => `## REPORT · backend · 2026-10-25 10:00\nStatus: ${status}\nJob: api\nChanged: ${changed}\n${quality ? `Quality: ${quality}\n` : ''}`
 
+const made = []
+after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }) })
+const tempDir = () => {
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-gate-')))
+  made.push(dir)
+  return dir
+}
+// A temp project with a .team folder, holding .team/mode.json when modeText is not null.
+const projectWith = modeText => {
+  const dir = tempDir()
+  mkdirSync(join(dir, '.team'))
+  if (modeText !== null) writeFileSync(join(dir, '.team', 'mode.json'), modeText)
+  return dir
+}
+const handbackIn = (dir, report) => ({ ...handback('section-team:backend', report), cwd: dir })
+const DONE_AT = quality => REPORT_WITH('done', 'src/api.mjs', quality)
+const UNGRADED_DONE = REPORT_WITH('done', 'src/api.mjs', null)
+const UNGRADED_WAY_OUT = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
+const PARTIAL_ENDING = 'If it still fails, hand back with `Status: partial` and the grade; start the Quality line with the final grade.'
+const NOT_OBJECT = { systemMessage: 'section-team pre-tool-use: the hook input is not a JSON object, so no rule was checked' }
+const spawnHook = input => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' })
+
 test('a builder cannot hand back changed code without a reviewer grade', () => {
   for (const reason of [
     decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', 'n/a (no code)')), HOME),
@@ -115,6 +139,7 @@ test('the handback gate lets graded, partial, blocked, docs-only, advisor and re
   assert.equal(decide(handback('section-team:backend', REPORT_WITH('done', 'src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')), HOME), null)
   assert.equal(decide(handback('section-team:backend', REPORT_WITH('partial', 'src/api.mjs', 'not graded: reviewer unavailable')), HOME), null)
   assert.equal(decide(handback('section-team:backend', REPORT_WITH('blocked', 'src/api.mjs', null)), HOME), null)
+  assert.equal(decide(handback('section-team:backend', REPORT_WITH('ungraded — no Agent tool', 'src/api.mjs', null)), HOME), null)
   assert.equal(decide(handback('section-team:docs', REPORT_WITH('done', 'README.md', 'n/a (no code)')), HOME), null)
   assert.equal(decide(handback('section-team:ai-engineer', REPORT_WITH('done', 'src/api.mjs', null)), HOME), null)
   assert.equal(decide(ev('section-team:backend', 'SubagentHandback', { message: 'no report here' }), HOME), null)
@@ -133,4 +158,105 @@ test('a section may not start a helper in the background on purpose, and an Agen
   assert.equal(decide(ev(undefined, 'Agent', { subagent_type: 'section-team:backend', run_in_background: true }), HOME), null)
   for (const helper of ['section-team:coder', 'section-team:reviewer', 'section-team:scout']) assert.equal(decide(ev(helper, 'Agent', { subagent_type: 'Explore', run_in_background: true }), HOME), null)
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder' }), HOME), /read-only helpers/)
+})
+
+test('in a Max project a done 8/10 handback is refused with 9/10 and 3 fix rounds; Balanced and no mode file let it through', () => {
+  const max = projectWith('{"mode":"max"}')
+  const reason = decide(handbackIn(max, DONE_AT('8/10 (reviewer, 1 fix round)')), HOME, {})
+  assert.match(reason, /under the pass mark \(9\/10\)/)
+  assert.ok(reason.includes('at most 3 fix rounds'), reason)
+  assert.equal(decide(handbackIn(max, DONE_AT('9/10 (reviewer, 1 fix round)')), HOME, {}), null)
+  assert.equal(decide(handbackIn(projectWith('{"mode":"balanced"}'), DONE_AT('8/10 (reviewer, 1 fix round)')), HOME, {}), null)
+  assert.equal(decide(handbackIn(projectWith(null), DONE_AT('8/10 (reviewer, 1 fix round)')), HOME, {}), null)
+})
+
+test('CLAUDE_PROJECT_DIR picks the project; no project dir means Balanced', () => {
+  const balanced = projectWith('{"mode":"balanced"}')
+  const max = projectWith('{"mode":"max"}')
+  const viaEnv = decide(handbackIn(balanced, DONE_AT('8/10 (reviewer)')), HOME, { CLAUDE_PROJECT_DIR: max })
+  assert.ok(viaEnv.includes('(9/10)'), viaEnv)
+  const nowhere = quality => ({ ...handback('section-team:backend', DONE_AT(quality)), cwd: undefined })
+  assert.equal(decide(nowhere('8/10 (reviewer)'), HOME, {}), null)
+  const failing = decide(nowhere('7/10 (reviewer)'), HOME, {})
+  assert.ok(failing.includes('(8/10)'), failing)
+  assert.ok(failing.includes('at most 2 fix rounds'), failing)
+})
+
+test('the ungraded reason follows the mode', () => {
+  const ungradedIn = mode => decide(handbackIn(projectWith(`{"mode":"${mode}"}`), UNGRADED_DONE), HOME, {})
+  const lean = ungradedIn('lean')
+  assert.match(lean, /no reviewer grade/)
+  assert.ok(lean.includes('Pass: overall at least 8.'), lean)
+  assert.ok(lean.includes('model: "sonnet"'), lean)
+  assert.ok(lean.includes('at most 1 fix round'), lean)
+  assert.ok(!lean.includes('at most 1 fix rounds'), lean)
+  assert.ok(!lean.includes('do not pass `model`'), lean)
+  const balanced = ungradedIn('balanced')
+  assert.match(balanced, /no reviewer grade/)
+  assert.ok(balanced.includes('Pass: overall at least 8 and no item under 6.'), balanced)
+  assert.ok(balanced.includes('do not pass `model`'), balanced)
+  assert.doesNotMatch(balanced, /sonnet/)
+  assert.ok(balanced.includes('at most 2 fix rounds'), balanced)
+  const max = ungradedIn('max')
+  assert.match(max, /no reviewer grade/)
+  assert.ok(max.includes('Pass: overall at least 9 and no item under 7.'), max)
+  assert.ok(max.includes('do not pass `model`'), max)
+  assert.doesNotMatch(max, /sonnet/)
+  assert.ok(max.includes('at most 3 fix rounds'), max)
+})
+
+test('every gate reason offers Status: ungraded; the failing reason keeps its partial ending', () => {
+  for (const mode of MODES) {
+    const { ungraded, failing } = gateReasons(GATES[mode])
+    assert.ok(ungraded.includes(UNGRADED_WAY_OUT), `${mode}: ${ungraded}`)
+    assert.ok(failing.includes(UNGRADED_WAY_OUT), `${mode}: ${failing}`)
+    assert.doesNotMatch(ungraded, /`Status: partial`/)
+    assert.ok(failing.endsWith(PARTIAL_ENDING), `${mode}: ${failing}`)
+    assert.ok(failing.includes(`(${GATES[mode].passOverall}/10)`), `${mode}: ${failing}`)
+    assert.match(failing, /in all/)
+  }
+  const reason = decide(handbackIn(projectWith('{"mode":"lean"}'), DONE_AT('7/10 (reviewer)')), HOME, {})
+  assert.ok(reason.includes('model: "sonnet"'), reason)
+  assert.ok(reason.includes('at most 1 fix round in all'), reason)
+})
+
+test('a bad mode file gives Balanced thresholds without throwing', () => {
+  const teamIsFile = tempDir()
+  writeFileSync(join(teamIsFile, '.team'), 'not a folder')
+  const gateIn = (dir, quality) => {
+    let reason
+    assert.doesNotThrow(() => { reason = decide(handbackIn(dir, DONE_AT(quality)), HOME, {}) })
+    return reason
+  }
+  for (const dir of ['{not json', '{"mode":"turbo"}', '[1]', ''].map(text => projectWith(text)).concat(teamIsFile)) {
+    assert.equal(gateIn(dir, '8/10 (reviewer)'), null)
+    const failing = gateIn(dir, '7/10 (reviewer)')
+    assert.ok(failing.includes('(8/10)'), failing)
+    assert.ok(failing.includes('at most 2 fix rounds'), failing)
+  }
+})
+
+test('a hook input that is not a JSON object gives one systemMessage line and denies nothing', () => {
+  for (const input of ['', 'not json', 'null', '5', '"text"', '[]', '[1]']) {
+    const run = spawnHook(input)
+    assert.equal(run.status, 0, input)
+    assert.equal(run.stderr, '', input)
+    assert.doesNotMatch(run.stdout, /\n/)
+    assert.deepEqual(JSON.parse(run.stdout), NOT_OBJECT)
+  }
+})
+
+test('a rule that throws gives one systemMessage line and denies nothing', () => {
+  // A numeric cwd makes path.resolve throw ERR_INVALID_ARG_TYPE inside the advisor rule; any input that makes a rule throw would do.
+  const run = spawnHook('{"agent_type":"section-team:ai-engineer","tool_name":"Write","tool_input":{"file_path":"x.md"},"cwd":5}')
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: ERR_INVALID_ARG_TYPE' })
+})
+
+test("the spawned hook reads the event project's mode", () => {
+  const max = projectWith('{"mode":"max"}')
+  const out = JSON.parse(spawnHook(JSON.stringify(handbackIn(max, DONE_AT('8/10 (reviewer, 1 fix round)')))).stdout)
+  assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.includes('(9/10)'), out.hookSpecificOutput.permissionDecisionReason)
 })
