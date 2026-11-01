@@ -34,9 +34,9 @@ const SEED_NOTE = 'SEED/ is the repo before the change; judge only what each sol
 const SCORE_FIELDS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability', 'overall']
 const USAGE = 'usage: node bench/judge.mjs --round=<name> --per-pair=<n> [--limit=<n>]'
 // The closing fence is the first "\n```" after the opening one: a JSON string cannot hold a raw newline.
-const JSON_BLOCK = /```json[ \t]*\r?\n([\s\S]*?)\r?\n```/g
+export const JSON_BLOCK = /```json[ \t]*\r?\n([\s\S]*?)\r?\n```/g
 // A first attempt and at most two re-asks (spec: "Unusable verdicts").
-const MAX_ATTEMPTS = 3
+export const MAX_ATTEMPTS = 3
 
 function checkScores(scores, label) {
   if (typeof scores !== 'object' || scores === null) throw new Error(`${label}: missing scores`)

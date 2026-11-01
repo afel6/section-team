@@ -107,7 +107,7 @@ export function prepareCases({ judgeDir, out, cases, template, taskText }) {
 }
 
 // A verdict.json as an outside judge may write it: plain JSON, maybe with a byte-order mark or still in its fence.
-function verdictText(text) {
+export function verdictText(text) {
   const plain = text.replace(/^\uFEFF/, '')
   return plain.includes('```json') ? plain : '```json\n' + plain + '\n```'
 }
