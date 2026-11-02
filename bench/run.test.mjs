@@ -634,6 +634,9 @@ test('runOne rejects with one friendly line when the pinned binary cannot start'
     return child
   }
   await assert.rejects(runOne(run, outDir, ctx, { ...deps, spawn: missing }), { message: `could not start claude (${ctx.pin.binary}: ENOENT)` })
+  // Rejected only once raw.json and stderr.txt are written and closed: a caller that moves or removes the results
+  // folder next (a test's cleanup, or a resume) never races a stream still opening.
+  assert.deepEqual([readFileSync(join(outDir, 'raw.json'), 'utf8'), readFileSync(join(outDir, 'stderr.txt'), 'utf8')], ['', ''])
   assert.deepEqual(calls, [ctx.pin.binary])
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8')).attempt, 1)
   assert.ok(!existsSync(join(outDir, 'run.json')))

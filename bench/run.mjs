@@ -349,10 +349,12 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
       outFile.end()
       errFile.end()
     }
-    // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory.
+    // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory. The
+    // rejection waits until raw.json and stderr.txt are closed, so nothing that runs next races a stream still opening.
     child.on('error', spawnErr => {
       finish()
-      reject(new Error(`could not start claude (${binary}: ${spawnErr.code ?? spawnErr.message})`))
+      const failed = new Error(`could not start claude (${binary}: ${spawnErr.code ?? spawnErr.message})`)
+      Promise.all([finished(outFile), finished(errFile)]).then(() => reject(failed), () => reject(failed))
     })
     child.on('close', code => {
       finish()
