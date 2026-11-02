@@ -11,7 +11,7 @@ import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
@@ -373,19 +373,45 @@ test('killTree is quiet when the process is already gone, and says so when it co
   assert.deepEqual(lines, ['could not stop claude (pid 42): Access is denied'])
 })
 
-// Linux has no taskkill: the run's claude leads its own process group (spawnOptions), and the whole group is killed,
-// so a run's servers and test processes stop with it at its time limit.
-test('killTree on Linux kills the child\'s process group, quietly when it is gone, and says when it could not', () => {
+// Linux has no taskkill. claude stays in the harness's process group (so a signal to the harness's group reaches it),
+// and its Bash tool and hooks start shells in groups of their own, so a group kill alone misses them. killTree walks
+// claude's descendants in /proc, stops each one (so none can start more or be orphaned), then kills every process
+// and every group it found except the harness's own.
+const TABLE = [
+  { pid: 100, ppid: 1, pgrp: 100 }, // the harness
+  { pid: 42, ppid: 100, pgrp: 100 }, // claude, in the harness's group
+  { pid: 43, ppid: 42, pgrp: 43 }, // a Bash tool shell, in a group of its own
+  { pid: 44, ppid: 43, pgrp: 43 }, // a server it started
+  { pid: 45, ppid: 42, pgrp: 100 }, // a process left in claude's group
+  { pid: 46, ppid: 1, pgrp: 46 }, // unrelated
+]
+
+test('killTree on Linux stops claude\'s whole tree, then kills every process and group in it but the harness\'s own', () => {
   const signals = []
   const lines = []
-  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: (pid, signal) => signals.push([pid, signal]), platform: 'linux', log: line => lines.push(line) })
-  assert.deepEqual(signals, [[-42, 'SIGKILL']])
-  const gone = () => { throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' }) }
-  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: gone, platform: 'linux', log: line => lines.push(line) })
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: (target, signal) => signals.push([target, signal]), platform: 'linux', table: () => TABLE, self: 100, log: line => lines.push(line) })
+  assert.deepEqual(signals, [
+    [42, 'SIGSTOP'], [43, 'SIGSTOP'], [45, 'SIGSTOP'], [44, 'SIGSTOP'],
+    [-43, 'SIGKILL'],
+    [42, 'SIGKILL'], [43, 'SIGKILL'], [45, 'SIGKILL'], [44, 'SIGKILL'],
+  ])
   assert.deepEqual(lines, [])
+})
+
+test('killTree on Linux finds processes started while it stops the tree, is quiet when claude is gone, and says when it could not', () => {
+  let calls = 0
+  // A process that appears in the second look (a child forked before its parent was stopped).
+  const growing = () => (++calls === 1 ? TABLE.slice(0, 3) : [...TABLE.slice(0, 3), { pid: 47, ppid: 43, pgrp: 47 }])
+  const signals = []
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: (target, signal) => signals.push([target, signal]), platform: 'linux', table: growing, self: 100, log: assert.fail })
+  assert.deepEqual(signals.filter(([, signal]) => signal === 'SIGSTOP').map(([pid]) => pid), [42, 43, 47])
+  assert.deepEqual(signals.filter(([, signal]) => signal === 'SIGKILL').map(([target]) => target), [-43, -47, 42, 43, 47])
+  const lines = []
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: NO_KILL, platform: 'linux', table: () => TABLE.filter(p => p.pid !== 42), self: 100, log: line => lines.push(line) })
+  assert.deepEqual(lines, [], 'claude already gone: nothing to stop')
   const denied = () => { throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' }) }
-  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: denied, platform: 'linux', log: line => lines.push(line) })
-  assert.deepEqual(lines, ['could not stop claude (pid 42): kill EPERM'])
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: denied, platform: 'linux', table: () => TABLE, self: 100, log: line => lines.push(line) })
+  assert.deepEqual(lines, ['could not stop claude (pid 42): kill EPERM'], 'one line, however many signals failed')
 })
 
 // A process is gone once /proc has no entry for it, or only a zombie that its new parent has not reaped yet.
@@ -397,25 +423,35 @@ const procGone = pid => {
   }
 }
 
-// The real thing, not a fake: a run's time limit only binds if the kill reaches what claude started.
-test('killTree on Linux stops a child started with spawnOptions and the process that child started', { skip: process.platform !== 'linux' && 'Linux process groups', timeout: 15_000 }, async () => {
-  const script = "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); console.log(g.pid); setInterval(() => {}, 1000)"
+// The real thing, not a fake: a run's time limit only binds if the kill reaches what claude started, also the shells
+// its Bash tool starts in process groups of their own.
+test('killTree on Linux stops a child, a process it started in its group and one it started in a group of its own', { skip: process.platform !== 'linux' && 'Linux process groups', timeout: 15_000 }, async () => {
+  const script = [
+    "const { spawn } = require('node:child_process')",
+    "const keep = ['-e', 'setInterval(() => {}, 1000)']",
+    "const same = spawn(process.execPath, keep, { stdio: 'ignore' })",
+    "const own = spawn(process.execPath, keep, { stdio: 'ignore', detached: true })",
+    "console.log(same.pid + ' ' + own.pid)",
+    'setInterval(() => {}, 1000)',
+  ].join('; ')
   const child = spawn(process.execPath, ['-e', script], spawnOptions(tmpdir(), process.env))
   const [line] = await once(child.stdout, 'data')
-  const grandchild = Number(String(line).trim())
-  assert.equal(procGone(grandchild), false, 'the grandchild runs before the kill')
+  const descendants = String(line).trim().split(' ').map(Number)
+  assert.deepEqual(descendants.map(procGone), [false, false], 'both run before the kill')
   const closed = once(child, 'close')
   killTree(child)
   const [code, signal] = await closed
   assert.deepEqual([code, signal], [null, 'SIGKILL'])
-  for (let i = 0; i < 50 && !procGone(grandchild); i++) await new Promise(resolve => setTimeout(resolve, 20))
-  assert.equal(procGone(grandchild), true, 'the grandchild is stopped with the group')
+  for (let i = 0; i < 50 && !descendants.every(procGone); i++) await new Promise(resolve => setTimeout(resolve, 20))
+  assert.deepEqual(descendants.map(procGone), [true, true], 'both are stopped with claude')
 })
 
-test('spawnOptions starts claude in its own process group on Linux, and as before on Windows', () => {
+// Builders start as they did before the cloud port: in the harness's process group, so Ctrl+C, a closed terminal or a
+// stopped background job reaches claude too, even when the harness itself is killed outright.
+test('spawnOptions starts claude in the harness\'s process group on every platform', () => {
   const env = { PATH: '/bin' }
-  assert.deepEqual(spawnOptions('/root/run', env, 'linux'), { cwd: '/root/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
-  assert.deepEqual(spawnOptions('C:/run', env, 'win32'), { cwd: 'C:/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  assert.deepEqual(spawnOptions('/root/run', env), { cwd: '/root/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  assert.deepEqual(spawnOptions('C:/run', env), { cwd: 'C:/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 })
 
 test('isolateSectionMemory stops the running claude before it puts the memory back', t => {
@@ -502,6 +538,33 @@ test('withPublish publishes after every run that left results, finished or stopp
   assert.deepEqual(lines, ['h4-solo-mo-r1: could not push'])
   await assert.rejects(withPublish(done, pushFailed)(run, outDir), { name: 'BatchStop', message: 'batch stopped: h4-solo-mo-r1: could not push; resume once the network is back (the resume pushes first)' })
   assert.equal(withPublish(done, null), done, 'no sync, no wrapper')
+})
+
+// A batch start checks the sync before any paid run, then sends again every run of the batch that has results and the
+// round's pin: a publish that failed earlier (network, machine stop) or a --rerun entry is pushed before work goes on.
+test('publishAtStart checks the sync first, then publishes every run with results and the pin; a network failure stops the batch', t => {
+  const root = tempRoot(t)
+  const runs = plan({ tag: 'mo', conds: ['solo', 'lean'], tasks: ['h4'], reps: 1 })
+  mkdirSync(join(root, runs[1].id), { recursive: true })
+  writeFileSync(join(root, 'preflight-mo.json'), '{}')
+  const calls = []
+  const sync = {
+    syncReady: options => calls.push(['ready', options]),
+    publishRun: ({ id, outDir, runDir }, options) => { calls.push(['run', id, outDir, runDir, options]); return { pushed: true } },
+    publishItems: ({ items, message }, options) => { calls.push(['items', items, message, options]); return { pushed: false } },
+  }
+  const options = { branch: 'bench/mode-round-cloud-results', redactEmail: true }
+  publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, sync)
+  assert.deepEqual(calls, [
+    ['ready', options],
+    ['run', runs[1].id, join(root, runs[1].id), runFolder(runs[1]), options],
+    ['items', [{ from: join(root, 'preflight-mo.json'), to: 'results/preflight-mo.json' }], 'chore(results): pin round mo', options],
+  ])
+  const failing = { ...sync, publishRun: () => { throw Object.assign(new Error('could not reach origin'), { name: 'PushFailed' }) } }
+  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, failing),
+    { name: 'BatchStop', message: 'batch stopped: could not reach origin; resume once the network is back' })
+  const noEmail = { ...sync, syncReady: () => { throw new Error('$CLAUDE_CODE_USER_EMAIL is not set') } }
+  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
 })
 
 test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {

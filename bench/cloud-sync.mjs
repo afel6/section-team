@@ -22,7 +22,8 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { SECTION_TEAM_VERSION, sha256Of } from './clean-run.mjs'
 import {
-  EmailFound, accountEmail, batchObjects, checkBranch, commitPaths, git, openWorktree, scanAndPush, scanHistory, scanOutgoing, tryGit, withoutEmail,
+  EmailFound, accountEmail, batchObjects, checkBranch, commitPaths, fetchBranch, git, holdsEmail, openWorktree, remoteHasBranch, scanAndPush, scanHistory,
+  scanOutgoing, tryGit, withoutEmail,
 } from './cloud-git.mjs'
 import { NAME, RESULTS, RUNS } from './run.mjs'
 
@@ -53,9 +54,18 @@ const contextOf = ({ repo = REPO, syncRoot = SYNC_ROOT, env = process.env, branc
 
 const megabytes = bytes => (bytes / (1024 * 1024)).toFixed(1)
 
+// The worktree files under paths, worktree-relative.
+const stagedFiles = (dir, paths) => paths.filter(rel => existsSync(join(dir, rel)))
+  .flatMap(rel => (lstatSync(join(dir, rel)).isDirectory() ? filesUnder(join(dir, rel)).map(file => `${rel}/${file}`) : [rel]))
+
+// Before the commit, so a hit never sits in the local branch, where it would stop every later push.
+function checkNoEmail(dir, files, email) {
+  const hits = files.filter(file => lstatSync(join(dir, file)).isFile() && holdsEmail(readFileSync(join(dir, file)), email))
+  if (hits.length > 0) throw new EmailFound(hits)
+}
+
 // Every file about to be staged must fit the limit; one line names each that does not.
-function checkSizes(dir, paths, limit) {
-  const files = paths.filter(rel => existsSync(join(dir, rel))).flatMap(rel => (lstatSync(join(dir, rel)).isDirectory() ? filesUnder(join(dir, rel)).map(file => `${rel}/${file}`) : [rel]))
+function checkSizes(dir, files, limit) {
   const big = files.map(file => [file, lstatSync(join(dir, file)).size]).filter(([, size]) => size > limit)
   if (big.length > 0) {
     throw new Error(`${big.map(([file, size]) => `${file} is ${megabytes(size)} MB`).join(', ')}, over the ${megabytes(limit)} MB limit for one pushed file: nothing was committed or pushed`)
@@ -117,13 +127,15 @@ export function publishItems({ items, message }, options) {
   const email = accountEmail(ctx.env)
   const hits = items.filter(item => item.solution).flatMap(item => scanHistory({ cwd: item.from, email, label: item.to }))
   if (hits.length > 0) throw new EmailFound(hits)
-  const dir = openWorktree({ repo: ctx.repo, branch: ctx.branch, dir: syncDirFor(ctx.branch, ctx.syncRoot) })
+  const dir = openWorktree({ repo: ctx.repo, branch: ctx.branch, dir: syncDirFor(ctx.branch, ctx.syncRoot), wait: ctx.wait })
   for (const item of items) placeItem(item, dir)
   const redactable = items.filter(item => !item.solution && item.to.startsWith('results/') && existsSync(join(dir, item.to)))
   const redacted = ctx.redactEmail ? redactable.reduce((sum, item) => sum + redactCopies(join(dir, item.to), email), 0) : 0
   const note = redacted > 0 ? ` (account email replaced in ${redacted} file${redacted === 1 ? '' : 's'})` : ''
   const paths = stageable(dir, items.flatMap(pathsOf))
-  checkSizes(dir, paths, ctx.maxFileBytes)
+  const files = stagedFiles(dir, paths)
+  checkNoEmail(dir, files, email)
+  checkSizes(dir, files, ctx.maxFileBytes)
   const committed = paths.length > 0 && commitPaths({ cwd: dir, paths, message: `${message}${note}` })
   const pushed = scanAndPush({ cwd: dir, branch: ctx.branch, email, wait: ctx.wait, push: ctx.push })
   return { committed, pushed }
@@ -151,6 +163,15 @@ export function pushAll({ results = RESULTS, runs = RUNS } = {}, options) {
     ...entries(runs).filter(name => statSync(join(runs, name)).isDirectory()).map(name => ({ from: join(runs, name), to: `runs/${name}`, solution: true })),
   ]
   return publishItems({ items, message: 'chore(results): sync all' }, options)
+}
+
+// Before any paid work: the email variable is set and the remote answers (a network failure is a PushFailed). It
+// creates nothing, here or on the remote.
+export function syncReady(options) {
+  const ctx = contextOf(options)
+  accountEmail(ctx.env)
+  remoteHasBranch({ cwd: ctx.repo, branch: ctx.branch, wait: ctx.wait })
+  return true
 }
 
 // Commits left unpushed by a stopped batch go out before the next run starts.
@@ -214,9 +235,9 @@ function ensurePluginWorktree(pluginDir, repo) {
 // A fresh machine back to where the pushed data left the round. Restores into missing places only.
 export function restore({ round, results = RESULTS, runs = RUNS }, { install = npmInstall, ...options } = {}) {
   const ctx = contextOf(options)
-  const pushed = git(['ls-remote', '--heads', 'origin', `refs/heads/${ctx.branch}`], { cwd: ctx.repo }) !== ''
+  const pushed = remoteHasBranch({ cwd: ctx.repo, branch: ctx.branch, wait: ctx.wait })
   const summary = pushed
-    ? restoreFolders(openWorktree({ repo: ctx.repo, branch: ctx.branch, dir: syncDirFor(ctx.branch, ctx.syncRoot) }), results, runs)
+    ? restoreFolders(openWorktree({ repo: ctx.repo, branch: ctx.branch, dir: syncDirFor(ctx.branch, ctx.syncRoot), wait: ctx.wait }), results, runs)
     : { results: [], kept: [], runs: [] }
   const pin = readJsonOr(join(results, `preflight-${round}.json`), null)
   if (pin === null) return { ...summary, cli: 'no pin yet', plugin: 'no pin yet' }
@@ -246,7 +267,7 @@ export function publishSets({ paths, only = [] }, options) {
 // set, and how this machine takes verdicts back. Returns the number of files written.
 export function fetchPath({ path, out }, options) {
   const ctx = contextOf(options)
-  git(['fetch', '-q', 'origin', `+refs/heads/${ctx.branch}:refs/remotes/origin/${ctx.branch}`], { cwd: ctx.repo })
+  fetchBranch({ cwd: ctx.repo, branch: ctx.branch, wait: ctx.wait })
   const entries = git(['ls-tree', '-r', '-z', '--full-tree', `origin/${ctx.branch}`, '--', path], { cwd: ctx.repo }).split('\0').filter(Boolean).map(line => {
     const [meta, name] = line.split('\t')
     const [mode, , oid] = meta.split(' ')

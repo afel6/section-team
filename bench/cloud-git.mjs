@@ -67,6 +67,26 @@ export function tryGit(args, options) {
   }
 }
 
+// A git call that talks to the remote, retried like a push; a network failure is a PushFailed (resumable).
+function remoteGit(args, { cwd, wait = sleep, remote = 'origin' }) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return git(args, { cwd })
+    } catch (err) {
+      if (attempt >= RETRY_WAITS_MS.length) {
+        throw new PushFailed(`could not reach ${remote} after ${attempt + 1} tries (${err.message}); nothing was lost: the next publish sends it`, { cause: err })
+      }
+      wait(RETRY_WAITS_MS[attempt])
+    }
+  }
+}
+
+// Whether the remote has the branch (a network failure is a PushFailed).
+export const remoteHasBranch = ({ cwd, branch, remote = 'origin', wait }) => remoteGit(['ls-remote', '--heads', remote, `refs/heads/${branch}`], { cwd, wait, remote }) !== ''
+
+// Fetches the remote branch into its remote-tracking ref (a network failure is a PushFailed).
+export const fetchBranch = ({ cwd, branch, remote = 'origin', wait }) => remoteGit(['fetch', '-q', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`], { cwd, wait, remote })
+
 export function checkBranch(branch) {
   if (typeof branch !== 'string' || !BRANCH.test(branch)) throw new RangeError(`--sync= and --branch= take a branch name such as bench/mode-round-cloud-results, got "${branch}"`)
   return branch
@@ -135,7 +155,7 @@ export function scanHistory({ cwd, email, label }) {
 
 // A worktree of branch at dir: reused when it is there; else the local branch, else the remote one, else a new orphan.
 // When the remote branch exists, the worktree is fast-forwarded to it; a branch that diverged from it stops here.
-export function openWorktree({ repo, branch, dir, remote = 'origin' }) {
+export function openWorktree({ repo, branch, dir, remote = 'origin', wait }) {
   checkBranch(branch)
   if (existsSync(join(dir, '.git'))) {
     const head = git(['symbolic-ref', '--short', 'HEAD'], { cwd: dir })
@@ -143,20 +163,20 @@ export function openWorktree({ repo, branch, dir, remote = 'origin' }) {
   } else {
     if (existsSync(dir) && readdirSync(dir).length > 0) throw new Error(`${dir} exists and is not a worktree of ${branch}: move it away first`)
     git(['worktree', 'prune'], { cwd: repo })
-    const remoteHas = git(['ls-remote', '--heads', remote, `refs/heads/${branch}`], { cwd: repo }) !== ''
-    if (remoteHas) git(['fetch', '-q', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`], { cwd: repo })
+    const remoteHas = remoteHasBranch({ cwd: repo, branch, remote, wait })
+    if (remoteHas) fetchBranch({ cwd: repo, branch, remote, wait })
     const local = tryGit(['rev-parse', '--verify', '-q', `refs/heads/${branch}`], { cwd: repo }) !== null
     if (local) git(['worktree', 'add', '-q', dir, branch], { cwd: repo })
     else if (remoteHas) git(['worktree', 'add', '-q', '-b', branch, dir, `${remote}/${branch}`], { cwd: repo })
     else git(['worktree', 'add', '-q', '--orphan', '-b', branch, dir], { cwd: repo })
   }
-  catchUp({ dir, branch, remote })
+  catchUp({ dir, branch, remote, wait })
   return dir
 }
 
-function catchUp({ dir, branch, remote }) {
-  if (git(['ls-remote', '--heads', remote, `refs/heads/${branch}`], { cwd: dir }) === '') return
-  git(['fetch', '-q', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`], { cwd: dir })
+function catchUp({ dir, branch, remote, wait }) {
+  if (!remoteHasBranch({ cwd: dir, branch, remote, wait })) return
+  fetchBranch({ cwd: dir, branch, remote, wait })
   if (tryGit(['rev-parse', '--verify', '-q', 'HEAD'], { cwd: dir }) === null) {
     git(['reset', '-q', '--hard', `${remote}/${branch}`], { cwd: dir })
     return

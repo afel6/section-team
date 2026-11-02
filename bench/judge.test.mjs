@@ -266,9 +266,9 @@ test('judgeCheck fails a judge whose tool calls, in its session or a subagent, n
   }
 })
 
-test('BLIND_KEY matches key file names and bench/results in either slash, any case', () => {
-  for (const hit of ['blind-key-mo.json', 'EXTERNAL-KEY', 'bench/results', 'bench\\results', 'bench//results', 'Bench\\\\Results\\x']) assert.match(hit, BLIND_KEY, hit)
-  for (const miss of ['bench/result', 'benchresults', 'blindkey', 'results/h4', 'bench results']) assert.doesNotMatch(miss, BLIND_KEY, miss)
+test('BLIND_KEY matches key file names, bench/results in either slash, and the cloud sync copy, any case', () => {
+  for (const hit of ['blind-key-mo.json', 'EXTERNAL-KEY', 'bench/results', 'bench\\results', 'bench//results', 'Bench\\\\Results\\x', '/root/bench-sync/bench-mode-round-cloud-results/results', 'BENCH-SYNC']) assert.match(hit, BLIND_KEY, hit)
+  for (const miss of ['bench/result', 'benchresults', 'blindkey', 'results/h4', 'bench results', 'benchsync']) assert.doesNotMatch(miss, BLIND_KEY, miss)
 })
 
 test('judgeOptions reads round, per-pair and limit, and rejects a bad command line', () => {
@@ -558,11 +558,10 @@ function hangingJudge({ home, calls, transcript = true }) {
   }
 }
 
-test('Opus judges get 60 minutes per attempt, start in their own process group on Linux, and keep their Windows options', () => {
+test('Opus judges get 60 minutes per attempt and start in the harness\'s process group, as before', () => {
   assert.equal(JUDGE_TIMEOUT_MS, 60 * 60_000)
   const env = { PATH: '/bin' }
-  assert.deepEqual(judgeSpawnOptions('/tmp/c', env, 'linux'), { cwd: '/tmp/c', env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'], detached: true })
-  assert.deepEqual(judgeSpawnOptions('C:/c', env, 'win32'), { cwd: 'C:/c', env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
+  assert.deepEqual(judgeSpawnOptions('/tmp/c', env), { cwd: '/tmp/c', env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
 })
 
 test('a judge attempt at its time limit has its tree killed and comes back timed out, transcript kept when there is one', async t => {

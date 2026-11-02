@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EMAIL_VAR } from './cloud-git.mjs'
 import {
-  CASES_BRANCH, MAX_FILE_BYTES, RESULTS_BRANCH, VERDICTS_BRANCH, fetchPath, publishRun, publishSets, pushAll, restore, syncDirFor, syncOptions,
+  CASES_BRANCH, MAX_FILE_BYTES, RESULTS_BRANCH, VERDICTS_BRANCH, fetchPath, publishRun, publishSets, pushAll, restore, syncDirFor, syncOptions, syncReady,
 } from './cloud-sync.mjs'
 
 // A made-up address: tests never see the real account email.
@@ -121,12 +121,16 @@ test('publishRun stops before copying anything when a solution\'s history holds 
   assert.equal(sh(m.remote, 'branch', '--list', RESULTS_BRANCH), '')
 })
 
-test('publishRun keeps the commit local and pushes nothing when a results file holds the email; no variable, no publish', t => {
+// Scanned before the commit too: a hit never sits in the local branch, where it would stop every later push.
+test('publishRun commits and pushes nothing when a results file holds the email; no variable, no publish', t => {
   const m = machine(t)
   const run = finishedRun(m)
   write(join(run.outDir, 'stderr.txt'), `signed in as ${EMAIL}\n`)
   assert.throws(() => publishRun(run, m.ctx), err => err.name === 'EmailFound' && err.where[0] === 'results/h4-solo-mo-r1/stderr.txt')
   assert.equal(sh(m.remote, 'branch', '--list', RESULTS_BRANCH), '')
+  assert.throws(() => sh(m.repo, 'rev-parse', '--verify', '-q', `refs/heads/${RESULTS_BRANCH}`), 'nothing committed')
+  write(join(run.outDir, 'stderr.txt'), 'signed in\n')
+  assert.deepEqual(publishRun(run, m.ctx), { committed: true, pushed: true }, 'once the file is clean, the run goes out')
   assert.throws(() => publishRun(run, { ...m.ctx, env: {} }), { message: `$${EMAIL_VAR} is not set: the push scan cannot run, so nothing is pushed` })
 })
 
@@ -147,6 +151,27 @@ test('publishRun with redactEmail replaces the address in pushed results copies 
   write(join(run.runDir, 'notes.md'), `contact ${EMAIL}\n`)
   assert.throws(() => publishRun(run, { ...m.ctx, redactEmail: true }), err => err.name === 'EmailFound' && err.where[0] === 'runs/h4-0123abcd/notes.md',
     'a solution folder is never edited: the scan stops it')
+})
+
+// A run whose publish failed on the network is not lost: the next publish of it (a resume's batch start) sends it.
+test('a publish that cannot reach the remote fails as a push, and the run goes out with its next publish', t => {
+  const m = machine(t)
+  publishRun(finishedRun(m), m.ctx)
+  const second = finishedRun(m, { id: 'h5-solo-mo-r1', folder: 'h5-0123abcd' })
+  sh(m.repo, 'remote', 'set-url', 'origin', join(m.root, 'gone.git'))
+  assert.throws(() => publishRun(second, m.ctx), { name: 'PushFailed' })
+  sh(m.repo, 'remote', 'set-url', 'origin', m.remote)
+  assert.deepEqual(publishRun(second, m.ctx), { committed: true, pushed: true })
+  assert.ok(branchFiles(m.remote, RESULTS_BRANCH).includes('results/h5-solo-mo-r1/run.json'))
+})
+
+test('syncReady checks the email variable and the remote before any paid work, and changes nothing', t => {
+  const m = machine(t)
+  assert.equal(syncReady(m.ctx), true)
+  assert.equal(sh(m.remote, 'branch', '--list', RESULTS_BRANCH), '')
+  assert.throws(() => syncReady({ ...m.ctx, env: {} }), { message: `$${EMAIL_VAR} is not set: the push scan cannot run, so nothing is pushed` })
+  sh(m.repo, 'remote', 'set-url', 'origin', join(m.root, 'gone.git'))
+  assert.throws(() => syncReady(m.ctx), { name: 'PushFailed' })
 })
 
 test('pushAll pushes every results entry and run folder, such as the pin and judge files after judging', t => {

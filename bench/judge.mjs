@@ -314,7 +314,7 @@ export const judgeArgs = (prompt, { sessionId, installedKeys, pluginDir }) => [
 const JUDGE_MODES = ['default', 'manual']
 // A blind key's file name, or the results folder that holds the keys: a judge in its case copy never needs to name
 // either. codex-judge.mjs checks Codex's commands with it too.
-export const BLIND_KEY = /blind-key|external-key|bench[\\/]+results/i
+export const BLIND_KEY = /blind-key|external-key|bench[\\/]+results|bench-sync/i
 // True when a tool call in any of the transcripts names a blind key (case-insensitive, anywhere in its input).
 const touchesBlindKey = texts => texts.flatMap(outputMessages).some(m => m.type === 'assistant' && Array.isArray(m.message?.content)
   && m.message.content.some(part => part?.type === 'tool_use' && BLIND_KEY.test(JSON.stringify(part.input ?? null))))
@@ -334,10 +334,9 @@ export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = []
   ]
 }
 
-// How a judge's claude starts. On Linux it leads a new process group, so killTree stops everything it started too.
-export const judgeSpawnOptions = (cwd, env, platform = process.platform) => ({
-  cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'], ...(platform === 'win32' ? {} : { detached: true }),
-})
+// How a judge's claude starts: in the harness's process group, as before, so a signal to the harness reaches it too.
+// At the time limit killTree stops its whole tree (on Linux by walking /proc).
+export const judgeSpawnOptions = (cwd, env) => ({ cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
 
 // { stdout, timedOut }: at timeoutMs the whole tree is killed (killTree), and the session's stdout so far comes back.
 function runClaude(binary, args, { cwd, env, spawn, kill, timeoutMs }) {

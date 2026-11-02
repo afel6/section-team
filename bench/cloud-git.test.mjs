@@ -167,6 +167,19 @@ test('scanAndPush finds the email in a file or in a commit, names where, never t
   assert.throws(() => scanAndPush({ cwd: clean, branch: 'bench/other', email: EMAIL, push }), err => /^commit [0-9a-f]{12}$/.test(err.where[0]))
 })
 
+// A network failure while opening the branch is a failed push (exit 2, resumable), never a plain error (exit 1).
+test('openWorktree retries an unreachable remote 4 times, then fails as a push that can be resumed', t => {
+  const { root, repo } = remoteAndRepo(t)
+  sh(repo, 'remote', 'set-url', 'origin', join(root, 'gone.git'))
+  const waits = []
+  assert.throws(() => openWorktree({ repo, branch: BRANCH, dir: join(root, 'sync'), wait: ms => waits.push(ms) }), err => {
+    assert.ok(err instanceof PushFailed)
+    assert.match(err.message, /^could not reach origin after 5 tries \(git ls-remote .*\); nothing was lost: the next publish sends it$/)
+    return true
+  })
+  assert.deepEqual(waits, RETRY_WAITS_MS)
+})
+
 test('scanAndPush retries a failing push 4 times, 2, 4, 8 and 16 s apart, then fails with the commits kept', t => {
   const { root, repo } = remoteAndRepo(t)
   const dir = openWorktree({ repo, branch: BRANCH, dir: join(root, 'sync') })

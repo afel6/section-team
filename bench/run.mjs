@@ -17,9 +17,9 @@
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
 import { spawn as nodeSpawn, execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
@@ -305,24 +305,71 @@ export function prepareRun(run, { dir = runFolder(run), root = RUNS, seeds = SEE
 // memory is put back. A test's fake child is only ever stopped by its test's own kill.
 let activeChild = null
 const stopActiveChild = () => { if (activeChild) activeChild.kill(activeChild.child) }
-// taskkill exits 128 when the process is already gone; any other failure is said, since a live claude could still
-// write while section memory is put back. Linux has no taskkill: claude leads its own process group (spawnOptions),
-// so the whole group gets SIGKILL, as /F forces on Windows; ESRCH means it is already gone.
-export function killTree(child, { execFile = execFileSync, kill = process.kill, platform = process.platform, log = console.error } = {}) {
-  try {
-    if (platform === 'win32') execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-    else kill(-child.pid, 'SIGKILL')
-  } catch (err) {
-    const gone = platform === 'win32' ? err.status === 128 : err.code === 'ESRCH'
-    if (!gone) log(`could not stop claude (pid ${child.pid}): ${err.message}`)
-  }
+// Every process in /proc: { pid, ppid, pgrp }. The fields after the last ')' of stat are state, ppid and pgrp (a
+// command name may hold spaces and parentheses). A process that ends while it is read is skipped.
+export function procTable(proc = '/proc') {
+  return readdirSync(proc).filter(name => /^\d+$/.test(name)).flatMap(name => {
+    try {
+      const stat = readFileSync(join(proc, name, 'stat'), 'utf8')
+      const [, ppid, pgrp] = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
+      return [{ pid: Number(name), ppid: Number(ppid), pgrp: Number(pgrp) }]
+    } catch {
+      return []
+    }
+  })
 }
 
-// How a builder's claude starts. On Linux it leads a new process group, so killTree can stop the servers and test
-// processes it started too; Windows keeps its options (taskkill /T follows the tree).
-export const spawnOptions = (cwd, env, platform = process.platform) => ({
-  cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...(platform === 'win32' ? {} : { detached: true }),
-})
+// pid and every process below it, parents first.
+function treeOf(pid, table) {
+  const tree = table.filter(p => p.pid === pid)
+  for (let i = 0; i < tree.length; i++) tree.push(...table.filter(p => p.ppid === tree[i].pid))
+  return tree
+}
+
+// Linux: claude's Bash tool and hooks start shells in process groups of their own, so a group kill alone misses them.
+// Every process below claude is stopped first (none can start more, or be orphaned when its parent dies), looking again
+// until no new one turns up; then every group found but the harness's own, and every process, gets SIGKILL.
+function killLinuxTree(pid, { kill, table, self, fail }) {
+  const signal = (target, name) => {
+    try {
+      kill(target, name)
+    } catch (err) {
+      if (err.code !== 'ESRCH') fail(err)
+    }
+  }
+  const first = table()
+  const own = first.find(p => p.pid === self)?.pgrp
+  const stopped = new Map()
+  for (let snapshot = first, pass = 0; pass < 10; snapshot = table(), pass++) {
+    const fresh = treeOf(pid, snapshot).filter(p => !stopped.has(p.pid))
+    if (fresh.length === 0) break
+    for (const p of fresh) {
+      stopped.set(p.pid, p)
+      signal(p.pid, 'SIGSTOP')
+    }
+  }
+  for (const group of new Set([...stopped.values()].map(p => p.pgrp).filter(g => g !== own))) signal(-group, 'SIGKILL')
+  for (const p of stopped.values()) signal(p.pid, 'SIGKILL')
+}
+
+// taskkill exits 128 when the process is already gone; any other failure is said (once), since a live claude could
+// still write while section memory is put back. Linux has no taskkill: killLinuxTree stops the tree, as /T /F does.
+export function killTree(child, { execFile = execFileSync, kill = process.kill, platform = process.platform, table = procTable, self = process.pid, log = console.error } = {}) {
+  let failure = null
+  const fail = err => { failure ??= err }
+  if (platform === 'win32') {
+    try {
+      execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    } catch (err) {
+      if (err.status !== 128) fail(err)
+    }
+  } else killLinuxTree(child.pid, { kill, table, self, fail })
+  if (failure !== null) log(`could not stop claude (pid ${child.pid}): ${failure.message}`)
+}
+
+// How a builder's claude starts: in the harness's process group, as before the cloud port, so Ctrl+C, a closed
+// terminal or a stopped background job reaches it too, even when the harness is killed outright.
+export const spawnOptions = (cwd, env) => ({ cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
 // Resolves once raw.json and stderr.txt are flushed, so the caller can read them. At timeoutMs it kills the child.
@@ -473,22 +520,34 @@ async function main() {
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
-  const publish = syncBranch === null ? null : await publisher({ branch: syncBranch, redactEmail })
+  const publish = syncBranch === null ? null : await publisher({ runs, tag, options: { branch: syncBranch, redactEmail } })
   await runAll(todo, { runOne: watchUserLists(withPublish((r, o) => runOne(r, o, ctx), publish)) })
   console.log('all runs finished')
 }
 
-// cloud-sync.mjs imports this module, so it is loaded only when a batch syncs. Commits a stopped batch left unpushed go
-// out first; a push that still fails stops the batch before any run.
-async function publisher(options) {
-  const { publishRun, pushPending } = await import('./cloud-sync.mjs')
+// Before any paid run of a syncing batch: the email variable and the remote are checked, then every run of the batch
+// that has results (a publish that failed earlier, a --rerun entry, a run a lost machine left) and the round's pin
+// are sent again; unchanged ones add no commit. A network failure stops the batch (resume); anything else exits 1.
+export function publishAtStart({ runs, results = RESULTS, tag, options, log = console.log }, sync) {
   try {
-    if (pushPending(options)) console.log(`pushed the results a stopped batch left on ${options.branch}`)
+    sync.syncReady(options)
+    sync.pushPending?.(options)
+    const sent = runs.filter(run => existsSync(join(results, run.id)))
+      .filter(run => sync.publishRun({ id: run.id, outDir: join(results, run.id), runDir: runFolder(run) }, options).pushed).length
+    const pin = join(results, `preflight-${tag}.json`)
+    const pinSent = existsSync(pin) && sync.publishItems({ items: [{ from: pin, to: `results/${basename(pin)}` }], message: `chore(results): pin round ${tag}` }, options).pushed
+    if (sent > 0 || pinSent) log(`pushed earlier results to ${options.branch}: ${sent} run(s)${pinSent ? ' and the pin' : ''}`)
   } catch (err) {
     throw err.name === 'PushFailed' ? new BatchStop(`${err.message}; resume once the network is back`) : err
   }
+}
+
+// cloud-sync.mjs imports this module, so it is loaded only when a batch syncs.
+async function publisher({ runs, tag, options }) {
+  const sync = await import('./cloud-sync.mjs')
+  publishAtStart({ runs, tag, options }, sync)
   return (run, outDir) => {
-    const { pushed } = publishRun({ id: run.id, outDir, runDir: runFolder(run) }, options)
+    const { pushed } = sync.publishRun({ id: run.id, outDir, runDir: runFolder(run) }, options)
     if (pushed) console.log(`${new Date().toISOString()} pushed ${run.id} to ${options.branch}`)
   }
 }
