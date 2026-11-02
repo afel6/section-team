@@ -1,0 +1,13 @@
+import { loadReadyApp, flush, childSummary, booking, cancelButtons } from '../../test/helpers/fake-dom.mjs';
+const page = await loadReadyApp([booking({ title: '<b>x</b>' })]);
+process.stdout.write(JSON.stringify([page.calls.map((c) => [c.url, c.options]), childSummary(page.elements.room), page.elements.room.value]) + '\n');
+process.stdout.write(JSON.stringify(page.elements['booking-list'].childNodes.map(childSummary)) + '\n');
+page.elements.title.value = '  hi ';
+const ev = page.elements['booking-form'].dispatch('submit');
+process.stdout.write(JSON.stringify([ev, page.calls.at(-1).options, page.elements.book.disabled]) + '\n');
+page.calls.at(-1).respond(201, booking({ id: 2 }));
+await flush();
+process.stdout.write(JSON.stringify([page.calls.at(-1).url, page.calls.at(-1).bookDisabledAtCall, page.elements.title.value]) + '\n');
+cancelButtons(page)[0].dispatch('click');
+await flush();
+process.stdout.write(JSON.stringify([page.calls.at(-1).url, page.calls.at(-1).options, 'forbidden', page.forbidden]) + '\n');

@@ -1,0 +1,13 @@
+## REPORT · backend · 2026-11-02 23:10
+Status:       done
+Job:          Built `server.mjs` (Node built-ins only, ES module) and `package.json`, and wrote the backend notes.
+Changed:      /root/bench-runs/h4-c3e12a23/server.mjs, /root/bench-runs/h4-c3e12a23/package.json, /root/bench-runs/h4-c3e12a23/.team/notes/backend-api.md, /root/bench-runs/h4-c3e12a23/.team/notes/INDEX.md (my line only), /root/bench-runs/h4-c3e12a23/.team/notes/decisions.md (appended one entry)
+Tests:        93 of 93 smoke checks passed, run with a throwaway node script against real server processes. They covered: bad PORT and port in use; every bad data-file case (missing folder, directory, empty, null, array, invalid JSON, extra key, duplicate ids, id ≥ nextId); no write at startup; a failed save giving 500 without using up an id; rules 1–10 with exact messages and order (415 before 413, a 10000-byte body accepted, 10001 refused, BOM); sorting and the `?date` cases; DELETE, 404 and 405 routing (HEAD, OPTIONS, `%62`, `./`, upper case, trailing slash); 20 overlapping POSTs at once giving one 201 and 19 × 409; 1 MB bodies on 404, 415, 413 and DELETE all got their reply; restart keeps bookings and the next id; page content types; a missing page file gives 500 and the server keeps running; stdout is only the listening line. These checks ran after the gate and after its quick fixes. No project test suite was written; the testing section owns it.
+Quality:      9/10 (reviewer, 0 fix rounds). It passed the mode gate (≥ 9, no item under 7; lowest was errors at 8). I then applied the reviewer's three quick fixes without grading again, as the rules say:
+  - the bad-PORT message is quoted with JSON.stringify so it stays one line;
+  - a 500 now writes a one-line `internal error: <code>` to stderr, never stdout;
+  - the bind-error handler is swapped for a runtime handler once listening.
+Coordination: Frontend: `.team/notes/backend-api.md` covers the data file layout and page serving (`public/index.html` and `public/app.js`, found via import.meta.url and read on every request; a failed read gives 500). The stricter reading of the data-file layout check is logged in decisions.md. No direct messages were needed.
+Helpers used: sonnet ×1 (coder for smoke checks; it was denied Bash, so I ran the checks myself), opus ×1 (reviewer gate)
+Problems:     Bash commands with `cd`, pipes or `rm` were denied. Plain `node /abs/script` worked, so the smoke run went ahead. Because `rm` was denied, the throwaway script `/tmp/smoke-bk/smoke.mjs` is still there; it is outside the project.
+Next:         Testing section: an empty data file on disk is `{"nextId":1,"bookings":[]}`, and a hand-made data file must pass the strict layout check described in backend-api.md.

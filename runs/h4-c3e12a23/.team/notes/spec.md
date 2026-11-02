@@ -1,6 +1,6 @@
-# Spec (verbatim from the user) — owner: supervisor
+# Full spec (verbatim from user) — owner: supervisor — 2026-11-02
 
-Constraints: Node.js built-ins only (no npm install). Do not use the Fable model. Node v22.
+AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final. Use only Node.js built-ins (no npm install). Do not use the Fable model. The project's own tests must pass at the end.
 
 Build a meeting-room booking app: an HTTP server `server.mjs` (an ES module, run as `node server.mjs`) that serves a JSON API and a browser page, and keeps its data in one JSON file.
 

@@ -1,9 +1,12 @@
-'use strict';
+// Room bookings page script. Classic script: sets up at once, no load event.
+// Uses only: fetch (method/headers/body, status, json()), document.getElementById,
+// document.createElement, and element textContent/value/type/disabled/append/
+// replaceChildren/addEventListener, plus event.preventDefault.
+(function () {
+  'use strict';
 
-(function setupBookingPage() {
-  const NO_REPLY = 'Could not reach the server.';
+  const UNREACHABLE = 'Could not reach the server.';
   const FALLBACK_ERROR = 'Request failed.';
-  const SUCCESS_STATUS = { GET: 200, POST: 201, DELETE: 204 };
 
   const form = document.getElementById('booking-form');
   const roomSelect = document.getElementById('room');
@@ -17,118 +20,125 @@
   const bookingList = document.getElementById('booking-list');
   const errorBox = document.getElementById('error');
 
-  let listGeneration = 0;
+  let listSequence = 0;
 
-  // Resolves to { ok, status, body } when a reply arrived, or null when there was none.
-  // A non-204 reply whose body is not JSON counts as no reply.
-  async function request(method, url, payload) {
-    const options = payload === undefined
-      ? { method }
-      : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+  // Resolves to { status, body } or to null when there is no usable reply
+  // (fetch failed, or a non-204 body could not be read as JSON).
+  async function send(url, options) {
+    let response;
     try {
-      const reply = await fetch(url, options);
-      const body = reply.status === 204 ? undefined : await reply.json();
-      return { ok: reply.status === SUCCESS_STATUS[method], status: reply.status, body };
+      response = await fetch(url, options);
     } catch {
-      // Network failure or unreadable body: the caller shows the no-reply message.
+      return null;
+    }
+    const status = response.status;
+    if (status === 204) {
+      return { status, body: null };
+    }
+    try {
+      const body = await response.json();
+      return { status, body };
+    } catch {
       return null;
     }
   }
 
   function isPlainObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   function errorMessage(body) {
-    return isPlainObject(body) && typeof body.error === 'string' ? body.error : FALLBACK_ERROR;
+    if (isPlainObject(body) && typeof body.error === 'string') {
+      return body.error;
+    }
+    return FALLBACK_ERROR;
   }
 
-  // The array under `key` in a success body, or null when the body has an unexpected shape.
-  function listField(body, key) {
-    return isPlainObject(body) && Array.isArray(body[key]) ? body[key] : null;
+  function showError(message) {
+    errorBox.textContent = message;
   }
 
-  function showError(text) {
-    errorBox.textContent = text;
-  }
-
-  function showOutcomeError(result) {
-    showError(result === null ? NO_REPLY : errorMessage(result.body));
+  function createOption(name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    return option;
   }
 
   async function loadRooms() {
-    const result = await request('GET', '/api/rooms');
-    if (result === null || !result.ok) {
-      showOutcomeError(result);
+    const reply = await send('/api/rooms', { method: 'GET' });
+    if (reply === null) {
+      showError(UNREACHABLE);
       return;
     }
-    const rooms = listField(result.body, 'rooms');
-    if (rooms === null) {
+    if (reply.status !== 200) {
+      showError(errorMessage(reply.body));
+      return;
+    }
+    const rooms = isPlainObject(reply.body) ? reply.body.rooms : undefined;
+    if (!Array.isArray(rooms)) {
       showError(FALLBACK_ERROR);
       return;
     }
-    const options = rooms.map((name) => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
-      return option;
-    });
-    roomSelect.replaceChildren(...options);
+    roomSelect.replaceChildren(...rooms.map(createOption));
   }
 
-  function bookingItem(booking) {
+  function createBookingItem(booking) {
     const item = document.createElement('li');
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.textContent = 'Cancel';
-    cancel.addEventListener('click', () => cancelBooking(booking.id, cancel));
-    const text = `${booking.date} ${booking.start}-${booking.end} ${booking.room}: ${booking.title}`;
-    item.append(text, cancel);
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', () => {
+      cancelBooking(booking.id, cancelButton);
+    });
+    item.append(`${booking.date} ${booking.start}-${booking.end} ${booking.room}: ${booking.title}`);
+    item.append(cancelButton);
     return item;
   }
 
-  function emptyItem() {
+  function createEmptyItem() {
     const item = document.createElement('li');
     item.append('No bookings.');
     return item;
   }
 
-  async function loadList() {
-    listGeneration += 1;
-    const generation = listGeneration;
-    const filter = filterDate.value;
-    const url = filter === '' ? '/api/bookings' : `/api/bookings?date=${filter}`;
-    const result = await request('GET', url);
-    if (generation !== listGeneration) {
-      return;
-    }
-    if (result === null || !result.ok) {
-      showOutcomeError(result);
-      return;
-    }
-    const bookings = listField(result.body, 'bookings');
-    if (bookings === null || !bookings.every(isPlainObject)) {
-      showError(FALLBACK_ERROR);
-      return;
-    }
-    const items = bookings.length === 0 ? [emptyItem()] : bookings.map(bookingItem);
+  function renderList(bookings) {
+    const items = bookings.length === 0
+      ? [createEmptyItem()]
+      : bookings.map(createBookingItem);
     bookingList.replaceChildren(...items);
   }
 
-  async function cancelBooking(id, button) {
-    button.disabled = true;
-    const result = await request('DELETE', `/api/bookings/${id}`);
-    button.disabled = false;
-    if (result === null) {
-      showError(NO_REPLY);
-      return;
-    }
-    showError(result.ok ? '' : errorMessage(result.body));
-    loadList();
+  function listUrl() {
+    const filter = filterDate.value;
+    return filter === '' ? '/api/bookings' : '/api/bookings?date=' + filter;
   }
 
-  async function submitBooking(event) {
-    event.preventDefault();
+  // Only the outcome of the most recently started list fetch is used.
+  async function loadList() {
+    listSequence += 1;
+    const sequence = listSequence;
+    const reply = await send(listUrl(), { method: 'GET' });
+    if (sequence !== listSequence) {
+      return;
+    }
+    if (reply === null) {
+      showError(UNREACHABLE);
+      return;
+    }
+    if (reply.status !== 200) {
+      showError(errorMessage(reply.body));
+      return;
+    }
+    const bookings = isPlainObject(reply.body) ? reply.body.bookings : undefined;
+    if (!Array.isArray(bookings) || !bookings.every(isPlainObject)) {
+      showError(FALLBACK_ERROR);
+      return;
+    }
+    renderList(bookings);
+  }
+
+  async function submitBooking() {
     if (bookButton.disabled) {
       return;
     }
@@ -140,10 +150,18 @@
       start: startInput.value,
       end: endInput.value,
     };
-    const result = await request('POST', '/api/bookings', payload);
+    const reply = await send('/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     bookButton.disabled = false;
-    if (result === null || !result.ok) {
-      showOutcomeError(result);
+    if (reply === null) {
+      showError(UNREACHABLE);
+      return;
+    }
+    if (reply.status !== 201) {
+      showError(errorMessage(reply.body));
       return;
     }
     titleInput.value = '';
@@ -151,14 +169,34 @@
     loadList();
   }
 
-  function showAll() {
-    filterDate.value = '';
+  async function cancelBooking(id, button) {
+    if (button.disabled) {
+      return;
+    }
+    button.disabled = true;
+    const reply = await send('/api/bookings/' + id, { method: 'DELETE' });
+    button.disabled = false;
+    if (reply === null) {
+      showError(UNREACHABLE);
+      return;
+    }
+    showError(reply.status === 204 ? '' : errorMessage(reply.body));
     loadList();
   }
 
-  form.addEventListener('submit', submitBooking);
-  filterDate.addEventListener('change', () => loadList());
-  showAllButton.addEventListener('click', showAll);
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitBooking();
+  });
+
+  filterDate.addEventListener('change', () => {
+    loadList();
+  });
+
+  showAllButton.addEventListener('click', () => {
+    filterDate.value = '';
+    loadList();
+  });
 
   loadRooms();
   loadList();

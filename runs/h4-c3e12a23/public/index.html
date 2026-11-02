@@ -2,16 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Room bookings</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1f2328; }
+  h1 { font-size: 1.6rem; }
   form, .filter { display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1rem; align-items: center; margin-bottom: 1.5rem; }
-  form button { grid-column: 2; justify-self: start; }
-  #booking-list { padding-left: 1.25rem; }
-  #booking-list li { margin: 0.25rem 0; }
-  #booking-list button { margin-left: 0.5rem; }
-  #error { color: #b00020; min-height: 1.25rem; }
+  form button, .filter button { grid-column: 2; justify-self: start; }
+  input, select, button { font: inherit; padding: 0.3rem 0.5rem; }
+  #booking-list { padding-left: 1.2rem; }
+  #booking-list li { margin: 0.4rem 0; }
+  #booking-list button { margin-left: 0.75rem; }
+  #error { color: #b42318; min-height: 1.5em; }
 </style>
 </head>
 <body>
@@ -34,8 +35,8 @@
   <input type="date" id="filter-date">
   <button type="button" id="show-all">Show all</button>
 </div>
-<ul id="booking-list"></ul>
 <p id="error" role="alert"></p>
+<ul id="booking-list"></ul>
 <script src="/app.js"></script>
 </body>
 </html>

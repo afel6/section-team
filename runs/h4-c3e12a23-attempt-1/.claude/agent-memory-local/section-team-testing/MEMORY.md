@@ -1,0 +1,1 @@
+- [Test harness quirks](project_test_harness.md) — near-miss scripts in .team/scratch, Bash sandbox limits, 'close' not 'exit'

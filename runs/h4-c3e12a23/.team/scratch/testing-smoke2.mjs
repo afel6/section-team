@@ -1,0 +1,13 @@
+import { startServer, runUntilExit, request, postBooking, validBooking, makeTempDir, removeDir, rawRequest } from '../../test/helpers/server-harness.mjs';
+const dir = await makeTempDir();
+const s = await startServer({ cwd: dir });
+const out = [];
+out.push((await request(s.port, { path: '/api/%62ookings' })).status);
+out.push((await postBooking(s.port, validBooking())).text);
+out.push((await request(s.port, { method: 'POST', path: '/nope', body: Buffer.alloc(2_000_000, 120) })).status);
+out.push((await postBooking(s.port, ['{"room":', '"Aurora"}'], { raw: true })).text);
+out.push(await rawRequest(s.port, 'GET /api/bookings/١ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n'));
+await s.stop();
+out.push(await runUntilExit({ cwd: dir, env: { PORT: 'abc' } }));
+await removeDir(dir);
+process.stdout.write(JSON.stringify(out, null, 1) + '\n');

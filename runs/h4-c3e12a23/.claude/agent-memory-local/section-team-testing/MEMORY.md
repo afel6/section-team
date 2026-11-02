@@ -1,1 +1,1 @@
-- [Test harness quirks](project_test_harness.md) — near-miss scripts in .team/scratch, Bash sandbox limits, 'close' not 'exit'
+- [Bash permissions for near-miss runs](feedback_bash_permissions.md) — no loops/scripts/redirects; one explicit swap+test+restore per call

@@ -1,0 +1,518 @@
+# Full spec (verbatim from user) — owner: supervisor — 2026-11-02
+
+AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final. Use only Node.js built-ins (no npm install). Do not use the Fable model. The project's own tests must pass at the end.
+
+Build a meeting-room booking app: an HTTP server `server.mjs` (an ES module, run as `node server.mjs`) that serves a JSON API and a browser page, and keeps its data in one JSON file.
+
+Server
+- At startup the server checks `PORT`, then reads the data file, then starts listening, in that order.
+- It listens on 127.0.0.1 at the port in the `PORT` environment variable. An unset or empty `PORT` means 3000. A `PORT` that is not made only of ASCII digits 0-9, or whose value is above 65535, or a port that cannot be bound (for example because it is in use), makes the server write one line of its choice to stderr and exit with code 1.
+- Once listening, it prints `listening on http://127.0.0.1:<port>` followed by "\n" to stdout, where `<port>` is the port actually bound (with `PORT=0`, the port the OS picked). This line is the only thing the server ever writes to stdout.
+- Its data lives in the file named by the `DATA_FILE` environment variable, as JSON in a layout of your choice. An unset or empty `DATA_FILE` means `bookings.json`. A relative `DATA_FILE`, the default included, is resolved against the current working directory, not the folder of `server.mjs`.
+- The server reads the data file once, at startup. If reading it fails with `ENOENT` (the file, or a folder on its path, does not exist), there are no bookings yet. If reading it fails in any other way (for example the path is a directory), or its content is not data in the layout this server writes (for example it is empty or not valid JSON), the server writes `cannot read data file <name>` followed by "\n" to stderr, where `<name>` is the value of `DATA_FILE` as given (`bookings.json` when it is unset or empty), and exits with code 1 without listening.
+- After startup the server's memory is the truth: changes made to the file from outside are not noticed. The server writes the data file only when a POST creates a booking or a DELETE removes one, never at startup or for any other request, and it never creates folders.
+- Every change is saved to the data file before its reply is sent: after a restart with the same `DATA_FILE`, the bookings, and the id the next booking will get, are as before.
+- If saving a change fails (for example because the data file's folder does not exist), the reply is 500 `internal error` and nothing changes, the next id included. Any other unexpected failure while handling a request also replies 500 `internal error`. In both cases the server keeps running.
+- Requests that arrive at the same time give the same result as if they had been handled one at a time in some order: of several overlapping bookings sent at once while saving works, exactly one is created and every other one gets 409, and no id is given twice.
+- Before sending any reply, the server reads the whole request body, if there is one, and discards what it does not use, so the client always receives the reply, the 413 and 415 replies included.
+
+API
+- The rooms are fixed: `Aurora`, `Borealis` and `Cosmos`, in that order.
+- A booking is a JSON object with exactly the keys `id`, `room`, `title`, `date`, `start` and `end`: `id` is a number, the others are strings. The first booking gets id 1 and each new booking the next integer; an id is never reused, even after deletes and restarts.
+- Only the parsed JSON of a reply body matters: whitespace and key order in it are free.
+- A request's path is its request target up to the first `?` (all of it when there is no `?`). Routes compare the path byte for byte, with no percent-decoding and no dot-segment, slash or letter-case normalisation: `/api/%62ookings`, `/api/./rooms`, `/API/rooms` and `/api/bookings/` are none of the paths below. The query, the text after the first `?`, is ignored unless stated, and is decoded as `new URLSearchParams(query)` does.
+- `GET /api/rooms`: 200 `{"rooms": ["Aurora", "Borealis", "Cosmos"]}`.
+- `GET /api/bookings`: 200 `{"bookings": [...]}` with every booking, sorted by date, then start, then room in the order above. When the query has a `date` parameter (as `params.has('date')` says; `?date` with no `=` counts, with the empty value), its value is `params.get('date')` (the first one when repeated) and the reply holds only the bookings on that date; a value that is not a valid date by rule 6 below (the empty value included) gets 400 `date must be a valid YYYY-MM-DD date`. Other query parameters are ignored.
+- `POST /api/bookings` with a JSON body holding `room`, `title`, `date`, `start` and `end`: 201 and the new booking. Other keys in the body are ignored.
+- `DELETE /api/bookings/<id>`: every path that is `/api/bookings/` followed by a non-empty `<id>` holding no `/` is this route, whatever `<id>` is. The reply is 204 with an empty body, and the booking is gone. When `<id>` is not a positive integer written in ASCII digits 0-9 without a leading zero, or no booking has that id: 404 `booking not found`.
+- `GET /` and `GET /app.js` serve the page (see Page).
+- Any other path: 404 `not found`, whatever the method. This includes every path that starts with `/api/bookings/` and whose rest is empty or holds a `/`, such as `/api/bookings/` and `/api/bookings/1/`.
+- A path above with a method not listed for it (HEAD and OPTIONS included): 405 `method not allowed`. For example `GET /api/bookings/abc` is 405. A 405 reply may or may not have an `Allow` header; it is not checked.
+- Every reply with a body other than the page and the script has `Content-Type: application/json; charset=utf-8`. An error reply is `{"error": "<message>"}` with exactly that key, where `<message>` is the text given here.
+
+Booking rules (`POST /api/bookings`; the first rule that fails decides the reply)
+1. The media type of the `Content-Type` header (the part before the first `;`, with spaces and tabs removed from both ends, letter case ignored) is not `application/json`, or the header is missing: 415 `content type must be application/json`.
+2. The body is longer than 10000 bytes, counting the body bytes actually received: 413 `body too large`.
+3. The body, decoded as `Buffer.prototype.toString('utf8')` does and then given to `JSON.parse`, is not a JSON object (it is empty, not valid JSON, `null`, an array, a string, a number or a boolean): 400 `body must be a JSON object`. Bytes that are not valid UTF-8 become U+FFFD and are not an error by themselves. A byte order mark at the very start is kept, so such a body is not valid JSON.
+4. `room` is not a string equal to one of the room names (letter case matters): 400 `room must be one of Aurora, Borealis, Cosmos`.
+5. `title` is not a string, or is shorter than 1 or longer than 80 UTF-16 code units after removing the whitespace at both ends (as `String.prototype.trim` does): 400 `title must be 1 to 80 characters`. The booking keeps the trimmed title.
+6. `date` is not a string `YYYY-MM-DD` (4, 2 and 2 ASCII digits 0-9) naming a real day from 2000-01-01 to 2099-12-31, where February has 29 days in years divisible by 4: 400 `date must be a valid YYYY-MM-DD date`.
+7. `start` is not a string `HH:MM` (2 and 2 ASCII digits 0-9) from `00:00` to `23:59`: 400 `start must be HH:MM`.
+8. `end` is not such a string: 400 `end must be HH:MM`.
+9. `end` is not later than `start`: 400 `end must be after start`.
+10. The booking overlaps a booking of the same room on the same date, that is each of the two starts before the other ends (a booking may start exactly when another ends): 409 `room is already booked from <start> to <end>`, with the start and end of the overlapping booking that starts earliest.
+- No field except `title` is trimmed or changed: ` 2026-11-03`, `2026-11-3` and `9:00` are invalid.
+
+Page
+- `GET /` answers 200 with `Content-Type: text/html; charset=utf-8` and the page. `GET /app.js` answers 200 with `Content-Type: text/javascript; charset=utf-8` and the page's script.
+- The page loads the script with a `<script>` element whose `src` is exactly `/app.js`, with no `type`, `defer` or `async` attribute, placed as the last element in `<body>`. The script is a classic script (no `import` or `export`) and does its setup at once, without waiting for any load event.
+- All of the page's code is in `/app.js`: the page has no inline script and no `on...` event attributes. Neither the page nor the script contains `http://` or `https://`.
+- Of the browser's APIs, the script uses only `fetch` (with the `method`, `headers` and `body` options, and the reply's `status` and `json()`), `document.getElementById`, `document.createElement`, the `textContent`, `value`, `type`, `disabled`, `append`, `replaceChildren` and `addEventListener` members of elements, and `preventDefault` of events.
+- The HTML elements named below are checked by their tag, attributes and text, not by exact markup: attribute order, quoting and extra attributes are free.
+- The page's `<title>` and its only `<h1>` both have the text `Room bookings`.
+- The page holds a `<form id="booking-form">` with the `novalidate` attribute. Inside it are `<select id="room" name="room">`, `<input type="text" id="title" name="title">`, `<input type="date" id="date" name="date">`, `<input type="time" id="start" name="start">`, `<input type="time" id="end" name="end">`, and `<button type="submit" id="book">` with the text `Book`. Each of the five fields has its own `<label for="<id>">`, which does not contain the field, with exactly this text: `Room` for `#room`, `Title` for `#title`, `Date` for `#date`, `Start` for `#start`, `End` for `#end`.
+- Outside the form, the page holds `<input type="date" id="filter-date">` with its own `<label for="filter-date">`, which does not contain it, with exactly the text `Show date`; `<button type="button" id="show-all">` with the text `Show all`; `<ul id="booking-list">`; and `<p id="error" role="alert">`, which is empty.
+- Every value is shown as plain text, never as HTML: a title `<b>x</b>` shows those 8 characters.
+- Requests use path-only URLs exactly as written here: `/api/rooms`, `/api/bookings`, `/api/bookings?date=<value>` and `/api/bookings/<id>`.
+- A reply has an error status when its status is not the success status of its request: 200 for `GET`, 201 for `POST` and 204 for `DELETE`. The reply's error message is the body's `error` value when the body is a JSON object whose `error` is a string, and `Request failed.` otherwise. A reply other than a 204 whose body cannot be read or parsed as JSON counts as no reply. A request that gets no reply at all (for example because the server is down) shows `Could not reach the server.` in `#error`, except for an earlier list fetch, as said below.
+- Rooms: the HTML holds no `<option>` element and none of the room names. When the page loads, the script requests `GET /api/rooms` and fills `#room` with one `<option>` per room, in that order, whose value and text are the room name. If that request gets an error status, `#error` shows the reply's error message and `#room` stays empty; with no reply, `#error` shows `Could not reach the server.` and `#room` stays empty. The first list fetch starts at page load too, without waiting for the rooms reply.
+- The list: when the page loads, and each time the Page rules say the list is fetched again, the script requests `GET /api/bookings`, adding `?date=<value>` (the value unchanged) while the value of `#filter-date` is not empty, and replaces the content of `#booking-list` with one `<li>` per booking in the reply's order. Each `<li>` has exactly two child nodes: a text node with exactly the text `<date> <start>-<end> <room>: <title>` and no trailing space (for example `2026-11-03 09:00-10:00 Aurora: Standup`), then a `<button type="button">` with the text `Cancel`. With no bookings, the list holds a single `<li>` whose only child is a text node `No bookings.`.
+- A list fetch that gets an error status shows the reply's error message in `#error` and leaves the list as it was; one that gets no reply shows `Could not reach the server.` and leaves the list as it was; one that succeeds leaves `#error` alone. When list fetches overlap, only the outcome of the last one started is used: the outcome of every earlier one, an error status or no reply included, changes neither the list nor `#error`.
+- Booking: a submit event on the form never reloads the page (the script calls `preventDefault`). A submit while `Book` is disabled sends nothing. Otherwise the script disables `Book`, then sends `POST /api/bookings` with exactly the header `Content-Type: application/json` and a JSON body whose keys `room`, `title`, `date`, `start` and `end` hold the five controls' current values unchanged (the title is not trimmed). The script never checks the fields itself. `Book` is enabled again as soon as the request settles (the reply and its body have arrived, or the request failed), before anything else happens. On 201 the `title` control is emptied (the others keep their values), `#error` is emptied and the list is fetched again. On any other status `#error` shows the reply's error message exactly (for example `room is already booked from 09:00 to 10:00`). With no reply `#error` shows `Could not reach the server.`. In both of these cases the form and the list stay as they were.
+- Cancel: clicking a `Cancel` button disables it and sends `DELETE /api/bookings/<id>` for its booking; the button is enabled again when the request settles. On 204 `#error` is emptied; on any other status `#error` shows the reply's error message (for example `booking not found` when the booking was already gone). After either of these, the list is fetched again. With no reply, `#error` shows `Could not reach the server.` and the list is not fetched again.
+- Filter: a `change` event on `#filter-date` fetches the list again at once; the `input` event does nothing. `Show all` sets the value of `#filter-date` to the empty string and fetches the list again once, without dispatching any event.
+
+Also add tests with node:test, a `package.json` ("type": "module", a "start" script that runs `node server.mjs`, and a "test" script), and a README with usage.
+     1	// Test harness: spawns `node server.mjs` as a child process and talks to it over raw HTTP.
+     2	import { spawn } from 'node:child_process';
+     3	import { request as httpRequest } from 'node:http';
+     4	import { connect } from 'node:net';
+     5	import { mkdtemp, rm } from 'node:fs/promises';
+     6	import { tmpdir } from 'node:os';
+     7	import { join } from 'node:path';
+     8	import { fileURLToPath } from 'node:url';
+     9	
+    10	export const SERVER_PATH = fileURLToPath(new URL('../../server.mjs', import.meta.url));
+    11	export const JSON_TYPE = 'application/json; charset=utf-8';
+    12	const START_TIMEOUT_MS = 5000;
+    13	const EXIT_TIMEOUT_MS = 5000;
+    14	
+    15	/** Creates a fresh temp directory; remove it with removeDir. */
+    16	export function makeTempDir() {
+    17	  return mkdtemp(join(tmpdir(), 'room-bookings-test-'));
+    18	}
+    19	
+    20	export function removeDir(dir) {
+    21	  return rm(dir, { recursive: true, force: true });
+    22	}
+    23	
+    24	/**
+    25	 * Builds the child env from the parent env without PORT, DATA_FILE and node:test variables,
+    26	 * then applies `env`. A value of `undefined` in `env` leaves the variable unset.
+    27	 */
+    28	function buildEnv(env) {
+    29	  const base = { ...process.env };
+    30	  for (const key of ['PORT', 'DATA_FILE', 'NODE_TEST_CONTEXT', 'NODE_OPTIONS']) delete base[key];
+    31	  const merged = { ...base, ...env };
+    32	  return Object.fromEntries(Object.entries(merged).filter(([, value]) => value !== undefined));
+    33	}
+    34	
+    35	function spawnServer({ env = {}, cwd }) {
+    36	  if (!cwd) throw new Error('spawnServer needs a cwd (use a temp dir)');
+    37	  const child = spawn(process.execPath, [SERVER_PATH], { cwd, env: buildEnv(env), stdio: ['ignore', 'pipe', 'pipe'] });
+    38	  const output = { stdout: '', stderr: '' };
+    39	  child.stdout.setEncoding('utf8').on('data', (chunk) => { output.stdout += chunk; });
+    40	  child.stderr.setEncoding('utf8').on('data', (chunk) => { output.stderr += chunk; });
+    41	  const closed = new Promise((resolve) => child.on('close', (code, signal) => resolve({ code, signal })));
+    42	  return { child, output, closed };
+    43	}
+    44	
+    45	function withTimeout(promise, ms, what) {
+    46	  let timer;
+    47	  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timeout: ${what}`)), ms); });
+    48	  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    49	}
+    50	
+    51	/**
+    52	 * Runs the server and waits for it to exit (for startup-failure tests).
+    53	 * Resolves { code, signal, stdout, stderr }. Fails if it does not exit in time.
+    54	 */
+    55	export async function runUntilExit({ env = {}, cwd, timeoutMs = EXIT_TIMEOUT_MS } = {}) {
+    56	  const { child, output, closed } = spawnServer({ env, cwd });
+    57	  try {
+    58	    const { code, signal } = await withTimeout(closed, timeoutMs, 'server did not exit');
+    59	    return { code, signal, stdout: output.stdout, stderr: output.stderr };
+    60	  } finally {
+    61	    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    62	  }
+    63	}
+    64	
+    65	/**
+    66	 * Starts the server and waits for its listening line.
+    67	 * Resolves { port, child, output, closed, isRunning(), stop() }. stop() kills it and waits.
+    68	 */
+    69	export async function startServer({ env = {}, cwd } = {}) {
+    70	  const { child, output, closed } = spawnServer({ env: { PORT: '0', ...env }, cwd });
+    71	  const listening = new Promise((resolve, reject) => {
+    72	    const check = () => {
+    73	      const match = /^listening on http:\/\/127\.0\.0\.1:(\d+)\n/.exec(output.stdout);
+    74	      if (match) resolve(Number(match[1]));
+    75	    };
+    76	    child.stdout.on('data', check);
+    77	    closed.then(({ code }) => reject(new Error(`server exited (${code}) before listening: ${output.stderr}`)));
+    78	  });
+    79	  let port;
+    80	  try {
+    81	    port = await withTimeout(listening, START_TIMEOUT_MS, 'server did not start');
+    82	  } catch (error) {
+    83	    child.kill('SIGKILL');
+    84	    throw error;
+    85	  }
+    86	  const isRunning = () => child.exitCode === null && child.signalCode === null;
+    87	  const stop = async () => {
+    88	    if (isRunning()) child.kill('SIGKILL');
+    89	    await closed;
+    90	  };
+    91	  return { port, child, output, closed, isRunning, stop };
+    92	}
+    93	
+    94	/**
+    95	 * Sends one HTTP request (no agent, no keep-alive). `path` is sent as-is (no normalisation).
+    96	 * `body` may be a string, a Buffer, an array of chunks (sent chunked, no Content-Length) or undefined.
+    97	 * Resolves { status, headers, body: Buffer, text, json() }.
+    98	 */
+    99	export function request(port, { method = 'GET', path = '/', headers = {}, body } = {}) {
+   100	  return new Promise((resolve, reject) => {
+   101	    // Node's client does not frame bodies of GET/DELETE/OPTIONS by itself; always send a Content-Length.
+   102	    const framed = body === undefined || Array.isArray(body) || hasHeader(headers, 'content-length')
+   103	      ? headers
+   104	      : { ...headers, 'Content-Length': String(Buffer.byteLength(body)) };
+   105	    const req = httpRequest({ host: '127.0.0.1', port, method, path, headers: framed, agent: false }, (res) => {
+   106	      const chunks = [];
+   107	      res.on('data', (chunk) => chunks.push(chunk));
+   108	      res.on('error', reject);
+   109	      res.on('end', () => {
+   110	        const buffer = Buffer.concat(chunks);
+   111	        const text = buffer.toString('utf8');
+   112	        resolve({ status: res.statusCode, headers: res.headers, body: buffer, text, json: () => JSON.parse(text) });
+   113	      });
+   114	    });
+   115	    req.on('error', reject);
+   116	    if (Array.isArray(body)) {
+   117	      body.forEach((chunk) => req.write(chunk));
+   118	      req.end();
+   119	    } else {
+   120	      req.end(body);
+   121	    }
+   122	  });
+   123	}
+   124	
+   125	function hasHeader(headers, name) {
+   126	  return Object.keys(headers).some((key) => key.toLowerCase() === name);
+   127	}
+   128	
+   129	/**
+   130	 * Shorthand: POST a JSON value (or a raw string/Buffer) to /api/bookings.
+   131	 * Content-Type is application/json unless `contentType` is given; an explicit `contentType: undefined` sends none.
+   132	 */
+   133	export function postBooking(port, value, options = {}) {
+   134	  const { raw = false } = options;
+   135	  const contentType = Object.hasOwn(options, 'contentType') ? options.contentType : 'application/json';
+   136	  const body = raw ? value : JSON.stringify(value);
+   137	  const headers = contentType === undefined ? {} : { 'Content-Type': contentType };
+   138	  return request(port, { method: 'POST', path: '/api/bookings', headers, body });
+   139	}
+   140	
+   141	/** Writes raw bytes on a TCP socket and resolves the full raw reply text (for non-ASCII targets). */
+   142	export function rawRequest(port, bytes) {
+   143	  return new Promise((resolve, reject) => {
+   144	    const socket = connect(port, '127.0.0.1', () => socket.end(bytes));
+   145	    const chunks = [];
+   146	    socket.on('data', (chunk) => chunks.push(chunk));
+   147	    socket.on('error', reject);
+   148	    socket.on('close', () => resolve(Buffer.concat(chunks).toString('utf8')));
+   149	  });
+   150	}
+   151	
+   152	/** A valid booking body; override fields as needed. */
+   153	export function validBooking(overrides = {}) {
+   154	  return { room: 'Aurora', title: 'Standup', date: '2026-11-03', start: '09:00', end: '10:00', ...overrides };
+   155	}
+   156	// Fake DOM + controllable fetch for running public/app.js in node:vm.
+   157	// Every object handed to the script is a Proxy that records any member outside the
+   158	// spec's allowed list in `page.forbidden`, so tests can assert only allowed APIs were used.
+   159	import { readFileSync } from 'node:fs';
+   160	import vm from 'node:vm';
+   161	
+   162	export const APP_PATH = new URL('../../public/app.js', import.meta.url);
+   163	const ELEMENT_MEMBERS = new Set(['textContent', 'value', 'type', 'disabled', 'append', 'replaceChildren', 'addEventListener']);
+   164	const DOCUMENT_MEMBERS = new Set(['getElementById', 'createElement']);
+   165	const REPLY_MEMBERS = new Set(['status', 'json']);
+   166	const EVENT_MEMBERS = new Set(['preventDefault']);
+   167	const BROWSER_GLOBALS = ['window', 'self', 'console', 'setTimeout', 'setInterval', 'queueMicrotask', 'requestAnimationFrame',
+   168	  'XMLHttpRequest', 'location', 'navigator', 'alert', 'localStorage', 'sessionStorage', 'Headers', 'Request', 'Response',
+   169	  'URL', 'URLSearchParams', 'Event', 'CustomEvent', 'structuredClone', 'addEventListener'];
+   170	// The page's elements: id -> [tag, type].
+   171	const PAGE_ELEMENTS = {
+   172	  'booking-form': ['form'], room: ['select'], title: ['input', 'text'], date: ['input', 'date'],
+   173	  start: ['input', 'time'], end: ['input', 'time'], book: ['button', 'submit'], 'filter-date': ['input', 'date'],
+   174	  'show-all': ['button', 'button'], 'booking-list': ['ul'], error: ['p'],
+   175	};
+   176	
+   177	/** A text node made by `append(string)`. */
+   178	export class TextNode {
+   179	  constructor(data) { this.data = String(data); }
+   180	}
+   181	
+   182	/** Minimal element: children, textContent, value, type, disabled, listeners. */
+   183	export class FakeElement {
+   184	  constructor(page, tag, id) {
+   185	    this.page = page;
+   186	    this.tagName = tag;
+   187	    this.id = id;
+   188	    this.childNodes = [];
+   189	    this.listeners = {};
+   190	    this.attrs = { value: '', type: undefined, disabled: false };
+   191	  }
+   192	  get textContent() {
+   193	    return this.childNodes.map((n) => (n instanceof TextNode ? n.data : n.textContent)).join('');
+   194	  }
+   195	  set textContent(text) {
+   196	    this.page.log.push({ id: this.id, prop: 'textContent', value: String(text), bookDisabled: this.page.bookDisabled() });
+   197	    this.childNodes = String(text) === '' ? [] : [new TextNode(text)];
+   198	  }
+   199	  get value() { return this.tagName === 'select' ? this.selectValue() : this.attrs.value; }
+   200	  set value(v) {
+   201	    this.page.log.push({ id: this.id, prop: 'value', value: String(v), bookDisabled: this.page.bookDisabled() });
+   202	    if (this.tagName === 'select') this.selectedValue = String(v);
+   203	    else this.attrs = { ...this.attrs, value: String(v) };
+   204	  }
+   205	  get type() { return this.attrs.type; }
+   206	  set type(v) { this.attrs = { ...this.attrs, type: String(v) }; }
+   207	  get disabled() { return this.attrs.disabled; }
+   208	  set disabled(v) { this.attrs = { ...this.attrs, disabled: Boolean(v) }; }
+   209	  selectValue() {
+   210	    if (this.selectedValue !== undefined) return this.selectedValue;
+   211	    const first = this.childNodes.find((n) => n instanceof FakeElement && n.tagName === 'option');
+   212	    return first ? first.value : '';
+   213	  }
+   214	  append(...nodes) {
+   215	    this.childNodes = [...this.childNodes, ...nodes.map((n) => (typeof n === 'string' ? new TextNode(n) : unwrap(n)))];
+   216	  }
+   217	  replaceChildren(...nodes) {
+   218	    this.page.log.push({ id: this.id, prop: 'replaceChildren', value: nodes.length, bookDisabled: this.page.bookDisabled() });
+   219	    this.childNodes = nodes.map((n) => (typeof n === 'string' ? new TextNode(n) : unwrap(n)));
+   220	  }
+   221	  addEventListener(type, handler) {
+   222	    this.listeners = { ...this.listeners, [type]: [...(this.listeners[type] ?? []), handler] };
+   223	  }
+   224	  /** Test side: fires an event; returns { defaultPrevented }. */
+   225	  dispatch(type) {
+   226	    const state = { defaultPrevented: false };
+   227	    const event = guard(this.page, 'event', { preventDefault() { state.defaultPrevented = true; } }, EVENT_MEMBERS);
+   228	    (this.listeners[type] ?? []).forEach((handler) => handler.call(this.proxy, event));
+   229	    return state;
+   230	  }
+   231	}
+   232	
+   233	const RAW = Symbol('raw');
+   234	function unwrap(node) { return node?.[RAW] ?? node; }
+   235	
+   236	function guard(page, kind, target, allowed) {
+   237	  return new Proxy(target, {
+   238	    get(obj, key) {
+   239	      if (key === RAW) return obj;
+   240	      // `then` is probed by the engine when a reply resolves a promise; not a script access.
+   241	      const engineProbe = kind === 'reply' && key === 'then';
+   242	      if (typeof key === 'string' && !allowed.has(key) && !engineProbe) page.forbidden.push(`${kind}.${key}`);
+   243	      const value = Reflect.get(obj, key, obj);
+   244	      return typeof value === 'function' ? value.bind(obj) : value;
+   245	    },
+   246	    set(obj, key, value) {
+   247	      if (typeof key === 'string' && !allowed.has(key)) page.forbidden.push(`${kind}.${key}=`);
+   248	      return Reflect.set(obj, key, value, obj);
+   249	    },
+   250	  });
+   251	}
+   252	
+   253	function makeElement(page, tag, id) {
+   254	  const element = new FakeElement(page, tag, id);
+   255	  element.proxy = guard(page, `<${tag}>`, element, ELEMENT_MEMBERS);
+   256	  return element;
+   257	}
+   258	
+   259	/** One fetch call the test can settle: respond(), respondSlowJson(), respondUnparseable(), fail(). */
+   260	class FetchCall {
+   261	  constructor(page, url, options) {
+   262	    this.page = page;
+   263	    this.url = url;
+   264	    this.options = options;
+   265	    this.jsonCalls = 0;
+   266	    this.bookDisabledAtCall = page.bookDisabled();
+   267	    this.promise = new Promise((resolve, reject) => { this.resolve = resolve; this.reject = reject; });
+   268	  }
+   269	  reply(status, json) {
+   270	    const call = this;
+   271	    const target = { status, json() { call.jsonCalls += 1; return json(); } };
+   272	    this.resolve(guard(this.page, 'reply', target, REPLY_MEMBERS));
+   273	  }
+   274	  /** Settles with `status` and a body that json() parses (a fresh copy each time). */
+   275	  respond(status, body) {
+   276	    const text = JSON.stringify(body);
+   277	    this.reply(status, () => Promise.resolve(JSON.parse(text)));
+   278	  }
+   279	  /** Settles the status now; json() stays pending until the returned resolveJson(body) is called. */
+   280	  respondSlowJson(status) {
+   281	    let resolveJson;
+   282	    const pending = new Promise((resolve) => { resolveJson = resolve; });
+   283	    this.reply(status, () => pending);
+   284	    return (body) => resolveJson(JSON.parse(JSON.stringify(body)));
+   285	  }
+   286	  /** Settles with `status` and a body whose json() rejects (unparseable). */
+   287	  respondUnparseable(status) {
+   288	    this.reply(status, () => Promise.reject(new SyntaxError('Unexpected token')));
+   289	  }
+   290	  /** No reply at all: fetch rejects. */
+   291	  fail() { this.reject(new TypeError('Failed to fetch')); }
+   292	}
+   293	
+   294	/** Runs app.js against a fresh fake page. Returns the page handle used by tests. */
+   295	export function loadApp({ source = readFileSync(APP_PATH, 'utf8') } = {}) {
+   296	  const page = { forbidden: [], log: [], calls: [], elements: {} };
+   297	  page.bookDisabled = () => page.elements.book?.attrs.disabled ?? false;
+   298	  Object.entries(PAGE_ELEMENTS).forEach(([id, [tag, type]]) => {
+   299	    const element = makeElement(page, tag, id);
+   300	    element.attrs = { ...element.attrs, type };
+   301	    page.elements[id] = element;
+   302	  });
+   303	  page.created = [];
+   304	  const document = guard(page, 'document', {
+   305	    getElementById: (id) => page.elements[id]?.proxy ?? null,
+   306	    createElement: (tag) => {
+   307	      const element = makeElement(page, String(tag).toLowerCase(), undefined);
+   308	      page.created.push(element);
+   309	      return element.proxy;
+   310	    },
+   311	  }, DOCUMENT_MEMBERS);
+   312	  const fetch = (url, options) => {
+   313	    const call = new FetchCall(page, url, options);
+   314	    page.calls.push(call);
+   315	    return call.promise;
+   316	  };
+   317	  const sandbox = { document, fetch };
+   318	  BROWSER_GLOBALS.forEach((name) => {
+   319	    Object.defineProperty(sandbox, name, { get() { page.forbidden.push(`global.${name}`); return undefined; } });
+   320	  });
+   321	  vm.createContext(sandbox);
+   322	  vm.runInContext(source, sandbox, { filename: 'app.js' });
+   323	  return page;
+   324	}
+   325	
+   326	/** Lets pending promise chains in the script run to completion. */
+   327	export async function flush(rounds = 10) {
+   328	  for (let i = 0; i < rounds; i += 1) await new Promise((resolve) => setImmediate(resolve));
+   329	}
+   330	
+   331	/** Describes an element's children for exact assertions: strings for text nodes, elements as-is. */
+   332	export function childSummary(element) {
+   333	  return element.childNodes.map((n) => (n instanceof TextNode ? { text: n.data } : { tag: n.tagName, type: n.type, text: n.textContent }));
+   334	}
+   335	
+   336	/** Booking fixture. */
+   337	export function booking(overrides = {}) {
+   338	  return { id: 1, room: 'Aurora', title: 'Standup', date: '2026-11-03', start: '09:00', end: '10:00', ...overrides };
+   339	}
+   340	
+   341	/**
+   342	 * Loads the app and settles the two startup fetches: rooms with the three rooms,
+   343	 * the list with `bookings`. Returns the page with no pending calls.
+   344	 */
+   345	export async function loadReadyApp(bookings = []) {
+   346	  const page = loadApp();
+   347	  await flush();
+   348	  page.calls.find((c) => c.url === '/api/rooms').respond(200, { rooms: ['Aurora', 'Borealis', 'Cosmos'] });
+   349	  page.calls.find((c) => c.url === '/api/bookings').respond(200, { bookings });
+   350	  await flush();
+   351	  return page;
+   352	}
+   353	
+   354	/** The Cancel button elements currently in the list, in order. */
+   355	export function cancelButtons(page) {
+   356	  return page.elements['booking-list'].childNodes.flatMap((li) => li.childNodes.filter((n) => n instanceof FakeElement && n.tagName === 'button'));
+   357	}
+   358	// Tiny HTML parser for tests: tags, attributes and text only.
+   359	const VOID = new Set('area base br col embed hr img input link meta source track wbr'.split(' '));
+   360	const RAW = new Set(['script', 'style', 'title', 'textarea']);
+   361	const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/y;
+   362	
+   363	function parseAttrs(src) {
+   364	  const attrs = {};
+   365	  let pos = 0;
+   366	  while (pos < src.length) {
+   367	    if (/[\s\/]/.test(src[pos])) { pos++; continue; }
+   368	    ATTR_RE.lastIndex = pos;
+   369	    const m = ATTR_RE.exec(src);
+   370	    if (!m) { pos++; continue; }
+   371	    attrs[m[1].toLowerCase()] = m[2] ?? m[3] ?? m[4] ?? '';
+   372	    pos = ATTR_RE.lastIndex;
+   373	  }
+   374	  return attrs;
+   375	}
+   376	
+   377	function closeTag(text, i, root, cur) {
+   378	  const end = text.indexOf('>', i);
+   379	  const name = text.slice(i + 2, end < 0 ? text.length : end).trim().toLowerCase();
+   380	  let next = cur;
+   381	  for (let n = cur; n && n !== root; n = n.parent) {
+   382	    if (n.tag === name) { next = n.parent; break; }
+   383	  }
+   384	  return { cur: next, i: end < 0 ? text.length : end + 1 };
+   385	}
+   386	
+   387	function openTag(text, i, cur) {
+   388	  const m = /^<([a-zA-Z][^\s\/>]*)((?:"[^"]*"|'[^']*'|[^'">])*)>/.exec(text.slice(i));
+   389	  if (!m) return null;
+   390	  const tag = m[1].toLowerCase();
+   391	  const node = { tag, attrs: parseAttrs(m[2]), children: [], parent: cur };
+   392	  cur.children.push(node);
+   393	  i += m[0].length;
+   394	  if (VOID.has(tag)) return { cur, i };
+   395	  if (!RAW.has(tag)) return { cur: node, i };
+   396	  const close = new RegExp('</' + tag + '\\s*>', 'i').exec(text.slice(i));
+   397	  const stop = close ? i + close.index : text.length;
+   398	  if (stop > i) node.children.push({ text: text.slice(i, stop), parent: node });
+   399	  return { cur, i: close ? stop + close[0].length : text.length };
+   400	}
+   401	
+   402	export function parseHtml(text) {
+   403	  const root = { tag: '#root', attrs: {}, children: [], parent: null };
+   404	  let cur = root;
+   405	  let i = 0;
+   406	  const addText = (t) => { if (t) cur.children.push({ text: t, parent: cur }); };
+   407	  while (i < text.length) {
+   408	    const lt = text.indexOf('<', i);
+   409	    if (lt < 0) { addText(text.slice(i)); break; }
+   410	    addText(text.slice(i, lt));
+   411	    i = lt;
+   412	    if (text.startsWith('<!--', i)) {
+   413	      const end = text.indexOf('-->', i + 4);
+   414	      i = end < 0 ? text.length : end + 3;
+   415	    } else if (text.startsWith('<!', i) || text.startsWith('<?', i)) {
+   416	      const end = text.indexOf('>', i);
+   417	      i = end < 0 ? text.length : end + 1;
+   418	    } else if (text.startsWith('</', i)) {
+   419	      ({ cur, i } = closeTag(text, i, root, cur));
+   420	    } else {
+   421	      const r = openTag(text, i, cur);
+   422	      if (!r) { addText('<'); i++; } else { cur = r.cur; i = r.i; }
+   423	    }
+   424	  }
+   425	  return root;
+   426	}
+   427	
+   428	export function findAll(root, predicate) {
+   429	  const out = [];
+   430	  const walk = (n) => {
+   431	    for (const c of n.children ?? []) {
+   432	      if (c.tag === undefined) continue;
+   433	      if (predicate(c)) out.push(c);
+   434	      walk(c);
+   435	    }
+   436	  };
+   437	  walk(root);
+   438	  return out;
+   439	}
+   440	
+   441	export const byId = (root, id) => findAll(root, (n) => n.attrs.id === id)[0] ?? null;
+   442	
+   443	export function textOf(node) {
+   444	  if (node.text !== undefined) return node.text;
+   445	  return (node.children ?? []).map(textOf).join('');
+   446	}
+   447	
+   448	export function isDescendant(node, ancestor) {
+   449	  for (let n = node.parent; n; n = n.parent) if (n === ancestor) return true;
+   450	  return false;
+   451	}
+   452	
+   453	export const elementChildren = (node) => node.children.filter((c) => c.tag !== undefined);

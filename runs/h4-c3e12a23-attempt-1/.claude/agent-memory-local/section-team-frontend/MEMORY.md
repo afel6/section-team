@@ -1,0 +1,1 @@
+- [Env quirks](project_env_quirks.md) — node --test dir arg fails on Node 22.23; helpers often lack Bash, run tests yourself

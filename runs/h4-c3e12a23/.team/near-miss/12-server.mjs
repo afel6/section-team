@@ -1,33 +1,27 @@
-// near-miss: body size counted in characters instead of bytes
+// near-miss: body size measured as decoded string length
 // Meeting-room booking server: JSON API + static page, data kept in one JSON file.
-// Node.js built-ins only. Run with `node server.mjs`.
-import http from 'node:http';
-import fs from 'node:fs';
-import fsp from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Node built-ins only. Run with `node server.mjs`.
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
+const ROOMS = Object.freeze(['Aurora', 'Borealis', 'Cosmos']);
 const HOST = '127.0.0.1';
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
-const DEFAULT_DATA_FILE = 'bookings.json';
 const MAX_BODY_BYTES = 10000;
 const MAX_TITLE_LENGTH = 80;
-const ROOMS = Object.freeze(['Aurora', 'Borealis', 'Cosmos']);
 const BOOKING_KEYS = Object.freeze(['id', 'room', 'title', 'date', 'start', 'end']);
+const BOOKINGS_PATH = '/api/bookings';
+const BOOKING_ITEM_PREFIX = '/api/bookings/';
 const JSON_TYPE = 'application/json; charset=utf-8';
-const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
-const STATIC_FILES = Object.freeze({
-  '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
-  '/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
+const PAGE_FILES = Object.freeze({
+  '/': { url: new URL('./public/index.html', import.meta.url), type: 'text/html; charset=utf-8' },
+  '/app.js': { url: new URL('./public/app.js', import.meta.url), type: 'text/javascript; charset=utf-8' },
 });
-const BOOKING_PREFIX = '/api/bookings/';
 
 const MSG = Object.freeze({
-  notFound: 'not found',
-  methodNotAllowed: 'method not allowed',
-  internal: 'internal error',
-  bookingNotFound: 'booking not found',
   contentType: 'content type must be application/json',
   tooLarge: 'body too large',
   notObject: 'body must be a JSON object',
@@ -37,303 +31,314 @@ const MSG = Object.freeze({
   start: 'start must be HH:MM',
   end: 'end must be HH:MM',
   order: 'end must be after start',
+  bookingNotFound: 'booking not found',
+  notFound: 'not found',
+  method: 'method not allowed',
+  internal: 'internal error',
 });
 
-class HttpError extends Error {
+/** Thrown by a POST rule; carries the reply status and message. */
+class RuleError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
   }
 }
 
-// ---------- validation ----------
-
-const DATE_RE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
-const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
-
-function daysInMonth(year, month) {
-  if (month === 2) return year % 4 === 0 ? 29 : 28;
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
+// ---------- field validation ----------
 
 function isValidDate(value) {
-  if (typeof value !== 'string') return false;
-  const match = DATE_RE.exec(value);
-  if (!match) return false;
-  const [year, month, day] = match.slice(1).map(Number);
-  if (year < 2000 || year > 2099 || month < 1 || month > 12) return false;
-  return day >= 1 && day <= daysInMonth(year, month);
+  if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1) return false;
+  const daysInMonth = [31, year % 4 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1];
 }
 
 function isValidTime(value) {
-  return typeof value === 'string' && TIME_RE.test(value);
+  if (typeof value !== 'string' || !/^[0-9]{2}:[0-9]{2}$/.test(value)) return false;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours <= 23 && minutes <= 59;
+}
+
+function isValidTitle(value) {
+  return typeof value === 'string' && value.length >= 1 && value.length <= MAX_TITLE_LENGTH;
 }
 
 function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function field(body, key) {
-  return Object.hasOwn(body, key) ? body[key] : undefined;
+function hasExactKeys(object, keys) {
+  const own = Object.keys(object);
+  return own.length === keys.length && keys.every((key) => Object.hasOwn(object, key));
 }
 
-/** Applies booking rules 4-9; returns the normalised fields or throws HttpError 400. */
-function validateFields(body) {
-  const room = field(body, 'room');
-  if (typeof room !== 'string' || !ROOMS.includes(room)) throw new HttpError(400, MSG.room);
-  const rawTitle = field(body, 'title');
-  const title = typeof rawTitle === 'string' ? rawTitle.trim() : null;
-  if (title === null || title.length < 1 || title.length > MAX_TITLE_LENGTH) {
-    throw new HttpError(400, MSG.title);
-  }
-  const date = field(body, 'date');
-  if (!isValidDate(date)) throw new HttpError(400, MSG.date);
-  const start = field(body, 'start');
-  if (!isValidTime(start)) throw new HttpError(400, MSG.start);
-  const end = field(body, 'end');
-  if (!isValidTime(end)) throw new HttpError(400, MSG.end);
-  if (!(end > start)) throw new HttpError(400, MSG.order);
-  return { room, title, date, start, end };
+function ownField(object, key) {
+  return Object.hasOwn(object, key) ? object[key] : undefined;
 }
 
-function findOverlap(bookings, candidate) {
-  const clashes = bookings.filter((b) => b.room === candidate.room && b.date === candidate.date
-    && b.start < candidate.end && candidate.start < b.end);
-  return clashes.reduce((first, b) => (first === null || b.start < first.start ? b : first), null);
-}
-
-function compareBookings(a, b) {
-  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-  if (a.start !== b.start) return a.start < b.start ? -1 : 1;
-  return ROOMS.indexOf(a.room) - ROOMS.indexOf(b.room);
+function findOverlap(bookings, { room, date, start, end }) {
+  return bookings
+    .filter((b) => b.room === room && b.date === date && b.start < end && start < b.end)
+    .reduce((earliest, b) => (earliest === undefined || b.start < earliest.start ? b : earliest), undefined);
 }
 
 // ---------- data file ----------
 
-const STATE_KEYS = Object.freeze(['nextId', 'bookings']);
-
-function hasExactKeys(obj, expected) {
-  const keys = Object.keys(obj);
-  return keys.length === expected.length && expected.every((k) => keys.includes(k));
+function isStoredBooking(value, nextId) {
+  return (
+    isPlainObject(value) &&
+    hasExactKeys(value, BOOKING_KEYS) &&
+    Number.isSafeInteger(value.id) && value.id >= 1 && value.id < nextId &&
+    ROOMS.includes(value.room) &&
+    isValidTitle(value.title) && value.title === value.title.trim() &&
+    isValidDate(value.date) && isValidTime(value.start) && isValidTime(value.end) &&
+    value.start < value.end
+  );
 }
 
-function isStoredBooking(b, nextId) {
-  if (!isPlainObject(b) || !hasExactKeys(b, BOOKING_KEYS)) return false;
-  if (!Number.isSafeInteger(b.id) || b.id < 1 || b.id >= nextId) return false;
-  try {
-    const fields = validateFields(b);
-    return fields.title === b.title;
-  } catch (err) {
-    if (err instanceof HttpError) return false;
-    throw err;
-  }
+function isValidState(data) {
+  if (!isPlainObject(data) || !hasExactKeys(data, ['nextId', 'bookings'])) return false;
+  const { nextId, bookings } = data;
+  if (!Number.isSafeInteger(nextId) || nextId < 1 || !Array.isArray(bookings)) return false;
+  if (!bookings.every((b) => isStoredBooking(b, nextId))) return false;
+  if (new Set(bookings.map((b) => b.id)).size !== bookings.length) return false;
+  return bookings.every((b, i) => findOverlap(bookings.slice(0, i), b) === undefined);
 }
 
-/** Returns a frozen state or null when the content is not in this server's layout. */
-function parseState(text) {
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return null; // invalid JSON is reported by the caller as an unreadable data file
-  }
-  if (!isPlainObject(data) || !hasExactKeys(data, STATE_KEYS)) return null;
-  if (!Number.isSafeInteger(data.nextId) || data.nextId < 1) return null;
-  if (!Array.isArray(data.bookings)) return null;
-  if (!data.bookings.every((b) => isStoredBooking(b, data.nextId))) return null;
-  if (new Set(data.bookings.map((b) => b.id)).size !== data.bookings.length) return null;
-  const clash = data.bookings.some((b, i) => findOverlap(data.bookings.slice(0, i), b) !== null);
-  if (clash) return null;
-  return freezeState({ nextId: data.nextId, bookings: data.bookings });
-}
-
-function freezeState({ nextId, bookings }) {
-  return Object.freeze({ nextId, bookings: Object.freeze(bookings.map((b) => Object.freeze({ ...b }))) });
-}
-
-/** Reads the data file once; returns the state or null when it cannot be used. */
-function loadState(filePath) {
+/** Returns the stored state, an empty state on ENOENT, or null when the file is unusable. */
+function loadState(path) {
   let text;
   try {
-    text = fs.readFileSync(filePath, 'utf8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return freezeState({ nextId: 1, bookings: [] });
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return { nextId: 1, bookings: [] };
     return null;
   }
-  return parseState(text);
-}
-
-let tempCounter = 0;
-
-async function saveState(filePath, state) {
-  tempCounter += 1;
-  const tempPath = `${filePath}.${process.pid}.${tempCounter}.tmp`;
-  const json = JSON.stringify({ nextId: state.nextId, bookings: state.bookings });
   try {
-    await fsp.writeFile(tempPath, json, { flag: 'wx' });
-    await fsp.rename(tempPath, filePath);
-  } catch (err) {
-    await fsp.rm(tempPath, { force: true }).catch((rmErr) => logError('temp cleanup failed', rmErr));
-    throw err;
+    const data = JSON.parse(text);
+    return isValidState(data) ? data : null;
+  } catch {
+    return null;
   }
 }
 
-// ---------- HTTP plumbing ----------
-
-function logError(context, err) {
-  process.stderr.write(`${context}: ${err && err.message ? err.message : String(err)}\n`);
+function saveState(path, state) {
+  return writeFile(path, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    req.on('data', (chunk) => {
-      size += chunk.toString('utf8').length;
-      if (size <= MAX_BODY_BYTES) chunks.push(chunk);
-    });
-    req.on('end', () => resolve({ size, buffer: size <= MAX_BODY_BYTES ? Buffer.concat(chunks) : null }));
-    req.on('error', reject);
-  });
-}
+// ---------- HTTP helpers ----------
 
-function send(res, status, body, type = JSON_TYPE) {
-  if (body === undefined) {
-    res.writeHead(status);
-    res.end();
-    return;
-  }
-  const payload = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': type, 'Content-Length': Buffer.byteLength(payload) });
-  res.end(payload);
+function sendJson(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, { 'Content-Type': JSON_TYPE, 'Content-Length': Buffer.byteLength(body) });
+  res.end(body);
 }
 
 function sendError(res, status, message) {
-  send(res, status, { error: message });
+  sendJson(res, status, { error: message });
 }
 
-function mediaType(header) {
-  if (typeof header !== 'string') return null;
-  return header.split(';')[0].replace(/^[ \t]+|[ \t]+$/g, '').toLowerCase();
+/** Reads the whole body; keeps at most MAX_BODY_BYTES but counts every byte received. */
+function readBody(req) {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks = [];
+    let received = 0;
+    req.on('data', (chunk) => {
+      if (received + chunk.length <= MAX_BODY_BYTES) chunks.push(chunk);
+      received += chunk.length;
+    });
+    req.on('end', () => resolveBody({ size: received, buffer: Buffer.concat(chunks) }));
+    req.on('error', rejectBody);
+    req.on('close', () => {
+      if (!req.complete) rejectBody(new Error('request aborted'));
+    });
+  });
 }
 
-function parseJsonObject(buffer) {
+function isJsonContentType(header) {
+  if (typeof header !== 'string') return false;
+  const media = header.split(';')[0].replace(/^[ \t]+|[ \t]+$/g, '');
+  return media.toLowerCase() === 'application/json';
+}
+
+// ---------- booking logic ----------
+
+function sortBookings(bookings) {
+  const key = (b) => [b.date, b.start, ROOMS.indexOf(b.room)];
+  return [...bookings].sort((a, b) => {
+    const [ka, kb] = [key(a), key(b)];
+    const index = ka.findIndex((value, i) => value !== kb[i]);
+    if (index === -1) return 0;
+    return ka[index] < kb[index] ? -1 : 1;
+  });
+}
+
+function parseBookingRequest(headers, body, bookings) {
+  if (!isJsonContentType(headers['content-type'])) throw new RuleError(415, MSG.contentType);
+  if (body.buffer.toString('utf8').length > MAX_BODY_BYTES) throw new RuleError(413, MSG.tooLarge);
+  let data;
   try {
-    const value = JSON.parse(buffer.toString('utf8'));
-    return isPlainObject(value) ? value : null;
+    data = JSON.parse(body.buffer.toString('utf8'));
   } catch {
-    return null; // any parse failure means the body is not a JSON object (rule 3)
+    throw new RuleError(400, MSG.notObject);
   }
+  if (!isPlainObject(data)) throw new RuleError(400, MSG.notObject);
+  const [room, rawTitle, date, start, end] = ['room', 'title', 'date', 'start', 'end'].map((k) => ownField(data, k));
+  if (typeof room !== 'string' || !ROOMS.includes(room)) throw new RuleError(400, MSG.room);
+  const title = typeof rawTitle === 'string' ? rawTitle.trim() : undefined;
+  if (!isValidTitle(title)) throw new RuleError(400, MSG.title);
+  if (!isValidDate(date)) throw new RuleError(400, MSG.date);
+  if (!isValidTime(start)) throw new RuleError(400, MSG.start);
+  if (!isValidTime(end)) throw new RuleError(400, MSG.end);
+  if (end <= start) throw new RuleError(400, MSG.order);
+  const clash = findOverlap(bookings, { room, date, start, end });
+  if (clash) throw new RuleError(409, `room is already booked from ${clash.start} to ${clash.end}`);
+  return { room, title, date, start, end };
 }
 
-// ---------- app ----------
+// ---------- route handlers ----------
 
-function createApp(dataPath, initialState) {
-  let state = initialState;
-  let queue = Promise.resolve();
-
-  /** Runs mutations one at a time so concurrent requests behave sequentially. */
-  function serialize(task) {
-    const run = queue.then(task);
-    queue = run.catch(() => undefined); // the failure is handled by the caller awaiting `run`
-    return run;
-  }
-
-  async function commit(nextState) {
-    const frozen = freezeState(nextState);
-    await saveState(dataPath, frozen);
-    state = frozen;
-  }
-
-  function listBookings(query) {
+function createHandlers(store) {
+  function listBookings(res, query) {
     const params = new URLSearchParams(query);
-    let bookings = [...state.bookings];
-    if (params.has('date')) {
-      const date = params.get('date');
-      if (!isValidDate(date)) throw new HttpError(400, MSG.date);
-      bookings = bookings.filter((b) => b.date === date);
-    }
-    return { bookings: bookings.sort(compareBookings) };
+    const all = store.get().bookings;
+    if (!params.has('date')) return sendJson(res, 200, { bookings: sortBookings(all) });
+    const date = params.get('date');
+    if (!isValidDate(date)) return sendError(res, 400, MSG.date);
+    return sendJson(res, 200, { bookings: sortBookings(all.filter((b) => b.date === date)) });
   }
 
-  function createBooking(req, body) {
-    if (mediaType(req.headers['content-type']) !== 'application/json') {
-      throw new HttpError(415, MSG.contentType);
-    }
-    if (body.size > MAX_BODY_BYTES) throw new HttpError(413, MSG.tooLarge);
-    const parsed = parseJsonObject(body.buffer);
-    if (parsed === null) throw new HttpError(400, MSG.notObject);
-    const fields = validateFields(parsed);
-    return serialize(async () => {
-      const clash = findOverlap(state.bookings, fields);
-      if (clash) throw new HttpError(409, `room is already booked from ${clash.start} to ${clash.end}`);
-      const booking = { id: state.nextId, ...fields };
-      await commit({ nextId: state.nextId + 1, bookings: [...state.bookings, booking] });
-      return booking;
-    });
-  }
-
-  function deleteBooking(idText) {
-    return serialize(async () => {
-      const id = /^[1-9][0-9]*$/.test(idText) ? Number(idText) : NaN;
-      if (!state.bookings.some((b) => b.id === id)) throw new HttpError(404, MSG.bookingNotFound);
-      await commit({ nextId: state.nextId, bookings: state.bookings.filter((b) => b.id !== id) });
-    });
-  }
-
-  async function serveStatic(res, entry) {
-    const content = await fsp.readFile(path.join(PUBLIC_DIR, entry.file));
-    send(res, 200, content, entry.type);
-  }
-
-  /** Resolves the route for a raw path; returns null when the path is unknown. */
-  function route(pathName, query, req, body, res) {
-    if (pathName === '/api/rooms') return { GET: () => send(res, 200, { rooms: ROOMS }) };
-    if (pathName === '/api/bookings') {
-      return {
-        GET: () => send(res, 200, listBookings(query)),
-        POST: async () => send(res, 201, await createBooking(req, body)),
-      };
-    }
-    if (pathName.startsWith(BOOKING_PREFIX)) {
-      const id = pathName.slice(BOOKING_PREFIX.length);
-      if (id === '' || id.includes('/')) return null;
-      return { DELETE: async () => { await deleteBooking(id); send(res, 204); } };
-    }
-    if (Object.hasOwn(STATIC_FILES, pathName)) {
-      return { GET: () => serveStatic(res, STATIC_FILES[pathName]) };
-    }
-    return null;
-  }
-
-  async function handle(req, res) {
-    const body = await readBody(req);
-    const target = req.url;
-    const queryStart = target.indexOf('?');
-    const pathName = queryStart === -1 ? target : target.slice(0, queryStart);
-    const query = queryStart === -1 ? '' : target.slice(queryStart + 1);
-    const handlers = route(pathName, query, req, body, res);
-    if (handlers === null) return sendError(res, 404, MSG.notFound);
-    if (!Object.hasOwn(handlers, req.method)) return sendError(res, 405, MSG.methodNotAllowed);
-    return handlers[req.method]();
-  }
-
-  return async function onRequest(req, res) {
+  async function createBooking(req, res, body) {
+    const state = store.get();
+    let fields;
     try {
-      await handle(req, res);
-    } catch (err) {
-      if (err instanceof HttpError) {
-        sendError(res, err.status, err.message);
-        return;
-      }
-      logError('request failed', err);
+      fields = parseBookingRequest(req.headers, body, state.bookings);
+    } catch (error) {
+      if (error instanceof RuleError) return sendError(res, error.status, error.message);
+      throw error;
+    }
+    const booking = { id: state.nextId, ...fields };
+    await store.commit({ nextId: state.nextId + 1, bookings: [...state.bookings, booking] });
+    return sendJson(res, 201, booking);
+  }
+
+  async function deleteBooking(res, idText) {
+    const state = store.get();
+    const target = /^[1-9][0-9]*$/.test(idText)
+      ? state.bookings.find((b) => String(b.id) === idText)
+      : undefined;
+    if (!target) return sendError(res, 404, MSG.bookingNotFound);
+    await store.commit({ ...state, bookings: state.bookings.filter((b) => b !== target) });
+    res.writeHead(204);
+    return res.end();
+  }
+
+  async function servePage(res, page) {
+    const content = await readFile(page.url);
+    res.writeHead(200, { 'Content-Type': page.type, 'Content-Length': content.length });
+    res.end(content);
+  }
+
+  return { listBookings, createBooking, deleteBooking, servePage };
+}
+
+function isBookingItemPath(path) {
+  if (!path.startsWith(BOOKING_ITEM_PREFIX)) return false;
+  const rest = path.slice(BOOKING_ITEM_PREFIX.length);
+  return rest.length > 0 && !rest.includes('/');
+}
+
+/** Splits a raw request target at the first `?`, with no decoding or normalisation. */
+function splitTarget(target) {
+  const mark = target.indexOf('?');
+  if (mark === -1) return { path: target, query: '' };
+  return { path: target.slice(0, mark), query: target.slice(mark + 1) };
+}
+
+function isKnownPath(path) {
+  return path === '/api/rooms' || path === BOOKINGS_PATH || isBookingItemPath(path) || Object.hasOwn(PAGE_FILES, path);
+}
+
+/**
+ * CONNECT never reaches the request listener, so it is answered here on the raw socket:
+ * 405 on a known path, 404 otherwise. Any data after the headers is discarded.
+ */
+function answerConnect(req, socket) {
+  socket.on('error', (error) => process.stderr.write(`connect socket error: ${error.code ?? 'unknown'}\n`));
+  const known = isKnownPath(splitTarget(req.url).path);
+  const [status, reason, message] = known ? [405, 'Method Not Allowed', MSG.method] : [404, 'Not Found', MSG.notFound];
+  const body = JSON.stringify({ error: message });
+  socket.end(
+    `HTTP/1.1 ${status} ${reason}\r\nContent-Type: ${JSON_TYPE}\r\n` +
+      `Content-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+  );
+}
+
+/** Picks the handler for a request; returns a function producing the reply. */
+function route(handlers, req, res, body) {
+  const target = req.url;
+  const { path, query } = splitTarget(target);
+  const { method } = req;
+  const only = (allowed, run) => () => (method === allowed ? run() : sendError(res, 405, MSG.method));
+
+  if (path === '/api/rooms') return only('GET', () => sendJson(res, 200, { rooms: ROOMS }));
+  if (path === BOOKINGS_PATH) {
+    if (method === 'POST') return () => handlers.createBooking(req, res, body);
+    return only('GET', () => handlers.listBookings(res, query));
+  }
+  if (isBookingItemPath(path)) {
+    return only('DELETE', () => handlers.deleteBooking(res, path.slice(BOOKING_ITEM_PREFIX.length)));
+  }
+  if (Object.hasOwn(PAGE_FILES, path)) return only('GET', () => handlers.servePage(res, PAGE_FILES[path]));
+  return () => sendError(res, 404, MSG.notFound);
+}
+
+// ---------- server ----------
+
+/** Runs tasks one at a time, in arrival order. */
+function createQueue() {
+  let tail = Promise.resolve();
+  return (task) => {
+    const run = tail.then(task);
+    // The caller handles run's failure; the tail only needs to settle so the next task can start.
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
+function createStore(path, initial) {
+  let state = initial;
+  return {
+    get: () => state,
+    async commit(next) {
+      await saveState(path, next);
+      state = next;
+    },
+  };
+}
+
+function createRequestListener(store) {
+  const handlers = createHandlers(store);
+  const enqueue = createQueue();
+  return async (req, res) => {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      req.destroy();
+      return;
+    }
+    try {
+      await enqueue(() => route(handlers, req, res, body)());
+    } catch (error) {
+      process.stderr.write(`internal error: ${error?.code ?? error?.name ?? 'unknown'}\n`);
       if (!res.headersSent) sendError(res, 500, MSG.internal);
       else res.destroy();
     }
   };
 }
-
-// ---------- startup ----------
 
 function parsePort(raw) {
   if (raw === undefined || raw === '') return DEFAULT_PORT;
@@ -342,24 +347,32 @@ function parsePort(raw) {
   return port <= MAX_PORT ? port : null;
 }
 
-/** Writes one stderr line and lets the process exit with code 1 (nothing else keeps it alive). */
-function failStartup(message) {
+function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 }
 
 function main() {
   const port = parsePort(process.env.PORT);
-  if (port === null) return failStartup(`invalid PORT: ${JSON.stringify(process.env.PORT)}`);
-  const dataName = process.env.DATA_FILE || DEFAULT_DATA_FILE;
-  const dataPath = path.resolve(process.cwd(), dataName);
-  const state = loadState(dataPath);
-  if (state === null) return failStartup(`cannot read data file ${dataName}`);
-  const server = http.createServer(createApp(dataPath, state));
-  server.on('error', (err) => failStartup(`cannot listen on ${HOST}:${port}: ${err.code || err.message}`));
+  if (port === null) return fail(`invalid PORT ${JSON.stringify(process.env.PORT)}`);
+  const dataName = process.env.DATA_FILE || 'bookings.json';
+  const dataPath = resolve(process.cwd(), dataName);
+  const initial = loadState(dataPath);
+  if (initial === null) return fail(`cannot read data file ${dataName}`);
+
+  const listener = createRequestListener(createStore(dataPath, initial));
+  const server = createServer(listener);
+  // Unknown Expect values go to the normal route instead of Node's automatic 417.
+  server.on('checkExpectation', listener);
+  server.on('connect', answerConnect);
+  const onBindError = (error) => fail(`cannot listen on port ${port}: ${error.code ?? 'unknown error'}`);
+  server.once('error', onBindError);
   server.listen(port, HOST, () => {
+    server.off('error', onBindError);
+    server.on('error', (error) => process.stderr.write(`server error: ${error.code ?? 'unknown'}\n`));
     process.stdout.write(`listening on http://${HOST}:${server.address().port}\n`);
   });
+  return undefined;
 }
 
 main();

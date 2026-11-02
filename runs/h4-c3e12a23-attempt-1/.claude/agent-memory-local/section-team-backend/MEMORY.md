@@ -1,0 +1,1 @@
+- [Node 22 test script](project_node22_test_script.md) — `node --test test/` fails here; use a glob; manual server runs via Bash get denied
