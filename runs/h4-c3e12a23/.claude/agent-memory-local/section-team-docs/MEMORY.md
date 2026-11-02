@@ -1,0 +1,1 @@
+- [No blocking Bash waits](feedback_waiting.md) — foreground sleep loops are denied; poll with Glob/Read
