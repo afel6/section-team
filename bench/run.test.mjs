@@ -212,6 +212,10 @@ test('taskProblems finds nothing wrong with the shipped tasks', () => {
   assert.deepEqual(taskProblems(TASKS), [])
 })
 
+test('taskProblems finds nothing wrong with the mode-round tasks', () => {
+  assert.deepEqual(taskProblems(['h4', 'h5', 'h6']), [])
+})
+
 test('parseArgs rejects a round, tag or task name that is not only letters and digits', () => {
   for (const bad of ['--round=x/..', '--round=..', '--round=a b', '--tag=x\\..', '--tag=a-b', '--tasks=h1,../x', '--tasks=h1,']) {
     assert.throws(() => parseArgs([bad]), RangeError, bad)
