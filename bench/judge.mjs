@@ -3,7 +3,8 @@
 // plus `judge` and `costUSD`). Each judge sees every solution of its group; an even judge sees them mirrored.
 // Every attempt is a fresh session of the round's pinned binary, checked like a solo run (init and effort) plus its
 // permission mode and its tool calls (none may name a blind key), and its transcripts are kept in
-// results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved
+// results/judge-<round>-transcripts/. Each attempt has 60 minutes; at the limit its whole process tree is killed. An
+// unusable attempt (a check failed, the time limit, or a verdict that does not parse) is saved
 // raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a third unusable attempt
 // is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed in -compacted.json;
 // -edges.json counts how often each setup was the first or last folder of a saved judgment. A usage or rate limit,
@@ -25,7 +26,7 @@ import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
 import { classifyEnd, filesAt, firstLine, projectDirFor } from './run-attempts.mjs'
-import { NAME, RESULTS, parseArgs } from './run.mjs'
+import { NAME, RESULTS, killTree, parseArgs } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 // No rm or mktemp: the harness makes and deletes each judge's folder. node and npm stay because judges run the
@@ -39,6 +40,10 @@ const USAGE = 'usage: node bench/judge.mjs --round=<name> --per-pair=<n> [--limi
 export const JSON_BLOCK = /```json[ \t]*\r?\n([\s\S]*?)\r?\n```/g
 // A first attempt and at most two re-asks (spec: "Unusable verdicts").
 export const MAX_ATTEMPTS = 3
+// Each attempt's limit (spec: Cloud amendment). At it the whole process tree is killed, and the attempt is unusable
+// ("judge timed out") and re-asked like any other unusable attempt.
+export const JUDGE_TIMEOUT_MS = 60 * 60_000
+const TIMED_OUT = 'judge timed out'
 
 function checkScores(scores, label) {
   if (typeof scores !== 'object' || scores === null) throw new Error(`${label}: missing scores`)
@@ -208,6 +213,8 @@ function saveRaw(dir, job, attempt, stdout) {
 // parse error, if any.
 function verdictOf(answer, job, check) {
   const reasons = check(answer)
+  // A killed session printed nothing to parse: its one reason is the timeout.
+  if (answer.timedOut) return { row: null, reasons }
   try {
     return { row: unswap(rowFromOutput(answer.stdout, job), job.swap), reasons }
   } catch (err) {
@@ -314,9 +321,11 @@ const touchesBlindKey = texts => texts.flatMap(outputMessages).some(m => m.type 
 
 // check for runJobs: a judge is held to the pin like a solo run (initProblems maps judge to solo), to the judge's
 // permission mode, and its session and subagent transcripts to the effort and to never naming a blind key.
-export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = [] }) => {
+export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = [], timedOut = false }) => {
   const init = initOf(outputMessages(stdout))
   const transcripts = [transcript, ...subagentTranscripts]
+  // json output comes only at the end, so a killed judge has no init to check; a blind-key touch still counts.
+  if (timedOut) return [TIMED_OUT, ...(touchesBlindKey(transcripts) ? ['judge touched a blind key'] : [])]
   return [
     ...initProblems(init, { setup: 'judge', pin, pluginDir: pin.pluginDir }),
     ...(init && !JUDGE_MODES.includes(init.permissionMode) ? [`judge ran in permission mode ${init.permissionMode ?? 'none'}`] : []),
@@ -325,14 +334,30 @@ export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = []
   ]
 }
 
-// ponytail: no timeout; a hung judge needs Ctrl+C, and the rerun redoes only that job, at the same attempt number.
-function runClaude(binary, args, { cwd, env, spawn }) {
+// How a judge's claude starts. On Linux it leads a new process group, so killTree stops everything it started too.
+export const judgeSpawnOptions = (cwd, env, platform = process.platform) => ({
+  cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'], ...(platform === 'win32' ? {} : { detached: true }),
+})
+
+// { stdout, timedOut }: at timeoutMs the whole tree is killed (killTree), and the session's stdout so far comes back.
+function runClaude(binary, args, { cwd, env, spawn, kill, timeoutMs }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
+    const child = spawn(binary, args, judgeSpawnOptions(cwd, env))
     let stdout = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      kill(child)
+    }, timeoutMs)
     child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk })
-    child.on('error', err => reject(new Error(`could not start claude (${binary}: ${err.code ?? err.message})`)))
-    child.on('close', () => resolve(stdout))
+    child.on('error', err => {
+      clearTimeout(timer)
+      reject(new Error(`could not start claude (${binary}: ${err.code ?? err.message})`))
+    })
+    child.on('close', () => {
+      clearTimeout(timer)
+      resolve({ stdout, timedOut })
+    })
   })
 }
 
@@ -340,9 +365,11 @@ function runClaude(binary, args, { cwd, env, spawn }) {
 // to <transcripts>/<pair>-<judge>-a<attempt>/ as run-attempts copyEvidence does. A session that wrote no transcript is
 // a harness fault (like a run's missing session file), so it stops judging instead of using up the job's attempts.
 // Returns the main text and the text of every .jsonl in the subagent folder.
-function keepTranscript({ cwd, sessionId, home, files, job, attempt }) {
+// A session killed at its time limit before it wrote one is no harness fault: its attempt is unusable anyway.
+function keepTranscript({ cwd, sessionId, home, files, job, attempt, timedOut = false }) {
   const project = projectDirFor(cwd, home)
   const from = join(project, `${sessionId}.jsonl`)
+  if (!existsSync(from) && timedOut) return { transcript: '', subagentTranscripts: [] }
   if (!existsSync(from)) throw new Error(`${jobLabel(job)} left no session transcript at ${from}: fix the harness, then resume`)
   const transcript = readFileSync(from, 'utf8')
   mkdirSync(files.transcripts, { recursive: true })
@@ -362,13 +389,14 @@ function keepTranscript({ cwd, sessionId, home, files, job, attempt }) {
 // A usage or rate limit, another API error or a session with no result is not the judge's fault: it stops judging
 // and uses no attempt, as it stops a batch of runs. runClaude reports no exit code, so a missing result reads as
 // 'no-result' (exitCode 0), never 'crash'.
-export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn = nodeSpawn, log }) {
+export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn = nodeSpawn, kill = killTree, timeoutMs = JUDGE_TIMEOUT_MS, log }) {
   const { binary, pluginDir } = pin
   const childEnvironment = childEnv(env, { pluginDir })
   return (job, attempt) => withCopy(job.source, async cwd => {
     const sessionId = randomUUID()
     const args = judgeArgs(job.prompt, { sessionId, installedKeys, pluginDir })
-    const stdout = await runClaude(binary, args, { cwd, env: childEnvironment, spawn })
+    const { stdout, timedOut } = await runClaude(binary, args, { cwd, env: childEnvironment, spawn, kill, timeoutMs })
+    if (timedOut) return { stdout, ...keepTranscript({ cwd, sessionId, home, files, job, attempt, timedOut }), timedOut }
     const messages = outputMessages(stdout)
     const end = classifyEnd({ messages, exitCode: 0 })
     if (end === 'api-limit') throw new Error(`${jobLabel(job)} hit a usage or rate limit: resume judging in the next usage window`)

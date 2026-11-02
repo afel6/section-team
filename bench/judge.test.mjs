@@ -9,8 +9,8 @@ import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { childEnv, cleanSettings, commonArgs } from './clean-run.mjs'
 import {
-  ALLOWED, BLIND_KEY, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions, mirrorSwap, parseVerdict, pendingJobs,
-  prepareJob, runJobs, unswap, withCopy,
+  ALLOWED, BLIND_KEY, JUDGE_TIMEOUT_MS, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions,
+  judgeSpawnOptions, mirrorSwap, parseVerdict, pendingJobs, prepareJob, runJobs, unswap, withCopy,
 } from './judge.mjs'
 import { projectDirFor } from './run-attempts.mjs'
 
@@ -500,14 +500,14 @@ function fakeJudge({ home, calls, transcript = true, stdout = verbose(fenced(goo
   }
 }
 
-function callSetup(t, spawnFor) {
+function callSetup(t, spawnFor, deps = {}) {
   const root = mkdtempSync(join(tmpdir(), 'judge-call-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const home = join(root, 'home')
   const files = judgeFiles(join(root, 'results'), 't')
   const pin = { ...PIN, binary: 'C:/bench-runs/claude-2.1.296.exe' }
   const env = { PATH: 'C:/bin', CLAUDECODE: '1' }
-  const call = judgeCall({ pin, installedKeys: ['a@market'], files, env, home, spawn: spawnFor(home), log: quiet })
+  const call = judgeCall({ pin, installedKeys: ['a@market'], files, env, home, spawn: spawnFor(home), log: quiet, ...deps })
   const job = { pair: 'h4-r1', judge: 2, source: pairFolder(t, LABELS4), prompt: 'judge this', swap: mirrorSwap(2, LABELS4) }
   return { call, job, files, pin, env }
 }
@@ -541,6 +541,59 @@ test('a judge session that left no transcript, or hit a usage limit, stops judgi
   const run = runJobs([{ ...limited.job, labels: LABELS4 }], { rows: [], call: limited.call, check: judgeCheck(PIN), files: limited.files, log: quiet })
   await assert.rejects(run, { message: 'judge h4-r1 #2 hit a usage or rate limit: resume judging in the next usage window' })
   assert.ok(!existsSync(limited.files.reasks) && !existsSync(limited.files.leftOut), 'no attempt used')
+})
+
+// A judge that never ends (with the background wait off, a judge's background task can keep claude -p waiting) is
+// stopped at its time limit: the whole process tree is killed, and the attempt is unusable and re-asked.
+function hangingJudge({ home, calls, transcript = true }) {
+  return (command, args, options) => {
+    const sessionId = args[args.indexOf('--session-id') + 1]
+    calls.push({ command, options })
+    const project = projectDirFor(options.cwd, home)
+    mkdirSync(project, { recursive: true })
+    if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), transcriptOf())
+    const child = Object.assign(new EventEmitter(), { pid: 2147483647, stdout: new PassThrough() })
+    once(child.stdout, 'end').then(() => child.emit('close', null, 'SIGKILL'))
+    return child
+  }
+}
+
+test('Opus judges get 60 minutes per attempt, start in their own process group on Linux, and keep their Windows options', () => {
+  assert.equal(JUDGE_TIMEOUT_MS, 60 * 60_000)
+  const env = { PATH: '/bin' }
+  assert.deepEqual(judgeSpawnOptions('/tmp/c', env, 'linux'), { cwd: '/tmp/c', env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'], detached: true })
+  assert.deepEqual(judgeSpawnOptions('C:/c', env, 'win32'), { cwd: 'C:/c', env, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] })
+})
+
+test('a judge attempt at its time limit has its tree killed and comes back timed out, transcript kept when there is one', async t => {
+  const calls = []
+  const killed = []
+  const kill = child => { killed.push(child.pid); child.stdout.end() }
+  const { call, job, files } = callSetup(t, home => hangingJudge({ home, calls }), { kill, timeoutMs: 30 })
+  const answer = await call(job, 1)
+  assert.deepEqual(answer, { stdout: '', transcript: transcriptOf(), subagentTranscripts: [], timedOut: true })
+  assert.deepEqual(killed, [2147483647])
+  assert.deepEqual(calls[0].options, judgeSpawnOptions(calls[0].options.cwd, calls[0].options.env))
+  assert.ok(existsSync(join(files.transcripts, 'h4-r1-2-a1.jsonl')))
+  assert.ok(!existsSync(calls[0].options.cwd), 'the copy is deleted')
+  const bare = callSetup(t, home => hangingJudge({ home, calls, transcript: false }), { kill, timeoutMs: 30 })
+  assert.deepEqual(await bare.call(bare.job, 1), { stdout: '', transcript: '', subagentTranscripts: [], timedOut: true }, 'no transcript is no harness stop here')
+  assert.deepEqual(judgeCheck(PIN)(answer), ['judge timed out'])
+})
+
+test('a timed-out judge attempt is unusable with the reason "judge timed out" and is re-asked; three are left out', async t => {
+  const files = tempFiles(t)
+  const job = { pair: 'h4-r1', judge: 1, labels: LABELS4, swap: null }
+  const late = { stdout: '', transcript: transcriptOf(), subagentTranscripts: [], timedOut: true }
+  const ok = { stdout: verbose(fenced(good4)), transcript: transcriptOf() }
+  const calls = []
+  assert.equal(await runJobs([job], { rows: [], call: scripted({ 'h4-r1#1': [late, ok] }, calls), check: judgeCheck(PIN), files, log: quiet }), 0)
+  assert.deepEqual(calls, ['h4-r1#1a1', 'h4-r1#1a2'])
+  assert.deepEqual(readJson(files.reasks), [{ pair: 'h4-r1', judge: 1, attempt: 1, reasons: ['judge timed out'] }])
+  assert.equal(readJson(files.rows).length, 1)
+  const other = tempFiles(t)
+  assert.equal(await runJobs([job], { rows: [], call: async () => late, check: judgeCheck(PIN), files: other, log: quiet }), 1)
+  assert.deepEqual(readJson(other.leftOut), [{ pair: 'h4-r1', judge: 1, attempt: 3, reasons: ['judge timed out'] }])
 })
 
 // Judges are checked like a solo run: their subagents' transcripts are kept and held to the round effort too.
