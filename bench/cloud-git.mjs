@@ -8,10 +8,27 @@ import { join } from 'node:path'
 
 export const EMAIL_VAR = 'CLAUDE_CODE_USER_EMAIL'
 // Every commit of the round's branches is made under this address (the user's GitHub noreply address).
-export const SYNC_AUTHOR = ['-c', 'user.name=section-team bench', '-c', 'user.email=132957152+afel6@users.noreply.github.com']
+export const SYNC_AUTHOR = ['-c', 'user.name=Raouf', '-c', 'user.email=132957152+afel6@users.noreply.github.com']
 export const RETRY_WAITS_MS = [2000, 4000, 8000, 16000]
 const MAX_BUFFER = 2 * 1024 * 1024 * 1024
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+let attrSource
+
+// Files go to the branch and back byte for byte: no end-of-line conversion from core.autocrlf (often true on Windows),
+// and, on git 2.40 and later, attributes read from the empty tree, so no .gitattributes a solution ships converts
+// either. Older git (a PC not yet updated) gets core.autocrlf=false alone.
+function byteExact() {
+  if (attrSource === undefined) {
+    try {
+      execFileSync('git', [`--attr-source=${EMPTY_TREE}`, 'version'], { stdio: 'ignore' })
+      attrSource = [`--attr-source=${EMPTY_TREE}`]
+    } catch {
+      attrSource = []
+    }
+  }
+  return ['-c', 'core.autocrlf=false', ...attrSource]
+}
 
 const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 
@@ -30,9 +47,10 @@ export class PushFailed extends Error {
 }
 
 // git's stdout, trimmed text (or a Buffer with text false); a failure is one line naming the command and git's last line.
+// Every call is byte-exact (see byteExact).
 export function git(args, { cwd, input, text = true } = {}) {
   try {
-    const out = execFileSync('git', args, { cwd, input, maxBuffer: MAX_BUFFER, stdio: ['pipe', 'pipe', 'pipe'] })
+    const out = execFileSync('git', [...byteExact(), ...args], { cwd, input, maxBuffer: MAX_BUFFER, stdio: ['pipe', 'pipe', 'pipe'] })
     return text ? out.toString('utf8').trim() : out
   } catch (err) {
     const why = String(err.stderr ?? '').trim().split('\n').at(-1) || err.code || `exit ${err.status}`

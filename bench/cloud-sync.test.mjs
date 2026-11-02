@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EMAIL_VAR } from './cloud-git.mjs'
 import {
-  CASES_BRANCH, RESULTS_BRANCH, VERDICTS_BRANCH, fetchPath, publishRun, publishSets, pushAll, restore, syncDirFor, syncOptions,
+  CASES_BRANCH, MAX_FILE_BYTES, RESULTS_BRANCH, VERDICTS_BRANCH, fetchPath, publishRun, publishSets, pushAll, restore, syncDirFor, syncOptions,
 } from './cloud-sync.mjs'
 
 // A made-up address: tests never see the real account email.
@@ -81,6 +81,31 @@ test('publishRun pushes the run\'s results and its solution folders, history bun
   assert.deepEqual(sidecar, { head: 'refs/heads/main', refs: { 'refs/heads/main': sh(run.runDir, 'rev-parse', 'HEAD') } })
   assert.equal(sh(m.remote, 'log', '-1', '--format=%ae %s', RESULTS_BRANCH), '132957152+afel6@users.noreply.github.com chore(results): h4-solo-mo-r1')
   assert.deepEqual(publishRun(run, m.ctx), { committed: false, pushed: false }, 'nothing new')
+})
+
+// npm packages are no part of a solution (the tasks allow Node built-ins only) and can be huge: never pushed.
+test('publishRun never pushes node_modules from a solution folder, at any depth', t => {
+  const m = machine(t)
+  const run = finishedRun(m)
+  write(join(run.runDir, 'node_modules', 'left-pad', 'index.js'), 'x\n')
+  write(join(run.runDir, 'lib', 'node_modules', 'x', 'index.js'), 'x\n')
+  write(join(run.runDir, 'lib', 'util.mjs'), 'export {}\n')
+  publishRun(run, m.ctx)
+  const files = branchFiles(m.remote, RESULTS_BRANCH)
+  assert.ok(files.includes('runs/h4-0123abcd/lib/util.mjs'))
+  assert.deepEqual(files.filter(file => file.split('/').includes('node_modules')), [])
+})
+
+// GitHub refuses files over 100 MB: a file over 90 MB stops the publish in one line, before any commit or push.
+test('a pushed file over the size limit stops the publish in one line, with nothing committed or pushed', t => {
+  assert.equal(MAX_FILE_BYTES, 90 * 1024 * 1024)
+  const m = machine(t)
+  const run = finishedRun(m)
+  write(join(run.outDir, 'raw.json'), 'x'.repeat(2 * 1024 * 1024))
+  assert.throws(() => publishRun(run, { ...m.ctx, maxFileBytes: 1024 * 1024 }),
+    { message: 'results/h4-solo-mo-r1/raw.json is 2.0 MB, over the 1.0 MB limit for one pushed file: nothing was committed or pushed' })
+  assert.equal(sh(m.remote, 'branch', '--list', RESULTS_BRANCH), '')
+  assert.throws(() => sh(m.repo, 'rev-parse', '--verify', '-q', `refs/heads/${RESULTS_BRANCH}`), 'no commit on the results branch')
 })
 
 test('publishRun stops before copying anything when a solution\'s history holds the account email', t => {
@@ -165,6 +190,20 @@ test('restore rebuilds results, run folders with their history, the pinned CLI a
   assert.equal(sh(pluginDir, 'rev-parse', 'HEAD'), sh(m.repo, 'rev-parse', 'v0.2.1'))
   assert.deepEqual(restore({ round: 'mo', results: f.results, runs: f.runs }, { ...f.ctx, install: () => assert.fail('no install') }),
     { results: [], kept: ['h4-solo-mo-r1', 'preflight-mo.json'], runs: [], cli: 'ok', plugin: 'present' }, 'a second restore changes nothing')
+})
+
+// The user's Windows run of the restore test got '[]\r\n' for '[]\n': a checkout with core.autocrlf=true converted it.
+test('restore on a machine with core.autocrlf=true gives every file back byte for byte', t => {
+  const m = machine(t)
+  const run = finishedRun(m)
+  write(join(run.runDir, 'crlf.txt'), 'a\r\nb\n')
+  publishRun(run, m.ctx)
+  const f = freshMachine(m)
+  sh(f.repo, 'config', 'core.autocrlf', 'true')
+  restore({ round: 'mo', results: f.results, runs: f.runs }, f.ctx)
+  assert.equal(readFileSync(join(f.runs, run.folder, 'bookings.json'), 'utf8'), '[]\n')
+  assert.equal(readFileSync(join(f.runs, run.folder, 'crlf.txt'), 'utf8'), 'a\r\nb\n')
+  assert.equal(readFileSync(join(f.results, run.id, 'run.json'), 'utf8'), '{"end":"ok"}\n')
 })
 
 test('restore stops when installing the pinned package does not give the pinned bytes, and works before any pin', t => {

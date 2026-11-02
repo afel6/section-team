@@ -15,7 +15,7 @@
 //        node bench/cloud-sync.mjs publish --branch=<b> [--only=<file name>,...] <folder or file> ...
 //        node bench/cloud-sync.mjs fetch --branch=<b> --path=<path on the branch> --out=<new folder or file>
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +35,10 @@ const PLUGIN_TAG = `v${SECTION_TEAM_VERSION}`
 const USAGE = 'usage: node bench/cloud-sync.mjs push | restore --round=<r> | scan [--rev=<rev>] | publish --branch=<b> [--only=<names>] <path>... | fetch --branch=<b> --path=<p> --out=<new path>'
 const COPY = { recursive: true, verbatimSymlinks: true }
 const PLACEHOLDER = '[account email removed]'
+// GitHub refuses files over 100 MB; a pushed file over this stops the publish before any commit.
+export const MAX_FILE_BYTES = 90 * 1024 * 1024
+// Never pushed from a solution folder: its own repo (bundled beside it) and npm packages (the tasks allow built-ins only).
+const NOT_PUSHED = new Set(['.git', 'node_modules'])
 // A case set may hold none of these: a judged case, a used scratch folder, or a key.
 const KEY_FILE = /blind-key|external-key/i
 
@@ -44,8 +48,19 @@ export const syncDirFor = (branch, root = SYNC_ROOT) => join(root, branch.replac
 const filesUnder = dir => readdirSync(dir, { recursive: true, withFileTypes: true })
   .filter(e => e.isFile() || e.isSymbolicLink()).map(e => relative(dir, join(e.parentPath, e.name)).replaceAll('\\', '/')).sort()
 
-const contextOf = ({ repo = REPO, syncRoot = SYNC_ROOT, env = process.env, branch = RESULTS_BRANCH, wait, push, redactEmail = false } = {}) =>
-  ({ repo, syncRoot, env, branch: checkBranch(branch), wait, push, redactEmail })
+const contextOf = ({ repo = REPO, syncRoot = SYNC_ROOT, env = process.env, branch = RESULTS_BRANCH, wait, push, redactEmail = false, maxFileBytes = MAX_FILE_BYTES } = {}) =>
+  ({ repo, syncRoot, env, branch: checkBranch(branch), wait, push, redactEmail, maxFileBytes })
+
+const megabytes = bytes => (bytes / (1024 * 1024)).toFixed(1)
+
+// Every file about to be staged must fit the limit; one line names each that does not.
+function checkSizes(dir, paths, limit) {
+  const files = paths.filter(rel => existsSync(join(dir, rel))).flatMap(rel => (lstatSync(join(dir, rel)).isDirectory() ? filesUnder(join(dir, rel)).map(file => `${rel}/${file}`) : [rel]))
+  const big = files.map(file => [file, lstatSync(join(dir, file)).size]).filter(([, size]) => size > limit)
+  if (big.length > 0) {
+    throw new Error(`${big.map(([file, size]) => `${file} is ${megabytes(size)} MB`).join(', ')}, over the ${megabytes(limit)} MB limit for one pushed file: nothing was committed or pushed`)
+  }
+}
 
 // The pushed copies under to (a folder or a file) without the address; the number of files changed.
 function redactCopies(to, email) {
@@ -69,7 +84,7 @@ const readJsonOr = (file, fallback) => (existsSync(file) ? JSON.parse(readFileSy
 // The solution's files without any .git, beside it its history as <name>.git.bundle and <name>.git.json.
 function placeSolution(from, to) {
   rmSync(to, { recursive: true, force: true })
-  cpSync(from, to, { ...COPY, filter: src => basename(src) !== '.git' })
+  cpSync(from, to, { ...COPY, filter: src => src === from || !NOT_PUSHED.has(basename(src)) })
   const sidecar = `${to}.git.json`
   if (!existsSync(join(from, '.git'))) {
     for (const file of [sidecar, `${to}.git.bundle`]) rmSync(file, { force: true })
@@ -108,6 +123,7 @@ export function publishItems({ items, message }, options) {
   const redacted = ctx.redactEmail ? redactable.reduce((sum, item) => sum + redactCopies(join(dir, item.to), email), 0) : 0
   const note = redacted > 0 ? ` (account email replaced in ${redacted} file${redacted === 1 ? '' : 's'})` : ''
   const paths = stageable(dir, items.flatMap(pathsOf))
+  checkSizes(dir, paths, ctx.maxFileBytes)
   const committed = paths.length > 0 && commitPaths({ cwd: dir, paths, message: `${message}${note}` })
   const pushed = scanAndPush({ cwd: dir, branch: ctx.branch, email, wait: ctx.wait, push: ctx.push })
   return { committed, pushed }

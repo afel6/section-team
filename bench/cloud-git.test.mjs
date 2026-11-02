@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -111,6 +111,26 @@ test('commitPaths commits files a solution\'s own .gitignore ignores, and report
   assert.equal(commitPaths({ cwd: dir, paths: ['runs'], message: 'm' }), true)
   assert.equal(sh(dir, 'ls-files'), 'runs/h4-1/.gitignore\nruns/h4-1/bookings.json')
   assert.equal(commitPaths({ cwd: dir, paths: ['runs'], message: 'm' }), false)
+})
+
+// Windows checkouts often set core.autocrlf=true, and a solution may ship its own .gitattributes: neither may change a
+// byte on the way to the branch or back (the user's Windows run of the restore test got '[]\r\n' for '[]\n').
+test('the sync git calls keep files byte-exact despite core.autocrlf=true and a solution\'s own .gitattributes', t => {
+  const { root, repo } = remoteAndRepo(t)
+  sh(repo, 'config', 'core.autocrlf', 'true')
+  const dir = openWorktree({ repo, branch: BRANCH, dir: join(root, 'sync') })
+  const mixed = Buffer.from('a\nb\r\nc\n')
+  write(join(dir, 'runs', 'h4-1', '.gitattributes'), '* text eol=crlf\n')
+  write(join(dir, 'runs', 'h4-1', 'bookings.json'), '[]\n')
+  write(join(dir, 'runs', 'h4-1', 'mixed.txt'), mixed)
+  commitPaths({ cwd: dir, paths: ['runs'], message: 'm' })
+  assert.deepEqual(git(['cat-file', 'blob', 'HEAD:runs/h4-1/mixed.txt'], { cwd: dir, text: false }), mixed)
+  assert.equal(git(['cat-file', 'blob', 'HEAD:runs/h4-1/bookings.json'], { cwd: dir }), '[]')
+  sh(dir, 'push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`)
+  sh(root, 'clone', '-q', '-c', 'core.autocrlf=true', 'remote.git', 'windows')
+  const other = openWorktree({ repo: join(root, 'windows'), branch: BRANCH, dir: join(root, 'windows-sync') })
+  assert.deepEqual(readFileSync(join(other, 'runs', 'h4-1', 'mixed.txt')), mixed)
+  assert.equal(readFileSync(join(other, 'runs', 'h4-1', 'bookings.json'), 'utf8'), '[]\n')
 })
 
 test('scanAndPush pushes what is new, and nothing when nothing is', t => {
