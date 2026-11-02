@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { WORDS, leakScan, main, scanSolution, scanText } from './leak-scan.mjs'
@@ -102,6 +102,19 @@ const SCAN = {
   'max-mo': { hits: { supervisor: 1, GRADE: 1 }, extraPaths: ['h4-r1/X/notes.txt'], testLines: 4 },
   'solo-mo': { hits: {}, extraPaths: [], testLines: 3 },
 }
+
+// The frozen spec says a folder junction is followed on Windows: its files are scanned, and the junction itself is
+// listed by name (an extra path). Pinned here so a change to the walk cannot silently make the spec false.
+test('scanSolution follows a folder junction on Windows and lists the junction by name', { skip: process.platform !== 'win32' && 'junctions are Windows-only' }, t => {
+  const root = tempDir(t)
+  put(join(root, 'outside', 'notes.mjs'), '// the supervisor wrote this\n')
+  const dir = join(root, 'solution')
+  put(join(dir, 'index.mjs'), 'export const ok = 1\n')
+  symlinkSync(join(root, 'outside'), join(dir, 'linked'), 'junction')
+  const scan = scanSolution(dir)
+  assert.deepEqual(scan.hits, { supervisor: 1 }, 'the junction target\'s file is read')
+  assert.deepEqual(scan.extraPaths, ['linked'], 'the junction entry is listed; linked/notes.mjs is a code file')
+})
 
 test('leakScan groups by setup through the blind key', t => {
   const judgeDir = judgeFolder(join(tempDir(t), 'judge'))

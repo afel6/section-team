@@ -235,6 +235,14 @@ test('nearMissState leaves zero-length files out of the byte match', t => {
   assert.deepEqual(nearMissState(dir).outside, ['lib/range.mjs'])
 })
 
+// An empty .gitkeep is not a near-miss copy: with nothing else there and no testing write, Max made none.
+test('a .team/near-miss/ holding only empty files has no copy', t => {
+  const dir = runDir(t, { ...modeFile('max'), '.team/near-miss/.gitkeep': '' })
+  assert.deepEqual(nearMissState(dir), { copies: 0, outside: [] })
+  const result = checkRun({ cond: 'max-mo', task: 'h5', roles: maxH5(), runDir: dir, record: 'max' })
+  assert.deepEqual(result.broken, ['no near-miss copy in .team/near-miss/'])
+})
+
 test('max run whose copies are gone counts any testing-section write into .team/near-miss/', t => {
   const dir = runDir(t, modeFile('max'))
   const NONE = ['no near-miss copy in .team/near-miss/']

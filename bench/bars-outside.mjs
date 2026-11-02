@@ -16,10 +16,10 @@ const casesOf = (results, roundTag) => readInput(
 )
 
 // One judge's mode-round import: all its verdicts (judge-<as>.json), a count of usable cases, or nothing.
-function importOf(results, roundTag, as) {
+function importOf(results, roundTag, as, set) {
   const judgePath = join(results, `judge-${as}.json`)
   // importRound refuses while judge-<as>.json or blind-key-<as>.json exists, so the hint moves them aside first.
-  const again = `move judge-${as}.json and blind-key-${as}.json aside, then run node bench/external-judge.mjs import --round=${roundTag} --as=${as} again`
+  const again = `move judge-${as}.json and blind-key-${as}.json aside, then run node bench/external-judge.mjs import --round=${roundTag} --out=${set ?? '<case set folder>'} --as=${as} again`
   if (existsSync(judgePath)) {
     const cases = casesOf(results, roundTag)
     const rows = readInput(judgePath, again, 'array')
@@ -43,14 +43,14 @@ function importOf(results, roundTag, as) {
 // mode-round import. A judge with no held-out check, or with nothing imported, is 'not used'.
 export function outsideJudges({ config, results }) {
   const notUsed = { status: 'not used', usableCases: 0, total: null, rows: null, key: null }
-  return config.outside.map(({ name, heldOut, round: as }) => {
+  return config.outside.map(({ name, heldOut, round: as, set }) => {
     const checkPath = join(results, `outside-check-ho-${heldOut}.json`)
     if (!existsSync(checkPath)) return { name, passedHeldOut: false, check: null, ...notUsed }
     const check = readInput(checkPath, `run node bench/external-judge.mjs check --as=${heldOut} first`, 'object')
     if (typeof check.passed !== 'boolean' || ![check.gap, check.same, check.pairs].every(Number.isFinite)) {
       throw new Error(`${checkPath} is not a held-out check record (numbers gap, same, pairs and true or false passed)`)
     }
-    return { name, passedHeldOut: check.passed, check, ...(importOf(results, config.round, as) ?? notUsed) }
+    return { name, passedHeldOut: check.passed, check, ...(importOf(results, config.round, as, set) ?? notUsed) }
   })
 }
 

@@ -50,14 +50,14 @@ function outsideFiles(runDir) {
 const sha = buffer => createHash('sha256').update(buffer).digest('hex')
 const COPY_WORD = /near-miss|nearmiss|mutant/i
 
-// { copies, outside }: the files under <runDir>/.team/near-miss/, and the runDir-relative paths of files outside
-// .team/, .git/ and node_modules/ that are byte-identical to one of them, name near-miss, nearmiss or mutant in their
-// path, or have a first line containing `near-miss:`.
+// { copies, outside }: how many files with bytes are under <runDir>/.team/near-miss/, and the runDir-relative paths of
+// files outside .team/, .git/ and node_modules/ that are byte-identical to one of them, name near-miss, nearmiss or
+// mutant in their path, or have a first line containing `near-miss:`.
 export function nearMissState(runDir) {
   const nearDir = join(runDir, '.team', 'near-miss')
-  const copies = filesUnder(nearDir)
-  // An empty file (a .gitkeep) would match every empty file, so only files with bytes are matched by bytes.
-  const hashes = new Set(copies.map(rel => readFileSync(join(nearDir, rel))).filter(bytes => bytes.length > 0).map(sha))
+  // An empty file (a .gitkeep) is no copy, and would match every empty file: only files with bytes count.
+  const copies = filesUnder(nearDir).map(rel => readFileSync(join(nearDir, rel))).filter(bytes => bytes.length > 0)
+  const hashes = new Set(copies.map(sha))
   const isCopy = rel => {
     if (COPY_WORD.test(rel)) return true
     const bytes = readFileSync(join(runDir, rel))

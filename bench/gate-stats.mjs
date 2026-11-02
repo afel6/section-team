@@ -173,25 +173,33 @@ function codeQualityByRun(results, round) {
 // This module's readers' one-line errors (readJson and readRun below), on top of score.mjs's.
 const OWN_READER_ERRORS = [/: not valid JSON \(/, /: no run dir$/]
 
-// readRun, or a no-data reading with the reason when a file failure stopped it (score.mjs isFileFailure, as in
-// mode-check): one bad run never stops the table. Anything else (a TypeError, an ERR_* code) is a bug.
-function readRunOrReason(folder, home) {
+// A no-data row's reason: a reader's own line names its file; a file-system error names its path, or, when Node gave
+// none (reading a folder), the run's run.json and its session evidence.
+function reasonOf(err, folder) {
+  if (!err.code) return err.message
+  if (err.path) return err.message.includes(err.path) ? err.message : `${err.path}: ${err.message}`
+  return `${join(folder, 'run.json')} or its session evidence: ${err.message}`
+}
+
+// read(folder, home), or a no-data reading with the reason when a file failure stopped it (score.mjs isFileFailure, as
+// in mode-check): one bad run never stops the table. Anything else (a TypeError, an ERR_* code) is a bug.
+function readRunOrReason(read, folder, home) {
   try {
-    return readRun(folder, home)
+    return read(folder, home)
   } catch (err) {
     if (!isFileFailure(err, OWN_READER_ERRORS)) throw err
-    return { roles: null, tap: null, reports: [], reason: err.message }
+    return { roles: null, tap: null, reports: [], reason: reasonOf(err, folder) }
   }
 }
 
-// Every team (Balanced), lean and max run of the round; solo runs have no gate.
-export function gateStats({ results = RESULTS, round, home = homedir() }) {
+// Every team (Balanced), lean and max run of the round; solo runs have no gate. read replaces readRun in tests.
+export function gateStats({ results = RESULTS, round, home = homedir(), read = readRun }) {
   const runId = new RegExp(`-(team|lean|max)-${round}-r\\d+$`)
   const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
   const quality = codeQualityByRun(results, round)
   return ids.map(id => {
-    const { reason, ...read } = readRunOrReason(join(results, id), home)
-    const row = gateRow({ id, mode: modeOfCond(runId.exec(id)[1]), ...read, codeQuality: quality[id] ?? null })
+    const { reason, ...reading } = readRunOrReason(read, join(results, id), home)
+    const row = gateRow({ id, mode: modeOfCond(runId.exec(id)[1]), ...reading, codeQuality: quality[id] ?? null })
     return reason === undefined ? row : { ...row, reason }
   })
 }

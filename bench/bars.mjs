@@ -40,8 +40,11 @@ function spread(gaps, floor) {
 }
 
 // Mean cost of the mode's runs over the comparator's on `tasks`, and the ids of the priced runs whose cost was computed
-// from transcripts; all null when a cost is unknown (never priced at $0). The ratio is cut to 12 significant digits
-// before rounding, so a decimal halfway value that division leaves just under it (1.1249999999999998) rounds up.
+// from transcripts; all null when a cost is unknown (never priced at $0). The ratio is scaled to its decimals, then
+// cut to 12 significant digits and rounded half-up, so a decimal halfway value rounds up even when division or the
+// scaling leaves it just under (1.1249999999999998 → 1.13; 1.255 × 100 = 125.49999999999999 → 1.26).
+const tieSafeRound = (x, d) => Math.round(Number((x * 10 ** d).toPrecision(12))) / 10 ** d
+
 function costRatio(groups, tasks, decimals) {
   const runs = groups.filter(g => tasks.includes(g.task))
   const costs = side => runs.map(g => g[side].run.costUSD)
@@ -49,7 +52,7 @@ function costRatio(groups, tasks, decimals) {
   if (!known) return { modeCost: null, vsCost: null, ratio: null, computed: [] }
   const [modeCost, vsCost] = [mean(costs('mode')), mean(costs('vs'))]
   const computed = runs.flatMap(g => [g.mode.run, g.vs.run]).filter(run => run.costComputed === true).map(run => run.id)
-  return { modeCost, vsCost, ratio: round(Number((modeCost / vsCost).toPrecision(12)), decimals), computed }
+  return { modeCost, vsCost, ratio: tieSafeRound(modeCost / vsCost, decimals), computed }
 }
 
 // Lean's usage half on usage.tasks, plus its reportVs ratio (reported only) under the same group rule. The reading is

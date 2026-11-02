@@ -156,14 +156,14 @@ test('a corrupt outside file stops with one line naming it', t => {
   const rows = outsideRows(ONES)
   for (const broken of [{ 'judge-mocx.json': rows.slice(1) }, { 'judge-mocx.json': [] }, { 'blind-key-mocx.json': {} }]) {
     assert.throws(judgesFrom({ ...codexImported(ONES), ...broken }),
-      /judge-mocx\.json does not hold all 18 cases of external-key-mo\.json: move judge-mocx\.json and blind-key-mocx\.json aside, then run node bench\/external-judge\.mjs import --round=mo --as=mocx again$/)
+      /judge-mocx\.json does not hold all 18 cases of external-key-mo\.json: move judge-mocx\.json and blind-key-mocx\.json aside, then run node bench\/external-judge\.mjs import --round=mo --out=C:\/Users\/Asus\/codex-judge-mo --as=mocx again$/)
   }
   assert.throws(judgesFrom({ 'outside-check-ho-hocx.json': '{"passed": tr' }), /outside-check-ho-hocx\.json is not valid JSON$/)
   const usable = usable => ({ 'outside-check-ho-hoag2.json': PASSED, 'external-key-mo.json': EXTERNAL_KEY, 'outside-usable-moag.json': { usable, total: 18 } })
   assert.throws(judgesFrom(usable('17')), /outside-usable-moag\.json has no whole "usable" count from 0 to 18$/)
   assert.throws(judgesFrom(usable(19)), /outside-usable-moag\.json has no whole "usable" count from 0 to 18$/)
   assert.throws(judgesFrom(usable(18)),
-    /outside-usable-moag\.json counts every case usable, but .*judge-moag\.json is missing: move judge-moag\.json and blind-key-moag\.json aside, then run node bench\/external-judge\.mjs import --round=mo --as=moag again$/)
+    /outside-usable-moag\.json counts every case usable, but .*judge-moag\.json is missing: move judge-moag\.json and blind-key-moag\.json aside, then run node bench\/external-judge\.mjs import --round=mo --out=C:\/Users\/Asus\/ag-judge-mo --as=moag again$/)
   const { 'external-key-mo.json': _key, ...noKey } = codexImported(ONES)
   assert.throws(judgesFrom(noKey), /missing .*external-key-mo\.json: run node bench\/external-judge\.mjs prepare --round=mo first$/)
 })

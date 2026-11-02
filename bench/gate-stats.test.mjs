@@ -225,6 +225,24 @@ test('a run whose run.json or session.json is broken is a no-data row with its r
     assert.match(multi.reason, /run\.json: not valid JSON \(.*oops.*\)$/)
     assert.doesNotMatch(multi.reason, /[\r\n]/)
     assert.equal(formatTable([multi]).split('\n').length, 3, 'header, rule and one row')
+    // A file-system error whose message names no file (reading a folder) still says which run's files failed.
+    rmSync(join(results, 'h4-team-ho-r1', 'run.json'))
+    mkdirSync(join(results, 'h4-team-ho-r1', 'run.json'))
+    const folder = gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1')
+    assert.match(folder.reason, /h4-team-ho-r1[\\/]run\.json or its session evidence: EISDIR/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// Only file failures become rows: a bug in a reader (a TypeError, or an error no reader throws) stops gate-stats.
+test('gateStats lets an error that is not a file failure stop it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-bug-'))
+  try {
+    const { results, home } = fakeRound(root)
+    assert.throws(() => gateStats({ results, round: 'ho', home, read: () => { throw new TypeError('bug') } }), { name: 'TypeError', message: 'bug' })
+    assert.throws(() => gateStats({ results, round: 'ho', home, read: () => { throw new Error('no reader says this') } }), { message: 'no reader says this' })
+    assert.equal(gateStats({ results, round: 'ho', home, read: () => { throw new Error('x/run.json: no run dir') } })[0].reason, 'x/run.json: no run dir')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

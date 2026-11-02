@@ -35,7 +35,8 @@ const DELIVERABLE_EXT = new Set(['.mjs', '.js', '.cjs', '.html', '.css', '.json'
 // package.json, *.md (case-sensitive, as the brief writes it), a code file or a test file; anything else is extra.
 const isExpectedFile = rel => basename(rel) === 'package.json' || rel.endsWith('.md') || DELIVERABLE_EXT.has(extname(rel)) || isTestPath(rel)
 
-// One entry per non-folder under dir. A link is not followed: its name is scanned, its target is not read.
+// One entry per non-folder under dir. A file link is scanned by name only (its target is not read); on Windows,
+// readdirSync's recursive walk follows a folder junction, so the junction is listed by name and its files are scanned.
 function scanFiles(dir) {
   return readdirSync(dir, { recursive: true, withFileTypes: true }).filter(e => !e.isDirectory()).map(e => {
     const path = join(e.parentPath, e.name)
