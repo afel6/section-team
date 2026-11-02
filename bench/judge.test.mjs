@@ -24,7 +24,7 @@ const good4 = { W: scores(7), X: scores(5), Y: scores(8), Z: scores(6), ranking:
 const envelope = text => JSON.stringify({ type: 'result', result: text, total_cost_usd: 1.25 })
 // A pin and the init of a judge that matches it (judges are held to solo's lists).
 const PIN = { version: '2.1.296', apiKeySource: 'none', builtins: ['b@builtin'], pluginDir: 'C:/plug', setups: { solo: { plugins: ['b@builtin'], agents: ['a'], skills: ['s'] } } }
-const INIT = { type: 'system', subtype: 'init', plugins: [{ source: 'b@builtin', path: 'builtin' }], mcp_servers: [], agents: ['a'], skills: ['s'], model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none' }
+const INIT = { type: 'system', subtype: 'init', plugins: [{ source: 'b@builtin', path: 'builtin' }], mcp_servers: [], agents: ['a'], skills: ['s'], model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none', permissionMode: 'default' }
 // `claude -p --output-format json --verbose` stdout: every message as one array, the init first and the result last.
 const verbose = (text, init = INIT) => JSON.stringify([init, { type: 'assistant', message: { content: [] } }, JSON.parse(envelope(text))])
 const transcriptOf = (effort = 'medium', before = []) => [...before, { type: 'assistant', effort, message: { model: 'claude-opus-5-5' } }].map(line => `${JSON.stringify(line)}\n`).join('')
@@ -239,6 +239,27 @@ test('judgeCheck holds a judge to the pin and to the round effort', () => {
   assert.deepEqual(judgeCheck(PIN)({ stdout: 'claude crashed', transcript: transcriptOf() }), ['no init message'])
   const live = { ...INIT, plugins: [...INIT.plugins, { source: 'section-team@inline', path: 'C:/plug' }] }
   assert.ok(judgeCheck(PIN)({ stdout: verbose('x', live), transcript: transcriptOf() }).includes('section-team loaded in judge'))
+})
+
+// --permission-mode default must have taken effect: the user's own default ("auto") would approve more tools.
+test('judgeCheck fails a judge whose init shows a permission mode other than default or manual', () => {
+  const check = permissionMode => judgeCheck(PIN)({ stdout: verbose(fenced(good4), { ...INIT, permissionMode }), transcript: transcriptOf() })
+  assert.deepEqual([check('default'), check('manual')], [[], []])
+  assert.deepEqual(check('auto'), ['judge ran in permission mode auto'])
+  assert.deepEqual(check('bypassPermissions'), ['judge ran in permission mode bypassPermissions'])
+  assert.deepEqual(check(undefined), ['judge ran in permission mode none'])
+})
+
+// Read, Glob, Grep and cat are not confined to the copy: a tool call that names a blind key fails the attempt.
+test('judgeCheck fails a judge whose tool calls, in its session or a subagent, name a blind key', () => {
+  const stdout = verbose(fenced(good4))
+  const toolCall = input => ({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 't1', name: 'Read', input }] } })
+  const peek = transcriptOf('medium', [toolCall({ file_path: 'C:/Users/Asus/claude-team-moderound/bench/results/blind-key-mo.json' })])
+  assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: peek }), ['judge touched a blind key'])
+  const shell = transcriptOf('medium', [toolCall({ command: 'cat ../../bench/results/External-Key-mo.json' })])
+  assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: transcriptOf(), subagentTranscripts: [shell] }), ['judge touched a blind key'])
+  const said = transcriptOf('medium', [{ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'no blind-key here' }] } }])
+  assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: said }), [], 'only tool calls count, not the answer text')
 })
 
 test('judgeOptions reads round, per-pair and limit, and rejects a bad command line', () => {
@@ -527,17 +548,29 @@ test('a judge attempt keeps its subagent transcripts and judgeCheck holds them t
   assert.ok(!existsSync(files.compacted), 'a compacted subagent is not a compacted judge')
 })
 
+// A rerun of the same attempt number (a kill after keepTranscript) must not check the earlier session's subagents.
+test('a judge attempt replaces, never merges, a subagent folder an earlier session left under the same attempt name', async t => {
+  const { call, job, files } = callSetup(t, home => fakeJudge({ home, calls: [], subagent: transcriptOf('medium') }))
+  mkdirSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents'), { recursive: true })
+  writeFileSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents', 'old.jsonl'), transcriptOf('high'))
+  const answer = await call(job, 1)
+  assert.deepEqual(answer.subagentTranscripts, [transcriptOf('medium')])
+  assert.deepEqual(readdirSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents')), ['x.jsonl'])
+  assert.deepEqual(judgeCheck(PIN)(answer), [])
+})
+
 // An API error or a missing result is not the judge's fault: judging stops and uses no attempt, so a resume asks again.
 test('a judge session that ends on an API error or with no result stops judging without using an attempt', async t => {
+  const oauth = 'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth token has expired"}}'
   const ends = [
-    [INIT, { type: 'result', is_error: true, result: 'API Error: 529 overloaded' }],
-    [INIT, { type: 'result', is_error: true, result: 'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth token has expired"}}' }],
-    [INIT],
+    [[INIT, { type: 'result', is_error: true, result: 'API Error: 529 overloaded\nretry later' }], 'API Error: 529 overloaded'],
+    [[INIT, { type: 'result', is_error: true, result: oauth }], oauth],
+    [[INIT], 'no result'],
   ]
-  for (const messages of ends) {
+  for (const [messages, said] of ends) {
     const setup = callSetup(t, home => fakeJudge({ home, calls: [], stdout: JSON.stringify(messages) }))
     const run = runJobs([{ ...setup.job, labels: LABELS4 }], { rows: [], call: setup.call, check: judgeCheck(PIN), files: setup.files, log: quiet })
-    await assert.rejects(run, { message: 'judge h4-r1 #2 ended with an API error or no result: fix the cause (login, outage), then resume' }, JSON.stringify(messages.at(-1)))
+    await assert.rejects(run, { message: `judge h4-r1 #2 ended with an API error or no result: fix the cause (login, outage), then resume (${said})` }, said)
     assert.ok(!existsSync(setup.files.reasks) && !existsSync(setup.files.leftOut), 'no attempt used')
   }
 })

@@ -5,6 +5,7 @@
 //   public). Each case folder holds the solutions, SEED/ (seeded tasks), an empty scratch/ and JUDGE.md: the committed
 //   judge prompt for that group, plus how to hand in verdict.json. The set's root holds nothing else: the judge works
 //   from the run sheet. The case → group map is written to results/external-key-<round>.json and stays there.
+//   It refuses before results/leak-scan-<round>.json exists: the leak scan runs before any judge.
 // copy: copies a fresh case set once for the second judge, before either judge opens a case.
 // import: reads every case's verdict.json, checks it like an Opus verdict, maps the letters back to the round's labels
 //   and writes results/judge-<as>.json plus blind-key-<as>.json, so `node bench/aggregate.mjs --round=<as>` scores it.
@@ -27,7 +28,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
 import { readBars } from './bars-common.mjs'
 import { judgeDirFor } from './anonymize.mjs'
-import { fillPrompt, parseVerdict, subfolders } from './judge.mjs'
+import { checkLeakScan, fillPrompt, parseVerdict, subfolders } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -202,6 +203,8 @@ export function prepare({ round, out, results = RESULTS, judgeDir = judgeDirFor(
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ${round} first`)
   const pairs = subfolders(judgeDir)
   if (pairs.length === 0) throw new Error(`no pairs in ${judgeDir}: anonymize round ${round} first`)
+  // The leak scan runs before any judge, the outside ones included (spec "Leak scan").
+  checkLeakScan(results, round, pairs)
   const { labels, tasks } = checkPairs(judgeDir, pairs, bench)
   const template = readFileSync(join(bench, 'judge-prompt.md'), 'utf8')
   const cases = planCases(pairs, labels)

@@ -1,9 +1,9 @@
 // Runs blind Opus judges over the anonymized groups in ~/bench-judge-<round>, with the committed prompt
 // bench/judge-prompt.md, and appends each verdict to results/judge-<round>.json (rows that judgeScores reads,
 // plus `judge` and `costUSD`). Each judge sees every solution of its group; an even judge sees them mirrored.
-// Every attempt is a fresh session of the round's pinned binary, checked like a solo run (init and effort), and its
-// transcript is kept in results/judge-<round>-transcripts/. An unusable attempt (a void session or a verdict that does
-// not parse) is saved raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a
+// Every attempt is a fresh session of the round's pinned binary, checked like a solo run (init and effort) plus its
+// permission mode and its tool calls (none may name a blind key), and its transcripts are kept in
+// results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a
 // third unusable attempt is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed
 // in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
 // usage or rate limit, another API error, a session with no result or one that left no transcript stops judging
@@ -293,19 +293,33 @@ export async function withCopy(source, fn, { log = console.error, remove = rmSyn
 }
 
 // The round's model, effort, --verbose and session id (commonArgs), and clean settings with section-team off, so a
-// judge never gets the supervisor brief of the setup it is judging. --permission-mode default: only ALLOWED runs,
-// whatever the user's own default mode is, so a judge cannot read the blind key.
+// judge never gets the supervisor brief of the setup it is judging. --permission-mode default: no tool that needs
+// permission runs unless ALLOWED names it, whatever the user's default mode; ALLOWED's Read, Glob, Grep and cat are not
+// limited to the copy, so judgeCheck rejects an attempt that names a blind key.
 export const judgeArgs = (prompt, { sessionId, installedKeys, pluginDir }) => [
   '-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, '--permission-mode', 'default', ...commonArgs({ sessionId }),
   '--settings', JSON.stringify(cleanSettings({ installedKeys, sectionTeam: false, pluginDir })),
 ]
 
-// check for runJobs: a judge is held to the pin like a solo run (initProblems maps judge to solo), and its session and
-// subagent transcripts to the effort.
-export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = [] }) => [
-  ...initProblems(initOf(outputMessages(stdout)), { setup: 'judge', pin, pluginDir: pin.pluginDir }),
-  ...effortProblems([transcript, ...subagentTranscripts]),
-]
+// The init's permission modes that show --permission-mode default took effect ('manual' is the CLI's name for it).
+const JUDGE_MODES = ['default', 'manual']
+const BLIND_KEY = /blind-key|external-key/i
+// True when a tool call in any of the transcripts names a blind key (case-insensitive, anywhere in its input).
+const touchesBlindKey = texts => texts.flatMap(outputMessages).some(m => m.type === 'assistant' && Array.isArray(m.message?.content)
+  && m.message.content.some(part => part?.type === 'tool_use' && BLIND_KEY.test(JSON.stringify(part.input ?? null))))
+
+// check for runJobs: a judge is held to the pin like a solo run (initProblems maps judge to solo), to the judge's
+// permission mode, and its session and subagent transcripts to the effort and to never naming a blind key.
+export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = [] }) => {
+  const init = initOf(outputMessages(stdout))
+  const transcripts = [transcript, ...subagentTranscripts]
+  return [
+    ...initProblems(init, { setup: 'judge', pin, pluginDir: pin.pluginDir }),
+    ...(init && !JUDGE_MODES.includes(init.permissionMode) ? [`judge ran in permission mode ${init.permissionMode ?? 'none'}`] : []),
+    ...effortProblems(transcripts),
+    ...(touchesBlindKey(transcripts) ? ['judge touched a blind key'] : []),
+  ]
+}
 
 // ponytail: no timeout; a hung judge needs Ctrl+C, and the rerun redoes only that job, at the same attempt number.
 function runClaude(binary, args, { cwd, env, spawn }) {
@@ -332,6 +346,8 @@ function keepTranscript({ cwd, sessionId, home, files, job, attempt }) {
   const subagents = join(project, sessionId)
   if (!existsSync(subagents)) return { transcript, subagentTranscripts: [] }
   const to = join(files.transcripts, attemptName(job, attempt))
+  // An earlier session under the same attempt name (killed before its row or re-ask was saved) is replaced, not merged.
+  rmSync(to, { recursive: true, force: true })
   cpSync(subagents, to, { recursive: true })
   return { transcript, subagentTranscripts: filesAt(to).filter(file => file.endsWith('.jsonl')).sort().map(file => readFileSync(file, 'utf8')) }
 }
@@ -348,9 +364,13 @@ export function judgeCall({ pin, installedKeys, files, env = process.env, home =
     const sessionId = randomUUID()
     const args = judgeArgs(job.prompt, { sessionId, installedKeys, pluginDir })
     const stdout = await runClaude(binary, args, { cwd, env: childEnvironment, spawn })
-    const end = classifyEnd({ messages: outputMessages(stdout), exitCode: 0 })
+    const messages = outputMessages(stdout)
+    const end = classifyEnd({ messages, exitCode: 0 })
     if (end === 'api-limit') throw new Error(`${jobLabel(job)} hit a usage or rate limit: resume judging in the next usage window`)
-    if (end === 'api-other' || end === 'no-result') throw new Error(`${jobLabel(job)} ended with an API error or no result: fix the cause (login, outage), then resume`)
+    if (end === 'api-other' || end === 'no-result') {
+      const said = end === 'no-result' ? 'no result' : String(resultOf(messages).result ?? '').split(/\r?\n/)[0].slice(0, 200)
+      throw new Error(`${jobLabel(job)} ended with an API error or no result: fix the cause (login, outage), then resume (${said})`)
+    }
     return { stdout, ...keepTranscript({ cwd, sessionId, home, files, job, attempt }) }
   }, { log, swap: job.swap })
 }
@@ -377,6 +397,7 @@ async function main() {
   checkLeakScan(RESULTS, round, groups)
   // Every planned job is prepared before the first paid call, so a missing task file stops the run before it spends anything.
   const planned = pendingJobs(groups, [], perPair).map(job => prepareJob(job, judgeDir, template))
+  edgeCounts(key, planned) // validates the key for every planned group and folder before any paid call; nothing written
   const pending = new Set(pendingJobs(groups, rows, perPair, leftOut).map(jobKey))
   const jobs = planned.filter(job => pending.has(jobKey(job))).slice(0, limit)
   console.log(`${jobs.length} judge job(s) to run`)

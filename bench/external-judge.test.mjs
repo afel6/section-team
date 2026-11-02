@@ -12,6 +12,9 @@ const scores = (overall, extra = {}) => ({ correctness: 8, codeQuality: 7, tests
 const keep = list => list // a "shuffle" that keeps the order, so the tests can name each case
 const TWO = [['h2-r1', ['X', 'Y', 'SEED']], ['h3-r1', ['X', 'Y']]]
 
+// results/leak-scan-<round>.json for each round: the leak scan runs before any judge, outside ones included.
+const scanned = (results, ...rounds) => rounds.forEach(round => writeFileSync(join(results, `leak-scan-${round}.json`), '{}'))
+
 function sandbox(t, groups = TWO) {
   const root = mkdtempSync(join(tmpdir(), 'bench-ext-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -282,6 +285,7 @@ test('prepare checks every pair before copying anything, and JUDGE.md never says
   const box = sandbox(t)
   const results = join(box.root, 'results')
   mkdirSync(results)
+  scanned(results, 'ho')
   // h3 has no task file: nothing may be copied.
   const bench = benchWith(box.root, '{{LABELS}}\n3. Probes go only in `scratch`. It is deleted for you when you finish; do not delete anything yourself.\n{{TASK}}\n', ['h2'])
   assert.throws(() => prepare({ round: 'ho', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} }), /h3\.md/)
@@ -300,6 +304,7 @@ test('prepare writes the key and the cases, refuses a second key for the round, 
   const box = sandbox(t)
   const results = join(box.root, 'results')
   mkdirSync(results)
+  scanned(results, 'ho', 'x')
   const bench = benchWith(box.root, 'Solutions: {{LABELS}}.\n{{SEED_NOTE}}\n{{TASK}}\n', ['h2', 'h3'])
   const count = prepare({ round: 'ho', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} })
   assert.equal(count, 4)
@@ -315,6 +320,7 @@ test('prepare accepts W, X, Y, Z groups and writes no root README', t => {
   const box = sandbox(t, [['h4-r1', ['W', 'X', 'Y', 'Z', 'SEED']], ['h5-r1', ['W', 'X', 'Y', 'Z']]])
   const results = join(box.root, 'results')
   mkdirSync(results)
+  scanned(results, 'mo', 'one', 'five')
   const bench = benchWith(box.root, readFileSync(join(BENCH, 'judge-prompt.md'), 'utf8'), ['h4', 'h5'])
   assert.equal(prepare({ round: 'mo', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} }), 4)
   assert.deepEqual(readdirSync(box.out).sort(), ['case-01', 'case-02', 'case-03', 'case-04'])
@@ -331,6 +337,15 @@ test('prepare accepts W, X, Y, Z groups and writes no root README', t => {
   assert.throws(() => prepare({ round: 'one', out: one.out, results, judgeDir: one.judgeDir, bench, log: () => {} }), /h4-r1 has solutions X: an outside judge takes 2 to 4/)
   const five = sandbox(t, [['h4-r1', ['V', 'W', 'X', 'Y', 'Z']]])
   assert.throws(() => prepare({ round: 'five', out: five.out, results, judgeDir: five.judgeDir, bench, log: () => {} }), /h4-r1 has solutions V, W, X, Y, Z: an outside judge takes 2 to 4/)
+})
+
+test('prepare refuses a round whose leak scan is not written, before copying anything', t => {
+  const box = sandbox(t)
+  const results = join(box.root, 'results')
+  mkdirSync(results)
+  const bench = benchWith(box.root, 'Solutions: {{LABELS}}.\n{{TASK}}\n', ['h2', 'h3'])
+  assert.throws(() => prepare({ round: 'ho', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} }), { message: 'run node bench/leak-scan.mjs --round=ho first' })
+  assert.ok(!existsSync(box.out) && !existsSync(join(results, 'external-key-ho.json')), 'nothing copied, no key written')
 })
 
 test('copyCaseSet refuses a set with a verdict or scratch files', t => {
