@@ -446,9 +446,9 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 **Interfaces:**
 - Consumes: `isTestPath` (`bench/score.mjs`).
 - `WORDS = ['section-team', 'section', 'supervisor', 'REPORT', 'GRADE', 'reviewer', 'near-miss', 'near miss', 'nearmiss', 'mutant', 'Lean', 'Balanced', 'Max mode', '.team', 'ponytail']`.
-- `scanText(text) -> { [word]: count }`: case-insensitive whole-word matches in file contents, where a letter or digit joins a word and `-` or `.` joins one only between two letters or digits ("boolean" and "clean-up" do not match "lean", "Lean." does). In relative paths only letters and digits join (`near-miss-1-parse.mjs` matches). Words that contain `-`, `.` or a space match literally.
+- `scanText(text) -> { [word]: count }`: case-insensitive whole-word matches in file contents, where a letter or digit joins a word and `-` or `.` joins one only between two letters or digits ("boolean" and "clean-up" do not match "lean", "Lean." does). Words that contain `-`, `.` or a space match literally.
 - `scanSolution(dir) -> { hits, extraPaths, testLines }`:
-  - `hits` counts matches in file contents and in relative paths;
+  - `hits` counts matches in file contents and in relative paths; in relative paths only letters and digits join (`near-miss-1-parse.mjs` matches);
   - `extraPaths` lists every file that is not `package.json`, `*.md`, a code file (`.mjs .js .cjs .html .css .json`) or a test file by `isTestPath`, plus every file whose relative path has a `WORDS` hit.
 - `leakScan({ judgeDir, key }) -> { [cond]: { hits, extraPaths, testLines } }`.
 - **CLI:** `--round=mo` writes `results/leak-scan-mo.json` plus a table.
@@ -733,10 +733,11 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 
 ### Task 30: Preflight (yes; about $1)
 - [ ] **Check the push**: `git ls-remote origin refs/tags/v0.2.1 refs/tags/mo-freeze` lists both at the local hashes; if not, stop and ask.
+- [ ] **Before the preflight:** From the preflight until the round ends, do not install or remove anything in ~/.claude/skills or ~/.claude/agents (outside synced/). Run the preflight and every batch from one plain terminal and note which shell.
 - [ ] **Run it from one shell**: `node bench/preflight.mjs --round=mo --plugin=C:/Users/Asus/section-team-v0.2.1` → `results/preflight-mo.json`. Show the pin.
 
 ### Task 31: Runs (yes, with the estimate: about $114 of runs, $89–137)
-- [ ] **Before the first batch:** until the round ends, do not install or remove anything in `~/.claude/skills` or `~/.claude/agents` (outside `synced/`). Start the round from a plain terminal and note which shell was used.
+- [ ] **Before the first batch:** Task 30's rules still hold: nothing installed or removed in `~/.claude/skills` or `~/.claude/agents`, and the same plain terminal as the preflight.
 - [ ] **Before each batch:** `git -C C:/Users/Asus/section-team-v0.2.1 status --porcelain`, `git -C C:/Users/Asus/section-team-v0.2.1 diff --stat v0.2.1` and `git diff --stat v0.2.1 mo-freeze -- agents hooks skills brief .claude-plugin scripts types package.json tests` all print nothing. Any output stops the round.
 - [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=C:/Users/Asus/section-team-v0.2.1 mo-r1` (then `mo-r2`, `mo-r3`).
   - Exit 1: harness or evidence error; stop and report, do not resume.
@@ -746,7 +747,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 
 ### Task 32: Opus judging
 - [ ] **Prepare**: `node bench/anonymize.mjs --round=mo --conds=solo-mo,lean-mo,team-mo,max-mo --tasks=h4,h5,h6 --reps=3`, then `node bench/leak-scan.mjs --round=mo`.
-- [ ] **Trial judge** (its own yes): `node bench/judge.mjs --round=mo --per-pair=2 --limit=1`. Report the measured cost.
+- [ ] **Trial judge** (its own yes): `node bench/judge.mjs --round=mo --per-pair=2 --limit=1`. Report the measured cost. Watch its first attempt: if it fails on init, effort, permission mode or a blind-key touch, stop (Ctrl+C) and treat it as a harness bug before re-asks spend two more sessions.
 - [ ] **Remaining judges** (yes, with the measured estimate): `node bench/judge.mjs --round=mo --per-pair=2`.
 - [ ] **If judging stops:** after an auth or API error, log in again (or wait out the outage), then resume judging.
 
@@ -759,6 +760,6 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 ### Task 34: Analysis and write-up
 - [ ] **Guard again**: rerun Task 31's checks before this step; any output stops the round.
 - [ ] **Analysis**: `node bench/mode-check.mjs --round=mo`, `node bench/gate-stats.mjs --round=mo`, `node bench/test-strength.mjs --round=mo` and `node bench/bars.mjs --round=mo`.
-- [ ] **Write `docs/benchmark-modes-2026-11.md`** with every section the spec's Publishing lists, including the Limits section verbatim from the spec. Put the raw data in `bench/data/modes/` with the recompute command, and update the README's Modes table.
+- [ ] **Write `docs/benchmark-modes-2026-11.md`** with every section the spec's Publishing lists, including the Limits section verbatim from the spec. Task table: reference sizes counted as raw lines without tests and docs (blank and comment lines included): h4 464 (171 browser), h5 about 151 (about 122 code-only), h6 340. Put the raw data in `bench/data/modes/` with the recompute command, and update the README's Modes table.
 - [ ] **Commit**: `docs: publish the mode round`.
 - [ ] **Hand the picker-label change** (`hooks/lib/mode.mjs` `MODE_LABELS`, next plugin version) to the user as a follow-up task. It is a plugin change after the freeze.
