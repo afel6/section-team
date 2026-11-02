@@ -418,7 +418,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 - Produces:
   - `CODEX_PROMPT`: a fixed text. You are a blind code reviewer; the current folder is one case; read `JUDGE.md` here and follow it exactly, without asking questions; work only inside this folder; probes only in `scratch/`; never edit, create or delete anything in the solution folders or `SEED`; no network; end with your verdict as one fenced json block.
   - `sheetValues(text) -> { codexBin, model, effort, sandbox }`, from the first fenced `json` block of the run sheet.
-  - `codexArgs({ caseDir, model, effort, sandbox, lastMessage }) -> string[]` = `['exec', '--ephemeral', '--ignore-user-config', '-m', model, '-c', 'model_reasoning_effort="<effort>"', '--disable', 'memories', '--skip-git-repo-check', '-C', caseDir, '-s', sandbox, '--json', '-o', lastMessage, CODEX_PROMPT]`.
+  - `codexArgs({ caseDir, model, effort, sandbox, lastMessage }) -> string[]` = `['exec', '--ephemeral', '--ignore-user-config', '-m', model, '-c', 'model_reasoning_effort="<effort>"', '--disable', 'memories', '-c', 'windows.sandbox="unelevated"', '--skip-git-repo-check', '-C', caseDir, '-s', sandbox, '--json', '-o', lastMessage, CODEX_PROMPT]`.
   - `caseLabels(caseDir) -> string[]`: its single-capital-letter subfolders except `SEED`, sorted.
   - `runCases({ setDir, logDir, values, run = spawnSync, log }) -> [{ case, exitCode, seconds, attempts, verdict }]`:
     - it runs the cases one at a time and skips any case that has a `verdict.json`;
@@ -433,7 +433,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
   - a json block `{ "codexBin": "C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe", "model": "gpt-6.1-sol", "effort": "ultra", "sandbox": "<set in Task 27>" }`.
 
 - [ ] **Step 1: Write the failing tests** (injected runner):
-  - `'codexArgs carries model, effort, no memories, the case folder and the sandbox'`;
+  - `'codexArgs carries model, effort, no memories, the Windows sandbox, the case folder and the sandbox mode'`;
   - `'runCases skips judged cases and writes verdict.json from the last message'`;
   - `'an unusable verdict is moved aside and re-asked twice, then the case is reported unusable'`;
   - `'sheetValues reads the json block'`.

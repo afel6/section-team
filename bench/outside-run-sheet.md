@@ -45,13 +45,15 @@ Follow it as written. Each judge has its own copy of the case set (`codex-judge-
 
 ## Values for the runner
 
-The sandbox is set after the sandbox probe. Until then the runner refuses to start.
+The sandbox comes from the sandbox probe of 2026-11-02 (codex-cli 0.166.0-alpha.5.1, held-out case-01, never imported). Without `windows.sandbox="unelevated"`, `read-only` and `workspace-write` rejected every command, even reading JUDGE.md. With it, `read-only` ran `node --version`, read the case and changed no file; it cannot write or start child processes, so Codex cannot run a solution's own test suite. The events showed no MCP or plugin call and no memory; the user's skills list was offered to the model without descriptions. The runner starts `codexBin` from the block below with this command line, where `<case folder>` is the case and `<log>` is each attempt's log stem, `bench/results/codex-logs/<set>/<case>-a<n>`:
+
+`codex.exe exec --ephemeral --ignore-user-config -m gpt-6.1-sol -c model_reasoning_effort="ultra" --disable memories -c windows.sandbox="unelevated" --skip-git-repo-check -C <case folder> -s read-only --json -o <log>.last.txt "<CODEX_PROMPT>"`
 
 ```json
 {
   "codexBin": "C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe",
   "model": "gpt-6.1-sol",
   "effort": "ultra",
-  "sandbox": "<set in Task 27>"
+  "sandbox": "read-only"
 }
 ```
