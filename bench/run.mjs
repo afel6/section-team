@@ -143,9 +143,17 @@ export function checkPin(plugin, pin) {
 // and agents, which every init lists.
 export const userListing = home => claudeListing(home, ['skills', 'agents'], path => path.split('/')[0] === 'synced')
 
+// The changed top-level entries (skills/<name>, agents/<name>) of a list of paths, sorted, at most SHOWN of them.
+const SHOWN = 5
+function entriesOf(paths) {
+  const entries = [...new Set(paths.map(path => path.split('/').slice(0, 2).join('/')))].sort()
+  const rest = entries.length - SHOWN
+  return `${entries.slice(0, SHOWN).join(', ')}${rest > 0 ? ` … and ${rest} more` : ''}`
+}
+
 // One run of the batch with the user's skills and agents checked against the batch start, before and after it: a
 // change stops the batch naming the run and the entries, before another paid run starts on a setup unlike the pin.
-// A run that stops on its own keeps its stop (and exit code); a change it made is said with log.
+// A run that stops on its own keeps its stop (and exit code); a change it made, or a failure to list, is said with log.
 export function watchUserLists(one, { home = homedir(), log = console.error } = {}) {
   const start = new Set(userListing(home))
   const changeLine = (run, when) => {
@@ -153,7 +161,7 @@ export function watchUserLists(one, { home = homedir(), log = console.error } = 
     const added = [...now].filter(path => !start.has(path))
     const removed = [...start].filter(path => !now.has(path))
     if (added.length + removed.length === 0) return null
-    const changes = [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean).join('; ')
+    const changes = [added.length && `added ${entriesOf(added)}`, removed.length && `removed ${entriesOf(removed)}`].filter(Boolean).join('; ')
     return `${run.id}: ~/.claude skills or agents changed ${when} the run (${changes}); put them back as the batch found them, then resume`
   }
   const check = (run, when) => {
@@ -165,8 +173,12 @@ export function watchUserLists(one, { home = homedir(), log = console.error } = 
     try {
       await one(run, outDir)
     } catch (err) {
-      const line = changeLine(run, 'during')
-      if (line !== null) log(line)
+      try {
+        const line = changeLine(run, 'during')
+        if (line !== null) log(line)
+      } catch (listErr) {
+        log(`${run.id}: could not list ~/.claude skills or agents after the run (${listErr.code ?? listErr.message})`)
+      }
       throw err
     }
     check(run, 'during')
@@ -309,9 +321,10 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
   const attempt = nextAttempt(outDir)
-  writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
   // The earlier attempt's solution folder is kept beside the new one (a harness-bug rerun replaces a counted run).
+  // Renamed before session.json is written, so a failed rename leaves outDir as it was and a resume reuses the number.
   if (existsSync(dir)) renameRetry(dir, `${dir}-attempt-${attempt - 1}`)
+  writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
   prepareRun(run, { dir, root })
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)

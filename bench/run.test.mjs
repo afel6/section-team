@@ -443,7 +443,8 @@ function soloAttempt(t) {
   t.mock.method(console, 'log', () => {})
   const root = tempRoot(t)
   const builtins = ['cc-plugin-agents-md@builtin']
-  const pin = { binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', version: '2.1.296', apiKeySource: 'none', builtins, setups: { solo: { agents: ['general-purpose'], skills: [] } } }
+  // A binary path under the temp root that never exists: a regression that dropped the injected spawn could start nothing.
+  const pin = { binary: join(root, 'claude-2.1.296.exe'), version: '2.1.296', apiKeySource: 'none', builtins, setups: { solo: { agents: ['general-purpose'], skills: [] } } }
   const home = join(root, 'home')
   const dir = join(root, 'runs', 'easy-0123abcd')
   return {
@@ -587,7 +588,7 @@ test('watchUserLists stops the batch naming the run when user skills or agents c
   await one({ id: 'h4-lean-mo-r1' }, 'out')
   await assert.rejects(one({ id: 'h5-lean-mo-r1' }, 'out'), err => {
     assert.ok(err instanceof BatchStop)
-    assert.equal(err.reason, 'h5-lean-mo-r1: ~/.claude skills or agents changed during the run (added skills/found, skills/found/SKILL.md); put them back as the batch found them, then resume')
+    assert.equal(err.reason, 'h5-lean-mo-r1: ~/.claude skills or agents changed during the run (added skills/found); put them back as the batch found them, then resume')
     return true
   })
   rmSync(join(home, '.claude', 'skills', 'found'), { recursive: true })
@@ -607,6 +608,50 @@ test('watchUserLists names a change made by a run that then stops, and rethrows 
   }, { home, log: line => logged.push(line) })
   await assert.rejects(one({ id: 'h4-lean-mo-r1' }, 'out'), err => err === stop)
   assert.deepEqual(logged, ['h4-lean-mo-r1: ~/.claude skills or agents changed during the run (added agents/extra); put them back as the batch found them, then resume'])
+})
+
+// A skill carries many files: the stop names the changed top-level entries, a few at most, and counts the rest.
+test('watchUserLists names changed skills and agents by their top-level entry, five at most per list', async t => {
+  const home = fakeClaudeHome(t)
+  const one = watchUserLists(async () => {
+    for (const name of ['s1', 's2', 's3', 's4', 's5', 's6', 's7']) {
+      mkdirSync(join(home, '.claude', 'skills', name, 'assets'), { recursive: true })
+      writeFileSync(join(home, '.claude', 'skills', name, 'assets', 'a.png'), 'x')
+    }
+    writeFileSync(join(home, '.claude', 'skills', 'tdd', 'extra.md'), 'x')
+  }, { home })
+  await assert.rejects(one({ id: 'h4-lean-mo-r1' }, 'out'), {
+    reason: 'h4-lean-mo-r1: ~/.claude skills or agents changed during the run (added skills/s1, skills/s2, skills/s3, skills/s4, skills/s5 … and 3 more); put them back as the batch found them, then resume',
+  })
+})
+
+// The run's own stop and exit code win even when ~/.claude cannot be listed after it.
+test('watchUserLists logs a listing failure after a run that stops, and still rethrows the run\'s own error', async t => {
+  const home = fakeClaudeHome(t)
+  const logged = []
+  const stop = new BatchStop('h4-lean-mo-r1: void (x); a resume reruns it (rerun 1 of 2)')
+  const one = watchUserLists(async () => {
+    rmSync(join(home, '.claude', 'agents'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'agents'), 'not a folder')
+    throw stop
+  }, { home, log: line => logged.push(line) })
+  await assert.rejects(one({ id: 'h4-lean-mo-r1' }, 'out'), err => err === stop)
+  assert.equal(logged.length, 1)
+  assert.match(logged[0], /^h4-lean-mo-r1: could not list ~\/\.claude skills or agents after the run \(ENOTDIR\)$/)
+})
+
+// A rename that fails leaves outDir as it was, so the resume reuses the same attempt number and suffix.
+test('runOne renames the earlier solution folder before it writes session.json', async t => {
+  const { home, dir, outDir, ctx, init, run, deps: base } = soloAttempt(t)
+  const deps = { ...base, spawn: fakeClaude({ home, calls: [], init }) }
+  await runOne(run, outDir, ctx, deps)
+  mkdirSync(join(`${dir}-attempt-1`, 'blocker'), { recursive: true })
+  await assert.rejects(runOne(run, outDir, ctx, deps))
+  assert.ok(!existsSync(join(outDir, 'session.json')), 'no session.json for an attempt that never started')
+  rmSync(`${dir}-attempt-1`, { recursive: true })
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8')).attempt, 2)
+  assert.equal(git(`${dir}-attempt-1`, 'log', '--format=%s', '-1'), 'init', 'attempt 1\'s folder kept under its own number')
 })
 
 test('checkPin refuses a --plugin other than the pinned worktree and a binary whose bytes differ from the pin, in one line each', t => {
