@@ -141,7 +141,7 @@ test('gateRow puts the summary, sequences, final grades, partial/blocked/ungrade
   })
   assert.equal(gateRow({ id: 'x', mode: 'balanced', roles, tap: null, reports: [], codeQuality: null }).gateMisses, null, 'no hidden.tap is unknown, not zero misses')
   const table = formatTable([row]).split('\n')
-  assert.equal(table[0], '| id | mode | calls | first-try passes/callers | first-try at mark/callers | fix rounds | final grades | finals at mark/callers | partial/blocked/ungraded | gate misses | judge code quality |')
+  assert.equal(table[0], '| id | mode | calls | first-try passes/callers | first-try at mark/callers | fails then re-called | final grades | finals at mark/callers | partial/blocked/ungraded | gate misses | judge code quality |')
   assert.equal(table[2], '| h1-team-ho-r1 | balanced | 2 | 0/1 | 0/1 | 1 | 9 pass | 1/1 | 1/1/1 | a \\| b | 7.25 |')
 })
 
@@ -197,6 +197,28 @@ test('gateStats reads every team run of the round; a timed-out or unfinished run
     write(join(results, 'report-data-ho.json'), '{}')
     rmSync(join(results, 'blind-key-ho.json'))
     assert.throws(() => gateStats({ results, round: 'ho', home }), /blind-key-ho\.json/, 'judged without a key is an error, not a blank column')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// One unreadable run must not stop the table: it is a no-data row naming why, as in mode-check. A bug still stops it.
+test('a run whose run.json or session.json is broken is a no-data row with its reason; the other runs still count', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-bad-'))
+  try {
+    const { results, home } = fakeRound(root)
+    write(join(results, 'h4-team-ho-r1', 'run.json'), '{"id": ')
+    write(join(results, 'h5-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h5-team-ho-r1', dir: join(root, 'runs', 'h5') }))
+    write(join(results, 'h5-team-ho-r1', 'session.json'), '{"sessionId": "../x"}')
+    const rows = gateStats({ results, round: 'ho', home })
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]))
+    assert.equal(byId['h1-team-ho-r1'].noData, false)
+    assert.equal(byId['h4-team-ho-r1'].noData, true)
+    assert.match(byId['h4-team-ho-r1'].reason, /h4-team-ho-r1[\\/]run\.json: not valid JSON/)
+    assert.match(byId['h5-team-ho-r1'].reason, /session\.json has no plain sessionId$/)
+    assert.match(formatTable([byId['h4-team-ho-r1']]), /\| h4-team-ho-r1 \| balanced \| no data \(.*run\.json: not valid JSON.*\) \| – \|/)
+    write(join(results, 'h4-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h4-team-ho-r1', dir: 42 }))
+    assert.match(gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1').reason, /run\.json: no run dir$/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -275,23 +297,28 @@ test('a timed-out run with evidence but no result is a row, not a throw', () => 
   }
 })
 
-test('gateStats refuses a session.json whose id is not plain, naming the file in one line', () => {
+test('a session.json whose id is not plain gives a no-data row naming the file in one line', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-gate-sid-'))
   try {
     const results = join(root, 'results')
     evidenceRun(results, root, 'h6-lean-mo-r1', 's1', [])
     write(join(results, 'h6-lean-mo-r1', 'session.json'), JSON.stringify({ sessionId: '../../outside' }))
-    assert.throws(() => gateStats({ results, round: 'mo', home: root }), err => /h6-lean-mo-r1[\\/]session\.json has no plain sessionId$/.test(err.message) && !/[\r\n]/.test(err.message))
+    const [row] = gateStats({ results, round: 'mo', home: root })
+    assert.equal(row.noData, true)
+    assert.match(row.reason, /h6-lean-mo-r1[\\/]session\.json has no plain sessionId$/)
+    assert.doesNotMatch(row.reason, /[\r\n]/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('gateStats names the file when a run.json is not valid', () => {
+test('a run.json that is not valid gives a no-data row naming the file', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-gate-bad-'))
   try {
     write(join(root, 'h1-team-ho-r1', 'run.json'), '{ not json')
-    assert.throws(() => gateStats({ results: root, round: 'ho', home: root }), /h1-team-ho-r1[\\/]run\.json/)
+    const [row] = gateStats({ results: root, round: 'ho', home: root })
+    assert.deepEqual([row.id, row.noData], ['h1-team-ho-r1', true])
+    assert.match(row.reason, /h1-team-ho-r1[\\/]run\.json/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

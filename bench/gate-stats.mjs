@@ -1,5 +1,5 @@
 // Reviewer gate stats for one round's team, lean and max runs: each reviewer call's GRADE with its items (from the
-// subagent transcripts), first tries and final grades judged by the run's mode's own mark, fix rounds,
+// subagent transcripts), first tries and final grades judged by the run's mode's own mark, fails then re-called,
 // partial/blocked/ungraded REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
 // Writes results/gate-stats-<round>.json and prints one markdown row per run.
 // Usage: node bench/gate-stats.mjs --round=mo
@@ -72,7 +72,7 @@ export function gateSequences(roles) {
   }, {})
 }
 
-// fixRounds: fails that were followed by another call from the same caller.
+// fixRounds (the table's 'fails then re-called'): fails that were followed by another call from the same caller.
 export function summarize(sequences) {
   const lists = Object.values(sequences)
   const all = lists.flat()
@@ -170,22 +170,40 @@ function codeQualityByRun(results, round) {
   return judgeCodeQuality(judge, key)
 }
 
+// readRun, or a no-data reading with the reason when a file failure stopped it (an fs error, or a reader's own one-line
+// error), as mode-check does: one bad run never stops the table. Anything else (a TypeError, an ERR_* code) is a bug.
+function readRunOrReason(folder, home) {
+  try {
+    return readRun(folder, home)
+  } catch (err) {
+    const fileFailure = /^E[A-Z]+$/.test(err?.code ?? '') || (err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && err.code === undefined)
+    if (!fileFailure) throw err
+    return { roles: null, tap: null, reports: [], reason: err.message }
+  }
+}
+
 // Every team (Balanced), lean and max run of the round; solo runs have no gate.
 export function gateStats({ results = RESULTS, round, home = homedir() }) {
   const runId = new RegExp(`-(team|lean|max)-${round}-r\\d+$`)
   const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
   const quality = codeQualityByRun(results, round)
-  return ids.map(id => gateRow({ id, mode: modeOfCond(runId.exec(id)[1]), ...readRun(join(results, id), home), codeQuality: quality[id] ?? null }))
+  return ids.map(id => {
+    const { reason, ...read } = readRunOrReason(join(results, id), home)
+    const row = gateRow({ id, mode: modeOfCond(runId.exec(id)[1]), ...read, codeQuality: quality[id] ?? null })
+    return reason === undefined ? row : { ...row, reason }
+  })
 }
 
-const HEADER = ['id', 'mode', 'calls', 'first-try passes/callers', 'first-try at mark/callers', 'fix rounds', 'final grades', 'finals at mark/callers', 'partial/blocked/ungraded', 'gate misses', 'judge code quality']
+// 'fails then re-called' (fixRounds): reviewer fails followed by a later call of the same caller, across jobs; it is not
+// Mode Fidelity's fix-round count per gate (mode-check.mjs has that), and the bars never read it.
+const HEADER = ['id', 'mode', 'calls', 'first-try passes/callers', 'first-try at mark/callers', 'fails then re-called', 'final grades', 'finals at mark/callers', 'partial/blocked/ungraded', 'gate misses', 'judge code quality']
 const cell = value => String(value).replaceAll('|', '\\|')
 
 function cells(row) {
   const judge = row.judgeCodeQuality === null ? '–' : String(Math.round(row.judgeCodeQuality * 100) / 100)
   const reports = `${row.partial}/${row.blocked}/${row.ungradedReports}`
   const mode = row.mode ?? '–'
-  if (row.noData) return [row.id, mode, 'no data', '–', '–', '–', '–', '–', reports, '–', judge]
+  if (row.noData) return [row.id, mode, row.reason ? `no data (${row.reason})` : 'no data', '–', '–', '–', '–', '–', reports, '–', judge]
   const finals = Object.values(row.finalGrades).map(g => (g ? `${g.overall} ${g.verdict}` : 'no grade')).join(', ') || '–'
   const finalsAtMark = Object.values(row.finalMeetsMark).filter(Boolean).length
   const misses = row.gateMisses === null ? '–' : row.gateMisses.join('; ') || 'none'
