@@ -14,6 +14,8 @@ export const PLUGIN_KEY = 'section-team@inline'
 export const BENCH_MODEL = 'claude-opus-5-5'
 export const BENCH_EFFORT = 'medium'
 export const SECTION_TEAM_VERSION = '0.2.1'
+// The CLI version the round runs (spec: Pinned CLI); the cloud machine's in-place pin must be this version.
+export const ROUND_CLI_VERSION = '2.1.296'
 // The user's own checkout: no round run may load anything from it.
 export const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
 // On Linux (the cloud machine) the user's checkout is the one running the harness: its plugin files are not the pinned

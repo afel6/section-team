@@ -1,7 +1,9 @@
 // Paid preflight before a round (about $1, needs the user's yes). It pins the CLI: `claude --version` (the binary on
 // PATH) names the version, and ~/.local/share/claude/versions/<v> is copied to ~/bench-runs/claude-<v>.exe. Where that
-// versions folder is missing off Windows (the cloud machine's npm install), the installed CLI is pinned in place: the
-// real path of claude on PATH, its SHA-256 and its npm package, so a fresh machine can install it again. Then one
+// versions folder is missing off Windows (the cloud machine's npm install), the npm package's binary under `npm root -g`
+// is pinned in place, at the round's version, with its SHA-256 and its npm package, so a fresh machine can install it
+// again. `claude` on PATH is never used there: the cloud environment relinks it to its own CLI at every session
+// start. Then one
 // run per setup (solo, lean, team, max), each in a run folder from prepareRun, on that copy with exactly the builders'
 // arguments and environment, proves from its init, its mode record and its answer that a run starts clean and in its
 // mode. Only a preflight without problems writes the round's pin, results/preflight-<round>.json.
@@ -11,13 +13,13 @@
 //        passes --redact-email to every run, push and preflight command; the scan stays on.)
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, delimiter, dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
-import { publishItems } from './cloud-sync.mjs'
+import { ROUND_CLI_VERSION, claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
+import { publishItems, syncReady } from './cloud-sync.mjs'
 import {
   NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder, syncBranchOf,
 } from './run.mjs'
@@ -69,28 +71,20 @@ export function copyBinary({ home, version, run = spawnSync }) {
   return { binary, sha256 }
 }
 
-const isExecutableFile = path => {
-  try {
-    accessSync(path, constants.X_OK)
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
-}
-
-// The real path of the first executable `claude` in a PATH folder, links resolved (an npm install links it to the
-// package's native binary).
-export function claudeOnPath({ env = process.env } = {}) {
-  const found = String(env.PATH ?? '').split(delimiter).filter(Boolean).map(dir => join(dir, 'claude')).find(isExecutableFile)
-  if (!found) throw new Error("no executable claude on PATH: install the round's CLI first")
-  return realpathSync(found)
+// The npm package's binary (npm i -g @anthropic-ai/claude-code@<v> puts it there), links resolved. Never `claude` on PATH.
+export function npmClaude({ run = spawnSync } = {}) {
+  const r = run('npm', ['root', '-g'], { encoding: 'utf8', windowsHide: true, timeout: VERSION_TIMEOUT_MS })
+  if (r.error || r.status !== 0) throw new Error(`npm root -g failed (${r.error?.code ?? `exit ${r.status}`}): is npm installed?`)
+  const binary = join(String(r.stdout).trim(), '@anthropic-ai', 'claude-code', 'bin', 'claude.exe')
+  if (!existsSync(binary)) throw new Error(`no npm-installed CLI at ${binary}: run npm i -g ${NPM_PACKAGE}@${ROUND_CLI_VERSION}`)
+  return realpathSync(binary)
 }
 
 // Pins the installed CLI where it is: no copy, since npm owns that path and the same package version installs the
 // same bytes there on a fresh machine (cloud-sync.mjs restore checks the hash after installing it).
-export function pinInstalled({ version, run = spawnSync, which = claudeOnPath }) {
+export function pinInstalled({ version, run = spawnSync, which = npmClaude }) {
   if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new RangeError(`pinInstalled takes a version like 2.1.296, got "${version}"`)
-  const binary = which()
+  const binary = which({ run })
   const sha256 = sha256Of(binary)
   checkVersion(run, binary, version)
   return { binary, sha256, npmPackage: `${NPM_PACKAGE}@${version}` }
@@ -190,7 +184,7 @@ function versionOnPath(run) {
 // The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
 // Returns every problem; the pin file is written only when there are none.
 export function preflight({ round, plugin, home = homedir(), results = RESULTS }, deps = {}) {
-  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = claudeOnPath, platform = process.platform } = deps
+  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = npmClaude, platform = process.platform } = deps
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
   // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
   const file = join(results, `preflight-${round}.json`)
@@ -198,8 +192,9 @@ export function preflight({ round, plugin, home = homedir(), results = RESULTS }
   // No paid call with a plugin path the batches would refuse.
   pluginCommitOf(plugin, { git })
   checkPluginWorktree(plugin, { git })
-  const version = versionOnPath(run)
   const inPlace = platform !== 'win32' && !existsSync(join(home, '.local', 'share', 'claude', 'versions'))
+  // In place, the round's version is fixed: PATH's claude may be another CLI. Windows reads it from PATH, as before.
+  const version = inPlace ? ROUND_CLI_VERSION : versionOnPath(run)
   const { binary, sha256, npmPackage } = inPlace ? pinInstalled({ version, run, which }) : copyBinary({ home, version, run })
   const ctx = { home, binary, version, pluginDir: plugin, installedKeys: installedPluginKeys(home, { platform }) }
   const checks = SETUPS.map(setup => checkSetup(setup, ctx, { spawn, folder, root }))
@@ -222,8 +217,10 @@ export function publishPin({ file, round, branch, redactEmail = false }, { publi
 
 function main() {
   const { round, plugin, sync, noSync, redactEmail } = parseArgs(process.argv.slice(2))
-  // Before any paid call: off Windows the pin must reach the results branch.
+  // Before any paid call: off Windows the pin must reach the results branch, so the email variable and the remote are
+  // checked first.
   const branch = syncBranchOf({ sync, noSync })
+  if (branch !== null) syncReady({ branch, redactEmail })
   const { problems, pin, file } = preflight({ round, plugin })
   for (const line of problems) console.error(`preflight: ${line}`)
   if (problems.length > 0) process.exitCode = 1
