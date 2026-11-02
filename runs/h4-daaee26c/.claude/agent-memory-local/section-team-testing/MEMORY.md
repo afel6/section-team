@@ -1,0 +1,1 @@
+- [Raw-socket probing](probe-raw-sockets.md) — no half-close, Connection: close, utf8 decode; else false FAILs on async routes

@@ -1,0 +1,1 @@
+- [Bench project conventions](project_bench_conventions.md) — spec-exact values, built-ins only, spawn-real-server tests, Bash limits

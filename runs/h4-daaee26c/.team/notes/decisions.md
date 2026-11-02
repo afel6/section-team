@@ -1,0 +1,13 @@
+# Decisions (supervisor, 2026-11-02)
+- Full spec: see spec.md (verbatim; final — no questions to the user are possible).
+- Only Node.js built-ins; no npm install; Node v22.
+- File layout and ownership:
+  - `server.mjs` (backend) — server + API. Serves the page from `public/index.html` and `public/app.js`, resolved relative to server.mjs's own folder (via import.meta.url), NOT the cwd.
+  - `public/index.html`, `public/app.js` (frontend).
+  - `package.json` (backend): type "module", scripts start = `node server.mjs`, test = `node --test` (picks up `test/*.test.mjs`).
+  - `test/server.test.mjs` (backend): spawns the real server with PORT=0 and a temp DATA_FILE.
+  - `test/app.test.mjs` (frontend): runs public/app.js in node:vm with a fake DOM + fake fetch, plus static checks on index.html.
+  - `README.md` (docs).
+- Spec ambiguity rule: build the stricter reading and state it in your REPORT.
+- 2026-11-02 · frontend · Page readings: (a) a 200 reply whose JSON lacks a `rooms`/`bookings` array of objects is shown as an error (`error` string or `Request failed.`), never rendered; (b) a JSON "object" for error extraction excludes arrays and null; (c) Book/Cancel re-enable runs synchronously at the settle point inside the request helper, before any other code; (d) a Cancel click while that button is disabled sends nothing; (e) a 204 on any request skips json() and is a success only for DELETE. Why: stricter reading of the spec's error and settle rules.
+- 2026-11-02 · backend · Stricter readings: (a) at startup the data file must match the written layout exactly (only `nextId` + `bookings`, valid fields, trimmed titles, unique ids < nextId, no overlaps); (b) saves write the data file in place, never a temp file, so no other file or folder is ever created; (c) Content-Type matching lowercases ASCII letters only. Why: "content not in the layout this server writes" and "writes the data file only" read strictly.
