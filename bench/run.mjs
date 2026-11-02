@@ -10,7 +10,8 @@
 //          [id-substring ...]
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given)
 //        --sync: after every run that finished or stopped, its results and solution folders are committed to <branch> and
-//        pushed (cloud-sync.mjs); required off Windows, where the machine can vanish, unless --no-sync says otherwise
+//        pushed (cloud-sync.mjs); required off Windows, where the machine can vanish, unless --no-sync says otherwise.
+//        The cloud round passes --redact-email with it, in every run, push and preflight command; the scan stays on.
 //        exit 1: harness or evidence error; stop and report, do not resume
 //        exit 2: the batch stopped (resume to rerun); exit 3: the round stopped (fix the cause as a harness bug first)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)

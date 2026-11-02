@@ -165,11 +165,11 @@ test('pinInstalled pins the installed CLI in place: its real path, its SHA-256, 
 test('publishPin pushes the round\'s pin file under results/ on the sync branch, and nothing without one', () => {
   const calls = []
   const publish = (what, options) => { calls.push([what, options]); return { committed: true, pushed: true } }
-  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: null }, { publish }), false)
-  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: 'bench/mode-round-cloud-results' }, { publish }), true)
+  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: null, redactEmail: true }, { publish }), false)
+  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: 'bench/mode-round-cloud-results', redactEmail: true }, { publish }), true)
   assert.deepEqual(calls, [[
     { items: [{ from: '/x/bench/results/preflight-mo.json', to: 'results/preflight-mo.json' }], message: 'chore(results): pin round mo' },
-    { branch: 'bench/mode-round-cloud-results' },
+    { branch: 'bench/mode-round-cloud-results', redactEmail: true },
   ]])
 })
 

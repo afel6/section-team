@@ -6,8 +6,9 @@
 // arguments and environment, proves from its init, its mode record and its answer that a run starts clean and in its
 // mode. Only a preflight without problems writes the round's pin, results/preflight-<round>.json.
 // Spec: docs/specs/2026-11-01-mode-round-design.md (Pinned CLI, Preflight).
-// Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the v0.2.1 worktree> [--sync=<branch> | --no-sync]
-//        (--sync pushes the pin to the results branch at once; required off Windows, as for run.mjs)
+// Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the v0.2.1 worktree> [--sync=<branch> --redact-email | --no-sync]
+//        (--sync pushes the pin to the results branch at once; required off Windows, as for run.mjs. The cloud round
+//        passes --redact-email to every run, push and preflight command; the scan stays on.)
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { accessSync, constants, copyFileSync, existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
@@ -213,14 +214,14 @@ export function preflight({ round, plugin, home = homedir(), results = RESULTS }
 }
 
 // The written pin goes to the sync branch at once; false without a branch.
-export function publishPin({ file, round, branch }, { publish = publishItems } = {}) {
+export function publishPin({ file, round, branch, redactEmail = false }, { publish = publishItems } = {}) {
   if (branch === null) return false
-  publish({ items: [{ from: file, to: `results/${basename(file)}` }], message: `chore(results): pin round ${round}` }, { branch })
+  publish({ items: [{ from: file, to: `results/${basename(file)}` }], message: `chore(results): pin round ${round}` }, { branch, redactEmail })
   return true
 }
 
 function main() {
-  const { round, plugin, sync, noSync } = parseArgs(process.argv.slice(2))
+  const { round, plugin, sync, noSync, redactEmail } = parseArgs(process.argv.slice(2))
   // Before any paid call: off Windows the pin must reach the results branch.
   const branch = syncBranchOf({ sync, noSync })
   const { problems, pin, file } = preflight({ round, plugin })
@@ -228,7 +229,7 @@ function main() {
   if (problems.length > 0) process.exitCode = 1
   else {
     console.log(`preflight ok: claude ${pin.version} pinned at ${pin.binary}; the round's reference is in ${file}`)
-    if (publishPin({ file, round, branch })) console.log(`preflight: the pin is pushed to ${branch}`)
+    if (publishPin({ file, round, branch, redactEmail })) console.log(`preflight: the pin is pushed to ${branch}`)
   }
 }
 
