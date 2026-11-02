@@ -344,11 +344,11 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 - Consumes: `bench/clean-run.mjs` (all of Task 3); `projectDirFor` (`bench/run-attempts.mjs`).
 - Produces:
   - `mirrorSwap(judge, labels) -> Array<[string,string]>|null`: for an even `judge`, the pairs `[labels[i], labels[n-1-i]]` for `i < Math.floor(n/2)`, with `labels` sorted alphabetically; null otherwise. It replaces `labelSwap`. `unswap(row, pairs)` and `withCopy(source, fn, { swap: pairs })` handle any number of pairs (rename through unique temp names). Update the tests at `judge.test.mjs:211, 218, 230, 241` to the `[[a,b],...]` shape.
-  - `judgeArgs(prompt, { sessionId, installedKeys, pluginDir }) -> string[]` = `['-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId }), '--settings', JSON.stringify(cleanSettings({ installedKeys, sectionTeam: false, pluginDir }))]`, with `pluginDir = pin.pluginDir`. The spawn uses `pin.binary` and `childEnv(process.env, { pluginDir })`.
-  - `call(job, attempt) -> { stdout, transcript }`. Inside `withCopy`'s fn it picks `randomUUID()`, spawns, then reads `<projectDirFor(dir)>/<sid>.jsonl` and writes it to `results/judge-<round>-transcripts/<pair>-<judge>-a<attempt>.jsonl`.
+  - `judgeArgs(prompt, { sessionId, installedKeys, pluginDir }) -> string[]` = `['-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, '--permission-mode', 'default', ...commonArgs({ sessionId }), '--settings', JSON.stringify(cleanSettings({ installedKeys, sectionTeam: false, pluginDir }))]`, with `pluginDir = pin.pluginDir`. The spawn uses `pin.binary` and `childEnv(process.env, { pluginDir })`.
+  - `call(job, attempt) -> { stdout, transcript, subagentTranscripts }`. Inside `withCopy`'s fn it picks `randomUUID()`, spawns, then reads `<projectDirFor(dir)>/<sid>.jsonl` and writes it to `results/judge-<round>-transcripts/<pair>-<judge>-a<attempt>.jsonl`, and copies the session's subagent folder to `.../<pair>-<judge>-a<attempt>/`.
   - `runJobs(jobs, { rows, call, check, ... })`:
     - for each job it makes up to 3 attempts;
-    - `check({ stdout, transcript }) -> reasons[]` is `initProblems(initOf(outputMessages(stdout)), { setup: 'judge', pin, pluginDir: pin.pluginDir })` plus `effortProblems([transcript])` plus any parse error;
+    - `check({ stdout, transcript, subagentTranscripts }) -> reasons[]` is `initProblems(initOf(outputMessages(stdout)), { setup: 'judge', pin, pluginDir: pin.pluginDir })` plus `effortProblems([transcript, ...subagentTranscripts])` plus `judge ran in permission mode <m>` (unless the init shows `default` or `manual`) plus `judge touched a blind key` (a tool call in the main or a subagent transcript matching `BLIND_KEY`), plus any parse error;
     - every re-ask is appended to `results/judge-<round>-reasks.json` `{ pair, judge, attempt, reasons }`;
     - a job still unusable after 3 goes to `results/judge-<round>-left-out.json`, and the run exits 1;
     - judges with `compacted(transcript)` go to `results/judge-<round>-compacted.json` (they still count).
@@ -484,8 +484,8 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
   - `endsEarly` = the last review failed, `fixRounds < GATES[mode].fixRounds`, and the caller made no later reviewer call.
   - `regradeAfterPass` = some re-grade's previous review passed.
 - `nearMissState(runDir) -> { copies, outside }`:
-  - `copies` = files under `<runDir>/.team/near-miss/` (0 when it is missing);
-  - `outside` = runDir-relative paths of files outside `.team/`, `.git/` and `node_modules/` that are byte-identical to a file under `.team/near-miss/`, have `near-miss`, `nearmiss` or `mutant` (any case) in their path, or have a first line containing `near-miss:`.
+  - `copies` = the number of non-empty files under `<runDir>/.team/near-miss/` (0 when it is missing);
+  - `outside` = runDir-relative paths of files outside `.team/`, `.git/` and `node_modules/` that are byte-identical to a non-empty file under `.team/near-miss/`, have `near-miss`, `nearmiss` or `mutant` (any case) in their path, or have a first line containing `near-miss:`.
 - `checkRun({ cond, task, roles, runDir, record }) -> { faithful, broken, tier }`:
   - With `roles === null`, it returns `{ faithful: false, broken: ['no data'], tier: null }` and never throws.
   - Otherwise each failed rule adds one short line to `broken`, and `faithful = broken.length === 0`. A gate's final grade is never a rule.
@@ -737,7 +737,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 - [ ] **Run it from one shell**: `node bench/preflight.mjs --round=mo --plugin=C:/Users/Asus/section-team-v0.2.1` → `results/preflight-mo.json`. Show the pin.
 
 ### Task 31: Runs (yes, with the estimate: about $114 of runs, $89–137)
-- [ ] **Before the first batch:** Task 30's rules still hold: nothing installed or removed in `~/.claude/skills` or `~/.claude/agents`, and the same plain terminal as the preflight.
+- [ ] **Before the first batch:** Task 30's rules still hold.
 - [ ] **Before each batch:** `git -C C:/Users/Asus/section-team-v0.2.1 status --porcelain`, `git -C C:/Users/Asus/section-team-v0.2.1 diff --stat v0.2.1` and `git diff --stat v0.2.1 mo-freeze -- agents hooks skills brief .claude-plugin scripts types package.json tests` all print nothing. Any output stops the round.
 - [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=C:/Users/Asus/section-team-v0.2.1 mo-r1` (then `mo-r2`, `mo-r3`).
   - Exit 1: harness or evidence error; stop and report, do not resume.
@@ -760,6 +760,6 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 ### Task 34: Analysis and write-up
 - [ ] **Guard again**: rerun Task 31's checks before this step; any output stops the round.
 - [ ] **Analysis**: `node bench/mode-check.mjs --round=mo`, `node bench/gate-stats.mjs --round=mo`, `node bench/test-strength.mjs --round=mo` and `node bench/bars.mjs --round=mo`.
-- [ ] **Write `docs/benchmark-modes-2026-11.md`** with every section the spec's Publishing lists, including the Limits section verbatim from the spec. Task table: reference sizes counted as raw lines without tests and docs (blank and comment lines included): h4 464 (171 browser), h5 about 151 (about 122 code-only), h6 340. Put the raw data in `bench/data/modes/` with the recompute command, and update the README's Modes table.
+- [ ] **Write `docs/benchmark-modes-2026-11.md`** with every section the spec's Publishing lists, including the Limits section verbatim from the spec. Task table: reference sizes counted as raw source lines without tests, docs and package.json (blank and comment lines included): h4 464 (171 browser), h5 about 151 (about 122 code-only), h6 340. Put the raw data in `bench/data/modes/` with the recompute command, and update the README's Modes table.
 - [ ] **Commit**: `docs: publish the mode round`.
 - [ ] **Hand the picker-label change** (`hooks/lib/mode.mjs` `MODE_LABELS`, next plugin version) to the user as a follow-up task. It is a plugin change after the freeze.
