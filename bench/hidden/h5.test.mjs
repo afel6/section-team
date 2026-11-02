@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn, spawnSync, execFileSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:net'
 import { once } from 'node:events'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -40,8 +40,7 @@ const waitForListening = child => new Promise((resolve, reject) => {
 async function stopServer({ child }) {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
   const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) })
-  if (process.platform !== 'win32') child.kill('SIGKILL')
-  else try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }) } catch {}
+  child.kill('SIGKILL') // not taskkill: with the scorer's minimal environment it takes seconds per call
   try { await exited } catch (e) { throw new Error(`server pid ${child.pid} did not stop within 5 s`, { cause: e }) }
 }
 
