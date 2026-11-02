@@ -37,7 +37,7 @@ function boot(env, cwd = TARGET) {
 async function stopServer(s) {
   running.delete(s); if (s.child.pid === undefined || s.child.exitCode !== null || s.child.signalCode !== null) return
   const exited = once(s.child, 'exit', { signal: AbortSignal.timeout(5000) }).catch(() => {})
-  s.child.kill('SIGKILL'); await exited // not taskkill: with the scorer's minimal environment it takes seconds per call
+  s.child.kill('SIGKILL'); await exited // not taskkill: in a stripped environment (env -i) it can take seconds per call; the server has no child processes
 }
 async function startServer({ file = join(fresh(), 'data.json'), cwd, env = {} } = {}) {
   const port = await freePort(), s = await boot({ PORT: String(port), DATA_FILE: file, ...env }, cwd)

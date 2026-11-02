@@ -40,7 +40,7 @@ const waitForListening = child => new Promise((resolve, reject) => {
 async function stopServer({ child }) {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
   const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) })
-  child.kill('SIGKILL') // not taskkill: with the scorer's minimal environment it takes seconds per call
+  child.kill('SIGKILL') // not taskkill: in a stripped environment (env -i) it can take seconds per call; the server has no child processes
   try { await exited } catch (e) { throw new Error(`server pid ${child.pid} did not stop within 5 s`, { cause: e }) }
 }
 
