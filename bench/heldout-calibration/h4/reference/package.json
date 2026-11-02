@@ -1,0 +1,14 @@
+{
+  "name": "room-bookings",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A meeting-room booking app: a JSON API and a browser page, data kept in one JSON file.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
