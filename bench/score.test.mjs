@@ -130,9 +130,12 @@ test("ownTests runs the solution's npm test without the maintainer's keys and to
 const apiErrorTranscript = { costUSD: 1.4, isError: true, subtype: 'success', tokens: {}, turns: 3, agentSpawns: 0, agentTypes: {}, agentModels: {}, modelUsage: {} }
 const runMetrics = { id: 'h1-team-ho-r1', task: 'h1', cond: 'team-ho', rep: 1, timedOut: false, wallMs: 60_000, transcript: apiErrorTranscript, cost: { costUSD: 1.4, costComputed: false }, split: null, splitCoverage: null, hidden: { tests: 23, pass: 0, fail: 23, rate: 0 }, own: { passed: false }, code: {}, team: {} }
 
-test('a run that ended in an API error is flagged on the score line and in summary.json', () => {
-  assert.match(scoreLine(runMetrics), /API ERROR/)
-  assert.doesNotMatch(scoreLine({ ...runMetrics, transcript: { ...apiErrorTranscript, isError: false } }), /ERROR/)
+// Under the mode-round rules an API failure never gets a run.json: an is_error run that has one is a counted 'error' end.
+test('the score line shows how the run ended; summary.json keeps isError', () => {
+  assert.match(scoreLine({ ...runMetrics, end: 'error' }), /timedOut=false {2}end=error$/)
+  assert.match(scoreLine({ ...runMetrics, end: 'ok', transcript: { ...apiErrorTranscript, isError: false } }), /end=ok$/)
+  assert.match(scoreLine(runMetrics), /end=\?$/, 'a held-out run.json has no end')
+  assert.doesNotMatch(scoreLine({ ...runMetrics, end: 'error' }), /API|ERROR/)
   assert.equal(summaryRow(runMetrics).isError, true)
   assert.equal(summaryRow({ ...runMetrics, transcript: { ...apiErrorTranscript, isError: null } }).isError, false)
 })

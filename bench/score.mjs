@@ -285,12 +285,11 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
-// A run whose CLI ended on an API error (usage limit, overload) still has a result, with is_error set: the line
-// says so, because such a run is rerun like a crash, not kept as a result. A cost computed from transcripts is marked.
-export function scoreLine({ id, hidden, own, transcript, cost, wallMs, timedOut }) {
-  const error = transcript.isError ? '  API ERROR' : ''
+// The line ends with how the run ended (run.json's end; '?' for held-out runs, which have none). A cost computed from
+// transcripts is marked.
+export function scoreLine({ id, hidden, own, transcript, cost, wallMs, timedOut, end }) {
   const usd = `$${Number.isFinite(cost.costUSD) ? cost.costUSD.toFixed(2) : '?'}${cost.costComputed ? ' computed' : ''}`
-  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  ${usd}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}${error}`
+  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  ${usd}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}  end=${end ?? '?'}`
 }
 
 export const summaryRow = r => ({
