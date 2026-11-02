@@ -147,6 +147,27 @@ test('a test file with glob characters in its path is skipped, listed and never 
   assert.equal(calls.some(c => names.includes(c.file)), false)
 })
 
+// `node --test -x.test.mjs` reads the file name as an option: such a file is skipped and listed like a glob name.
+test('a test file whose name or folder starts with - is skipped, listed and never run', t => {
+  const root = folder(t, taskFiles('tk'))
+  const names = ['-x.test.mjs', 'test/-y.test.mjs', '-dir/z.test.mjs']
+  const solutionDir = folder(t, { 'a.test.mjs': 'lib.mjs=ref', 'test/x-1.test.mjs': 'lib.mjs=ref', ...Object.fromEntries(names.map(n => [n, 'lib.mjs=ref'])) })
+  assert.deepEqual(solutionTestFiles(solutionDir), ['a.test.mjs', 'test/x-1.test.mjs'])
+  const calls = []
+  const r = strength({ task: 'tk', solutionDir, root, seeds: folder(t), run: fakeRun(calls) })
+  assert.deepEqual(r.skipped, [...names].sort().map(path => ({ path, reason: 'name starts with -' })))
+  assert.deepEqual(r.valid, ['a.test.mjs', 'test/x-1.test.mjs'])
+  assert.equal(calls.some(c => names.includes(c.file)), false)
+})
+
+test('runTestFile gives each file 300 s unless told otherwise', () => {
+  const seen = []
+  const spawn = (command, args, options) => { seen.push(options.timeout); return { status: 0 } }
+  assert.deepEqual(runTestFile('C:/dir', 'a.test.mjs', { spawn }), { ok: true })
+  assert.deepEqual(runTestFile('C:/dir', 'a.test.mjs', { spawn, timeoutMs: 500 }), { ok: true })
+  assert.deepEqual(seen, [300_000, 500])
+})
+
 test("files under node_modules or a dot folder are not the solution's test files, as for node --test", t => {
   const solutionDir = folder(t, { 'a.test.mjs': '', 'node_modules/dep/z.test.mjs': '', 'lib/node_modules/test/w.mjs': '', '.team/near-miss/1-a.test.mjs': '', '.b.test.mjs': '' })
   assert.deepEqual(solutionTestFiles(solutionDir), ['a.test.mjs'])

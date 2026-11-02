@@ -18,6 +18,10 @@ const TASKS = ['h5', 'h6']
 // Node 26 reads every `node --test <file>` argument as a glob, so a path holding one of these could run another file
 // or none: [ ] * ? { }, and the extglobs +( and @(, with which Node 26.2 runs no test and still exits 0.
 const GLOB_CHARS = /[[\]*?{}]|[+@]\(/
+// An argument starting with - is read as an option: a test file or folder named so is skipped too.
+const OPTION_LIKE = /(^|\/)-/
+// Why a solution test file is skipped and listed instead of run, or null when it runs.
+const skipReason = rel => (GLOB_CHARS.test(rel) ? 'glob characters in name' : OPTION_LIKE.test(rel) ? 'name starts with -' : null)
 const toPosix = path => path.split(sep).join('/')
 // A system error (ENOENT, EACCES, EBUSY ...); Node's own ERR_* codes are bugs and are never caught.
 const isFsError = err => /^E[A-Z]+$/.test(err?.code ?? '')
@@ -33,8 +37,8 @@ const filesMatching = (dir, patterns) => globSync(patterns, { cwd: dir, withFile
 const ownTestFiles = (dir, seedDir) => filesMatching(dir, NODE_TEST_PATTERNS).filter(rel => !sameAsSeed(seedDir, rel, join(dir, rel)))
 
 // The files Node's default `node --test` patterns match in dir, minus files byte-identical to the seed's same path
-// and files whose path holds a glob character (strength lists those as skipped).
-export const solutionTestFiles = (dir, seedDir = null) => ownTestFiles(dir, seedDir).filter(rel => !GLOB_CHARS.test(rel))
+// and files whose path holds a glob character or a part starting with - (strength lists those as skipped).
+export const solutionTestFiles = (dir, seedDir = null) => ownTestFiles(dir, seedDir).filter(rel => skipReason(rel) === null)
 
 // Every file a test run may need: Node's test files plus score.mjs's test paths (a tests/helpers.mjs, fixtures).
 function testSupport(dir) {
@@ -44,8 +48,8 @@ function testSupport(dir) {
 
 // `node --test <file>` inside dir with the hidden tests' env: ok on exit 0; a run past the limit is not ok.
 // Output is discarded, so no buffer can overflow. Any other spawn failure is the harness's and throws.
-export function runTestFile(dir, file, { env = process.env, timeoutMs = TIME_LIMIT_MS } = {}) {
-  const r = spawnSync(process.execPath, ['--test', file], {
+export function runTestFile(dir, file, { env = process.env, timeoutMs = TIME_LIMIT_MS, spawn = spawnSync } = {}) {
+  const r = spawn(process.execPath, ['--test', file], {
     cwd: dir, env: hiddenEnv(dir, env), stdio: 'ignore', timeout: timeoutMs, windowsHide: true,
   })
   const error = r.error?.code ?? null
@@ -69,8 +73,8 @@ function readSolution(dir, seed) {
     if (!statSync(dir).isDirectory()) return { reason: 'no solution folder' }
     const own = ownTestFiles(dir, seed)
     return {
-      files: own.filter(rel => !GLOB_CHARS.test(rel)),
-      skipped: own.filter(rel => GLOB_CHARS.test(rel)).map(path => ({ path, reason: 'glob characters in name' })),
+      files: own.filter(rel => skipReason(rel) === null),
+      skipped: own.filter(rel => skipReason(rel) !== null).map(path => ({ path, reason: skipReason(path) })),
       bytes: testSupport(dir).map(rel => [rel, readFileSync(join(dir, rel))]),
     }
   } catch (err) {
