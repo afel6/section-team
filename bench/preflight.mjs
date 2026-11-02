@@ -1,5 +1,7 @@
 // Paid preflight before a round (about $1, needs the user's yes). It pins the CLI: `claude --version` (the binary on
-// PATH) names the version, and ~/.local/share/claude/versions/<v> is copied to ~/bench-runs/claude-<v>.exe. Then one
+// PATH) names the version, and ~/.local/share/claude/versions/<v> is copied to ~/bench-runs/claude-<v>.exe. Where that
+// versions folder is missing off Windows (the cloud machine's npm install), the installed CLI is pinned in place: the
+// real path of claude on PATH, its SHA-256 and its npm package, so a fresh machine can install it again. Then one
 // run per setup (solo, lean, team, max), each in a run folder from prepareRun, on that copy with exactly the builders'
 // arguments and environment, proves from its init, its mode record and its answer that a run starts clean and in its
 // mode. Only a preflight without problems writes the round's pin, results/preflight-<round>.json.
@@ -7,9 +9,9 @@
 // Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the v0.2.1 worktree>
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
@@ -28,6 +30,17 @@ const SYNCED = ['plugins/synced', 'skills/synced']
 
 const firstLine = text => String(text ?? '').split(/\r?\n/)[0].trim()
 const runVersion = (run, command) => run(command, ['--version'], { encoding: 'utf8', windowsHide: true, timeout: VERSION_TIMEOUT_MS })
+const NPM_PACKAGE = '@anthropic-ai/claude-code'
+const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
+
+// The pinned binary must start and print its own version.
+function checkVersion(run, binary, version) {
+  const r = runVersion(run, binary)
+  if (r.error) throw new Error(`could not run ${binary} (${r.error.code ?? r.error.message})`)
+  if (r.status !== 0 || !String(r.stdout).startsWith(`${version} `)) {
+    throw new Error(`${binary} --version printed "${firstLine(r.stdout)}" (exit ${r.status}), expected ${version}`)
+  }
+}
 
 // The x.y.z at the start of `claude --version`, which prints "2.1.296 (Claude Code)".
 export function versionOf(stdout) {
@@ -39,7 +52,7 @@ export function versionOf(stdout) {
 // Copies the version's executable to the path every round run starts. A copy from an earlier preflight is kept, never
 // overwritten (a run may still hold it open), so it must match the source byte for byte like a fresh one.
 export function copyBinary({ home, version, run = spawnSync }) {
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw new RangeError(`copyBinary takes a version like 2.1.296, got "${version}"`)
+  if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new RangeError(`copyBinary takes a version like 2.1.296, got "${version}"`)
   const source = join(home, '.local', 'share', 'claude', 'versions', version)
   const binary = join(home, 'bench-runs', `claude-${version}.exe`)
   const expected = sha256Of(source)
@@ -49,12 +62,35 @@ export function copyBinary({ home, version, run = spawnSync }) {
   }
   const sha256 = sha256Of(binary)
   if (sha256 !== expected) throw new Error(`${binary} differs from ${source}: delete it and run the preflight again`)
-  const r = runVersion(run, binary)
-  if (r.error) throw new Error(`could not run ${binary} (${r.error.code ?? r.error.message})`)
-  if (r.status !== 0 || !String(r.stdout).startsWith(`${version} `)) {
-    throw new Error(`${binary} --version printed "${firstLine(r.stdout)}" (exit ${r.status}), expected ${version}`)
-  }
+  checkVersion(run, binary, version)
   return { binary, sha256 }
+}
+
+const isExecutableFile = path => {
+  try {
+    accessSync(path, constants.X_OK)
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
+// The real path of the first executable `claude` in a PATH folder, links resolved (an npm install links it to the
+// package's native binary).
+export function claudeOnPath({ env = process.env } = {}) {
+  const found = String(env.PATH ?? '').split(delimiter).filter(Boolean).map(dir => join(dir, 'claude')).find(isExecutableFile)
+  if (!found) throw new Error("no executable claude on PATH: install the round's CLI first")
+  return realpathSync(found)
+}
+
+// Pins the installed CLI where it is: no copy, since npm owns that path and the same package version installs the
+// same bytes there on a fresh machine (cloud-sync.mjs restore checks the hash after installing it).
+export function pinInstalled({ version, run = spawnSync, which = claudeOnPath }) {
+  if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new RangeError(`pinInstalled takes a version like 2.1.296, got "${version}"`)
+  const binary = which()
+  const sha256 = sha256Of(binary)
+  checkVersion(run, binary, version)
+  return { binary, sha256, npmPackage: `${NPM_PACKAGE}@${version}` }
 }
 
 // What claude.ai has synced into ~/.claude, as sorted paths relative to it; a run must leave it unchanged.
@@ -101,13 +137,14 @@ function differProblems(label, values) {
 
 // The round's pin from each setup's init (null when a setup has none; its own check reports that), and the lines
 // that keep it from being written.
-export function pinFor({ version, binary, sha256, pluginDir, inits }) {
+export function pinFor({ version, binary, sha256, npmPackage, pluginDir, inits }) {
   const present = SETUPS.filter(setup => inits[setup]).map(setup => [setup, inits[setup]])
   const builtins = present.map(([setup, init]) => [setup, builtinsOf(init)])
   const keySources = present.map(([setup, init]) => [setup, init.apiKeySource])
   const problems = [...differProblems('built-in plugins differ', builtins), ...differProblems('apiKeySource differs', keySources)]
   const setups = Object.fromEntries(present.map(([setup, init]) => [setup, { plugins: sourcesOf(init), agents: init.agents, skills: init.skills }]))
-  return { problems, pin: { version, binary, sha256, apiKeySource: keySources[0]?.[1], builtins: builtins[0]?.[1] ?? [], pluginDir, setups } }
+  const installed = npmPackage === undefined ? {} : { npmPackage }
+  return { problems, pin: { version, binary, sha256, ...installed, apiKeySource: keySources[0]?.[1], builtins: builtins[0]?.[1] ?? [], pluginDir, setups } }
 }
 
 // The session's mode record; an unreadable one still yields a line that names its setup.
@@ -150,7 +187,7 @@ function versionOnPath(run) {
 // The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
 // Returns every problem; the pin file is written only when there are none.
 export function preflight({ round, plugin, home = homedir(), results = RESULTS }, deps = {}) {
-  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS } = deps
+  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = claudeOnPath, platform = process.platform } = deps
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
   // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
   const file = join(results, `preflight-${round}.json`)
@@ -159,11 +196,12 @@ export function preflight({ round, plugin, home = homedir(), results = RESULTS }
   pluginCommitOf(plugin, { git })
   checkPluginWorktree(plugin, { git })
   const version = versionOnPath(run)
-  const { binary, sha256 } = copyBinary({ home, version, run })
-  const ctx = { home, binary, version, pluginDir: plugin, installedKeys: installedPluginKeys(home) }
+  const inPlace = platform !== 'win32' && !existsSync(join(home, '.local', 'share', 'claude', 'versions'))
+  const { binary, sha256, npmPackage } = inPlace ? pinInstalled({ version, run, which }) : copyBinary({ home, version, run })
+  const ctx = { home, binary, version, pluginDir: plugin, installedKeys: installedPluginKeys(home, { platform }) }
   const checks = SETUPS.map(setup => checkSetup(setup, ctx, { spawn, folder, root }))
   const inits = Object.fromEntries(SETUPS.map((setup, i) => [setup, checks[i].init]))
-  const { problems, pin } = pinFor({ version, binary, sha256, pluginDir: plugin, inits })
+  const { problems, pin } = pinFor({ version, binary, sha256, npmPackage, pluginDir: plugin, inits })
   const all = [...checks.flatMap(check => check.problems), ...problems]
   if (all.length === 0) {
     mkdirSync(results, { recursive: true })

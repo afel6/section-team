@@ -132,12 +132,17 @@ export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
   if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
 }
 
-// The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed.
+// The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed. A copy is
+// put back by hand; an installed pin (npmPackage, the cloud machine) by installing its package again.
 export function checkPin(plugin, pin) {
   if (!samePath(plugin, String(pin.pluginDir))) {
     throw new Error(`--plugin=${plugin} is not the worktree the round pinned: pass --plugin=${pin.pluginDir}`)
   }
-  if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round`)
+  const fix = pin.npmPackage
+    ? `install it again with npm i -g ${pin.npmPackage} (node bench/cloud-sync.mjs restore does); never re-pin a started round`
+    : 'put the pinned copy back; never re-pin a started round'
+  if (pin.npmPackage && !existsSync(pin.binary)) throw new Error(`${pin.binary} is missing: ${fix}`)
+  if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: ${fix}`)
 }
 
 // ~/.claude/skills and ~/.claude/agents (synced/ left out), like the preflight's syncedListing: the user's own skills

@@ -736,6 +736,19 @@ test('checkPin refuses a --plugin other than the pinned worktree and a binary wh
   assert.throws(() => checkPin(pin.pluginDir, pin), { message: `cannot read ${binary} (ENOENT)` })
 })
 
+// An installed pin (the cloud machine) is put back by installing its npm package again, never by re-pinning.
+test('checkPin names the npm package to install again when an installed pin\'s binary is missing or differs', t => {
+  const root = tempRoot(t)
+  const binary = join(root, 'claude.exe')
+  const pin = { binary, sha256: createHash('sha256').update('claude bytes').digest('hex'), pluginDir: 'C:/w', npmPackage: '@anthropic-ai/claude-code@2.1.296' }
+  const hint = 'install it again with npm i -g @anthropic-ai/claude-code@2.1.296 (node bench/cloud-sync.mjs restore does); never re-pin a started round'
+  assert.throws(() => checkPin('C:/w', pin), { message: `${binary} is missing: ${hint}` })
+  writeFileSync(binary, 'other bytes')
+  assert.throws(() => checkPin('C:/w', pin), { message: `${binary} differs from the binary the round pinned: ${hint}` })
+  writeFileSync(binary, 'claude bytes')
+  assert.doesNotThrow(() => checkPin('C:/w', pin))
+})
+
 test('checkPin on Linux compares the worktree path case for case', { skip: process.platform === 'win32' && 'Linux paths' }, t => {
   const root = tempRoot(t)
   const binary = join(root, 'claude.exe')

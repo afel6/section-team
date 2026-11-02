@@ -1,13 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
 import { BENCH_MODEL, PLUGIN_KEY } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
-import { copyBinary, pinFor, preflight, preflightProblems, syncedListing, versionOf } from './preflight.mjs'
+import { claudeOnPath, copyBinary, pinFor, pinInstalled, preflight, preflightProblems, syncedListing, versionOf } from './preflight.mjs'
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {
@@ -126,6 +126,41 @@ test('copyBinary names a missing version, a copy that cannot start and a version
   assert.throws(() => copyBinary({ home, version: '../2', run: noStart }), { message: 'copyBinary takes a version like 2.1.296, got "../2"' })
 })
 
+// The cloud machine has an npm install (npm i -g @anthropic-ai/claude-code@2.1.296): `claude` on PATH is a link to
+// the package's native binary, and ~/.local/share/claude/versions does not exist.
+test('claudeOnPath finds the first executable claude on PATH and resolves its links', { skip: process.platform === 'win32' && 'POSIX modes' }, t => {
+  const root = tempRoot(t)
+  const [notExec, linked, later] = ['a', 'b', 'c'].map(name => join(root, name))
+  writeFile(join(notExec, 'claude'), 'not executable')
+  const real = join(root, 'pkg', 'bin', 'claude.exe')
+  writeFile(real, 'claude bytes')
+  chmodSync(real, 0o755)
+  mkdirSync(linked, { recursive: true })
+  symlinkSync(real, join(linked, 'claude'))
+  writeFile(join(later, 'claude'), 'later')
+  chmodSync(join(later, 'claude'), 0o755)
+  assert.equal(claudeOnPath({ env: { PATH: [notExec, '', linked, later].join(':') } }), real)
+  assert.throws(() => claudeOnPath({ env: { PATH: notExec } }), { message: 'no executable claude on PATH: install the round\'s CLI first' })
+  assert.throws(() => claudeOnPath({ env: {} }), { message: 'no executable claude on PATH: install the round\'s CLI first' })
+})
+
+test('pinInstalled pins the installed CLI in place: its real path, its SHA-256, its npm package; it must print the version', t => {
+  const root = tempRoot(t)
+  const binary = join(root, 'claude.exe')
+  writeFile(binary, 'claude bytes')
+  const which = () => binary
+  const calls = []
+  const printing = stdout => (command, args) => { calls.push([command, args]); return { status: 0, stdout } }
+  assert.deepEqual(pinInstalled({ version: VERSION, run: printing(`${VERSION} (Claude Code)\n`), which }),
+    { binary, sha256: sha256('claude bytes'), npmPackage: `@anthropic-ai/claude-code@${VERSION}` })
+  assert.deepEqual(calls, [[binary, ['--version']]])
+  assert.throws(() => pinInstalled({ version: VERSION, run: printing('2.1.316 (Claude Code)\n'), which }),
+    { message: `${binary} --version printed "2.1.316 (Claude Code)" (exit 0), expected ${VERSION}` })
+  const noStart = () => ({ error: Object.assign(new Error('spawn EACCES'), { code: 'EACCES' }) })
+  assert.throws(() => pinInstalled({ version: VERSION, run: noStart, which }), { message: `could not run ${binary} (EACCES)` })
+  assert.throws(() => pinInstalled({ version: '../2', run: noStart, which }), { message: 'pinInstalled takes a version like 2.1.296, got "../2"' })
+})
+
 test('syncedListing lists both synced folders, sorted, and treats a missing folder as empty', t => {
   const home = tempRoot(t)
   assert.deepEqual(syncedListing(home), [])
@@ -220,6 +255,30 @@ test('preflight runs the four setups on the copied binary with the builders\' ar
     assert.equal(options.env.SECTION_TEAM_AUTO_INSTALL_SKILLS, '0')
   }
   assert.deepEqual(Object.keys(pin.setups), SETUPS)
+})
+
+// Where ~/.local/share/claude/versions is missing (not on Windows), the round runs the installed CLI itself.
+test('preflight on Linux without a versions folder pins the installed CLI in place and runs every setup on it', t => {
+  const { home, results, calls, deps } = fakeRound(t)
+  rmSync(join(home, '.local'), { recursive: true })
+  const installed = join(dirname(home), 'npm', 'bin', 'claude.exe')
+  writeFile(installed, 'npm claude bytes')
+  const { problems, pin } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, which: () => installed, platform: 'linux' })
+  assert.deepEqual(problems, [])
+  assert.deepEqual({ binary: pin.binary, sha256: pin.sha256, npmPackage: pin.npmPackage }, { binary: installed, sha256: sha256('npm claude bytes'), npmPackage: `@anthropic-ai/claude-code@${VERSION}` })
+  assert.deepEqual(Object.keys(pin), ['version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'setups'])
+  assert.deepEqual(calls.run, [['claude', ['--version']], [installed, ['--version']]])
+  assert.deepEqual(calls.spawn.map(s => s.binary), [installed, installed, installed, installed])
+  assert.equal(existsSync(join(home, 'bench-runs')), false, 'nothing is copied')
+})
+
+test('preflight on Windows still copies from the versions folder, and a missing one still stops it', t => {
+  const { home, results, calls, deps } = fakeRound(t)
+  rmSync(join(home, '.local'), { recursive: true })
+  const which = () => assert.fail('Windows never pins the installed CLI in place')
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, which, platform: 'win32' }),
+    { message: `cannot read ${join(home, '.local', 'share', 'claude', 'versions', VERSION)} (ENOENT)` })
+  assert.deepEqual(calls.spawn, [])
 })
 
 test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn', t => {
