@@ -9,7 +9,7 @@ import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { childEnv, cleanSettings, commonArgs } from './clean-run.mjs'
 import {
-  ALLOWED, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions, mirrorSwap, parseVerdict, pendingJobs,
+  ALLOWED, BLIND_KEY, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions, mirrorSwap, parseVerdict, pendingJobs,
   prepareJob, runJobs, unswap, withCopy,
 } from './judge.mjs'
 import { projectDirFor } from './run-attempts.mjs'
@@ -260,6 +260,15 @@ test('judgeCheck fails a judge whose tool calls, in its session or a subagent, n
   assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: transcriptOf(), subagentTranscripts: [shell] }), ['judge touched a blind key'])
   const said = transcriptOf('medium', [{ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'no blind-key here' }] } }])
   assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: said }), [], 'only tool calls count, not the answer text')
+  // A judge working in its temp copy has no reason to name the results folder: a wildcard or a folder-wide search there counts.
+  for (const input of [{ command: 'cat ../../Bench/Results/*.json' }, { path: 'C:\\Users\\Asus\\claude-team-moderound\\bench\\\\results', pattern: 'W' }, { pattern: '**/bench/results/**' }]) {
+    assert.deepEqual(judgeCheck(PIN)({ stdout, transcript: transcriptOf('medium', [toolCall(input)]) }), ['judge touched a blind key'], JSON.stringify(input))
+  }
+})
+
+test('BLIND_KEY matches key file names and bench/results in either slash, any case', () => {
+  for (const hit of ['blind-key-mo.json', 'EXTERNAL-KEY', 'bench/results', 'bench\\results', 'bench//results', 'Bench\\\\Results\\x']) assert.match(hit, BLIND_KEY, hit)
+  for (const miss of ['bench/result', 'benchresults', 'blindkey', 'results/h4', 'bench results']) assert.doesNotMatch(miss, BLIND_KEY, miss)
 })
 
 test('judgeOptions reads round, per-pair and limit, and rejects a bad command line', () => {
@@ -557,6 +566,17 @@ test('a judge attempt replaces, never merges, a subagent folder an earlier sessi
   assert.deepEqual(answer.subagentTranscripts, [transcriptOf('medium')])
   assert.deepEqual(readdirSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents')), ['x.jsonl'])
   assert.deepEqual(judgeCheck(PIN)(answer), [])
+})
+
+// The kept folder always belongs to the session whose main transcript sits beside it, also when that one had none.
+test('a judge attempt with no subagents removes a subagent folder an earlier session left under the same attempt name', async t => {
+  const { call, job, files } = callSetup(t, home => fakeJudge({ home, calls: [] }))
+  mkdirSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents'), { recursive: true })
+  writeFileSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents', 'old.jsonl'), transcriptOf('high'))
+  const answer = await call(job, 1)
+  assert.deepEqual(answer.subagentTranscripts, [])
+  assert.ok(!existsSync(join(files.transcripts, 'h4-r1-2-a1')), 'the stale folder is gone')
+  assert.ok(existsSync(join(files.transcripts, 'h4-r1-2-a1.jsonl')))
 })
 
 // An API error or a missing result is not the judge's fault: judging stops and uses no attempt, so a resume asks again.

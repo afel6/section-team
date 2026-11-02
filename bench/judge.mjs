@@ -4,8 +4,8 @@
 // Every attempt is a fresh session of the round's pinned binary, checked like a solo run (init and effort) plus its
 // permission mode and its tool calls (none may name a blind key), and its transcripts are kept in
 // results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved
-// raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a third unusable attempt is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed
-// in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
+// raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a third unusable attempt
+// is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
 // usage or rate limit, another API error, a session with no result or one that left no transcript stops judging
 // (exit 1) without using an attempt. Judging refuses to start before the round's leak scan is written.
 // Resumable: a (pair, judge) already saved or left out is skipped, and a resumed job keeps its attempt count.
@@ -203,7 +203,8 @@ function saveRaw(dir, job, attempt, stdout) {
   return path
 }
 
-// An attempt's row, and the reasons it is unusable: the check's (init and effort) plus the parse error, if any.
+// An attempt's row, and the reasons it is unusable: the check's (init, effort, permission mode, blind key) plus the
+// parse error, if any.
 function verdictOf(answer, job, check) {
   const reasons = check(answer)
   try {
@@ -303,7 +304,9 @@ export const judgeArgs = (prompt, { sessionId, installedKeys, pluginDir }) => [
 
 // The init's permission modes that show --permission-mode default took effect ('manual' is the CLI's name for it).
 const JUDGE_MODES = ['default', 'manual']
-const BLIND_KEY = /blind-key|external-key/i
+// A blind key's file name, or the results folder that holds the keys: a judge in its case copy never needs to name
+// either. codex-judge.mjs checks Codex's commands with it too.
+export const BLIND_KEY = /blind-key|external-key|bench[\\/]+results/i
 // True when a tool call in any of the transcripts names a blind key (case-insensitive, anywhere in its input).
 const touchesBlindKey = texts => texts.flatMap(outputMessages).some(m => m.type === 'assistant' && Array.isArray(m.message?.content)
   && m.message.content.some(part => part?.type === 'tool_use' && BLIND_KEY.test(JSON.stringify(part.input ?? null))))
@@ -343,11 +346,12 @@ function keepTranscript({ cwd, sessionId, home, files, job, attempt }) {
   const transcript = readFileSync(from, 'utf8')
   mkdirSync(files.transcripts, { recursive: true })
   writeFileSync(join(files.transcripts, `${attemptName(job, attempt)}.jsonl`), transcript)
+  // An earlier session under the same attempt name (killed before its row or re-ask was saved) leaves nothing behind:
+  // the subagent folder always belongs to the main transcript beside it.
+  const to = join(files.transcripts, attemptName(job, attempt))
+  rmSync(to, { recursive: true, force: true })
   const subagents = join(project, sessionId)
   if (!existsSync(subagents)) return { transcript, subagentTranscripts: [] }
-  const to = join(files.transcripts, attemptName(job, attempt))
-  // An earlier session under the same attempt name (killed before its row or re-ask was saved) is replaced, not merged.
-  rmSync(to, { recursive: true, force: true })
   cpSync(subagents, to, { recursive: true })
   return { transcript, subagentTranscripts: filesAt(to).filter(file => file.endsWith('.jsonl')).sort().map(file => readFileSync(file, 'utf8')) }
 }

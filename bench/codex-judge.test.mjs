@@ -37,7 +37,8 @@ function fakeCodex(answers) {
     calls.push({ bin, args, options })
     writeSync(options.stdio[1], '{"type":"thread.started"}\n')
     const answer = answers[Math.min(calls.length, answers.length) - 1]
-    return answer({ caseDir: args[args.indexOf('-C') + 1], last: args[args.indexOf('-o') + 1], attempt: calls.length })
+    const events = list => list.forEach(event => writeSync(options.stdio[1], `${JSON.stringify(event)}\n`))
+    return answer({ caseDir: args[args.indexOf('-C') + 1], last: args[args.indexOf('-o') + 1], attempt: calls.length, events })
   }
   return { run, calls }
 }
@@ -225,6 +226,44 @@ test('a re-asked case that answers well is usable on its second attempt', t => {
   assert.deepEqual(result.verdict.ranking, ['A', 'B'])
   assert.match(readFileSync(join(logDir, 'case-01-a1.unusable.txt'), 'utf8'), /no verdict/)
   assert.equal(existsSync(join(logDir, 'case-01-a1.verdict.json')), false, 'nothing to move when there was no verdict')
+})
+
+// Codex --json events as `codex exec` logs them: an item per command run, and the agent's messages.
+const command = cmd => ({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command: cmd, aggregated_output: '', exit_code: 0, status: 'completed' } })
+const message = text => ({ type: 'item.completed', item: { id: 'item_2', type: 'agent_message', text } })
+
+// Codex's sandbox limits writes, not reads: an attempt whose commands name a blind key or bench/results is unusable.
+test('an attempt whose logged commands name a blind key is unusable and re-asked, even with a good verdict', t => {
+  const { setDir, logDir } = caseSet(t, ['case-01'])
+  const { run, calls } = fakeCodex([
+    ({ last, events }) => {
+      events([command('cat C:/Users/Asus/claude-team-moderound/bench/results/external-key-mo.json'), message('done')])
+      writeFileSync(last, fenced(GOOD))
+      return { status: 0 }
+    },
+    ({ last, events }) => {
+      events([command('node --test'), message('I did not open blind-key-mo.json')])
+      writeFileSync(last, fenced(GOOD))
+      return { status: 0 }
+    },
+  ])
+  const [result] = runCases({ setDir, logDir, values: VALUES, run, log: () => {} })
+  assert.equal(calls.length, 2, 'the peeking attempt is re-asked')
+  assert.deepEqual([result.attempts, result.verdict.ranking], [2, ['A', 'B']])
+  assert.equal(readFileSync(join(logDir, 'case-01-a1.unusable.txt'), 'utf8'), 'judge touched a blind key\n')
+  assert.deepEqual(JSON.parse(readFileSync(join(logDir, 'case-01-a1.verdict.json'), 'utf8')), GOOD, 'its verdict is moved aside')
+  assert.ok(!existsSync(join(logDir, 'case-01-a2.unusable.txt')), 'only commands count, not the agent text')
+})
+
+test('an attempt whose commands stay in the case folder is checked as before', t => {
+  const { setDir, logDir } = caseSet(t, ['case-01'])
+  const { run, calls } = fakeCodex([({ last, events }) => {
+    events([command('cat JUDGE.md'), command('node --test A'), message('bench/results is not mine to read')])
+    writeFileSync(last, fenced(GOOD))
+    return { status: 0 }
+  }])
+  const [result] = runCases({ setDir, logDir, values: VALUES, run, log: () => {} })
+  assert.deepEqual([calls.length, result.attempts, result.verdict.ranking], [1, 1, ['A', 'B']])
 })
 
 test('a Codex that fails stops the run without using an attempt, and the next run resumes', t => {

@@ -4,7 +4,8 @@
 // Every attempt is logged in bench/results/codex-logs/<set>/ as <case>-a<n>.cmd.txt (the exact command, as a JSON
 // argv), .jsonl (Codex's --json events), .err and .last.txt (its last message). Codex in a read-only sandbox cannot
 // write verdict.json, so the last message's final fenced json block stands in for it.
-// A verdict that fails the Opus verdict parser is moved to <case>-a<n>.verdict.json, its reason is written to
+// A verdict that fails the Opus verdict parser, or comes from an attempt whose logged commands name a blind key or
+// bench/results ("judge touched a blind key"), is moved to <case>-a<n>.verdict.json, its reason is written to
 // <case>-a<n>.unusable.txt, and the case is asked again in a fresh session, at most twice, with its scratch/ emptied.
 // A Codex that cannot start, or that exits non-zero without a usable verdict (a usage limit, a sign-in or network
 // failure), stops the run without using an attempt. Resumable: a case with a verdict.json is skipped, and a case's
@@ -15,8 +16,9 @@ import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, 
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
+import { outputMessages } from './clean-run.mjs'
 import { verdictText } from './external-judge.mjs'
-import { JSON_BLOCK, MAX_ATTEMPTS, parseVerdict, subfolders } from './judge.mjs'
+import { BLIND_KEY, JSON_BLOCK, MAX_ATTEMPTS, parseVerdict, subfolders } from './judge.mjs'
 import { RESULTS } from './run.mjs'
 
 const SHEET = join(dirname(fileURLToPath(import.meta.url)), 'outside-run-sheet.md')
@@ -117,6 +119,15 @@ function verdictFromMessage(lastMessage, verdictPath) {
   if (block) writeFileSync(verdictPath, block[1] + '\n')
 }
 
+// The command strings of an attempt's command_execution events in its logged --json output (never the agent's own
+// text); outputMessages skips a line cut off mid-write.
+const commandsOf = jsonlPath => (existsSync(jsonlPath) ? outputMessages(readFileSync(jsonlPath, 'utf8')) : [])
+  .map(event => event.item).filter(item => item?.type === 'command_execution').map(item => [item.command].flat().join(' '))
+
+// Codex's sandbox limits writes, not reads: an attempt whose commands name a blind key or the results folder is
+// unusable, like the Opus judges' (judge.mjs BLIND_KEY).
+const touchedBlindKey = jsonlPath => commandsOf(jsonlPath).some(command => BLIND_KEY.test(command))
+
 // Copy and delete rather than rename: the case set and the logs may sit on different drives.
 function moveAside(from, to) {
   copyFileSync(from, to)
@@ -145,7 +156,7 @@ function askCase({ caseDir, name, logDir, values, run }) {
     seconds += asked.seconds
     exitCode = asked.exitCode
     verdictFromMessage(files.last, verdictPath)
-    const checked = checkVerdict(verdictPath, name, labels)
+    const checked = touchedBlindKey(files.jsonl) ? { problem: 'judge touched a blind key' } : checkVerdict(verdictPath, name, labels)
     const entry = { case: name, exitCode, seconds: Math.round(seconds), attempts: used + 1, verdict: checked.verdict ?? null }
     if (checked.verdict) return { entry, line: `${name}: usable after ${plural(used + 1)} (${entry.seconds} s)` }
     if (existsSync(verdictPath)) moveAside(verdictPath, files.verdict)
