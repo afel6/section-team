@@ -229,6 +229,12 @@ test('nearMissState finds copies by bytes, path words and first line, outside .t
   assert.deepEqual(nearMissState(join(tmpdir(), 'bench-mode-missing-run')), { copies: 0, outside: [] })
 })
 
+// An empty file's bytes match every empty file: a .gitkeep in .team/near-miss/ must not make every empty file a copy.
+test('nearMissState leaves zero-length files out of the byte match', t => {
+  const dir = runDir(t, { '.team/near-miss/.gitkeep': '', '.team/near-miss/1-range.mjs': COPY, 'src/.gitkeep': '', 'lib/empty.mjs': '', 'lib/range.mjs': COPY })
+  assert.deepEqual(nearMissState(dir).outside, ['lib/range.mjs'])
+})
+
 test('max run whose copies are gone counts any testing-section write into .team/near-miss/', t => {
   const dir = runDir(t, modeFile('max'))
   const NONE = ['no near-miss copy in .team/near-miss/']
@@ -297,6 +303,13 @@ test('tier is multi, single or small', t => {
   assert.equal(tier('team-mo', 'h6', teamH6()), 'single')
   assert.equal(tier('lean-mo', 'h5', leanH5()), 'small')
   assert.equal(tier('max-mo', 'h5', [main_(wake(1, 'security'), wake(2, 'database'))]), 'multi')
+})
+
+// Spec: the tier each run's supervisor chose, from its wake-ups; a section's own wake-ups are not the supervisor's choice.
+test('tier counts only the supervisor\'s wake-ups: testing waking backend stays single', t => {
+  const dir = runDir(t)
+  const roles = [main_(wake(1, 'testing')), section('testing', 'a1', [wake(2, 'backend')])]
+  assert.equal(checkRun({ cond: 'max-mo', task: 'h6', roles, runDir: dir, record: null }).tier, 'single')
 })
 
 test('a run with no evidence is a no-data row', () => {

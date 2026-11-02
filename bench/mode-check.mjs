@@ -56,7 +56,8 @@ const COPY_WORD = /near-miss|nearmiss|mutant/i
 export function nearMissState(runDir) {
   const nearDir = join(runDir, '.team', 'near-miss')
   const copies = filesUnder(nearDir)
-  const hashes = new Set(copies.map(rel => sha(readFileSync(join(nearDir, rel)))))
+  // An empty file (a .gitkeep) would match every empty file, so only files with bytes are matched by bytes.
+  const hashes = new Set(copies.map(rel => readFileSync(join(nearDir, rel))).filter(bytes => bytes.length > 0).map(sha))
   const isCopy = rel => {
     if (COPY_WORD.test(rel)) return true
     const bytes = readFileSync(join(runDir, rel))
@@ -156,9 +157,11 @@ function nearMissRules(roles, runDir) {
   return [...(made ? [] : [`no near-miss copy in ${NEAR_MISS}`]), ...(outside.length ? [`near-miss copy outside .team/: ${listed(outside)}`] : [])]
 }
 
+// The tier the supervisor chose: only its own wake-ups count, not a section's (testing waking backend).
 const tierOf = woken => {
-  if (woken.some(w => BUILDERS.includes(w.section))) return 'multi'
-  return woken.some(w => w.section === 'testing') ? 'single' : 'small'
+  const own = woken.filter(w => w.caller === 'main')
+  if (own.some(w => BUILDERS.includes(w.section))) return 'multi'
+  return own.some(w => w.section === 'testing') ? 'single' : 'small'
 }
 
 // A row that was not checked: one line says why.
