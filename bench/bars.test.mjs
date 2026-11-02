@@ -128,8 +128,12 @@ test('Balanced at 8.61 makes Max not measurable; at 8.60 it is measured', () => 
   close(capped.ceiling.mean, 77.5 / 9)
   assert.equal(capped.ceiling.hit, true)
   assert.equal(capped.status, 'not measurable (scale ceiling)')
-  const faithful = Object.fromEntries(summary.map(r => [r.id, { faithful: r.id !== 'h5-team-mo-r1' }]))
-  assert.equal(run('max', { quals: high.quals, summary }, faithful).status, 'not measurable (scale ceiling)')
+  // Without the unfaithful 8.70 run Balanced's mean would be 68.8 / 8 = 8.60 and Max measured: the ceiling is decided
+  // once, over every counted Balanced run, for the headline and the sensitivity check alike.
+  const faithful = Object.fromEntries(summary.map(r => [r.id, { faithful: r.id !== 'h4-team-mo-r1' }]))
+  const sensitivity = run('max', { quals: high.quals, summary }, faithful)
+  assert.equal(sensitivity.n, 8, 'the h4-r1 group is already out, so every other group is still compared')
+  assert.equal(sensitivity.status, 'not measurable (scale ceiling)')
 })
 
 test('hidden-test rule fails a mode with a lower pass rate', () => {
@@ -164,10 +168,29 @@ test('Lean usage 1.50 meets and 1.51 misses', () => {
   assert.equal(misses.status, 'missed')
 })
 
+// Float division can land just under a halfway value: 0.54 / 0.48 is 1.1249999999999998, which must round to 1.13.
+test('the usage ratio rounds a value that is halfway in decimal up, as the rounding rule says', () => {
+  const r = run('lean', usageWorld(0.09, { solo: [1, 1, 1, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08] }))
+  assert.equal(r.usage.modeCost / r.usage.vsCost, 1.1249999999999998)
+  assert.equal(r.usage.ratio, 1.13)
+})
+
+test('the usage reading adds the h4 ratio against Balanced and names the runs priced from transcripts', () => {
+  const w = usageWorld(3)
+  const computed = ['h5-lean-mo-r2', 'h4-team-mo-r1']
+  const summary = w.summary.map(r => (computed.includes(r.id) ? { ...r, costComputed: true } : r))
+  const r = run('lean', { ...w, summary })
+  assert.equal(r.usage.reading, 'usage 1.50× solo-mo (at most 1.50×)  h4 vs team-mo 2.00× (computed costs: h4-team-mo-r1, h5-lean-mo-r2)')
+  assert.deepEqual(r.usage.computedCosts, ['h4-team-mo-r1', 'h5-lean-mo-r2'])
+  assert.equal(run('lean', usageWorld(3)).usage.reading, 'usage 1.50× solo-mo (at most 1.50×)  h4 vs team-mo 2.00×')
+  const noH4 = run('lean', usageWorld(3, { leanH4: null }))
+  assert.equal(noH4.usage.reading, 'usage 1.50× solo-mo (at most 1.50×)')
+})
+
 test('an unknown cost leaves the usage not measured instead of pricing it at $0', () => {
   for (const unknown of [null, NaN]) {
     const r = run('lean', usageWorld(3, { solo: [1, 1, 1, unknown, 2, 2, 2, 2, 2] }))
-    assert.deepEqual([r.usage.ratio, r.usage.ok, r.usage.reading], [null, null, 'usage not measured'])
+    assert.deepEqual([r.usage.ratio, r.usage.ok, r.usage.reading], [null, null, 'usage not measured  h4 vs team-mo 2.00×'])
     assert.equal(r.status, 'not measured (usage)')
     const h4 = run('lean', usageWorld(3, { leanH4: unknown }))
     assert.equal(h4.usage.ratio, 1.5)
@@ -190,6 +213,12 @@ test('the sensitivity check takes usage and the h4 report over faithful groups o
 test('testsGap is the same comparison on the tests dimension', () => {
   const r = run('balanced', world({ 'team-mo': { q: 8, tests: [9, 9, 9, 8, 8, 8, 7, 7, 7] }, 'solo-mo': { q: 7, tests: 6 } }))
   close(r.testsGap, 2)
+  const sd = sampleSD([3, 3, 3, 2, 2, 2, 1, 1, 1])
+  close(r.testsSd, sd)
+  close(r.testsLo, 2 - (tCrit975(8) * sd) / 3)
+  close(r.testsHi, 2 + (tCrit975(8) * sd) / 3)
+  const one = run('balanced', world({ 'team-mo': { q: 8, tests: 9 }, 'solo-mo': { q: 7, tests: 6 } }, ['h4-r1']))
+  assert.deepEqual([one.testsGap, one.testsSd, one.testsLo, one.testsHi], [3, null, null, null], 'one group has no spread')
   const judgedTests = comparison({ cmp: cmpOf('lean'), quals: qualities(JUDGE_ROWS, KEY), summary: LEAN_SOLO_RUNS, rules: CONFIG })
   // Tests scores (third digit) summed over both judges and all groups: lean 128, solo 126, so (128 - 126) / 2 / 9.
   close(judgedTests.testsGap, 1 / 9)
@@ -319,8 +348,9 @@ test('the CLI adds each headline label, outside confirmation, rank wins and size
   })
   assert.equal(logs.length, 10)
   assert.match(logs[0], /^lean +headline +met, outside-confirmed +n 9 +gap \+1\.00/)
-  assert.match(logs[2], /^lean +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 0 of 9 +Codex 9 of 9 groups, gap \+1\.00$/)
-  assert.match(logs[8], /^max +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 9 of 9 +Codex 9 of 9 groups, gap \+1\.00$/)
+  assert.match(logs[0], / +usage 1\.00× solo-mo \(at most 1\.50×\) +h4 vs team-mo 1\.00×$/)
+  assert.match(logs[2], /^lean +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 0 of 9 +tests gap \+1\.00 \[\+1\.00, \+1\.00\] +Codex 9 of 9 groups, gap \+1\.00$/)
+  assert.match(logs[8], /^max +secondary +rank wins 9-0, 0 split, p 0\.0039 +judgments 18-0 +more test lines 9 of 9 +tests gap \+1\.00 \[\+1\.00, \+1\.00\] +Codex 9 of 9 groups, gap \+1\.00$/)
   assert.equal(logs[9], 'outside              Codex held-out passed (gap +0.93, same winner 8 of 9), usable; Antigravity no held-out check, not used; more test lines 8 of 9 (held-out)')
 })
 

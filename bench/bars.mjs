@@ -39,25 +39,35 @@ function spread(gaps, floor) {
   return { gap, sd, lo: gap - half, hi: gap + half, includesZero: gap - half <= 0 }
 }
 
-// Mean cost of the mode's runs over the comparator's on `tasks`; all null when a cost is unknown (never priced at $0).
+// Mean cost of the mode's runs over the comparator's on `tasks`, and the ids of the priced runs whose cost was computed
+// from transcripts; all null when a cost is unknown (never priced at $0). The ratio is cut to 12 significant digits
+// before rounding, so a decimal halfway value that division leaves just under it (1.1249999999999998) rounds up.
 function costRatio(groups, tasks, decimals) {
   const runs = groups.filter(g => tasks.includes(g.task))
   const costs = side => runs.map(g => g[side].run.costUSD)
   const known = runs.length > 0 && [...costs('mode'), ...costs('vs')].every(Number.isFinite) && mean(costs('vs')) > 0
-  if (!known) return { modeCost: null, vsCost: null, ratio: null }
+  if (!known) return { modeCost: null, vsCost: null, ratio: null, computed: [] }
   const [modeCost, vsCost] = [mean(costs('mode')), mean(costs('vs'))]
-  return { modeCost, vsCost, ratio: round(modeCost / vsCost, decimals) }
+  const computed = runs.flatMap(g => [g.mode.run, g.vs.run]).filter(run => run.costComputed === true).map(run => run.id)
+  return { modeCost, vsCost, ratio: round(Number((modeCost / vsCost).toPrecision(12)), decimals), computed }
 }
 
-// Lean's usage half on usage.tasks, plus its reportVs ratio (reported only) under the same group rule.
+// Lean's usage half on usage.tasks, plus its reportVs ratio (reported only) under the same group rule. The reading is
+// the printed line: both ratios and the runs priced from transcripts (spec: marked in the table).
 function usageOf(cmp, groups, pairs, decimals) {
   const { tasks, maxRatio, reportVs } = cmp.usage
-  const own = costRatio(groups, tasks, decimals)
+  const { computed: ownComputed, ...own } = costRatio(groups, tasks, decimals)
+  const report = costRatio(pairs(cmp.mode, reportVs.setup), [reportVs.task], decimals)
   const measured = own.ratio !== null
+  const computedCosts = [...new Set([...ownComputed, ...report.computed])].sort()
+  const parts = [
+    measured ? `usage ${own.ratio.toFixed(2)}× ${cmp.vs} (at most ${maxRatio.toFixed(2)}×)` : 'usage not measured',
+    ...(report.ratio === null ? [] : [`${reportVs.task} vs ${reportVs.setup} ${report.ratio.toFixed(2)}×`]),
+  ]
   return {
     ...own, maxRatio, ok: measured ? own.ratio <= maxRatio : null,
-    reading: measured ? `usage ${own.ratio.toFixed(2)}× ${cmp.vs} (at most ${maxRatio.toFixed(2)}×)` : 'usage not measured',
-    reportVs: { ...reportVs, ratio: costRatio(pairs(cmp.mode, reportVs.setup), [reportVs.task], decimals).ratio },
+    reading: parts.join('  ') + (computedCosts.length ? ` (computed costs: ${computedCosts.join(', ')})` : ''),
+    reportVs: { ...reportVs, ratio: report.ratio }, computedCosts,
   }
 }
 
@@ -90,9 +100,11 @@ export function comparison({ cmp, quals, summary, faithful = null, rules = readB
   const usage = cmp.usage ? usageOf(cmp, groups, pairs, rules.statDecimals) : undefined
   const ceiling = cmp.ceiling ? ceilingOf(cmp.ceiling, quals, summary, rules.statDecimals) : undefined
   const status = statusOf({ cmp, n, floor: faithful ? 0 : rules.minGroups, gap: stats.gap, hiddenOk, usage, ceiling, decimals: rules.statDecimals })
-  const testsGap = mean(groups.map(g => g.mode.q.tests - g.vs.q.tests))
+  // The same comparison on the tests dimension: gap, SD and range, reported only.
+  const tests = spread(groups.map(g => g.mode.q.tests - g.vs.q.tests), 0)
   return {
-    mode: cmp.mode, vs: cmp.vs, n, groups: groups.map(g => g.group), groupGaps, ...stats, testsGap,
+    mode: cmp.mode, vs: cmp.vs, n, groups: groups.map(g => g.group), groupGaps, ...stats,
+    testsGap: tests.gap, testsSd: tests.sd, testsLo: tests.lo, testsHi: tests.hi,
     hidden, hiddenOk, ...(usage && { usage }), ...(ceiling && { ceiling }), status,
   }
 }

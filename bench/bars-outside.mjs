@@ -193,7 +193,9 @@ export function secondaryLine(name, headline) {
   const counts = Object.entries(headline.outside).filter(([, j]) => j.gap !== undefined)
     .map(([judge, j]) => `  ${judge} ${j.agree} of ${j.n} groups, gap ${shown(j.gap)}`).join('')
   const ranks = `rank wins ${r.for}-${r.against}, ${r.split} split, p ${r.p.toFixed(4)}${marked}  judgments ${r.judgments.for}-${r.judgments.against}`
-  return `${name.padEnd(9)}${'secondary'.padEnd(12)}${ranks}  more test lines ${s.agree} of ${s.n}${counts}`
+  const range = Number.isFinite(headline.testsLo) ? ` [${shown(headline.testsLo)}, ${shown(headline.testsHi)}]` : ''
+  const tests = Number.isFinite(headline.testsGap) ? `  tests gap ${shown(headline.testsGap)}${range}` : ''
+  return `${name.padEnd(9)}${'secondary'.padEnd(12)}${ranks}  more test lines ${s.agree} of ${s.n}${tests}${counts}`
 }
 
 export function outsideLine({ judges, sizeEffectHeldOut: s }) {
