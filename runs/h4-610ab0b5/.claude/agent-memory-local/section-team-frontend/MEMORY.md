@@ -1,0 +1,1 @@
+- [Bash write limits](env_bash_limits.md) — file-writing Bash is denied; use Write tool, then `node <file>`

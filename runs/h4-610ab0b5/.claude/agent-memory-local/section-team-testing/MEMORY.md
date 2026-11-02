@@ -1,0 +1,1 @@
+- [Bash and node --test quirks](feedback_bash_and_node_test.md) — plain commands only; Node 22 needs `test/*.test.mjs` glob

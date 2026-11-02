@@ -1,0 +1,1962 @@
+
+> test
+> node --test test/*.test.mjs
+
+TAP version 13
+# Subtest: booking: submit prevents default, disables Book, posts raw values
+ok 1 - booking: submit prevents default, disables Book, posts raw values
+  ---
+  duration_ms: 9.344081
+  type: 'test'
+  ...
+# Subtest: booking: submit while Book is disabled sends nothing but still prevents default
+ok 2 - booking: submit while Book is disabled sends nothing but still prevents default
+  ---
+  duration_ms: 1.627349
+  type: 'test'
+  ...
+# Subtest: booking: 201 re-enables Book, empties title only and error, refetches list
+ok 3 - booking: 201 re-enables Book, empties title only and error, refetches list
+  ---
+  duration_ms: 1.961626
+  type: 'test'
+  ...
+# Subtest: booking: the list refetch after a 201 keeps the filter value unchanged
+ok 4 - booking: the list refetch after a 201 keeps the filter value unchanged
+  ---
+  duration_ms: 2.767578
+  type: 'test'
+  ...
+# Subtest: booking: error replies show the message and leave form and list alone
+ok 5 - booking: error replies show the message and leave form and list alone
+  ---
+  duration_ms: 7.38463
+  type: 'test'
+  ...
+# Subtest: booking: a 204 reply with an unreadable body is an error status, not a missing reply
+ok 6 - booking: a 204 reply with an unreadable body is an error status, not a missing reply
+  ---
+  duration_ms: 1.987591
+  type: 'test'
+  ...
+# Subtest: booking: unreadable body and rejection mean no reply
+ok 7 - booking: unreadable body and rejection mean no reply
+  ---
+  duration_ms: 2.169761
+  type: 'test'
+  ...
+# Subtest: booking: Book is enabled before any other effect
+ok 8 - booking: Book is enabled before any other effect
+  ---
+  duration_ms: 8.731526
+  type: 'test'
+  ...
+# Subtest: booking: Book stays disabled while the body is still pending
+ok 9 - booking: Book stays disabled while the body is still pending
+  ---
+  duration_ms: 4.43214
+  type: 'test'
+  ...
+# Subtest: cancel: click disables the button and sends DELETE for its id
+ok 10 - cancel: click disables the button and sends DELETE for its id
+  ---
+  duration_ms: 1.746087
+  type: 'test'
+  ...
+# Subtest: cancel: each button deletes its own booking and only the clicked button is disabled
+ok 11 - cancel: each button deletes its own booking and only the clicked button is disabled
+  ---
+  duration_ms: 4.540674
+  type: 'test'
+  ...
+# Subtest: cancel: 204 is accepted without reading the body, then the list is fetched
+ok 12 - cancel: 204 is accepted without reading the body, then the list is fetched
+  ---
+  duration_ms: 2.35886
+  type: 'test'
+  ...
+# Subtest: cancel: error statuses show the message and still refetch the list
+ok 13 - cancel: error statuses show the message and still refetch the list
+  ---
+  duration_ms: 5.083297
+  type: 'test'
+  ...
+# Subtest: cancel: the list refetch after 204 and after 404 keeps the filter value unchanged
+ok 14 - cancel: the list refetch after 204 and after 404 keeps the filter value unchanged
+  ---
+  duration_ms: 2.775851
+  type: 'test'
+  ...
+# Subtest: cancel: no reply shows the network message, enables the button, no refetch
+ok 15 - cancel: no reply shows the network message, enables the button, no refetch
+  ---
+  duration_ms: 2.937864
+  type: 'test'
+  ...
+# Subtest: title and h1 read Room bookings
+ok 16 - title and h1 read Room bookings
+  ---
+  duration_ms: 0.819719
+  type: 'test'
+  ...
+# Subtest: form has novalidate and the five fields plus submit inside it
+ok 17 - form has novalidate and the five fields plus submit inside it
+  ---
+  duration_ms: 0.507203
+  type: 'test'
+  ...
+# Subtest: each field has its own label with exact text and no field inside
+ok 18 - each field has its own label with exact text and no field inside
+  ---
+  duration_ms: 0.339107
+  type: 'test'
+  ...
+# Subtest: controls outside the form: filter, show all, list, error
+ok 19 - controls outside the form: filter, show all, list, error
+  ---
+  duration_ms: 0.237107
+  type: 'test'
+  ...
+# Subtest: exactly one script: src /app.js, no extra attrs, last in body, no inline code
+ok 20 - exactly one script: src /app.js, no extra attrs, last in body, no inline code
+  ---
+  duration_ms: 0.8153
+  type: 'test'
+  ...
+# Subtest: no inline event attributes, no option, no room names, no absolute URLs
+ok 21 - no inline event attributes, no option, no room names, no absolute URLs
+  ---
+  duration_ms: 0.463992
+  type: 'test'
+  ...
+# Subtest: app.js is a classic script without import or export
+ok 22 - app.js is a classic script without import or export
+  ---
+  duration_ms: 0.575622
+  type: 'test'
+  ...
+# Subtest: load: two synchronous fetches, rooms then bookings, GET, no wait for rooms
+ok 23 - load: two synchronous fetches, rooms then bookings, GET, no wait for rooms
+  ---
+  duration_ms: 3.260279
+  type: 'test'
+  ...
+# Subtest: page script sees only document and fetch
+ok 24 - page script sees only document and fetch
+  ---
+  duration_ms: 6.774524
+  type: 'test'
+  ...
+# Subtest: rooms success fills three options in order
+ok 25 - rooms success fills three options in order
+  ---
+  duration_ms: 1.35325
+  type: 'test'
+  ...
+# Subtest: rooms error replies show the message and leave the select empty
+ok 26 - rooms error replies show the message and leave the select empty
+  ---
+  duration_ms: 6.693277
+  type: 'test'
+  ...
+# Subtest: rooms: fetch rejection and unreadable body mean no reply
+ok 27 - rooms: fetch rejection and unreadable body mean no reply
+  ---
+  duration_ms: 1.962958
+  type: 'test'
+  ...
+# Subtest: list renders one li per booking in reply order with text and Cancel button
+ok 28 - list renders one li per booking in reply order with text and Cancel button
+  ---
+  duration_ms: 1.357338
+  type: 'test'
+  ...
+# Subtest: list: empty reply shows a single No bookings. item
+ok 29 - list: empty reply shows a single No bookings. item
+  ---
+  duration_ms: 1.858162
+  type: 'test'
+  ...
+# Subtest: list: HTML in a title stays plain text
+ok 30 - list: HTML in a title stays plain text
+  ---
+  duration_ms: 1.564583
+  type: 'test'
+  ...
+# Subtest: list: a new render replaces the previous content
+ok 31 - list: a new render replaces the previous content
+  ---
+  duration_ms: 2.981601
+  type: 'test'
+  ...
+# Subtest: list: error status shows message and keeps the list
+ok 32 - list: error status shows message and keeps the list
+  ---
+  duration_ms: 1.785949
+  type: 'test'
+  ...
+# Subtest: list: a non-200 success-like status is an error
+ok 33 - list: a non-200 success-like status is an error
+  ---
+  duration_ms: 6.417608
+  type: 'test'
+  ...
+# Subtest: list: a 204 reply has no readable body, so it is an error status with Request failed.
+ok 34 - list: a 204 reply has no readable body, so it is an error status with Request failed.
+  ---
+  duration_ms: 1.599778
+  type: 'test'
+  ...
+# Subtest: list: no reply shows the network message and keeps the list
+ok 35 - list: no reply shows the network message and keeps the list
+  ---
+  duration_ms: 2.792017
+  type: 'test'
+  ...
+# Subtest: list: success leaves \#error alone
+ok 36 - list: success leaves \#error alone
+  ---
+  duration_ms: 1.984843
+  type: 'test'
+  ...
+# Subtest: stale lists: the later fetch wins when the earlier one settles after it
+ok 37 - stale lists: the later fetch wins when the earlier one settles after it
+  ---
+  duration_ms: 6.065631
+  type: 'test'
+  ...
+# Subtest: stale lists: the earlier outcome is ignored even when it arrives first
+ok 38 - stale lists: the earlier outcome is ignored even when it arrives first
+  ---
+  duration_ms: 4.916345
+  type: 'test'
+  ...
+# Subtest: filter: change fetches synchronously with the value unchanged
+ok 39 - filter: change fetches synchronously with the value unchanged
+  ---
+  duration_ms: 2.988437
+  type: 'test'
+  ...
+# Subtest: filter: input event does nothing
+ok 40 - filter: input event does nothing
+  ---
+  duration_ms: 0.965303
+  type: 'test'
+  ...
+# Subtest: show all: clears the filter and fetches exactly once without events
+ok 41 - show all: clears the filter and fetches exactly once without events
+  ---
+  duration_ms: 3.334286
+  type: 'test'
+  ...
+# Subtest: routing
+    # Subtest: GET /api/rooms lists the rooms
+    ok 1 - GET /api/rooms lists the rooms
+      ---
+      duration_ms: 25.551413
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/%62ookings with every method
+    ok 2 - 404 not found for /api/%62ookings with every method
+      ---
+      duration_ms: 12.741254
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/./rooms with every method
+    ok 3 - 404 not found for /api/./rooms with every method
+      ---
+      duration_ms: 6.83733
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /API/rooms with every method
+    ok 4 - 404 not found for /API/rooms with every method
+      ---
+      duration_ms: 6.618747
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings/ with every method
+    ok 5 - 404 not found for /api/bookings/ with every method
+      ---
+      duration_ms: 8.759908
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings/1/ with every method
+    ok 6 - 404 not found for /api/bookings/1/ with every method
+      ---
+      duration_ms: 6.884035
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings//1 with every method
+    ok 7 - 404 not found for /api/bookings//1 with every method
+      ---
+      duration_ms: 6.826049
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/rooms/ with every method
+    ok 8 - 404 not found for /api/rooms/ with every method
+      ---
+      duration_ms: 8.023416
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api with every method
+    ok 9 - 404 not found for /api with every method
+      ---
+      duration_ms: 7.190401
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /index.html with every method
+    ok 10 - 404 not found for /index.html with every method
+      ---
+      duration_ms: 5.898355
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /app.js/ with every method
+    ok 11 - 404 not found for /app.js/ with every method
+      ---
+      duration_ms: 5.443
+      type: 'test'
+      ...
+    # Subtest: 404 not found for //api/rooms with every method
+    ok 12 - 404 not found for //api/rooms with every method
+      ---
+      duration_ms: 4.951046
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings%2F1 with every method
+    ok 13 - 404 not found for /api/bookings%2F1 with every method
+      ---
+      duration_ms: 8.265291
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings/?x with every method
+    ok 14 - 404 not found for /api/bookings/?x with every method
+      ---
+      duration_ms: 6.153257
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings/1/2 with every method
+    ok 15 - 404 not found for /api/bookings/1/2 with every method
+      ---
+      duration_ms: 7.535725
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/../api/rooms with every method
+    ok 16 - 404 not found for /api/../api/rooms with every method
+      ---
+      duration_ms: 6.167868
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/rooms// with every method
+    ok 17 - 404 not found for /api/rooms// with every method
+      ---
+      duration_ms: 20.389764
+      type: 'test'
+      ...
+    # Subtest: 404 not found for /api/bookings/a/ with every method
+    ok 18 - 404 not found for /api/bookings/a/ with every method
+      ---
+      duration_ms: 6.059372
+      type: 'test'
+      ...
+    # Subtest: absolute-form target is not a known path
+    ok 19 - absolute-form target is not a known path
+      ---
+      duration_ms: 1.243009
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /api/rooms
+    ok 20 - 405 method not allowed on /api/rooms
+      ---
+      duration_ms: 4.867022
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /api/bookings
+    ok 21 - 405 method not allowed on /api/bookings
+      ---
+      duration_ms: 4.491465
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /api/bookings/1
+    ok 22 - 405 method not allowed on /api/bookings/1
+      ---
+      duration_ms: 5.222975
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /api/bookings/abc
+    ok 23 - 405 method not allowed on /api/bookings/abc
+      ---
+      duration_ms: 2.513751
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /api/bookings/%2F
+    ok 24 - 405 method not allowed on /api/bookings/%2F
+      ---
+      duration_ms: 5.366198
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /
+    ok 25 - 405 method not allowed on /
+      ---
+      duration_ms: 7.702034
+      type: 'test'
+      ...
+    # Subtest: 405 method not allowed on /app.js
+    ok 26 - 405 method not allowed on /app.js
+      ---
+      duration_ms: 5.555356
+      type: 'test'
+      ...
+    # Subtest: HEAD on every known path is 405 without a body
+    ok 27 - HEAD on every known path is 405 without a body
+      ---
+      duration_ms: 15.499828
+      type: 'test'
+      ...
+    # Subtest: DELETE of an escaped slash id is a booking-not-found route
+    ok 28 - DELETE of an escaped slash id is a booking-not-found route
+      ---
+      duration_ms: 2.751853
+      type: 'test'
+      ...
+    # Subtest: the query is cut at the first question mark
+    ok 29 - the query is cut at the first question mark
+      ---
+      duration_ms: 4.09305
+      type: 'test'
+      ...
+    1..29
+ok 42 - routing
+  ---
+  duration_ms: 306.425056
+  type: 'suite'
+  ...
+# Subtest: page serving
+    # Subtest: GET / serves public/index.html
+    ok 1 - GET / serves public/index.html
+      ---
+      duration_ms: 11.936063
+      type: 'test'
+      ...
+    # Subtest: GET /app.js serves public/app.js
+    ok 2 - GET /app.js serves public/app.js
+      ---
+      duration_ms: 3.963455
+      type: 'test'
+      ...
+    1..2
+ok 43 - page serving
+  ---
+  duration_ms: 84.873946
+  type: 'suite'
+  ...
+# Subtest: DELETE /api/bookings/<id>
+    # Subtest: deletes a booking once, then reports it missing
+    ok 1 - deletes a booking once, then reports it missing
+      ---
+      duration_ms: 25.194957
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "0" and booking 2 stays
+    ok 2 - 404 booking not found for id "0" and booking 2 stays
+      ---
+      duration_ms: 7.37792
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "02" and booking 2 stays
+    ok 3 - 404 booking not found for id "02" and booking 2 stays
+      ---
+      duration_ms: 3.461856
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "002" and booking 2 stays
+    ok 4 - 404 booking not found for id "002" and booking 2 stays
+      ---
+      duration_ms: 2.308675
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "+2" and booking 2 stays
+    ok 5 - 404 booking not found for id "+2" and booking 2 stays
+      ---
+      duration_ms: 5.148146
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "2.0" and booking 2 stays
+    ok 6 - 404 booking not found for id "2.0" and booking 2 stays
+      ---
+      duration_ms: 2.41773
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "-2" and booking 2 stays
+    ok 7 - 404 booking not found for id "-2" and booking 2 stays
+      ---
+      duration_ms: 2.890525
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "2e0" and booking 2 stays
+    ok 8 - 404 booking not found for id "2e0" and booking 2 stays
+      ---
+      duration_ms: 5.815346
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "%202" and booking 2 stays
+    ok 9 - 404 booking not found for id "%202" and booking 2 stays
+      ---
+      duration_ms: 2.496787
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "abc" and booking 2 stays
+    ok 10 - 404 booking not found for id "abc" and booking 2 stays
+      ---
+      duration_ms: 2.866026
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "99999999999999999999999" and booking 2 stays
+    ok 11 - 404 booking not found for id "99999999999999999999999" and booking 2 stays
+      ---
+      duration_ms: 2.883561
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "9007199254740993" and booking 2 stays
+    ok 12 - 404 booking not found for id "9007199254740993" and booking 2 stays
+      ---
+      duration_ms: 3.997647
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "0x2" and booking 2 stays
+    ok 13 - 404 booking not found for id "0x2" and booking 2 stays
+      ---
+      duration_ms: 2.402173
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "2%20" and booking 2 stays
+    ok 14 - 404 booking not found for id "2%20" and booking 2 stays
+      ---
+      duration_ms: 2.130706
+      type: 'test'
+      ...
+    # Subtest: 404 booking not found for id "%32" and booking 2 stays
+    ok 15 - 404 booking not found for id "%32" and booking 2 stays
+      ---
+      duration_ms: 2.044503
+      type: 'test'
+      ...
+    1..15
+ok 44 - DELETE /api/bookings/<id>
+  ---
+  duration_ms: 155.055597
+  type: 'suite'
+  ...
+# Subtest: DELETE with a non-ASCII id
+    # Subtest: never deletes booking 2 for the raw UTF-8 digit ٢
+    ok 1 - never deletes booking 2 for the raw UTF-8 digit ٢
+      ---
+      duration_ms: 17.481557
+      type: 'test'
+      ...
+    1..1
+ok 45 - DELETE with a non-ASCII id
+  ---
+  duration_ms: 94.090892
+  type: 'suite'
+  ...
+# Subtest: content types
+    # Subtest: JSON replies carry the exact JSON content type and 204 has no body
+    ok 1 - JSON replies carry the exact JSON content type and 204 has no body
+      ---
+      duration_ms: 23.834584
+      type: 'test'
+      ...
+    1..1
+ok 46 - content types
+  ---
+  duration_ms: 110.8563
+  type: 'suite'
+  ...
+# Subtest: GET /api/bookings ordering
+    # Subtest: sorts by date, then start, then room
+    ok 1 - sorts by date, then start, then room
+      ---
+      duration_ms: 3.192698
+      type: 'test'
+      ...
+    # Subtest: sorts by start, not by end or creation order, on one date
+    ok 2 - sorts by start, not by end or creation order, on one date
+      ---
+      duration_ms: 2.607968
+      type: 'test'
+      ...
+    # Subtest: filters by date and ignores other parameters
+    ok 3 - filters by date and ignores other parameters
+      ---
+      duration_ms: 13.65109
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date
+    ok 4 - 400 for ?date
+      ---
+      duration_ms: 1.460009
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=
+    ok 5 - 400 for ?date=
+      ---
+      duration_ms: 1.521134
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2026-11-3
+    ok 6 - 400 for ?date=2026-11-3
+      ---
+      duration_ms: 4.151531
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=%202026-11-03
+    ok 7 - 400 for ?date=%202026-11-03
+      ---
+      duration_ms: 3.185719
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2026-02-29
+    ok 8 - 400 for ?date=2026-02-29
+      ---
+      duration_ms: 1.480699
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2100-01-01
+    ok 9 - 400 for ?date=2100-01-01
+      ---
+      duration_ms: 2.111436
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=1999-12-31
+    ok 10 - 400 for ?date=1999-12-31
+      ---
+      duration_ms: 1.532632
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2026-13-01
+    ok 11 - 400 for ?date=2026-13-01
+      ---
+      duration_ms: 6.373376
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=abc
+    ok 12 - 400 for ?date=abc
+      ---
+      duration_ms: 2.098709
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2026-11-03T00:00
+    ok 13 - 400 for ?date=2026-11-03T00:00
+      ---
+      duration_ms: 1.52948
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=2026-11-03+
+    ok 14 - 400 for ?date=2026-11-03+
+      ---
+      duration_ms: 5.179612
+      type: 'test'
+      ...
+    # Subtest: 400 for ?date=&date=2026-11-03
+    ok 15 - 400 for ?date=&date=2026-11-03
+      ---
+      duration_ms: 2.002737
+      type: 'test'
+      ...
+    1..15
+ok 47 - GET /api/bookings ordering
+  ---
+  duration_ms: 222.669749
+  type: 'suite'
+  ...
+# Subtest: GET /api/bookings room order
+    # Subtest: orders rooms Aurora, Borealis, Cosmos, not by creation or id
+    ok 1 - orders rooms Aurora, Borealis, Cosmos, not by creation or id
+      ---
+      duration_ms: 18.686899
+      type: 'test'
+      ...
+    # Subtest: an empty store lists no bookings
+    ok 2 - an empty store lists no bookings
+      ---
+      duration_ms: 8.485945
+      type: 'test'
+      ...
+    1..2
+ok 48 - GET /api/bookings room order
+  ---
+  duration_ms: 103.404029
+  type: 'suite'
+  ...
+# Subtest: rule 1: content type
+    # Subtest: 415 for "text/plain"
+    ok 1 - 415 for "text/plain"
+      ---
+      duration_ms: 15.29952
+      type: 'test'
+      ...
+    # Subtest: 415 for "application/jsonx"
+    ok 2 - 415 for "application/jsonx"
+      ---
+      duration_ms: 5.030619
+      type: 'test'
+      ...
+    # Subtest: 415 for "application/json-patch+json"
+    ok 3 - 415 for "application/json-patch+json"
+      ---
+      duration_ms: 5.65464
+      type: 'test'
+      ...
+    # Subtest: 415 for "application/ json"
+    ok 4 - 415 for "application/ json"
+      ---
+      duration_ms: 4.731153
+      type: 'test'
+      ...
+    # Subtest: 415 for "json"
+    ok 5 - 415 for "json"
+      ---
+      duration_ms: 6.557469
+      type: 'test'
+      ...
+    # Subtest: 415 for ""
+    ok 6 - 415 for ""
+      ---
+      duration_ms: 7.667634
+      type: 'test'
+      ...
+    # Subtest: 415 for "application/json " sent as a raw 0xA0 byte
+    ok 7 - 415 for "application/json " sent as a raw 0xA0 byte
+      ---
+      duration_ms: 3.836237
+      type: 'test'
+      ...
+    # Subtest: 415 for " application/json" sent as a raw 0xA0 byte
+    ok 8 - 415 for " application/json" sent as a raw 0xA0 byte
+      ---
+      duration_ms: 2.689014
+      type: 'test'
+      ...
+    # Subtest: 415 when the header is missing
+    ok 9 - 415 when the header is missing
+      ---
+      duration_ms: 5.311253
+      type: 'test'
+      ...
+    # Subtest: 415 beats 413 and 400
+    ok 10 - 415 beats 413 and 400
+      ---
+      duration_ms: 4.723825
+      type: 'test'
+      ...
+    # Subtest: accepts "application/json"
+    ok 11 - accepts "application/json"
+      ---
+      duration_ms: 3.312341
+      type: 'test'
+      ...
+    # Subtest: accepts "APPLICATION/JSON"
+    ok 12 - accepts "APPLICATION/JSON"
+      ---
+      duration_ms: 1.993572
+      type: 'test'
+      ...
+    # Subtest: accepts "Application/Json; charset=utf-8"
+    ok 13 - accepts "Application/Json; charset=utf-8"
+      ---
+      duration_ms: 2.274587
+      type: 'test'
+      ...
+    # Subtest: accepts " \\tapplication/json\\t ; x=y"
+    ok 14 - accepts " \\tapplication/json\\t ; x=y"
+      ---
+      duration_ms: 2.233912
+      type: 'test'
+      ...
+    # Subtest: accepts "application/json;"
+    ok 15 - accepts "application/json;"
+      ---
+      duration_ms: 2.509373
+      type: 'test'
+      ...
+    1..15
+ok 49 - rule 1: content type
+  ---
+  duration_ms: 155.181396
+  type: 'suite'
+  ...
+# Subtest: rule 2: body size
+    # Subtest: 413 for 10001 bytes, nothing created
+    ok 1 - 413 for 10001 bytes, nothing created
+      ---
+      duration_ms: 10.856957
+      type: 'test'
+      ...
+    # Subtest: accepts exactly 10000 bytes
+    ok 2 - accepts exactly 10000 bytes
+      ---
+      duration_ms: 5.19755
+      type: 'test'
+      ...
+    # Subtest: counts bytes, not characters
+    ok 3 - counts bytes, not characters
+      ---
+      duration_ms: 2.759246
+      type: 'test'
+      ...
+    # Subtest: 413 beats 400
+    ok 4 - 413 beats 400
+      ---
+      duration_ms: 2.220014
+      type: 'test'
+      ...
+    # Subtest: 413 for a chunked body of 10001 bytes
+    ok 5 - 413 for a chunked body of 10001 bytes
+      ---
+      duration_ms: 2.828753
+      type: 'test'
+      ...
+    # Subtest: a chunked body of exactly 10000 bytes is accepted
+    ok 6 - a chunked body of exactly 10000 bytes is accepted
+      ---
+      duration_ms: 3.096701
+      type: 'test'
+      ...
+    # Subtest: created only the one valid booking
+    ok 7 - created only the one valid booking
+      ---
+      duration_ms: 1.640746
+      type: 'test'
+      ...
+    1..7
+ok 50 - rule 2: body size
+  ---
+  duration_ms: 96.541766
+  type: 'suite'
+  ...
+# Subtest: rule 3: JSON object
+    # Subtest: 400 for empty
+    ok 1 - 400 for empty
+      ---
+      duration_ms: 11.78038
+      type: 'test'
+      ...
+    # Subtest: 400 for space
+    ok 2 - 400 for space
+      ---
+      duration_ms: 4.418232
+      type: 'test'
+      ...
+    # Subtest: 400 for not json
+    ok 3 - 400 for not json
+      ---
+      duration_ms: 4.183442
+      type: 'test'
+      ...
+    # Subtest: 400 for null
+    ok 4 - 400 for null
+      ---
+      duration_ms: 6.795845
+      type: 'test'
+      ...
+    # Subtest: 400 for array
+    ok 5 - 400 for array
+      ---
+      duration_ms: 4.927035
+      type: 'test'
+      ...
+    # Subtest: 400 for array of object
+    ok 6 - 400 for array of object
+      ---
+      duration_ms: 2.849483
+      type: 'test'
+      ...
+    # Subtest: 400 for string
+    ok 7 - 400 for string
+      ---
+      duration_ms: 4.949226
+      type: 'test'
+      ...
+    # Subtest: 400 for number
+    ok 8 - 400 for number
+      ---
+      duration_ms: 3.251874
+      type: 'test'
+      ...
+    # Subtest: 400 for true
+    ok 9 - 400 for true
+      ---
+      duration_ms: 3.029756
+      type: 'test'
+      ...
+    # Subtest: 400 for truncated
+    ok 10 - 400 for truncated
+      ---
+      duration_ms: 3.42635
+      type: 'test'
+      ...
+    # Subtest: 400 for BOM prefixed
+    ok 11 - 400 for BOM prefixed
+      ---
+      duration_ms: 2.925317
+      type: 'test'
+      ...
+    # Subtest: {} passes rule 3 and fails the room rule
+    ok 12 - {} passes rule 3 and fails the room rule
+      ---
+      duration_ms: 3.495878
+      type: 'test'
+      ...
+    1..12
+ok 51 - rule 3: JSON object
+  ---
+  duration_ms: 122.283523
+  type: 'suite'
+  ...
+# Subtest: rule 3: invalid UTF-8
+    # Subtest: replaces bad bytes with U+FFFD
+    ok 1 - replaces bad bytes with U+FFFD
+      ---
+      duration_ms: 10.080367
+      type: 'test'
+      ...
+    1..1
+ok 52 - rule 3: invalid UTF-8
+  ---
+  duration_ms: 76.72988
+  type: 'suite'
+  ...
+# Subtest: rules 4-9: field validation
+    # Subtest: 400 for room missing
+    ok 1 - 400 for room missing
+      ---
+      duration_ms: 12.443952
+      type: 'test'
+      ...
+    # Subtest: 400 for room number
+    ok 2 - 400 for room number
+      ---
+      duration_ms: 5.332073
+      type: 'test'
+      ...
+    # Subtest: 400 for room null
+    ok 3 - 400 for room null
+      ---
+      duration_ms: 4.058205
+      type: 'test'
+      ...
+    # Subtest: 400 for room lowercase
+    ok 4 - 400 for room lowercase
+      ---
+      duration_ms: 6.237245
+      type: 'test'
+      ...
+    # Subtest: 400 for room trailing space
+    ok 5 - 400 for room trailing space
+      ---
+      duration_ms: 4.681577
+      type: 'test'
+      ...
+    # Subtest: 400 for room leading space
+    ok 6 - 400 for room leading space
+      ---
+      duration_ms: 2.679822
+      type: 'test'
+      ...
+    # Subtest: 400 for room array
+    ok 7 - 400 for room array
+      ---
+      duration_ms: 3.238084
+      type: 'test'
+      ...
+    # Subtest: 400 for room unknown
+    ok 8 - 400 for room unknown
+      ---
+      duration_ms: 5.273344
+      type: 'test'
+      ...
+    # Subtest: 400 for room one
+    ok 9 - 400 for room one
+      ---
+      duration_ms: 3.562343
+      type: 'test'
+      ...
+    # Subtest: 400 for room toString
+    ok 10 - 400 for room toString
+      ---
+      duration_ms: 2.943728
+      type: 'test'
+      ...
+    # Subtest: 400 for room constructor
+    ok 11 - 400 for room constructor
+      ---
+      duration_ms: 2.382734
+      type: 'test'
+      ...
+    # Subtest: 400 for room __proto__
+    ok 12 - 400 for room __proto__
+      ---
+      duration_ms: 2.491662
+      type: 'test'
+      ...
+    # Subtest: 400 for room hasOwnProperty
+    ok 13 - 400 for room hasOwnProperty
+      ---
+      duration_ms: 2.629679
+      type: 'test'
+      ...
+    # Subtest: 400 for title missing
+    ok 14 - 400 for title missing
+      ---
+      duration_ms: 6.996881
+      type: 'test'
+      ...
+    # Subtest: 400 for title number
+    ok 15 - 400 for title number
+      ---
+      duration_ms: 3.093896
+      type: 'test'
+      ...
+    # Subtest: 400 for title null
+    ok 16 - 400 for title null
+      ---
+      duration_ms: 2.215713
+      type: 'test'
+      ...
+    # Subtest: 400 for title empty
+    ok 17 - 400 for title empty
+      ---
+      duration_ms: 4.274569
+      type: 'test'
+      ...
+    # Subtest: 400 for title blanks
+    ok 18 - 400 for title blanks
+      ---
+      duration_ms: 2.617839
+      type: 'test'
+      ...
+    # Subtest: 400 for title 81 chars
+    ok 19 - 400 for title 81 chars
+      ---
+      duration_ms: 2.772237
+      type: 'test'
+      ...
+    # Subtest: 400 for title space and 81 chars
+    ok 20 - 400 for title space and 81 chars
+      ---
+      duration_ms: 2.202041
+      type: 'test'
+      ...
+    # Subtest: 400 for title 82 units
+    ok 21 - 400 for title 82 units
+      ---
+      duration_ms: 11.031984
+      type: 'test'
+      ...
+    # Subtest: 400 for title array
+    ok 22 - 400 for title array
+      ---
+      duration_ms: 2.949893
+      type: 'test'
+      ...
+    # Subtest: 400 for title only NBSP and BOM
+    ok 23 - 400 for title only NBSP and BOM
+      ---
+      duration_ms: 2.205105
+      type: 'test'
+      ...
+    # Subtest: 400 for date missing
+    ok 24 - 400 for date missing
+      ---
+      duration_ms: 2.322977
+      type: 'test'
+      ...
+    # Subtest: 400 for date number
+    ok 25 - 400 for date number
+      ---
+      duration_ms: 2.312665
+      type: 'test'
+      ...
+    # Subtest: 400 for date null
+    ok 26 - 400 for date null
+      ---
+      duration_ms: 2.145919
+      type: 'test'
+      ...
+    # Subtest: 400 for date  leading space
+    ok 27 - 400 for date  leading space
+      ---
+      duration_ms: 2.976656
+      type: 'test'
+      ...
+    # Subtest: 400 for date one-digit day
+    ok 28 - 400 for date one-digit day
+      ---
+      duration_ms: 2.631366
+      type: 'test'
+      ...
+    # Subtest: 400 for date trailing space
+    ok 29 - 400 for date trailing space
+      ---
+      duration_ms: 2.567366
+      type: 'test'
+      ...
+    # Subtest: 400 for date compact
+    ok 30 - 400 for date compact
+      ---
+      duration_ms: 2.123595
+      type: 'test'
+      ...
+    # Subtest: 400 for date slashes
+    ok 31 - 400 for date slashes
+      ---
+      duration_ms: 2.468294
+      type: 'test'
+      ...
+    # Subtest: 400 for date 1999
+    ok 32 - 400 for date 1999
+      ---
+      duration_ms: 2.096603
+      type: 'test'
+      ...
+    # Subtest: 400 for date 2100
+    ok 33 - 400 for date 2100
+      ---
+      duration_ms: 2.382285
+      type: 'test'
+      ...
+    # Subtest: 400 for date 2001-02-29
+    ok 34 - 400 for date 2001-02-29
+      ---
+      duration_ms: 1.89829
+      type: 'test'
+      ...
+    # Subtest: 400 for date 2100-02-29
+    ok 35 - 400 for date 2100-02-29
+      ---
+      duration_ms: 6.456998
+      type: 'test'
+      ...
+    # Subtest: 400 for date 02-30
+    ok 36 - 400 for date 02-30
+      ---
+      duration_ms: 2.743947
+      type: 'test'
+      ...
+    # Subtest: 400 for date 04-31
+    ok 37 - 400 for date 04-31
+      ---
+      duration_ms: 2.586866
+      type: 'test'
+      ...
+    # Subtest: 400 for date month 0
+    ok 38 - 400 for date month 0
+      ---
+      duration_ms: 2.537428
+      type: 'test'
+      ...
+    # Subtest: 400 for date month 13
+    ok 39 - 400 for date month 13
+      ---
+      duration_ms: 2.680717
+      type: 'test'
+      ...
+    # Subtest: 400 for date day 0
+    ok 40 - 400 for date day 0
+      ---
+      duration_ms: 2.710517
+      type: 'test'
+      ...
+    # Subtest: 400 for date fullwidth
+    ok 41 - 400 for date fullwidth
+      ---
+      duration_ms: 2.635084
+      type: 'test'
+      ...
+    # Subtest: 400 for date numeric
+    ok 42 - 400 for date numeric
+      ---
+      duration_ms: 2.717168
+      type: 'test'
+      ...
+    # Subtest: 400 for date empty
+    ok 43 - 400 for date empty
+      ---
+      duration_ms: 2.796135
+      type: 'test'
+      ...
+    # Subtest: 400 for start missing
+    ok 44 - 400 for start missing
+      ---
+      duration_ms: 4.688124
+      type: 'test'
+      ...
+    # Subtest: 400 for start number
+    ok 45 - 400 for start number
+      ---
+      duration_ms: 2.888399
+      type: 'test'
+      ...
+    # Subtest: 400 for start null
+    ok 46 - 400 for start null
+      ---
+      duration_ms: 2.3879
+      type: 'test'
+      ...
+    # Subtest: 400 for start 9:00
+    ok 47 - 400 for start 9:00
+      ---
+      duration_ms: 5.719344
+      type: 'test'
+      ...
+    # Subtest: 400 for start 09:0
+    ok 48 - 400 for start 09:0
+      ---
+      duration_ms: 2.038487
+      type: 'test'
+      ...
+    # Subtest: 400 for start 24:00
+    ok 49 - 400 for start 24:00
+      ---
+      duration_ms: 2.42317
+      type: 'test'
+      ...
+    # Subtest: 400 for start 23:60
+    ok 50 - 400 for start 23:60
+      ---
+      duration_ms: 4.60323
+      type: 'test'
+      ...
+    # Subtest: 400 for start trailing space
+    ok 51 - 400 for start trailing space
+      ---
+      duration_ms: 3.422738
+      type: 'test'
+      ...
+    # Subtest: 400 for start leading space
+    ok 52 - 400 for start leading space
+      ---
+      duration_ms: 3.48885
+      type: 'test'
+      ...
+    # Subtest: 400 for start 0900
+    ok 53 - 400 for start 0900
+      ---
+      duration_ms: 3.184161
+      type: 'test'
+      ...
+    # Subtest: 400 for start dash
+    ok 54 - 400 for start dash
+      ---
+      duration_ms: 2.618854
+      type: 'test'
+      ...
+    # Subtest: 400 for start seconds
+    ok 55 - 400 for start seconds
+      ---
+      duration_ms: 3.441916
+      type: 'test'
+      ...
+    # Subtest: 400 for start arabic digits
+    ok 56 - 400 for start arabic digits
+      ---
+      duration_ms: 3.658541
+      type: 'test'
+      ...
+    # Subtest: 400 for start empty
+    ok 57 - 400 for start empty
+      ---
+      duration_ms: 3.621331
+      type: 'test'
+      ...
+    # Subtest: 400 for end missing
+    ok 58 - 400 for end missing
+      ---
+      duration_ms: 3.691864
+      type: 'test'
+      ...
+    # Subtest: 400 for end number
+    ok 59 - 400 for end number
+      ---
+      duration_ms: 3.136596
+      type: 'test'
+      ...
+    # Subtest: 400 for end null
+    ok 60 - 400 for end null
+      ---
+      duration_ms: 4.049899
+      type: 'test'
+      ...
+    # Subtest: 400 for end 9:00
+    ok 61 - 400 for end 9:00
+      ---
+      duration_ms: 5.257203
+      type: 'test'
+      ...
+    # Subtest: 400 for end 09:0
+    ok 62 - 400 for end 09:0
+      ---
+      duration_ms: 3.11459
+      type: 'test'
+      ...
+    # Subtest: 400 for end 24:00
+    ok 63 - 400 for end 24:00
+      ---
+      duration_ms: 3.29442
+      type: 'test'
+      ...
+    # Subtest: 400 for end 23:60
+    ok 64 - 400 for end 23:60
+      ---
+      duration_ms: 3.4517
+      type: 'test'
+      ...
+    # Subtest: 400 for end trailing space
+    ok 65 - 400 for end trailing space
+      ---
+      duration_ms: 2.899467
+      type: 'test'
+      ...
+    # Subtest: 400 for end leading space
+    ok 66 - 400 for end leading space
+      ---
+      duration_ms: 2.419086
+      type: 'test'
+      ...
+    # Subtest: 400 for end 0900
+    ok 67 - 400 for end 0900
+      ---
+      duration_ms: 3.106245
+      type: 'test'
+      ...
+    # Subtest: 400 for end dash
+    ok 68 - 400 for end dash
+      ---
+      duration_ms: 2.640101
+      type: 'test'
+      ...
+    # Subtest: 400 for end seconds
+    ok 69 - 400 for end seconds
+      ---
+      duration_ms: 2.6579
+      type: 'test'
+      ...
+    # Subtest: 400 for end arabic digits
+    ok 70 - 400 for end arabic digits
+      ---
+      duration_ms: 2.784963
+      type: 'test'
+      ...
+    # Subtest: 400 for end empty
+    ok 71 - 400 for end empty
+      ---
+      duration_ms: 3.064608
+      type: 'test'
+      ...
+    # Subtest: 400 for equal times
+    ok 72 - 400 for equal times
+      ---
+      duration_ms: 2.553744
+      type: 'test'
+      ...
+    # Subtest: 400 for end before start
+    ok 73 - 400 for end before start
+      ---
+      duration_ms: 3.055783
+      type: 'test'
+      ...
+    # Subtest: 400 for overlap-looking reversed times
+    ok 74 - 400 for overlap-looking reversed times
+      ---
+      duration_ms: 3.503133
+      type: 'test'
+      ...
+    # Subtest: 24:00 end with a 23:00 start is an end error, not an order error
+    ok 75 - 24:00 end with a 23:00 start is an end error, not an order error
+      ---
+      duration_ms: 3.477666
+      type: 'test'
+      ...
+    1..75
+ok 53 - rules 4-9: field validation
+  ---
+  duration_ms: 323.945465
+  type: 'suite'
+  ...
+# Subtest: rules 4-8: precedence
+    # Subtest: room before title
+    ok 1 - room before title
+      ---
+      duration_ms: 11.088651
+      type: 'test'
+      ...
+    # Subtest: title before date
+    ok 2 - title before date
+      ---
+      duration_ms: 3.366585
+      type: 'test'
+      ...
+    # Subtest: date before start
+    ok 3 - date before start
+      ---
+      duration_ms: 3.482397
+      type: 'test'
+      ...
+    # Subtest: start before end
+    ok 4 - start before end
+      ---
+      duration_ms: 3.272198
+      type: 'test'
+      ...
+    # Subtest: end format before order
+    ok 5 - end format before order
+      ---
+      duration_ms: 3.607026
+      type: 'test'
+      ...
+    # Subtest: everything missing
+    ok 6 - everything missing
+      ---
+      duration_ms: 3.63679
+      type: 'test'
+      ...
+    1..6
+ok 54 - rules 4-8: precedence
+  ---
+  duration_ms: 110.185728
+  type: 'suite'
+  ...
+# Subtest: rules 4-9: accepted values
+    # Subtest: stores an 80 character title
+    ok 1 - stores an 80 character title
+      ---
+      duration_ms: 10.319006
+      type: 'test'
+      ...
+    # Subtest: trims the title
+    ok 2 - trims the title
+      ---
+      duration_ms: 5.762675
+      type: 'test'
+      ...
+    # Subtest: counts UTF-16 units: 40 emoji are fine
+    ok 3 - counts UTF-16 units: 40 emoji are fine
+      ---
+      duration_ms: 2.749668
+      type: 'test'
+      ...
+    # Subtest: stores markup as is
+    ok 4 - stores markup as is
+      ---
+      duration_ms: 3.072406
+      type: 'test'
+      ...
+    # Subtest: accepts date 2000-01-01
+    ok 5 - accepts date 2000-01-01
+      ---
+      duration_ms: 3.328096
+      type: 'test'
+      ...
+    # Subtest: accepts date 2099-12-31
+    ok 6 - accepts date 2099-12-31
+      ---
+      duration_ms: 3.84758
+      type: 'test'
+      ...
+    # Subtest: accepts date 2000-02-29
+    ok 7 - accepts date 2000-02-29
+      ---
+      duration_ms: 2.605049
+      type: 'test'
+      ...
+    # Subtest: accepts date 2004-02-29
+    ok 8 - accepts date 2004-02-29
+      ---
+      duration_ms: 3.65967
+      type: 'test'
+      ...
+    # Subtest: accepts date 2096-02-29
+    ok 9 - accepts date 2096-02-29
+      ---
+      duration_ms: 2.800244
+      type: 'test'
+      ...
+    # Subtest: accepts date 2026-12-31
+    ok 10 - accepts date 2026-12-31
+      ---
+      duration_ms: 2.200631
+      type: 'test'
+      ...
+    # Subtest: accepts date 2026-01-31
+    ok 11 - accepts date 2026-01-31
+      ---
+      duration_ms: 2.557184
+      type: 'test'
+      ...
+    # Subtest: accepts the edges of the day
+    ok 12 - accepts the edges of the day
+      ---
+      duration_ms: 4.206194
+      type: 'test'
+      ...
+    1..12
+ok 55 - rules 4-9: accepted values
+  ---
+  duration_ms: 131.892371
+  type: 'suite'
+  ...
+# Subtest: rule 10: overlaps
+    # Subtest: 409 for 09:30-11:30 names the earliest overlap
+    ok 1 - 409 for 09:30-11:30 names the earliest overlap
+      ---
+      duration_ms: 3.013177
+      type: 'test'
+      ...
+    # Subtest: 409 for 09:59-10:00 names the earliest overlap
+    ok 2 - 409 for 09:59-10:00 names the earliest overlap
+      ---
+      duration_ms: 3.168566
+      type: 'test'
+      ...
+    # Subtest: 409 for 08:00-09:01 names the earliest overlap
+    ok 3 - 409 for 08:00-09:01 names the earliest overlap
+      ---
+      duration_ms: 3.129526
+      type: 'test'
+      ...
+    # Subtest: 409 for 09:00-12:00 names the earliest overlap
+    ok 4 - 409 for 09:00-12:00 names the earliest overlap
+      ---
+      duration_ms: 4.495203
+      type: 'test'
+      ...
+    # Subtest: 409 for 09:15-09:45 names the earliest overlap
+    ok 5 - 409 for 09:15-09:45 names the earliest overlap
+      ---
+      duration_ms: 2.235627
+      type: 'test'
+      ...
+    # Subtest: 409 for the later booking when only it overlaps
+    ok 6 - 409 for the later booking when only it overlaps
+      ---
+      duration_ms: 1.604432
+      type: 'test'
+      ...
+    # Subtest: 400 order error beats the overlap
+    ok 7 - 400 order error beats the overlap
+      ---
+      duration_ms: 2.55285
+      type: 'test'
+      ...
+    # Subtest: touching and separate bookings are accepted
+    ok 8 - touching and separate bookings are accepted
+      ---
+      duration_ms: 8.714688
+      type: 'test'
+      ...
+    1..8
+ok 56 - rule 10: overlaps
+  ---
+  duration_ms: 98.746714
+  type: 'suite'
+  ...
+# Subtest: reply shape and ids
+    # Subtest: first id is 1, then 2; extra keys are ignored
+    ok 1 - first id is 1, then 2; extra keys are ignored
+      ---
+      duration_ms: 10.085183
+      type: 'test'
+      ...
+    # Subtest: the 201 reply equals the stored booking
+    ok 2 - the 201 reply equals the stored booking
+      ---
+      duration_ms: 4.624649
+      type: 'test'
+      ...
+    1..2
+ok 57 - reply shape and ids
+  ---
+  duration_ms: 78.758923
+  type: 'suite'
+  ...
+# Subtest: stdout holds only the listening line, even after errors and a 500
+ok 58 - stdout holds only the listening line, even after errors and a 500
+  ---
+  duration_ms: 107.305855
+  type: 'test'
+  ...
+# Subtest: invalid PORT "abc" exits 1 with one stderr line
+ok 59 - invalid PORT "abc" exits 1 with one stderr line
+  ---
+  duration_ms: 61.629774
+  type: 'test'
+  ...
+# Subtest: invalid PORT "-1" exits 1 with one stderr line
+ok 60 - invalid PORT "-1" exits 1 with one stderr line
+  ---
+  duration_ms: 78.916162
+  type: 'test'
+  ...
+# Subtest: invalid PORT "+80" exits 1 with one stderr line
+ok 61 - invalid PORT "+80" exits 1 with one stderr line
+  ---
+  duration_ms: 74.150862
+  type: 'test'
+  ...
+# Subtest: invalid PORT " 80" exits 1 with one stderr line
+ok 62 - invalid PORT " 80" exits 1 with one stderr line
+  ---
+  duration_ms: 61.95087
+  type: 'test'
+  ...
+# Subtest: invalid PORT "80 " exits 1 with one stderr line
+ok 63 - invalid PORT "80 " exits 1 with one stderr line
+  ---
+  duration_ms: 67.05224
+  type: 'test'
+  ...
+# Subtest: invalid PORT "8.0" exits 1 with one stderr line
+ok 64 - invalid PORT "8.0" exits 1 with one stderr line
+  ---
+  duration_ms: 55.782454
+  type: 'test'
+  ...
+# Subtest: invalid PORT "1e3" exits 1 with one stderr line
+ok 65 - invalid PORT "1e3" exits 1 with one stderr line
+  ---
+  duration_ms: 56.031058
+  type: 'test'
+  ...
+# Subtest: invalid PORT "٣٠٠٠" exits 1 with one stderr line
+ok 66 - invalid PORT "٣٠٠٠" exits 1 with one stderr line
+  ---
+  duration_ms: 95.576717
+  type: 'test'
+  ...
+# Subtest: invalid PORT "０" exits 1 with one stderr line
+ok 67 - invalid PORT "０" exits 1 with one stderr line
+  ---
+  duration_ms: 57.619101
+  type: 'test'
+  ...
+# Subtest: invalid PORT "65536" exits 1 with one stderr line
+ok 68 - invalid PORT "65536" exits 1 with one stderr line
+  ---
+  duration_ms: 61.410872
+  type: 'test'
+  ...
+# Subtest: invalid PORT "99999999999999999999" exits 1 with one stderr line
+ok 69 - invalid PORT "99999999999999999999" exits 1 with one stderr line
+  ---
+  duration_ms: 113.711531
+  type: 'test'
+  ...
+# Subtest: invalid PORT "0x10" exits 1 with one stderr line
+ok 70 - invalid PORT "0x10" exits 1 with one stderr line
+  ---
+  duration_ms: 64.399881
+  type: 'test'
+  ...
+# Subtest: PORT "0" starts and serves
+ok 71 - PORT "0" starts and serves
+  ---
+  duration_ms: 79.459493
+  type: 'test'
+  ...
+# Subtest: PORT "00000" starts and serves
+ok 72 - PORT "00000" starts and serves
+  ---
+  duration_ms: 77.400959
+  type: 'test'
+  ...
+# Subtest: PORT unset passes the PORT check (data file error is reported)
+ok 73 - PORT unset passes the PORT check (data file error is reported)
+  ---
+  duration_ms: 59.087465
+  type: 'test'
+  ...
+# Subtest: PORT unset means 3000 (exits 1 with one line while 3000 is taken)
+ok 74 - PORT unset means 3000 (exits 1 with one line while 3000 is taken)
+  ---
+  duration_ms: 66.515882
+  type: 'test'
+  ...
+# Subtest: PORT empty passes the PORT check (data file error is reported)
+ok 75 - PORT empty passes the PORT check (data file error is reported)
+  ---
+  duration_ms: 55.595356
+  type: 'test'
+  ...
+# Subtest: PORT empty means 3000 (exits 1 with one line while 3000 is taken)
+ok 76 - PORT empty means 3000 (exits 1 with one line while 3000 is taken)
+  ---
+  duration_ms: 62.990943
+  type: 'test'
+  ...
+# Subtest: PORT 65535 passes validation: the server fails at binding, not at the PORT check
+ok 77 - PORT 65535 passes validation: the server fails at binding, not at the PORT check
+  ---
+  duration_ms: 115.891758
+  type: 'test'
+  ...
+# Subtest: port in use exits 1 with one stderr line
+ok 78 - port in use exits 1 with one stderr line
+  ---
+  duration_ms: 73.307014
+  type: 'test'
+  ...
+# Subtest: startup order: PORT is checked before the data file
+ok 79 - startup order: PORT is checked before the data file
+  ---
+  duration_ms: 58.868343
+  type: 'test'
+  ...
+# Subtest: startup order: data file is read before listening
+ok 80 - startup order: data file is read before listening
+  ---
+  duration_ms: 70.53814
+  type: 'test'
+  ...
+# Subtest: unusable data file (directory) exits 1 and leaves it untouched
+ok 81 - unusable data file (directory) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.767713
+  type: 'test'
+  ...
+# Subtest: unusable data file (ENOTDIR) exits 1 and leaves it untouched
+ok 82 - unusable data file (ENOTDIR) exits 1 and leaves it untouched
+  ---
+  duration_ms: 53.531372
+  type: 'test'
+  ...
+# Subtest: unusable data file (empty file) exits 1 and leaves it untouched
+ok 83 - unusable data file (empty file) exits 1 and leaves it untouched
+  ---
+  duration_ms: 53.678172
+  type: 'test'
+  ...
+# Subtest: unusable data file (whitespace only) exits 1 and leaves it untouched
+ok 84 - unusable data file (whitespace only) exits 1 and leaves it untouched
+  ---
+  duration_ms: 53.563467
+  type: 'test'
+  ...
+# Subtest: unusable data file (not json) exits 1 and leaves it untouched
+ok 85 - unusable data file (not json) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.773857
+  type: 'test'
+  ...
+# Subtest: unusable data file (null) exits 1 and leaves it untouched
+ok 86 - unusable data file (null) exits 1 and leaves it untouched
+  ---
+  duration_ms: 50.933382
+  type: 'test'
+  ...
+# Subtest: unusable data file (array) exits 1 and leaves it untouched
+ok 87 - unusable data file (array) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.807757
+  type: 'test'
+  ...
+# Subtest: unusable data file (empty object) exits 1 and leaves it untouched
+ok 88 - unusable data file (empty object) exits 1 and leaves it untouched
+  ---
+  duration_ms: 58.426849
+  type: 'test'
+  ...
+# Subtest: unusable data file (missing bookings) exits 1 and leaves it untouched
+ok 89 - unusable data file (missing bookings) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.804847
+  type: 'test'
+  ...
+# Subtest: unusable data file (BOM + valid layout) exits 1 and leaves it untouched
+ok 90 - unusable data file (BOM + valid layout) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.014603
+  type: 'test'
+  ...
+# Subtest: unusable data file (extra booking key) exits 1 and leaves it untouched
+ok 91 - unusable data file (extra booking key) exits 1 and leaves it untouched
+  ---
+  duration_ms: 70.580582
+  type: 'test'
+  ...
+# Subtest: unusable data file (nextId not above an id) exits 1 and leaves it untouched
+ok 92 - unusable data file (nextId not above an id) exits 1 and leaves it untouched
+  ---
+  duration_ms: 49.886242
+  type: 'test'
+  ...
+# Subtest: unusable data file (duplicate ids) exits 1 and leaves it untouched
+ok 93 - unusable data file (duplicate ids) exits 1 and leaves it untouched
+  ---
+  duration_ms: 65.909592
+  type: 'test'
+  ...
+# Subtest: unusable data file (invalid date) exits 1 and leaves it untouched
+ok 94 - unusable data file (invalid date) exits 1 and leaves it untouched
+  ---
+  duration_ms: 54.19292
+  type: 'test'
+  ...
+# Subtest: unusable data file (relative nested name) exits 1 and leaves it untouched
+ok 95 - unusable data file (relative nested name) exits 1 and leaves it untouched
+  ---
+  duration_ms: 59.503759
+  type: 'test'
+  ...
+# Subtest: unusable data file (dot-slash name) exits 1 and leaves it untouched
+ok 96 - unusable data file (dot-slash name) exits 1 and leaves it untouched
+  ---
+  duration_ms: 57.159452
+  type: 'test'
+  ...
+# Subtest: unusable data file given as an absolute path reports the path as given
+ok 97 - unusable data file given as an absolute path reports the path as given
+  ---
+  duration_ms: 60.352075
+  type: 'test'
+  ...
+# Subtest: DATA_FILE unset uses bookings.json in the cwd
+ok 98 - DATA_FILE unset uses bookings.json in the cwd
+  ---
+  duration_ms: 130.831697
+  type: 'test'
+  ...
+# Subtest: DATA_FILE empty uses bookings.json in the cwd
+ok 99 - DATA_FILE empty uses bookings.json in the cwd
+  ---
+  duration_ms: 127.054306
+  type: 'test'
+  ...
+# Subtest: missing data file: starts empty and is never created by non-writing requests
+ok 100 - missing data file: starts empty and is never created by non-writing requests
+  ---
+  duration_ms: 133.930895
+  type: 'test'
+  ...
+# Subtest: missing parent folder: starts empty and the folder is not created
+ok 101 - missing parent folder: starts empty and the folder is not created
+  ---
+  duration_ms: 117.137766
+  type: 'test'
+  ...
+# Subtest: relative DATA_FILE is resolved against the cwd, not the server folder
+ok 102 - relative DATA_FILE is resolved against the cwd, not the server folder
+  ---
+  duration_ms: 65.553709
+  type: 'test'
+  ...
+# Subtest: a seeded valid file loads and the next POST gets its nextId
+ok 103 - a seeded valid file loads and the next POST gets its nextId
+  ---
+  duration_ms: 64.384187
+  type: 'test'
+  ...
+# Subtest: bookings and next id survive a restart; ids are never reused
+ok 104 - bookings and next id survive a restart; ids are never reused
+  ---
+  duration_ms: 232.007453
+  type: 'test'
+  ...
+# Subtest: the file is written before the reply is sent
+ok 105 - the file is written before the reply is sent
+  ---
+  duration_ms: 80.617277
+  type: 'test'
+  ...
+# Subtest: outside changes to the file are not noticed; a later POST rewrites from memory
+ok 106 - outside changes to the file are not noticed; a later POST rewrites from memory
+  ---
+  duration_ms: 68.67889
+  type: 'test'
+  ...
+# Subtest: only a successful POST or DELETE writes the file
+ok 107 - only a successful POST or DELETE writes the file
+  ---
+  duration_ms: 124.347139
+  type: 'test'
+  ...
+# Subtest: startup with an existing file does not rewrite it
+ok 108 - startup with an existing file does not rewrite it
+  ---
+  duration_ms: 127.556778
+  type: 'test'
+  ...
+# Subtest: save failure on POST: 500, nothing changes, server keeps running
+ok 109 - save failure on POST: 500, nothing changes, server keeps running
+  ---
+  duration_ms: 83.867501
+  type: 'test'
+  ...
+# Subtest: save failure on DELETE: 500, booking stays, later DELETE works
+ok 110 - save failure on DELETE: 500, booking stays, later DELETE works
+  ---
+  duration_ms: 89.748497
+  type: 'test'
+  ...
+# Subtest: 10 overlapping POSTs at once: one 201, nine 409
+ok 111 - 10 overlapping POSTs at once: one 201, nine 409
+  ---
+  duration_ms: 71.675536
+  type: 'test'
+  ...
+# Subtest: 10 non-overlapping POSTs at once: distinct ids 2..11 and the file matches memory
+ok 112 - 10 non-overlapping POSTs at once: distinct ids 2..11 and the file matches memory
+  ---
+  duration_ms: 183.798569
+  type: 'test'
+  ...
+# Subtest: 5 MB body with the wrong content type still gets 415
+ok 113 - 5 MB body with the wrong content type still gets 415
+  ---
+  duration_ms: 75.289587
+  type: 'test'
+  ...
+# Subtest: 5 MB JSON body gets 413
+ok 114 - 5 MB JSON body gets 413
+  ---
+  duration_ms: 68.540521
+  type: 'test'
+  ...
+# Subtest: pipelined 2 MB body (415 POST) then GET on one socket: both replies arrive
+ok 115 - pipelined 2 MB body (415 POST) then GET on one socket: both replies arrive
+  ---
+  duration_ms: 77.406839
+  type: 'test'
+  ...
+# Subtest: pipelined 2 MB body (413 POST) then GET on one socket: both replies arrive
+ok 116 - pipelined 2 MB body (413 POST) then GET on one socket: both replies arrive
+  ---
+  duration_ms: 73.050233
+  type: 'test'
+  ...
+# Subtest: pipelined 2 MB body (404 POST /nope) then GET on one socket: both replies arrive
+ok 117 - pipelined 2 MB body (404 POST /nope) then GET on one socket: both replies arrive
+  ---
+  duration_ms: 79.398675
+  type: 'test'
+  ...
+# Subtest: pipelined 2 MB body (405 PUT /api/rooms) then GET on one socket: both replies arrive
+ok 118 - pipelined 2 MB body (405 PUT /api/rooms) then GET on one socket: both replies arrive
+  ---
+  duration_ms: 80.163725
+  type: 'test'
+  ...
+# Subtest: pipelined 2 MB body (404 DELETE /api/bookings/999) then GET on one socket: both replies arrive
+ok 119 - pipelined 2 MB body (404 DELETE /api/bookings/999) then GET on one socket: both replies arrive
+  ---
+  duration_ms: 78.176366
+  type: 'test'
+  ...
+1..119
+# tests 306
+# suites 16
+# pass 306
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5119.087378

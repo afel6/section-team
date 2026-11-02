@@ -1,0 +1,1 @@
+- [Bash limits](feedback_bash_limits.md) — no sed/pipes/node -e; write script files and run `node file.mjs`; fetch normalises paths
