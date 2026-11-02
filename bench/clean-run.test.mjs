@@ -66,6 +66,19 @@ test('childEnv and envNames ignore the case of variable names, as Windows does',
     ['Claude_Code_Entrypoint', 'anthropic_api_key', 'enable_claudeai_mcp_servers'])
 })
 
+// Host-session variables a shell inside the desktop app sets: the child never sees them, run.json names them.
+test('childEnv strips the OAuth, MCP, thinking and Bash timeout variables, in any case, and envNames records them', () => {
+  const host = [
+    'USE_STAGING_OAUTH', 'USE_LOCAL_OAUTH', 'MCP_CONNECTION_NONBLOCKING', 'MCP_SERVER_CONNECTION_BATCH_SIZE', 'MAX_THINKING_TOKENS',
+    'BASH_DEFAULT_TIMEOUT_MS', 'BASH_MAX_TIMEOUT_MS', 'use_local_oauth', 'mcp_timeout', 'Max_Thinking_Tokens', 'bash_max_timeout_ms',
+  ]
+  const kept = { PATH: 'C:/bin', USE_STAGING_OAUTH_X: '1', MY_MCP_X: '1', MAX_THINKING_TOKENS_X: '1', BASH_TIMEOUT_MS: '1', XBASH_MAX_TIMEOUT_MS: '1' }
+  for (const name of host) {
+    assert.deepEqual(childEnv({ ...kept, [name]: '1' }, { pluginDir: 'C:/w' }), childEnv(kept, { pluginDir: 'C:/w' }), `${name} is stripped`)
+    assert.deepEqual(envNames({ ...kept, [name]: '1' }), [name], `${name} is recorded, and only it`)
+  }
+})
+
 test('envNames lists the names of the round variables, sorted, never their values', () => {
   assert.deepEqual(envNames(childEnv({ PATH: 'p', HOME: 'h', CLAUDECODE: '1' }, { pluginDir: 'C:/w' })),
     ['CLAUDE_CODE_PLUGIN_DIRS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])

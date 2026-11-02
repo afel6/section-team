@@ -15,9 +15,11 @@ const PLUGIN_AUTHORING = 'cc-plugin-plugin-authoring@builtin'
 const SETUPS = ['solo', 'lean', 'team', 'max', 'judge']
 const BUILDERS = ['lean', 'team', 'max']
 // Session, model, key and switch variables from the parent: a round started inside a Claude Code session must behave
-// like one started from a plain terminal. Case-insensitive, as variable names are on Windows.
-const STRIPPED = /^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_)/i
-const RECORDED = /^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI)/i
+// like one started from a plain terminal. Case-insensitive, as variable names are on Windows. A shell inside the
+// desktop app also sets OAuth, MCP, thinking and Bash timeout variables: they go too.
+const HOST = 'USE_(STAGING|LOCAL)_OAUTH$|MCP_|MAX_THINKING_TOKENS$|BASH_(DEFAULT|MAX)_TIMEOUT_MS$'
+const STRIPPED = new RegExp(`^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_|${HOST})`, 'i')
+const RECORDED = new RegExp(`^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI|${HOST})`, 'i')
 
 const isObject = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
