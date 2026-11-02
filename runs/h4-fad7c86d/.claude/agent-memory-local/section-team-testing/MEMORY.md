@@ -1,0 +1,1 @@
+- [Test env quirks](project_test_env.md) — test glob, helper layout, sandbox denies /tmp mutation scripts; re-run npm test after helpers

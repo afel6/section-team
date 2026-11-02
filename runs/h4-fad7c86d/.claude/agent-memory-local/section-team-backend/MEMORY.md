@@ -1,0 +1,1 @@
+- [Env constraints](project_env_constraints.md) — server runs denied in Bash; smoke-test via node:test spawn; Node 22 --test needs glob not folder

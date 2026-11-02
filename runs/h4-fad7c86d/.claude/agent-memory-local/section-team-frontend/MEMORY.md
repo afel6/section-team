@@ -1,0 +1,1 @@
+- [Bench constraints](project_bench_constraints.md) — booking page: browser-API whitelist, node:vm testing, no URLs/room names
