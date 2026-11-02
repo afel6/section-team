@@ -9,8 +9,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-const CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
-export const MEMORY_ROOT = join(CONFIG_DIR, 'agent-memory')
+// Runs get CLAUDE_* stripped (clean-run.mjs childEnv), so their memory is under ~/.claude whatever CLAUDE_CONFIG_DIR says.
+export const MEMORY_ROOT = join(homedir(), '.claude', 'agent-memory')
 export const MEMORY_BACKUP = join(homedir(), 'bench-section-memory-backup')
 const MANIFEST = 'manifest.json'
 const SECTION = /^section-team-[a-z0-9-]+$/
