@@ -165,6 +165,14 @@ export function runSession(outDir) {
   return sessionId
 }
 
+// The failures a corrupt or unreadable evidence file causes, which mode-check and gate-stats turn into a run's row: a
+// file-system error, or one of the readers' one-line errors (runSession, collectRolesFrom, mode-record.mjs readRecord,
+// mode-check's run.json reader; `known` adds a caller's own). Anything else is a bug.
+const FILE_CODES = new Set(['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY'])
+const READER_ERRORS = [/ is not valid JSON$/, / has no plain sessionId$/, / has no plain session id$/, /: session id is not plain /, /^mode record is not valid$/, /^no usable session id /]
+export const isFileFailure = (err, known = []) => FILE_CODES.has(err?.code)
+  || (err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && [...READER_ERRORS, ...known].some(re => re.test(err.message)))
+
 // Where a run's transcripts are: its evidence/ copy when it has one, else Claude Code's project folder for the run.
 export const transcriptDir = (outDir, runDir, home = homedir()) => {
   const evidence = join(outDir, 'evidence')

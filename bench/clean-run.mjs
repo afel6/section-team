@@ -18,9 +18,9 @@ const BUILDERS = ['lean', 'team', 'max']
 // Session, model, key and switch variables from the parent: a round started inside a Claude Code session must behave
 // like one started from a plain terminal. Case-insensitive, as variable names are on Windows. A shell inside the
 // desktop app also sets OAuth, MCP, thinking and Bash timeout variables: they go too.
-const HOST = 'USE_(STAGING|LOCAL)_OAUTH$|MCP_|MAX_THINKING_TOKENS$|BASH_(DEFAULT|MAX)_TIMEOUT_MS$'
-const STRIPPED = new RegExp(`^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_|${HOST})`, 'i')
-const RECORDED = new RegExp(`^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI|${HOST})`, 'i')
+const HOST_SESSION = 'USE_(STAGING|LOCAL)_OAUTH$|MCP_|MAX_THINKING_TOKENS$|BASH_(DEFAULT|MAX)_TIMEOUT_MS$'
+const STRIPPED = new RegExp(`^(CLAUDECODE$|CLAUDE_|ANTHROPIC_|DISABLE_|SECTION_TEAM_|${HOST_SESSION})`, 'i')
+const RECORDED = new RegExp(`^(CLAUDE|ANTHROPIC|DISABLE_|SECTION_TEAM_|ENABLE_CLAUDEAI|${HOST_SESSION})`, 'i')
 
 const isObject = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
@@ -214,7 +214,7 @@ export function sha256Of(file) {
 }
 
 // Every path under dir, relative, with forward slashes; [] when dir does not exist.
-export function listUnder(dir) {
+function listUnder(dir) {
   try {
     return readdirSync(dir, { recursive: true }).map(path => path.replaceAll('\\', '/'))
   } catch (err) {
@@ -222,6 +222,11 @@ export function listUnder(dir) {
     throw err
   }
 }
+
+// Everything under the given ~/.claude folders as sorted ~/.claude-relative paths, without the folder-relative paths
+// skip names: the preflight's synced listing and the batch's user skills and agents.
+export const claudeListing = (home, folders, skip = () => false) => folders
+  .flatMap(folder => listUnder(join(home, '.claude', folder)).filter(path => !skip(path)).map(path => `${folder}/${path}`)).sort()
 
 export function readPin(results, round) {
   const path = join(results, `preflight-${round}.json`)

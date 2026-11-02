@@ -596,6 +596,19 @@ test('watchUserLists stops the batch naming the run when user skills or agents c
   assert.deepEqual(ran, ['h4-lean-mo-r1', 'h5-lean-mo-r1'], 'no run starts after a change')
 })
 
+// A run that stops (a limit, a void) after changing the lists keeps its own stop and exit code; the change is still said.
+test('watchUserLists names a change made by a run that then stops, and rethrows the run\'s own error', async t => {
+  const home = fakeClaudeHome(t)
+  const logged = []
+  const stop = new BatchStop('h4-lean-mo-r1: usage or rate limit (x); resume in the next usage window')
+  const one = watchUserLists(async () => {
+    mkdirSync(join(home, '.claude', 'agents', 'extra'), { recursive: true })
+    throw stop
+  }, { home, log: line => logged.push(line) })
+  await assert.rejects(one({ id: 'h4-lean-mo-r1' }, 'out'), err => err === stop)
+  assert.deepEqual(logged, ['h4-lean-mo-r1: ~/.claude skills or agents changed during the run (added agents/extra); put them back as the batch found them, then resume'])
+})
+
 test('checkPin refuses a --plugin other than the pinned worktree and a binary whose bytes differ from the pin, in one line each', t => {
   const root = tempRoot(t)
   const binary = join(root, 'claude-2.1.296.exe')

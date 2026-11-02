@@ -10,7 +10,7 @@ import { GATES } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { parseReport } from '../hooks/lib/report.mjs'
 import { RESULTS } from './run.mjs'
-import { collectRolesFrom, runSession, transcriptDir } from './score.mjs'
+import { collectRolesFrom, isFileFailure, runSession, transcriptDir } from './score.mjs'
 
 const REVIEWER = 'section-team:reviewer'
 const GRADE_HEADING = /^[ \t]*#{1,6}[ \t]*GRADE[ \t]*$/gm
@@ -139,7 +139,7 @@ const readText = path => {
 const readJson = path => {
   const text = readText(path)
   if (text === null) return null
-  try { return JSON.parse(text) } catch (err) { throw new Error(`${path}: not valid JSON (${err.message})`) }
+  try { return JSON.parse(text) } catch (err) { throw new Error(`${path}: not valid JSON (${err.message.replace(/\s+/g, ' ')})`) }
 }
 
 // Section REPORTs saved under <run dir>/.team/reports/<day>/*.md; supervisor summaries are not REPORTs.
@@ -170,14 +170,16 @@ function codeQualityByRun(results, round) {
   return judgeCodeQuality(judge, key)
 }
 
-// readRun, or a no-data reading with the reason when a file failure stopped it (an fs error, or a reader's own one-line
-// error), as mode-check does: one bad run never stops the table. Anything else (a TypeError, an ERR_* code) is a bug.
+// This module's readers' one-line errors (readJson and readRun below), on top of score.mjs's.
+const OWN_READER_ERRORS = [/: not valid JSON \(/, /: no run dir$/]
+
+// readRun, or a no-data reading with the reason when a file failure stopped it (score.mjs isFileFailure, as in
+// mode-check): one bad run never stops the table. Anything else (a TypeError, an ERR_* code) is a bug.
 function readRunOrReason(folder, home) {
   try {
     return readRun(folder, home)
   } catch (err) {
-    const fileFailure = /^E[A-Z]+$/.test(err?.code ?? '') || (err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && err.code === undefined)
-    if (!fileFailure) throw err
+    if (!isFileFailure(err, OWN_READER_ERRORS)) throw err
     return { roles: null, tap: null, reports: [], reason: err.message }
   }
 }

@@ -219,6 +219,12 @@ test('a run whose run.json or session.json is broken is a no-data row with its r
     assert.match(formatTable([byId['h4-team-ho-r1']]), /\| h4-team-ho-r1 \| balanced \| no data \(.*run\.json: not valid JSON.*\) \| – \|/)
     write(join(results, 'h4-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h4-team-ho-r1', dir: 42 }))
     assert.match(gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1').reason, /run\.json: no run dir$/)
+    // Node 26 quotes the bad text, newlines included: the reason and the table row stay one line.
+    write(join(results, 'h4-team-ho-r1', 'run.json'), '{\n  "id": oops\n}')
+    const multi = gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1')
+    assert.match(multi.reason, /run\.json: not valid JSON \(.*oops.*\)$/)
+    assert.doesNotMatch(multi.reason, /[\r\n]/)
+    assert.equal(formatTable([multi]).split('\n').length, 3, 'header, rule and one row')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

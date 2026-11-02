@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import {
-  SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, listUnder, outputMessages, readPin, sha256Of,
+  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, readPin, sha256Of,
 } from './clean-run.mjs'
 import {
   BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
@@ -139,27 +139,36 @@ export function checkPin(plugin, pin) {
   if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round`)
 }
 
-// ~/.claude/skills and ~/.claude/agents (synced/ left out) as sorted ~/.claude-relative paths, like the preflight's
-// syncedListing: the user's own skills and agents, which every init lists.
-const USER_FOLDERS = ['skills', 'agents']
-export const userListing = home => USER_FOLDERS.flatMap(folder => listUnder(join(home, '.claude', folder))
-  .filter(path => path.split('/')[0] !== 'synced').map(path => `${folder}/${path}`)).sort()
+// ~/.claude/skills and ~/.claude/agents (synced/ left out), like the preflight's syncedListing: the user's own skills
+// and agents, which every init lists.
+export const userListing = home => claudeListing(home, ['skills', 'agents'], path => path.split('/')[0] === 'synced')
 
 // One run of the batch with the user's skills and agents checked against the batch start, before and after it: a
 // change stops the batch naming the run and the entries, before another paid run starts on a setup unlike the pin.
-export function watchUserLists(one, { home = homedir() } = {}) {
+// A run that stops on its own keeps its stop (and exit code); a change it made is said with log.
+export function watchUserLists(one, { home = homedir(), log = console.error } = {}) {
   const start = new Set(userListing(home))
-  const check = (run, when) => {
+  const changeLine = (run, when) => {
     const now = new Set(userListing(home))
     const added = [...now].filter(path => !start.has(path))
     const removed = [...start].filter(path => !now.has(path))
-    if (added.length + removed.length === 0) return
+    if (added.length + removed.length === 0) return null
     const changes = [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean).join('; ')
-    throw new BatchStop(`${run.id}: ~/.claude skills or agents changed ${when} the run (${changes}); put them back as the batch found them, then resume`)
+    return `${run.id}: ~/.claude skills or agents changed ${when} the run (${changes}); put them back as the batch found them, then resume`
+  }
+  const check = (run, when) => {
+    const line = changeLine(run, when)
+    if (line !== null) throw new BatchStop(line)
   }
   return async (run, outDir) => {
     check(run, 'before')
-    await one(run, outDir)
+    try {
+      await one(run, outDir)
+    } catch (err) {
+      const line = changeLine(run, 'during')
+      if (line !== null) log(line)
+      throw err
+    }
     check(run, 'during')
   }
 }
@@ -285,7 +294,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
 
 // Missing required evidence stays an exit-1 stop (no void, no cap): the init's problems go into the message for
 // diagnosis, and attempts.json lists the attempt, so the rerun shows between batches.
-function evidenceMissing(err, { run, outDir, sessionId, attempt, messages, ctx }) {
+function withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) {
   const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir })
   recordAttempt(outDir, { kind: 'evidence-missing', attempt, sessionId, at: new Date().toISOString(), path: err.path, reasons })
   return new EvidenceMissing(`${err.message}; init problems: ${reasons.join('; ') || 'none'}`, err.path)
@@ -316,7 +325,7 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   try {
     copied = copyEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, bestEffort })
   } catch (err) {
-    throw err instanceof EvidenceMissing ? evidenceMissing(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
+    throw err instanceof EvidenceMissing ? withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
   }
   const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
   const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, env })

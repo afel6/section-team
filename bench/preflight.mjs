@@ -12,7 +12,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { initOf, initProblems, installedPluginKeys, listUnder, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
+import { claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
 import {
   NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder,
 } from './run.mjs'
@@ -58,7 +58,7 @@ export function copyBinary({ home, version, run = spawnSync }) {
 }
 
 // What claude.ai has synced into ~/.claude, as sorted paths relative to it; a run must leave it unchanged.
-export const syncedListing = home => SYNCED.flatMap(folder => listUnder(join(home, '.claude', folder)).map(path => `${folder}/${path}`)).sort()
+export const syncedListing = home => claudeListing(home, SYNCED)
 
 function answerProblems(result) {
   if (!result) return ['no result message']

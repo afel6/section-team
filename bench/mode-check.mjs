@@ -11,7 +11,7 @@ import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
 import { NAME, RESULTS } from './run.mjs'
-import { collectRolesFrom, runSession } from './score.mjs'
+import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
 
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 export const MODE_OF = { 'lean-mo': 'lean', 'team-mo': 'balanced', 'max-mo': 'max' }
@@ -188,14 +188,7 @@ export function checkRun({ cond, task, roles, runDir, record }) {
 
 const unreadable = what => failedRow(`${what} unreadable`)
 
-// The failures a corrupt or unreadable file causes: a file-system error, or one of the one-line errors the readers
-// throw (score.mjs runSession and collectRolesFrom, mode-record.mjs readRecord, readRunJson below).
-const FILE_CODES = new Set(['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY'])
-const KNOWN_ERRORS = [/ is not valid JSON$/, / has no plain sessionId$/, / has no plain session id$/, /: session id is not plain /, /^mode record is not valid$/, /^no usable session id /]
-const isFileFailure = err => FILE_CODES.has(err?.code)
-  || (err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && KNOWN_ERRORS.some(re => re.test(err.message)))
-
-// read()'s value, or FAILED when a file failure stopped it, so one bad file becomes that run's row and never stops
+// read()'s value, or FAILED when a file failure stopped it (score.mjs isFileFailure), so one bad file becomes that run's row and never stops
 // the others. Anything else (a TypeError, an ERR_* code) is a bug and propagates.
 const FAILED = Symbol('failed')
 const attempt = read => {
