@@ -39,12 +39,12 @@ function spread(gaps, floor) {
   return { gap, sd, lo: gap - half, hi: gap + half, includesZero: gap - half <= 0 }
 }
 
-// Mean cost of the mode's runs over the comparator's on `tasks`, and the ids of the priced runs whose cost was computed
-// from transcripts; all null when a cost is unknown (never priced at $0). The ratio is scaled to its decimals, then
-// cut to 12 significant digits and rounded half-up, so a decimal halfway value rounds up even when division or the
-// scaling leaves it just under (1.1249999999999998 → 1.13; 1.255 × 100 = 125.49999999999999 → 1.26).
+// x half-up to d decimals, scaled first and then cut to 12 significant digits, so a decimal halfway value rounds up even
+// when division or the scaling leaves it just under (1.1249999999999998 → 1.13; 1.255 × 100 = 125.49999999999999 → 1.26).
 const tieSafeRound = (x, d) => Math.round(Number((x * 10 ** d).toPrecision(12))) / 10 ** d
 
+// Mean cost of the mode's runs over the comparator's on `tasks` (tieSafeRound), and the ids of the priced runs whose
+// cost was computed from transcripts; all null when a cost is unknown (never priced at $0).
 function costRatio(groups, tasks, decimals) {
   const runs = groups.filter(g => tasks.includes(g.task))
   const costs = side => runs.map(g => g[side].run.costUSD)

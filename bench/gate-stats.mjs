@@ -174,11 +174,11 @@ function codeQualityByRun(results, round) {
 const OWN_READER_ERRORS = [/: not valid JSON \(/, /: no run dir$/]
 
 // A no-data row's reason: a reader's own line names its file; a file-system error names its path, or, when Node gave
-// none (reading a folder), the run's run.json and its session evidence.
+// none (reading a folder), every place readRun reads: the results folder's files and the run's .team/reports.
 function reasonOf(err, folder) {
   if (!err.code) return err.message
   if (err.path) return err.message.includes(err.path) ? err.message : `${err.path}: ${err.message}`
-  return `${join(folder, 'run.json')} or its session evidence: ${err.message}`
+  return `a file in ${folder} (run.json, session evidence, hidden.tap) or the run's .team/reports: ${err.message}`
 }
 
 // read(folder, home), or a no-data reading with the reason when a file failure stopped it (score.mjs isFileFailure, as

@@ -3,8 +3,8 @@
 // plus `judge` and `costUSD`). Each judge sees every solution of its group; an even judge sees them mirrored.
 // Every attempt is a fresh session of the round's pinned binary, checked like a solo run (init and effort) plus its
 // permission mode and its tool calls (none may name a blind key), and its transcripts are kept in
-// results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a
-// third unusable attempt is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed
+// results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved
+// raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a third unusable attempt is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed
 // in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
 // usage or rate limit, another API error, a session with no result or one that left no transcript stops judging
 // (exit 1) without using an attempt. Judging refuses to start before the round's leak scan is written.
@@ -23,7 +23,7 @@ import { judgeDirFor } from './anonymize.mjs'
 import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
-import { classifyEnd, filesAt, projectDirFor } from './run-attempts.mjs'
+import { classifyEnd, filesAt, firstLine, projectDirFor } from './run-attempts.mjs'
 import { NAME, RESULTS, parseArgs } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -368,8 +368,8 @@ export function judgeCall({ pin, installedKeys, files, env = process.env, home =
     const end = classifyEnd({ messages, exitCode: 0 })
     if (end === 'api-limit') throw new Error(`${jobLabel(job)} hit a usage or rate limit: resume judging in the next usage window`)
     if (end === 'api-other' || end === 'no-result') {
-      const said = end === 'no-result' ? 'no result' : String(resultOf(messages).result ?? '').split(/\r?\n/)[0].slice(0, 200)
-      throw new Error(`${jobLabel(job)} ended with an API error or no result: fix the cause (login, outage), then resume (${said})`)
+      const detail = end === 'no-result' ? 'no result' : firstLine(resultOf(messages).result)
+      throw new Error(`${jobLabel(job)} ended with an API error or no result: fix the cause (login, outage), then resume (${detail})`)
     }
     return { stdout, ...keepTranscript({ cwd, sessionId, home, files, job, attempt }) }
   }, { log, swap: job.swap })

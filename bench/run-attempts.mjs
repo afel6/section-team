@@ -55,7 +55,7 @@ export const exitCodeOf = err => (err instanceof BatchStop || err instanceof Rou
 // The setup (solo, lean, team, max or forced), without the round tag.
 export const baseOf = run => run.base ?? run.cond
 const json = value => `${JSON.stringify(value, null, 2)}\n`
-const firstLine = text => String(text ?? '').split(/\r?\n/)[0].slice(0, 200)
+export const firstLine = text => String(text ?? '').split(/\r?\n/)[0].slice(0, 200)
 
 // Claude Code's project folder for a run folder: transcripts and auto-memory.
 export const projectDirFor = (runDir, home = homedir()) => join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))

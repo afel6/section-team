@@ -229,7 +229,7 @@ test('a run whose run.json or session.json is broken is a no-data row with its r
     rmSync(join(results, 'h4-team-ho-r1', 'run.json'))
     mkdirSync(join(results, 'h4-team-ho-r1', 'run.json'))
     const folder = gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1')
-    assert.match(folder.reason, /h4-team-ho-r1[\\/]run\.json or its session evidence: EISDIR/)
+    assert.match(folder.reason, /^a file in .*h4-team-ho-r1 \(run\.json, session evidence, hidden\.tap\) or the run's \.team\/reports: EISDIR/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

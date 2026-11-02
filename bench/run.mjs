@@ -143,9 +143,10 @@ export function checkPin(plugin, pin) {
 // and agents, which every init lists.
 export const userListing = home => claudeListing(home, ['skills', 'agents'], path => path.split('/')[0] === 'synced')
 
-// The changed top-level entries (skills/<name>, agents/<name>) of a list of paths, sorted, at most SHOWN of them.
+// One line naming the changed top-level entries (skills/<name>, agents/<name>) of a list of paths, sorted, at most
+// SHOWN of them and a count of the rest.
 const SHOWN = 5
-function entriesOf(paths) {
+function changedEntriesLine(paths) {
   const entries = [...new Set(paths.map(path => path.split('/').slice(0, 2).join('/')))].sort()
   const rest = entries.length - SHOWN
   return `${entries.slice(0, SHOWN).join(', ')}${rest > 0 ? ` … and ${rest} more` : ''}`
@@ -161,7 +162,8 @@ export function watchUserLists(one, { home = homedir(), log = console.error } = 
     const added = [...now].filter(path => !start.has(path))
     const removed = [...start].filter(path => !now.has(path))
     if (added.length + removed.length === 0) return null
-    const changes = [added.length && `added ${entriesOf(added)}`, removed.length && `removed ${entriesOf(removed)}`].filter(Boolean).join('; ')
+    const changes = [added.length && `added ${changedEntriesLine(added)}`, removed.length && `removed ${changedEntriesLine(removed)}`]
+      .filter(Boolean).join('; ')
     return `${run.id}: ~/.claude skills or agents changed ${when} the run (${changes}); put them back as the batch found them, then resume`
   }
   const check = (run, when) => {

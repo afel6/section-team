@@ -173,7 +173,7 @@ test('the usage ratio rounds a value that is halfway in decimal up, as the round
   const r = run('lean', usageWorld(0.09, { solo: [1, 1, 1, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08] }))
   assert.equal(r.usage.modeCost / r.usage.vsCost, 1.1249999999999998)
   assert.equal(r.usage.ratio, 1.13)
-  // 2.51 / 2 is 1.255 exactly as stored, but 1.255 × 100 is 125.49999999999999: the cut must come after scaling.
+  // 2.51 / 2 gives the double nearest 1.255, and that × 100 is 125.49999999999999: the cut must come after scaling.
   const scaled = run('lean', usageWorld(2.51))
   assert.equal(scaled.usage.modeCost / scaled.usage.vsCost, 1.255)
   assert.equal(scaled.usage.ratio, 1.26)
