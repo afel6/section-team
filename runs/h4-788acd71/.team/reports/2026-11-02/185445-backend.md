@@ -1,0 +1,10 @@
+## REPORT · backend · 2026-11-02 19:10
+Status:       done
+Job:          Built the meeting-room booking backend (`server.mjs`, `package.json`, tests that start the real server) to the exact spec.
+Changed:      /root/bench-runs/h4-788acd71/server.mjs, /root/bench-runs/h4-788acd71/package.json, /root/bench-runs/h4-788acd71/test/server.test.mjs, /root/bench-runs/h4-788acd71/test/helpers.mjs, /root/bench-runs/h4-788acd71/.team/notes/backend-api.md, /root/bench-runs/h4-788acd71/.team/notes/INDEX.md (my line only), /root/bench-runs/h4-788acd71/.team/notes/decisions.md (appended)
+Tests:        `npm test` ran 111 tests (backend and frontend) and all 111 passed. I re-ran it after the reviewer's quick fixes and it still passed. The backend tests start the real server with PORT=0 and a temporary DATA_FILE. They cover PORT, port-in-use and data-file startup errors, persistence across restarts, rollback when a save fails (500, nextId unchanged, no folder created), 10 concurrent POSTs, byte-exact routing over raw sockets, 405 and 404 cases, every booking rule in order, 413 at 10001 bytes including chunked bodies, BOM and invalid UTF-8 bodies, Content-Type variants, and the 409 message naming the earliest overlap.
+Quality:      8.5/10 (reviewer, 0 fix rounds; mode gate with sonnet)
+Coordination: none
+Helpers used: Sonnet ×1 (coder, wrote the tests), Sonnet ×1 (reviewer gate)
+Problems:     The test script in decisions.md, `node --test test/`, fails on Node 22.23.4 here: Node treats the folder as a module (MODULE_NOT_FOUND). I set package.json's test script to `node --test "test/*.test.mjs"`, which also runs the frontend's `test/app.test.mjs`, and logged this in decisions.md. Requests are handled one at a time because everything after the body is read runs synchronously, the save (`writeFileSync`) included. In-memory data changes only after a successful save, so a failed save leaves nothing changed, nextId included.
+Next:         The docs section should document `npm test` (not `node --test test/`), and PORT/DATA_FILE usage as in `.team/notes/backend-api.md`.

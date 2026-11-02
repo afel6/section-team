@@ -1,0 +1,1 @@
+- [Probing in this sandbox](feedback_probing.md) — Bash outside repo denied; probe via test files; raw non-ASCII targets get parser 400

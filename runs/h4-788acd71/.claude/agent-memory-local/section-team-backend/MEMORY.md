@@ -1,0 +1,1 @@
+- [node --test glob](project_node_test_glob.md) — `node --test test/` fails on Node 22.23 here; use `node --test "test/*.test.mjs"`
