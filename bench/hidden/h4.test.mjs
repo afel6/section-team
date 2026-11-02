@@ -18,7 +18,7 @@ const ROOT = mkdtempSync(join(tmpdir(), 'h4-')), running = new Set(), err = erro
 const RM = { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }
 after(async () => { for (const s of running) await stopServer(s); rmSync(ROOT, RM) })
 const it = (name, fn) => test(name, { timeout: 60_000 }, fn) // a hung test fails alone instead of running the whole file into the scorer's limit
-const tryJson = text => { try { return JSON.parse(text) } catch { return `not JSON: ${String(text).slice(0, 200)}` } }, same = (label, got, want, msg) => assert.deepEqual({ label, ...got }, { label, ...want }, msg)
+const tryJson = text => { try { return JSON.parse(text) } catch { return `not JSON: ${String(text).slice(0, 200)}` } }, same = (label, got, want, msg) => assert.deepEqual({ label, ...got }, { label, ...want }, ...(msg === undefined ? [] : [msg]))
 
 // --- Server processes and raw HTTP (helper listeners are unref'd: a failed assertion that skips close() cannot hold the process open) ---
 const listenOn = port => new Promise((ok, no) => { const s = createServer().once('error', no); s.listen(port, '127.0.0.1', () => ok(s.unref())) })
