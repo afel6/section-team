@@ -1,0 +1,1 @@
+- [Near-miss permissions](near_miss_permissions.md) — swapping copies into lib/ via Bash is denied here; npm test allowed; coders lack Bash
