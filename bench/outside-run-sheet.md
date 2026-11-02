@@ -1,4 +1,4 @@
-Freeze: tag mo-freeze
+Freeze: tag mo-freeze-cloud
 
 # Outside-judge run sheet
 
@@ -42,6 +42,33 @@ Follow it as written. Each judge has its own copy of the case set (`codex-judge-
 - The import lists every case that is not usable. Re-ask each one as above, then run the import again.
 - A case still not usable after its second re-ask is left as it is. Antigravity is then reported as "not usable (k of 18)".
 - k is the usable count the last import wrote to `bench/results/outside-usable-<name>.json`; that file stays.
+
+## Cloud round (amendment of 2026-11-02)
+
+The mode round's builds and Opus judges run on a cloud Linux machine; Codex and Antigravity stay on the user's Windows PC. Case sets reach the PC, and verdicts come back, only through the pushed branches named here. Everything above still holds, except that the imports run on the cloud machine. The results branch `bench/mode-round-cloud-results` holds the blind keys: never fetch it on the PC.
+
+On the cloud machine, after the leak scan:
+
+- `node bench/external-judge.mjs prepare --round=mo --out=/root/codex-judge-mo`, then at once `node bench/external-judge.mjs copy --from=/root/codex-judge-mo --to=/root/ag-judge-mo`.
+- `node bench/cloud-sync.mjs publish --branch=bench/mode-round-cloud-cases /root/codex-judge-mo /root/ag-judge-mo`. It refuses a set that holds a `verdict.json`, a file in a `scratch/` folder or a key.
+- `node bench/cloud-sync.mjs push --branch=bench/mode-round-cloud-results` (with `--redact-email` if the round uses it), so the case key `results/external-key-mo.json` is pushed too.
+
+On the PC, from a worktree of the cloud freeze, never from a plain `git fetch` of every branch:
+
+- `git fetch origin bench/mode-round-cloud-cases bench/mode-round-cloud-verdicts tag mo-freeze-cloud`, then `git worktree add C:/Users/Asus/claude-team-cloud mo-freeze-cloud`. Run every command below from `C:/Users/Asus/claude-team-cloud`.
+- `node bench/cloud-sync.mjs fetch --branch=bench/mode-round-cloud-cases --path=codex-judge-mo --out=C:/Users/Asus/codex-judge-mo`, and the same with `ag-judge-mo`. The sets land outside any repository, with no git folder.
+- Judge them as the sections above say. Codex: `node bench/codex-judge.mjs --set=C:/Users/Asus/codex-judge-mo`.
+- Send the verdicts and logs back. In that shell set `CLAUDE_CODE_USER_EMAIL` to the Claude account's email first; the push scan needs it and never prints it. Then:
+  - `node bench/cloud-sync.mjs publish --branch=bench/mode-round-cloud-verdicts --only=verdict.json C:/Users/Asus/codex-judge-mo C:/Users/Asus/ag-judge-mo`
+  - `node bench/cloud-sync.mjs publish --branch=bench/mode-round-cloud-verdicts bench/results/codex-logs bench/results/ag-logs`
+- Once, before any mode-round import: Codex's held-out check stays valid as recorded (`hocx`: gap +0.50, same winner 8 of 9) and is never run again. Send its record from the checkout that made it: `node bench/cloud-sync.mjs publish --branch=bench/mode-round-cloud-verdicts C:/Users/Asus/claude-team-moderound/bench/results/judge-hocx.json C:/Users/Asus/claude-team-moderound/bench/results/blind-key-hocx.json C:/Users/Asus/claude-team-moderound/bench/results/outside-check-ho-hocx.json C:/Users/Asus/claude-team-moderound/bench/results/outside-usable-hocx.json`, and the same four files for `hoag2` once Antigravity's held-out check is recorded.
+
+Back on the cloud machine:
+
+- The held-out records first, each into `bench/results` under its own name: `node bench/cloud-sync.mjs fetch --branch=bench/mode-round-cloud-verdicts --path=outside-check-ho-hocx.json --out=bench/results/outside-check-ho-hocx.json`, and the same for the other three files.
+- Then the verdicts: `node bench/cloud-sync.mjs fetch --branch=bench/mode-round-cloud-verdicts --path=codex-judge-mo --out=/root/codex-judge-mo-verdicts`, then `node bench/external-judge.mjs import --round=mo --out=/root/codex-judge-mo-verdicts --as=mocx`. The same for `ag-judge-mo` as `moag`.
+- The logs: `node bench/cloud-sync.mjs fetch --branch=bench/mode-round-cloud-verdicts --path=codex-logs --out=bench/results/codex-logs`, and the same for `ag-logs`.
+- A case that is not usable is re-asked on the PC as above, in the PC's copy of the set; send the verdicts again and fetch them into a new folder before the next import.
 
 ## Values for the runner
 
