@@ -5,9 +5,10 @@
 // permission mode and its tool calls (none may name a blind key), and its transcripts are kept in
 // results/judge-<round>-transcripts/. An unusable attempt (a check failed, or a verdict that does not parse) is saved
 // raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a third unusable attempt
-// is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
-// usage or rate limit, another API error, a session with no result or one that left no transcript stops judging
-// (exit 1) without using an attempt. Judging refuses to start before the round's leak scan is written.
+// is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed in -compacted.json;
+// -edges.json counts how often each setup was the first or last folder of a saved judgment. A usage or rate limit,
+// another API error, a session with no result or one that left no transcript stops judging (exit 1) without using an
+// attempt. Judging refuses to start before the round's leak scan is written.
 // Resumable: a (pair, judge) already saved or left out is skipped, and a resumed job keeps its attempt count.
 // Each judge works in its own temp copy of the pair, with an empty scratch/ folder for probes; the harness deletes
 // that copy when the judge exits, so no judge can change what the next one grades.

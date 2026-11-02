@@ -229,7 +229,7 @@ test('a re-asked case that answers well is usable on its second attempt', t => {
 })
 
 // Codex --json events as `codex exec` logs them: an item per command run, and the agent's messages.
-const command = cmd => ({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command: cmd, aggregated_output: '', exit_code: 0, status: 'completed' } })
+const command = (cmd, output = '') => ({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command: cmd, aggregated_output: output, exit_code: 0, status: 'completed' } })
 const message = text => ({ type: 'item.completed', item: { id: 'item_2', type: 'agent_message', text } })
 
 // Codex's sandbox limits writes, not reads: an attempt whose commands name a blind key or bench/results is unusable.
@@ -255,10 +255,30 @@ test('an attempt whose logged commands name a blind key is unusable and re-asked
   assert.ok(!existsSync(join(logDir, 'case-01-a2.unusable.txt')), 'only commands count, not the agent text')
 })
 
+// Like a parse failure: an error exit stops the run without using the attempt, and its verdict is still moved aside.
+test('a peeking attempt that exits with an error stops the run without using an attempt', t => {
+  const { setDir, logDir } = caseSet(t, ['case-01'])
+  const peeking = fakeCodex([({ last, events }) => {
+    events([command('type C:\\Users\\Asus\\claude-team-moderound\\bench\\results\\blind-key-mo.json')])
+    writeFileSync(last, fenced(GOOD))
+    return { status: 1 }
+  }])
+  assert.throws(() => runCases({ setDir, logDir, values: VALUES, run: peeking.run, log: () => {} }), /case-01 attempt 1: codex exited with 1 and no usable verdict, so no attempt was used/)
+  assert.deepEqual(JSON.parse(readFileSync(join(logDir, 'case-01-a1.verdict.json'), 'utf8')), GOOD)
+  assert.ok(!existsSync(join(logDir, 'case-01-a1.unusable.txt')), 'no attempt used')
+  const clean = fakeCodex([({ last }) => {
+    writeFileSync(last, fenced(GOOD))
+    return { status: 0 }
+  }])
+  const [result] = runCases({ setDir, logDir, values: VALUES, run: clean.run, log: () => {} })
+  assert.equal(clean.calls[0].args[clean.calls[0].args.indexOf('-o') + 1], join(logDir, 'case-01-a2.last.txt'), 'the resume asks a2')
+  assert.equal(result.attempts, 1)
+})
+
 test('an attempt whose commands stay in the case folder is checked as before', t => {
   const { setDir, logDir } = caseSet(t, ['case-01'])
   const { run, calls } = fakeCodex([({ last, events }) => {
-    events([command('cat JUDGE.md'), command('node --test A'), message('bench/results is not mine to read')])
+    events([command('cat JUDGE.md', 'Never read bench/results/blind-key-mo.json.'), command('node --test A'), message('bench/results is not mine to read')])
     writeFileSync(last, fenced(GOOD))
     return { status: 0 }
   }])
