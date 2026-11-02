@@ -18,7 +18,8 @@ const casesOf = (results, roundTag) => readInput(
 // One judge's mode-round import: all its verdicts (judge-<as>.json), a count of usable cases, or nothing.
 function importOf(results, roundTag, as) {
   const judgePath = join(results, `judge-${as}.json`)
-  const again = `import round ${as} again`
+  // importRound refuses while judge-<as>.json or blind-key-<as>.json exists, so the hint moves them aside first.
+  const again = `move judge-${as}.json and blind-key-${as}.json aside, then run node bench/external-judge.mjs import --round=${roundTag} --as=${as} again`
   if (existsSync(judgePath)) {
     const cases = casesOf(results, roundTag)
     const rows = readInput(judgePath, again, 'array')

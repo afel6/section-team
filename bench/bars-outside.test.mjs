@@ -82,8 +82,15 @@ test('label: met, within noise, not outside-confirmed (no outside judge passed i
   assert.equal(labelOf(failed), `met, ${reason}`)
 })
 
+// Reason 2 names only the judges that passed their held-out check, never one that failed it.
+test('label: with no passing judge usable, the reason lists only the judges that passed their held-out check', t => {
+  const results = resultsWith(t, { 'outside-check-ho-hocx.json': PASSED, 'outside-check-ho-hoag2.json': { ...PASSED, passed: false } })
+  assert.equal(labelOf(results), 'met, not outside-confirmed (no passing judge was usable in the mode round (Codex: not used))')
+})
+
 test('label: outside-confirmed when every counting judge confirms; otherwise each disagreeing judge with its count and gap', t => {
   assert.equal(labelOf(resultsWith(t, codexImported(ONES))), 'met, outside-confirmed')
+  assert.equal(labelOf(resultsWith(t, codexImported(ONES)), { ...MET, includesZero: true }), 'met, within noise, outside-confirmed')
   const six = resultsWith(t, codexImported([1, 1, 1, 1, 1, 1, -1, -1, -1]))
   assert.equal(labelOf(six), 'met, not outside-confirmed (Codex disagrees (6 of 9 groups, gap +0.33))')
   const both = resultsWith(t, {
@@ -148,13 +155,15 @@ test('a corrupt outside file stops with one line naming it', t => {
   // A judge-<as>.json or blind-key-<as>.json that does not hold every case stops instead of reading as a disagreement.
   const rows = outsideRows(ONES)
   for (const broken of [{ 'judge-mocx.json': rows.slice(1) }, { 'judge-mocx.json': [] }, { 'blind-key-mocx.json': {} }]) {
-    assert.throws(judgesFrom({ ...codexImported(ONES), ...broken }), /judge-mocx\.json does not hold all 18 cases of external-key-mo\.json: import round mocx again$/)
+    assert.throws(judgesFrom({ ...codexImported(ONES), ...broken }),
+      /judge-mocx\.json does not hold all 18 cases of external-key-mo\.json: move judge-mocx\.json and blind-key-mocx\.json aside, then run node bench\/external-judge\.mjs import --round=mo --as=mocx again$/)
   }
   assert.throws(judgesFrom({ 'outside-check-ho-hocx.json': '{"passed": tr' }), /outside-check-ho-hocx\.json is not valid JSON$/)
   const usable = usable => ({ 'outside-check-ho-hoag2.json': PASSED, 'external-key-mo.json': EXTERNAL_KEY, 'outside-usable-moag.json': { usable, total: 18 } })
   assert.throws(judgesFrom(usable('17')), /outside-usable-moag\.json has no whole "usable" count from 0 to 18$/)
   assert.throws(judgesFrom(usable(19)), /outside-usable-moag\.json has no whole "usable" count from 0 to 18$/)
-  assert.throws(judgesFrom(usable(18)), /outside-usable-moag\.json counts every case usable, but .*judge-moag\.json is missing: import round moag again$/)
+  assert.throws(judgesFrom(usable(18)),
+    /outside-usable-moag\.json counts every case usable, but .*judge-moag\.json is missing: move judge-moag\.json and blind-key-moag\.json aside, then run node bench\/external-judge\.mjs import --round=mo --as=moag again$/)
   const { 'external-key-mo.json': _key, ...noKey } = codexImported(ONES)
   assert.throws(judgesFrom(noKey), /missing .*external-key-mo\.json: run node bench\/external-judge\.mjs prepare --round=mo first$/)
 })
