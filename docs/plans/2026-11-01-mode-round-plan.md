@@ -414,7 +414,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 **Files:** Create `bench/codex-judge.mjs`, `bench/codex-judge.test.mjs`, `bench/outside-run-sheet.md`.
 
 **Interfaces:**
-- Consumes: `parseVerdict` (`bench/judge.mjs`).
+- Consumes: `parseVerdict` and `BLIND_KEY` (`bench/judge.mjs`), `outputMessages` (`bench/clean-run.mjs`).
 - Produces:
   - `CODEX_PROMPT`: a fixed text. You are a blind code reviewer; the current folder is one case; read `JUDGE.md` here and follow it exactly, without asking questions; work only inside this folder; probes only in `scratch/`; never edit, create or delete anything in the solution folders or `SEED`; no network; end with your verdict as one fenced json block.
   - `sheetValues(text) -> { codexBin, model, effort, sandbox }`, from the first fenced `json` block of the run sheet.
@@ -424,7 +424,8 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
     - it runs the cases one at a time and skips any case that has a `verdict.json`;
     - it writes `<logDir>/<case>-a<n>.{jsonl,err,cmd.txt}`;
     - when Codex wrote no `verdict.json` but its last message has a fenced json block, it writes `verdict.json` from that;
-    - a verdict that fails `parseVerdict(text, case, caseLabels(caseDir))` is moved to `<logDir>/<case>-a<n>.verdict.json` and re-asked in a fresh session, at most 2 more times.
+    - a verdict that fails `parseVerdict(text, case, caseLabels(caseDir))` is moved to `<logDir>/<case>-a<n>.verdict.json` and re-asked in a fresh session, at most 2 more times;
+    - so is any verdict of an attempt whose logged `command_execution` commands match `BLIND_KEY` (reason "judge touched a blind key").
   - **CLI:** `node bench/codex-judge.mjs --set=<folder>`. `values` come from `bench/outside-run-sheet.md`, and `logDir = bench/results/codex-logs/<basename of set>/`. It prints one line per case plus `k of n cases usable`, and exits 1 when any case is unusable.
 - **Run sheet:** `bench/outside-run-sheet.md` holds:
   - the procedure for both judges: one new session per case, with only that case's folder as the workspace, memory off; Antigravity by hand, Codex by this runner; a re-ask means a new session on the same case, at most twice;
