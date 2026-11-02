@@ -61,9 +61,11 @@ export function sheetValues(text) {
   return { codexBin, model, effort, sandbox }
 }
 
+// windows.sandbox="unelevated": without it Codex's Windows sandbox is off and read-only or workspace-write reject every
+// command (sandbox probe, 2026-11-02).
 export const codexArgs = ({ caseDir, model, effort, sandbox, lastMessage }) => [
   'exec', '--ephemeral', '--ignore-user-config', '-m', model, '-c', `model_reasoning_effort="${effort}"`, '--disable', 'memories',
-  '--skip-git-repo-check', '-C', caseDir, '-s', sandbox, '--json', '-o', lastMessage, CODEX_PROMPT,
+  '-c', 'windows.sandbox="unelevated"', '--skip-git-repo-check', '-C', caseDir, '-s', sandbox, '--json', '-o', lastMessage, CODEX_PROMPT,
 ]
 
 // The case's solution folders: its single capital letters (SEED and scratch are not solutions), sorted.

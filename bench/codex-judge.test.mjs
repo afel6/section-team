@@ -9,7 +9,6 @@ import { CODEX_PROMPT, caseLabels, codexArgs, runCases, sheetValues } from './co
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const SHEET = join(BENCH, 'outside-run-sheet.md')
-const PLACEHOLDER = '"<set in Task 27>"'
 const VALUES = { codexBin: 'C:/codex/codex.exe', model: 'gpt-6.1-sol', effort: 'ultra', sandbox: 'read-only' }
 const scores = overall => ({ correctness: 8, codeQuality: 7, tests: 6, robustnessSecurity: 7, docsUsability: 5, overall, notes: 'A/x.mjs:1 ok' })
 const GOOD = { A: scores(8), B: scores(6), ranking: ['A', 'B'] }
@@ -48,11 +47,11 @@ const lines = () => {
   return { log: line => logged.push(line), logged }
 }
 
-test('codexArgs carries model, effort, no memories, the case folder and the sandbox', () => {
+test('codexArgs carries model, effort, no memories, the Windows sandbox, the case folder and the sandbox mode', () => {
   const args = codexArgs({ caseDir: 'C:/sets/case-01', model: 'gpt-6.1-sol', effort: 'ultra', sandbox: 'read-only', lastMessage: 'C:/logs/case-01-a1.last.txt' })
   assert.deepEqual(args, [
     'exec', '--ephemeral', '--ignore-user-config', '-m', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="ultra"', '--disable', 'memories',
-    '--skip-git-repo-check', '-C', 'C:/sets/case-01', '-s', 'read-only', '--json', '-o', 'C:/logs/case-01-a1.last.txt', CODEX_PROMPT,
+    '-c', 'windows.sandbox="unelevated"', '--skip-git-repo-check', '-C', 'C:/sets/case-01', '-s', 'read-only', '--json', '-o', 'C:/logs/case-01-a1.last.txt', CODEX_PROMPT,
   ])
   // Frozen with the round: the run-sheet test checks that Antigravity's text block in the sheet is exactly this string.
   assert.equal(CODEX_PROMPT, 'You are a blind code reviewer. The current folder is one case. Read JUDGE.md here and follow it exactly, '
@@ -70,12 +69,14 @@ test('sheetValues reads the json block', () => {
   assert.deepEqual(sheetValues(sheetWith({}) + '\n```json\n{ "model": "later block" }\n```\n'), VALUES)
   for (const sandbox of ['workspace-write', 'danger-full-access']) assert.equal(sheetValues(sheetWith({ sandbox })).sandbox, sandbox)
   const sheet = readFileSync(SHEET, 'utf8')
-  const withSandbox = sheet.replace(/"sandbox":\s*"[^"]*"/, '"sandbox": "read-only"')
-  assert.deepEqual(sheetValues(withSandbox), { ...VALUES, codexBin: 'C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe' })
+  // The frozen sheet holds the sandbox probe's result (read-only).
+  const frozen = sheetValues(sheet)
+  assert.deepEqual(frozen, { ...VALUES, codexBin: 'C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe' })
   assert.equal(sheet.split(/\r?\n/)[0], 'Freeze: tag mo-freeze')
-  // Until the sandbox probe writes a real mode, the frozen sheet refuses to start a run.
-  if (sheet.includes(PLACEHOLDER)) assert.throws(() => sheetValues(sheet), /^Error: the run sheet's sandbox is "<set in Task 27>": set read-only, workspace-write or danger-full-access/)
-  else assert.doesNotThrow(() => sheetValues(sheet))
+  // The sheet's command line is codexArgs with placeholders for the paths and the prompt.
+  const args = codexArgs({ caseDir: '<case folder>', ...frozen, lastMessage: '<log>.last.txt' })
+  const line = ['codex.exe', ...args.slice(0, -1), '"<CODEX_PROMPT>"'].join(' ')
+  assert.ok(sheet.includes('`' + line + '`'), `the run sheet should hold the command line ${line}`)
 })
 
 // The frozen procedure, whole line by whole line, under its section: a change to any of these lines, or a sentence
@@ -336,9 +337,8 @@ test('a judged case whose verdict.json is not usable is skipped and reported, ne
   assert.match(logged[0], /^case-01: not usable: B: missing scores/)
 })
 
-// Starts node, never codex: the sheet is read before the case set, so a placeholder sandbox stops the CLI first; once
-// the probe has set a real sandbox, the missing set stops it before any case is asked.
-test('the CLI prints one line and exits 1 on a bad command line, a placeholder sandbox or a missing set', t => {
+// Starts node, never codex: the missing set stops the CLI before any case is asked.
+test('the CLI prints one line and exits 1 on a bad command line or a missing set', t => {
   const cli = args => spawnSync(process.execPath, [join(BENCH, 'codex-judge.mjs'), ...args], { encoding: 'utf8' })
   const bare = cli([])
   assert.deepEqual([bare.status, bare.stdout], [1, ''])
@@ -349,7 +349,5 @@ test('the CLI prints one line and exits 1 on a bad command line, a placeholder s
   const missing = join(root, 'codex-judge-none')
   const res = cli([`--set=${missing}`])
   assert.deepEqual([res.status, res.stdout], [1, ''])
-  const sheet = readFileSync(SHEET, 'utf8')
-  const expected = sheet.includes(PLACEHOLDER) ? /^codex-judge: the run sheet's sandbox is "<set in Task 27>": [^\n]+\n$/ : /^codex-judge: missing [^\n]+codex-judge-none\n$/
-  assert.match(res.stderr, expected)
+  assert.match(res.stderr, /^codex-judge: missing [^\n]+codex-judge-none\n$/)
 })
