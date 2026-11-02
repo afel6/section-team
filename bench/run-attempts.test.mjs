@@ -301,7 +301,7 @@ test('finishAttempt: a timed-out run with an init and no result writes run.json 
     ...LEAN, dir: RUN_DIR, ...info, sessionId: 'sid-1', attempt: 2, end: 'timeout', subtype: null, resultText: null, pluginCommit: 'c0ffee1',
     sectionTeam: { path: SECTION_TEAM.path, version: '0.2.1' },
     init: { plugins: [...BUILTINS, SECTION_TEAM], mcp_servers: [], ...TEAM_LISTS, claude_code_version: '2.1.296', model: BENCH_MODEL, apiKeySource: 'none' },
-    envNames: ['CLAUDE_CODE_PLUGIN_DIRS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'],
+    envNames: ['CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'],
   })
   assert.deepEqual(readdirSync(outDir), ['run.json'], 'no void.json and no attempts entry')
 })

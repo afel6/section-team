@@ -47,6 +47,7 @@ test('childEnv strips session, model and key variables and sets the round switch
   const before = structuredClone(parent)
   assert.deepEqual(childEnv(parent, { pluginDir: 'C:/w' }), {
     PATH: 'C:/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w',
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
   })
   assert.deepEqual(parent, before)
   // The pattern is anchored: names that only contain a stripped prefix stay.
@@ -66,6 +67,18 @@ test('childEnv and envNames ignore the case of variable names, as Windows does',
     ['Claude_Code_Entrypoint', 'anthropic_api_key', 'enable_claudeai_mcp_servers'])
 })
 
+// claude -p stops background subagents 10 minutes after the last turn unless this is 0 (a probe saw it cut off the
+// testing section's final review); the run's own time limit still bounds the run. The parent's value, in any case, is
+// stripped first, so the child always gets exactly one spelling, set to 0.
+test('childEnv sets CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS to 0 after the strip, whatever the parent set', () => {
+  for (const parent of [{}, { CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '600000' }, { claude_code_print_bg_wait_ceiling_ms: '1' }]) {
+    const child = childEnv({ PATH: '/bin', ...parent }, { pluginDir: '/root/section-team-v0.2.1' })
+    assert.deepEqual(Object.keys(child).filter(name => /^claude_code_print_bg_wait_ceiling_ms$/i.test(name)), ['CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS'])
+    assert.equal(child.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '0')
+  }
+  assert.equal(cleanSettings({ installedKeys: [], sectionTeam: false, pluginDir: 'C:/w' }).env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '0')
+})
+
 // Host-session variables a shell inside the desktop app sets: the child never sees them, run.json names them.
 test('childEnv strips the OAuth, MCP, thinking and Bash timeout variables, in any case, and envNames records them', () => {
   const host = [
@@ -81,13 +94,16 @@ test('childEnv strips the OAuth, MCP, thinking and Bash timeout variables, in an
 
 test('envNames lists the names of the round variables, sorted, never their values', () => {
   assert.deepEqual(envNames(childEnv({ PATH: 'p', HOME: 'h', CLAUDECODE: '1' }, { pluginDir: 'C:/w' })),
-    ['CLAUDE_CODE_PLUGIN_DIRS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])
+    ['CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])
   assert.deepEqual(envNames({ PATH: 'p', CLAUDECODE: '1', ANTHROPIC_MODEL: 'm' }), ['ANTHROPIC_MODEL', 'CLAUDECODE'])
 })
 
 test('cleanSettings: every installed key and plugin-authoring off, synced off, section-team per setup, plugin dir always set', () => {
   const installedKeys = ['caveman@caveman', 'ponytail@ponytail']
-  const env = { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: PLUGIN_DIR }
+  const env = {
+    SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: PLUGIN_DIR,
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+  }
   for (const sectionTeam of [true, false]) {
     assert.deepEqual(cleanSettings({ installedKeys, sectionTeam, pluginDir: PLUGIN_DIR }), {
       syncClaudeAiPlugins: false,

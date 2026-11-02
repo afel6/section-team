@@ -29,9 +29,13 @@ function requirePluginDir(pluginDir, caller) {
   if (typeof pluginDir !== 'string' || pluginDir === '') throw new TypeError(`${caller} needs a pluginDir`)
 }
 
-// The round's switches, set both in the child environment and in --settings.
+// The round's switches, set both in the child environment and in --settings. They are added after the strip, so the
+// parent's own values never reach the child. CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0: claude -p otherwise stops
+// background subagents 10 minutes after the last turn (a probe on 2026-11-02 saw it cut off the testing section's
+// final review); each builder run's time limit still bounds the run.
 const roundEnv = pluginDir => ({
   SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: pluginDir,
+  CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
 })
 
 export function childEnv(parent, { pluginDir } = {}) {

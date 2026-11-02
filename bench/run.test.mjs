@@ -238,7 +238,10 @@ test('builderArgs uses stream-json, model, effort medium, verbose, strict MCP, t
     syncClaudeAiPlugins: false,
     syncClaudeAiSkills: false,
     enabledPlugins: { 'a@market': false, 'b@market': false, 'cc-plugin-plugin-authoring@builtin': false, 'section-team@inline': sectionTeam },
-    env: { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: 'C:/Users/Asus/section-team-v0.2.1' },
+    env: {
+      SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: 'C:/Users/Asus/section-team-v0.2.1',
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    },
   })
   for (const [base, sectionTeam] of [['team', true], ['solo', false]]) {
     const args = builderArgs(base, 'the prompt', OPTIONS)
@@ -336,7 +339,7 @@ test('builderEnv drops session, key and switch variables, sets the round switche
   const parent = { PATH: '/bin', CLAUDECODE: '1', ANTHROPIC_API_KEY: 'k', SECTION_TEAM_AUTO_INSTALL_SKILLS: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/Users/Asus/claude-team' }
   const copy = { ...parent }
   assert.deepEqual(builderEnv(parent, { pluginDir: 'C:/w' }),
-    { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w' })
+    { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w', CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' })
   assert.deepEqual(parent, copy, 'the parent environment is not changed')
   assert.throws(() => builderEnv(parent, {}), /pluginDir/, 'no silent fallback to the live checkout')
 })
