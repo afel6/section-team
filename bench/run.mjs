@@ -110,7 +110,8 @@ function gitLine(args) {
 // Rounds load the plugin from a worktree of PLUGIN_TAG, never the live checkout: --plugin= must be its absolute path,
 // at the tagged commit. Returns that commit, which every run records.
 export function pluginCommitOf(plugin, { git = gitLine } = {}) {
-  if (typeof plugin !== 'string' || !isAbsolute(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
+  // Plugin paths are Windows paths, so path.win32 checks them the same way on any OS.
+  if (typeof plugin !== 'string' || !win32.isAbsolute(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
   const commit = git(['-C', plugin, 'rev-parse', 'HEAD'])
   const tagged = git(['rev-parse', `${PLUGIN_TAG}^{commit}`])
   if (commit !== tagged) throw new Error(`${plugin} is at ${commit}, not at ${PLUGIN_TAG} (${tagged})`)
