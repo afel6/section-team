@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
 import { BENCH_MODEL, PLUGIN_KEY } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
-import { claudeOnPath, copyBinary, pinFor, pinInstalled, preflight, preflightProblems, syncedListing, versionOf } from './preflight.mjs'
+import { claudeOnPath, copyBinary, pinFor, pinInstalled, preflight, preflightProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {
@@ -159,6 +159,18 @@ test('pinInstalled pins the installed CLI in place: its real path, its SHA-256, 
   const noStart = () => ({ error: Object.assign(new Error('spawn EACCES'), { code: 'EACCES' }) })
   assert.throws(() => pinInstalled({ version: VERSION, run: noStart, which }), { message: `could not run ${binary} (EACCES)` })
   assert.throws(() => pinInstalled({ version: '../2', run: noStart, which }), { message: 'pinInstalled takes a version like 2.1.296, got "../2"' })
+})
+
+// A resume on a fresh machine starts from the pushed pin (cloud-sync.mjs restore), so the preflight pushes it at once.
+test('publishPin pushes the round\'s pin file under results/ on the sync branch, and nothing without one', () => {
+  const calls = []
+  const publish = (what, options) => { calls.push([what, options]); return { committed: true, pushed: true } }
+  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: null }, { publish }), false)
+  assert.equal(publishPin({ file: '/x/bench/results/preflight-mo.json', round: 'mo', branch: 'bench/mode-round-cloud-results' }, { publish }), true)
+  assert.deepEqual(calls, [[
+    { items: [{ from: '/x/bench/results/preflight-mo.json', to: 'results/preflight-mo.json' }], message: 'chore(results): pin round mo' },
+    { branch: 'bench/mode-round-cloud-results' },
+  ]])
 })
 
 test('syncedListing lists both synced folders, sorted, and treats a missing folder as empty', t => {

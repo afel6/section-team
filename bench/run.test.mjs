@@ -11,8 +11,8 @@ import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, spawnOptions, taskProblems, userListing,
-  watchUserLists,
+  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  watchUserLists, withPublish,
 } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
@@ -458,6 +458,50 @@ test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff fr
     [top, { diff: ' agents/backend.md | 2 +-' }, `${top} differs from v0.2.1: a batch needs a clean v0.2.1 worktree`],
   ]
   for (const [plugin, out, message] of cases) assert.throws(() => checkPluginWorktree(plugin, { git: gitWith(out) }), { message }, message)
+})
+
+test('parseArgs reads --sync, --no-sync and --redact-email', () => {
+  const args = parseArgs(['--sync=bench/mode-round-cloud-results', '--redact-email'])
+  assert.deepEqual([args.sync, args.noSync, args.redactEmail], ['bench/mode-round-cloud-results', false, true])
+  const none = parseArgs(['--no-sync'])
+  assert.deepEqual([none.sync, none.noSync, none.redactEmail], ['', true, false])
+})
+
+// Off Windows (the cloud machine) the machine can vanish: a round pushes every finished run unless told not to.
+test('syncBranchOf: required off Windows, --no-sync opts out, Windows needs nothing, and a bad name is refused', () => {
+  const branch = 'bench/mode-round-cloud-results'
+  assert.equal(syncBranchOf({ sync: branch, noSync: false }, 'linux'), branch)
+  assert.equal(syncBranchOf({ sync: branch, noSync: false }, 'win32'), branch)
+  assert.equal(syncBranchOf({ sync: '', noSync: false }, 'win32'), null)
+  assert.equal(syncBranchOf({ sync: '', noSync: true }, 'linux'), null)
+  assert.throws(() => syncBranchOf({ sync: '', noSync: false }, 'linux'),
+    { message: 'off Windows a round pushes every finished run: pass --sync=bench/mode-round-cloud-results (or --no-sync to keep results on this machine only)' })
+  assert.throws(() => syncBranchOf({ sync: branch, noSync: true }, 'linux'), { message: '--sync= and --no-sync contradict each other: pass one' })
+  assert.throws(() => syncBranchOf({ sync: '-x', noSync: false }, 'linux'), RangeError)
+})
+
+test('withPublish publishes after every run that left results, finished or stopped, and an email hit outranks the run\'s stop', async t => {
+  const root = tempRoot(t)
+  const outDir = join(root, 'h4-solo-mo-r1')
+  const calls = []
+  const done = async () => { mkdirSync(outDir, { recursive: true }); calls.push('run') }
+  const stopped = async () => { mkdirSync(outDir, { recursive: true }); throw new BatchStop('h4-solo-mo-r1: usage limit') }
+  const publish = (run, dir) => calls.push(`publish ${run.id} ${dir === outDir}`)
+  const run = { id: 'h4-solo-mo-r1' }
+  await withPublish(done, publish)(run, outDir)
+  await assert.rejects(withPublish(stopped, publish)(run, outDir), { name: 'BatchStop' })
+  assert.deepEqual(calls, ['run', 'publish h4-solo-mo-r1 true', 'publish h4-solo-mo-r1 true'])
+  calls.length = 0
+  await assert.rejects(withPublish(async () => { throw new Error('no folder') }, publish)(run, join(root, 'none')), { message: 'no folder' })
+  assert.deepEqual(calls, [], 'nothing to publish without results')
+  const emailFound = () => { throw Object.assign(new Error('the account email is in x'), { name: 'EmailFound' }) }
+  await assert.rejects(withPublish(stopped, emailFound)(run, outDir), { name: 'EmailFound' })
+  const lines = []
+  const pushFailed = () => { throw Object.assign(new Error('could not push'), { name: 'PushFailed' }) }
+  await assert.rejects(withPublish(stopped, pushFailed, { log: line => lines.push(line) })(run, outDir), { name: 'BatchStop' })
+  assert.deepEqual(lines, ['h4-solo-mo-r1: could not push'])
+  await assert.rejects(withPublish(done, pushFailed)(run, outDir), { name: 'BatchStop', message: 'batch stopped: h4-solo-mo-r1: could not push; resume once the network is back (the resume pushes first)' })
+  assert.equal(withPublish(done, null), done, 'no sync, no wrapper')
 })
 
 test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {

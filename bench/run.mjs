@@ -6,8 +6,11 @@
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
 // Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
 // Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] --conds=solo,lean,team,max
-//          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [id-substring ...]
+//          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
+//          [id-substring ...]
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given)
+//        --sync: after every run that finished or stopped, its results and solution folders are committed to <branch> and
+//        pushed (cloud-sync.mjs); required off Windows, where the machine can vanish, unless --no-sync says otherwise
 //        exit 1: harness or evidence error; stop and report, do not resume
 //        exit 2: the batch stopped (resume to rerun); exit 3: the round stopped (fix the cause as a harness bug first)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
@@ -26,6 +29,7 @@ import {
 import {
   BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
 } from './run-attempts.mjs'
+import { checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
 import { MEMORY_ROOT, backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
@@ -87,6 +91,9 @@ export function parseArgs(argv) {
     plugin: opt('plugin') ?? '',
     rerun: opt('rerun')?.split(',') ?? [],
     reason: opt('reason') ?? '',
+    sync: opt('sync') ?? '',
+    noSync: argv.includes('--no-sync'),
+    redactEmail: argv.includes('--redact-email'),
   }
   // An empty round or tag means none; an empty task (--tasks=h1,) or rerun id is an error.
   const named = [['round', args.round], ['tag', args.tag]].filter(([, value]) => value !== '')
@@ -101,6 +108,40 @@ export function parseArgs(argv) {
 // The preflight names the round's pin by --round and the run ids carry --tag: both must name the same round.
 export function checkRoundTag({ round, tag }) {
   if (round && tag && round !== tag) throw new RangeError(`--round=${round} and --tag=${tag} must match`)
+}
+
+// The branch every finished run is pushed to, or null. Required off Windows (the cloud machine can vanish) unless
+// --no-sync; Windows behaves as before without it.
+export function syncBranchOf({ sync, noSync }, platform = process.platform) {
+  if (sync !== '' && noSync) throw new Error('--sync= and --no-sync contradict each other: pass one')
+  if (sync !== '') return checkBranch(sync)
+  if (noSync || platform === 'win32') return null
+  throw new Error('off Windows a round pushes every finished run: pass --sync=bench/mode-round-cloud-results (or --no-sync to keep results on this machine only)')
+}
+
+// One run, then its results and solution folders published (cloud-sync.mjs publishRun) whether it finished or stopped.
+// An account-email hit outranks the run's own stop (exit 1: stop and report). A failed push after a finished run
+// stops the batch; after a stopped run it is said with log and the run's own stop stands.
+export function withPublish(one, publish, { log = console.error } = {}) {
+  if (publish === null) return one
+  return async (run, outDir) => {
+    let failure = null
+    try {
+      await one(run, outDir)
+    } catch (err) {
+      failure = err
+    }
+    if (existsSync(outDir)) {
+      try {
+        publish(run, outDir)
+      } catch (err) {
+        if (err.name === 'EmailFound') throw err
+        if (failure === null) throw err.name === 'PushFailed' ? new BatchStop(`${run.id}: ${err.message}; resume once the network is back (the resume pushes first)`) : err
+        log(`${run.id}: ${err.message}`)
+      }
+    }
+    if (failure !== null) throw failure
+  }
 }
 
 // One git command's trimmed output, run from the repo root; a failure is one line naming the command.
@@ -412,8 +453,9 @@ export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSe
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, round, conds, tasks, reps, filters, plugin, rerun, reason } = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, plugin, rerun, reason, sync, noSync, redactEmail } = parseArgs(argv)
   checkRoundTag({ round, tag })
+  const syncBranch = syncBranchOf({ sync, noSync })
   // Every run reads its round's pin by the tag, so a run without one cannot start.
   if (tag === '') throw new Error('--tag= names the round and its preflight pin, e.g. --tag=mo')
   checkConds(conds)
@@ -428,8 +470,24 @@ async function main() {
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
-  await runAll(todo, { runOne: watchUserLists((r, o) => runOne(r, o, ctx)) })
+  const publish = syncBranch === null ? null : await publisher({ branch: syncBranch, redactEmail })
+  await runAll(todo, { runOne: watchUserLists(withPublish((r, o) => runOne(r, o, ctx), publish)) })
   console.log('all runs finished')
+}
+
+// cloud-sync.mjs imports this module, so it is loaded only when a batch syncs. Commits a stopped batch left unpushed go
+// out first; a push that still fails stops the batch before any run.
+async function publisher(options) {
+  const { publishRun, pushPending } = await import('./cloud-sync.mjs')
+  try {
+    if (pushPending(options)) console.log(`pushed the results a stopped batch left on ${options.branch}`)
+  } catch (err) {
+    throw err.name === 'PushFailed' ? new BatchStop(`${err.message}; resume once the network is back`) : err
+  }
+  return (run, outDir) => {
+    const { pushed } = publishRun({ id: run.id, outDir, runDir: runFolder(run) }, options)
+    if (pushed) console.log(`${new Date().toISOString()} pushed ${run.id} to ${options.branch}`)
+  }
 }
 
 // Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
