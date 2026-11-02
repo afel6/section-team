@@ -5,11 +5,12 @@
 // Usage: node bench/mode-check.mjs --round=mo   (writes results/mode-check-<round>.json and prints one line per run)
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { basename, join, relative, sep, win32 } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 import { GATES, parseModeFile } from '../hooks/lib/mode.mjs'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
+import { insideFolder } from './os-paths.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
 
@@ -83,11 +84,9 @@ const FILE_WRITERS = ['Write', 'Edit', 'MultiEdit']
 const SHELLS = ['Bash', 'PowerShell']
 
 // A tool's file_path as a runDir-relative posix path, or null when it lies outside runDir (or is runDir itself).
-// Transcript paths and run folders are Windows paths, so path.win32 reads them the same way on any OS (CI runs Ubuntu).
-function insideRunDir(runDir, path) {
-  const rel = win32.relative(win32.resolve(runDir), win32.resolve(runDir, String(path ?? '')))
-  return rel === '' || rel.split(win32.sep)[0] === '..' || win32.isAbsolute(rel) ? null : toPosix(rel)
-}
+// Windows run folders and transcript paths read as Windows paths on any OS (CI runs Ubuntu); Linux ones (the cloud
+// machine) as POSIX paths, case for case (os-paths.mjs).
+const insideRunDir = (runDir, path) => insideFolder(runDir, String(path ?? ''))
 
 // A shell command that names .team/near-miss in either slash direction, as the folder itself (.team/near-miss,
 // .team/near-miss/x, ".team\near-miss") and not a longer name (.team/near-missing, .team/near-miss-old).

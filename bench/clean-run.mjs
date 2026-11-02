@@ -4,7 +4,11 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join, win32 } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { isAbsolutePath, isUnder, samePath } from './os-paths.mjs'
+
+export { isUnder } from './os-paths.mjs'
 
 export const PLUGIN_KEY = 'section-team@inline'
 export const BENCH_MODEL = 'claude-opus-5-5'
@@ -12,6 +16,10 @@ export const BENCH_EFFORT = 'medium'
 export const SECTION_TEAM_VERSION = '0.2.1'
 // The user's own checkout: no round run may load anything from it.
 export const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
+// On Linux (the cloud machine) the user's checkout is the one running the harness: its plugin files are not the pinned
+// worktree's. The Windows path stays in the list, where nothing on Linux can be under it.
+const HARNESS_CHECKOUT = dirname(dirname(fileURLToPath(import.meta.url)))
+export const liveCheckouts = (platform = process.platform) => (platform === 'win32' ? [LIVE_CHECKOUT] : [LIVE_CHECKOUT, HARNESS_CHECKOUT])
 const PLUGIN_AUTHORING = 'cc-plugin-plugin-authoring@builtin'
 const SETUPS = ['solo', 'lean', 'team', 'max', 'judge']
 const BUILDERS = ['lean', 'team', 'max']
@@ -47,12 +55,15 @@ export function childEnv(parent, { pluginDir } = {}) {
 // The names (never the values) that run.json records.
 export const envNames = env => Object.keys(env).filter(name => RECORDED.test(name)).sort()
 
-export function installedPluginKeys(home = homedir()) {
+// A clean Linux home (the cloud machine) has never installed a plugin and has no installed_plugins.json: no keys there.
+// On Windows a missing file still fails, as before.
+export function installedPluginKeys(home = homedir(), { platform = process.platform } = {}) {
   const path = join(home, '.claude', 'plugins', 'installed_plugins.json')
   let plugins
   try {
     plugins = JSON.parse(readFileSync(path, 'utf8'))?.plugins
   } catch (err) {
+    if (err.code === 'ENOENT' && platform !== 'win32') return []
     throw new Error(`cannot read installed plugins: ${path} (${err.code ?? err.name})`, { cause: err })
   }
   if (!isObject(plugins)) throw new Error(`cannot read installed plugins: ${path} (no plugins object)`)
@@ -100,18 +111,6 @@ export function outputMessages(stdout) {
 export const initOf = messages => messages.find(m => m?.type === 'system' && m.subtype === 'init') ?? null
 export const resultOf = messages => messages.findLast(m => m?.type === 'result') ?? null
 
-// p relative to folder, compared case-insensitively; null when p is not an absolute path (built-ins have 'builtin').
-// Init paths are Windows paths, so path.win32 compares them the same way on any OS.
-function relativeTo(p, folder) {
-  if (typeof p !== 'string' || !win32.isAbsolute(p)) return null
-  return win32.relative(win32.resolve(folder).toLowerCase(), win32.resolve(p).toLowerCase())
-}
-
-export function isUnder(p, folder) {
-  const rel = relativeTo(p, folder)
-  return rel === '' || (rel !== null && !rel.startsWith('..') && !win32.isAbsolute(rel))
-}
-
 // One line when two lists differ as sets, naming what is extra and what is missing.
 function setProblems(label, actual, expected) {
   const actualSet = new Set(actual)
@@ -127,16 +126,18 @@ function loadedOnceProblems(entries, pluginDir) {
   if (entries.length !== 1) return [`expected 1 section-team plugin, found ${entries.length}`]
   const [{ path, version }] = entries
   return [
-    ...(relativeTo(path, pluginDir) === '' ? [] : [`section-team path ${path}, expected ${pluginDir}`]),
+    ...(isAbsolutePath(path) && samePath(path, pluginDir) ? [] : [`section-team path ${path}, expected ${pluginDir}`]),
     ...(version === SECTION_TEAM_VERSION ? [] : [`section-team version ${version}, expected ${SECTION_TEAM_VERSION}`]),
   ]
 }
 
-// Any plugin entry under the live checkout fails, whatever its source (the stricter reading of the spec).
+// Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec).
 function sectionTeamProblems(plugins, setup, pluginDir) {
   const entries = plugins.filter(p => p?.source === PLUGIN_KEY)
-  const live = plugins.filter(p => isUnder(p?.path, LIVE_CHECKOUT))
-  const fromLive = live.length > 0 ? [`loaded from the live checkout ${LIVE_CHECKOUT}: ${live.map(p => p.source).join(', ')}`] : []
+  const fromLive = liveCheckouts().flatMap(dir => {
+    const live = plugins.filter(p => isUnder(p?.path, dir))
+    return live.length > 0 ? [`loaded from the live checkout ${dir}: ${live.map(p => p.source).join(', ')}`] : []
+  })
   if (BUILDERS.includes(setup)) return [...loadedOnceProblems(entries, pluginDir), ...fromLive]
   return [...(entries.length > 0 ? [`section-team loaded in ${setup}`] : []), ...fromLive]
 }

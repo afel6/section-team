@@ -249,7 +249,8 @@ test('max run whose copies are gone counts any testing-section write into .team/
   const testing = lines => section('testing', 't1', [userLine(1.5, 'job'), ...lines])
   const check = lines => checkRun({ cond: 'max-mo', task: 'h5', roles: [...maxH5(), testing(lines)], runDir: dir, record: 'max' }).broken
   assert.deepEqual(check([]), NONE)
-  assert.deepEqual(check([write(3, `${dir}\\.team\\near-miss\\1-range.mjs`)]), [])
+  // A backslash separates folders only on Windows; on Linux it is part of a file name, beside the run folder.
+  assert.deepEqual(check([write(3, `${dir}\\.team\\near-miss\\1-range.mjs`)]), process.platform === 'win32' ? [] : NONE)
   assert.deepEqual(check([write(3, join(dir, '.team', 'near-miss', '1-range.mjs'), 'Edit')]), [])
   assert.deepEqual(check([write(3, '.team/near-miss/1-range.mjs', 'MultiEdit')]), [])
   assert.deepEqual(check([toolLine(3, 'Bash', { command: 'cp src/range.mjs .team/near-miss/1-range.mjs' })]), [])
@@ -269,6 +270,18 @@ test('max run whose copies are gone counts any testing-section write into .team/
   assert.deepEqual(shell('Bash', 'ls .team/near-miss_list'), NONE)
   const byMain = [main_(wake(1, 'testing'), wake(2, 'security'), write(3, `${dir}/.team/near-miss/1-range.mjs`)), ...reviews(null, [[6, 9.5]])]
   assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: byMain, runDir: dir, record: 'max' }).broken, NONE)
+})
+
+// Linux runs (the cloud machine) write POSIX paths into their transcripts, and the run folder is a POSIX path.
+test('mode-check reads Linux transcript paths case for case inside a Linux run folder', { skip: process.platform === 'win32' && 'Linux paths' }, t => {
+  const dir = runDir(t, modeFile('max'))
+  const NONE = ['no near-miss copy in .team/near-miss/']
+  const testing = lines => section('testing', 't1', [userLine(1.5, 'job'), ...lines])
+  const check = lines => checkRun({ cond: 'max-mo', task: 'h5', roles: [...maxH5(), testing(lines)], runDir: dir, record: 'max' }).broken
+  assert.deepEqual(check([write(3, `${dir}/.team/near-miss/1-range.mjs`)]), [])
+  assert.deepEqual(check([write(3, `${dir.toUpperCase()}/.team/near-miss/1-range.mjs`)]), NONE, 'another folder on Linux')
+  const h4 = checkRun({ cond: 'team-mo', task: 'h4', roles: teamH4(dir, [write(20, `${dir}/src/server.mjs`, 'Edit'), write(21, `${dir}-attempt-1/src/x.mjs`)]), runDir: dir, record: 'balanced' })
+  assert.deepEqual(h4.broken, ['.team/mode.json present (a team run has none)', 'main wrote src/server.mjs'])
 })
 
 test('lean run whose mode.json says balanced at the end is unfaithful', t => {

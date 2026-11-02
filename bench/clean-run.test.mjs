@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   BENCH_EFFORT, BENCH_MODEL, LIVE_CHECKOUT, PLUGIN_KEY, SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, compacted,
-  effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, outputMessages, readPin, resultOf,
+  effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckouts, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
 
 // A temp folder removed after the test, even when the test fails.
@@ -265,7 +265,7 @@ test('compacted finds a compact_boundary line', () => {
 test('installedPluginKeys fails with the path on a bad file', t => {
   const home = tempRoot(t)
   const file = join(home, '.claude', 'plugins', 'installed_plugins.json')
-  assert.throws(() => installedPluginKeys(home), { message: `cannot read installed plugins: ${file} (ENOENT)` })
+  assert.throws(() => installedPluginKeys(home, { platform: 'win32' }), { message: `cannot read installed plugins: ${file} (ENOENT)` })
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, '{ "version": 2, "plugins": ')
   assert.throws(() => installedPluginKeys(home), { message: `cannot read installed plugins: ${file} (SyntaxError)` })
@@ -273,6 +273,46 @@ test('installedPluginKeys fails with the path on a bad file', t => {
   assert.throws(() => installedPluginKeys(home), { message: `cannot read installed plugins: ${file} (no plugins object)` })
   writeFileSync(file, JSON.stringify({ version: 2, plugins: { 'caveman@caveman': [{ scope: 'user' }], 'ponytail@ponytail': [] } }))
   assert.deepEqual(installedPluginKeys(home), ['caveman@caveman', 'ponytail@ponytail'])
+})
+
+// A clean Linux home (the cloud machine) has never installed a plugin, so it has no installed_plugins.json: no keys.
+// Windows keeps refusing a missing file. Only a missing file counts; a bad one still fails on every platform.
+test('installedPluginKeys on Linux reads a missing file as no installed plugins', t => {
+  const home = tempRoot(t)
+  assert.deepEqual(installedPluginKeys(home, { platform: 'linux' }), [])
+  const file = join(home, '.claude', 'plugins', 'installed_plugins.json')
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, '{')
+  assert.throws(() => installedPluginKeys(home, { platform: 'linux' }), { message: `cannot read installed plugins: ${file} (SyntaxError)` })
+})
+
+// On Linux the harness's own checkout is the live checkout: the plugin files in it are the user's, not the pinned worktree.
+test('liveCheckouts: the Windows live checkout everywhere, plus this checkout on Linux', () => {
+  const repo = dirname(import.meta.dirname)
+  assert.deepEqual(liveCheckouts('win32'), [LIVE_CHECKOUT])
+  assert.deepEqual(liveCheckouts('linux'), [LIVE_CHECKOUT, repo])
+})
+
+const LINUX_PLUGIN_DIR = '/root/section-team-v0.2.1'
+const LINUX_SECTION_TEAM = { ...SECTION_TEAM, path: LINUX_PLUGIN_DIR }
+
+test('initProblems accepts a Linux worktree path and compares it case for case', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
+  const linuxInit = init({ plugins: [...BUILTINS, LINUX_SECTION_TEAM] })
+  const pin = { ...PIN, pluginDir: LINUX_PLUGIN_DIR }
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: LINUX_PLUGIN_DIR }), [])
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: `${LINUX_PLUGIN_DIR}/` }), [])
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: '/root/Section-Team-v0.2.1' }),
+    [`section-team path ${LINUX_PLUGIN_DIR}, expected /root/Section-Team-v0.2.1`])
+})
+
+test('initProblems on Linux refuses a plugin loaded from this checkout, the live one there', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
+  const repo = dirname(import.meta.dirname)
+  const fromRepo = { name: 'section-team', path: repo, source: 'section-team@local', version: '0.2.1' }
+  const solo = init({ plugins: [...BUILTINS, fromRepo], ...SOLO_LISTS })
+  assert.deepEqual(initProblems(solo, { setup: 'solo', pin: PIN, pluginDir: LINUX_PLUGIN_DIR }), [
+    `loaded from the live checkout ${repo}: section-team@local`,
+    'plugins differ from the pin (extra: section-team@local; missing: none)',
+  ])
 })
 
 test('readPin reads the round pin and names the preflight command when it is missing', t => {

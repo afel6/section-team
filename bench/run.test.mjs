@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { EventEmitter, once } from 'node:events'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,7 +11,7 @@ import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, taskProblems, userListing,
+  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, spawnOptions, taskProblems, userListing,
   watchUserLists,
 } from './run.mjs'
 
@@ -358,14 +358,64 @@ test('pluginCommitOf refuses a missing or relative --plugin and a worktree not a
   assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', 'v0.2.1^{commit}']])
 })
 
+// Every killTree test passes its platform and a fake kill or execFile: a real signal to pid 42's group could stop a
+// process of this machine.
+const NO_KILL = () => assert.fail('the Windows path never signals a process group')
+const NO_TASKKILL = () => assert.fail('the Linux path never runs taskkill')
+
 test('killTree is quiet when the process is already gone, and says so when it could not stop it', () => {
   const lines = []
   const gone = () => { throw Object.assign(new Error('not found'), { status: 128 }) }
-  killTree({ pid: 42 }, { execFile: gone, log: line => lines.push(line) })
+  killTree({ pid: 42 }, { execFile: gone, kill: NO_KILL, platform: 'win32', log: line => lines.push(line) })
   assert.deepEqual(lines, [])
   const denied = () => { throw Object.assign(new Error('Access is denied'), { status: 1 }) }
-  killTree({ pid: 42 }, { execFile: denied, log: line => lines.push(line) })
+  killTree({ pid: 42 }, { execFile: denied, kill: NO_KILL, platform: 'win32', log: line => lines.push(line) })
   assert.deepEqual(lines, ['could not stop claude (pid 42): Access is denied'])
+})
+
+// Linux has no taskkill: the run's claude leads its own process group (spawnOptions), and the whole group is killed,
+// so a run's servers and test processes stop with it at its time limit.
+test('killTree on Linux kills the child\'s process group, quietly when it is gone, and says when it could not', () => {
+  const signals = []
+  const lines = []
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: (pid, signal) => signals.push([pid, signal]), platform: 'linux', log: line => lines.push(line) })
+  assert.deepEqual(signals, [[-42, 'SIGKILL']])
+  const gone = () => { throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' }) }
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: gone, platform: 'linux', log: line => lines.push(line) })
+  assert.deepEqual(lines, [])
+  const denied = () => { throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' }) }
+  killTree({ pid: 42 }, { execFile: NO_TASKKILL, kill: denied, platform: 'linux', log: line => lines.push(line) })
+  assert.deepEqual(lines, ['could not stop claude (pid 42): kill EPERM'])
+})
+
+// A process is gone once /proc has no entry for it, or only a zombie that its new parent has not reaped yet.
+const procGone = pid => {
+  try {
+    return readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1]?.startsWith('Z') ?? true
+  } catch {
+    return true
+  }
+}
+
+// The real thing, not a fake: a run's time limit only binds if the kill reaches what claude started.
+test('killTree on Linux stops a child started with spawnOptions and the process that child started', { skip: process.platform !== 'linux' && 'Linux process groups', timeout: 15_000 }, async () => {
+  const script = "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); console.log(g.pid); setInterval(() => {}, 1000)"
+  const child = spawn(process.execPath, ['-e', script], spawnOptions(tmpdir(), process.env))
+  const [line] = await once(child.stdout, 'data')
+  const grandchild = Number(String(line).trim())
+  assert.equal(procGone(grandchild), false, 'the grandchild runs before the kill')
+  const closed = once(child, 'close')
+  killTree(child)
+  const [code, signal] = await closed
+  assert.deepEqual([code, signal], [null, 'SIGKILL'])
+  for (let i = 0; i < 50 && !procGone(grandchild); i++) await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(procGone(grandchild), true, 'the grandchild is stopped with the group')
+})
+
+test('spawnOptions starts claude in its own process group on Linux, and as before on Windows', () => {
+  const env = { PATH: '/bin' }
+  assert.deepEqual(spawnOptions('/root/run', env, 'linux'), { cwd: '/root/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
+  assert.deepEqual(spawnOptions('C:/run', env, 'win32'), { cwd: 'C:/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 })
 
 test('isolateSectionMemory stops the running claude before it puts the memory back', t => {
@@ -387,6 +437,16 @@ test('checkPluginWorktree accepts the clean worktree root, whatever its slashes 
   const git = args => { calls.push(args); return args.includes('--show-toplevel') ? 'C:/Users/Asus/section-team-v0.2.1' : '' }
   assert.doesNotThrow(() => checkPluginWorktree(plugin, { git }))
   assert.deepEqual(calls, [['-C', plugin, 'rev-parse', '--show-toplevel'], ['-C', plugin, 'status', '--porcelain'], ['-C', plugin, 'diff', '--stat', 'v0.2.1']])
+})
+
+test('pluginCommitOf and checkPluginWorktree take a Linux worktree path and compare it case for case', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
+  const top = '/root/section-team-v0.2.1'
+  const git = args => (args.includes('--show-toplevel') ? top : args.includes('HEAD') || args.includes('v0.2.1^{commit}') ? 'bbb' : '')
+  assert.equal(pluginCommitOf(top, { git }), 'bbb')
+  assert.throws(() => pluginCommitOf('\\rooted', { git }), { message: '--plugin= takes the absolute path of the v0.2.1 worktree, got "\\rooted"' })
+  assert.doesNotThrow(() => checkPluginWorktree(`${top}/`, { git }))
+  assert.throws(() => checkPluginWorktree('/root/Section-Team-v0.2.1', { git }),
+    { message: `--plugin= must be the worktree's root folder ${top}, got /root/Section-Team-v0.2.1` })
 })
 
 test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff from v0.2.1, in one line each', () => {
@@ -548,7 +608,7 @@ test('runOne spawns the pinned binary with builderArgs for its own session id, a
   assert.equal(command, pin.binary, 'the pinned binary, never claude from PATH')
   assert.ok(args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'easy.md'), 'utf8')), 'the task prompt')
   assert.deepEqual(args, builderArgs('solo', args[1], { sessionId: first.sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir }))
-  assert.deepEqual([options.cwd, options.env], [dir, builderEnv(process.env, { pluginDir: ctx.pluginDir })])
+  assert.deepEqual(options, spawnOptions(dir, builderEnv(process.env, { pluginDir: ctx.pluginDir })))
   const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
   assert.deepEqual([record.end, record.sessionId, record.attempt, record.exitCode, record.pluginCommit], ['ok', first.sessionId, 1, 0, 'c0ffee1'])
   assert.ok(existsSync(join(outDir, 'evidence', `${first.sessionId}.jsonl`)), 'the session transcript is copied')
@@ -674,4 +734,14 @@ test('checkPin refuses a --plugin other than the pinned worktree and a binary wh
   assert.throws(() => checkPin(pin.pluginDir, pin), { message: `${binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round` })
   rmSync(binary)
   assert.throws(() => checkPin(pin.pluginDir, pin), { message: `cannot read ${binary} (ENOENT)` })
+})
+
+test('checkPin on Linux compares the worktree path case for case', { skip: process.platform === 'win32' && 'Linux paths' }, t => {
+  const root = tempRoot(t)
+  const binary = join(root, 'claude.exe')
+  writeFileSync(binary, 'claude bytes')
+  const pin = { binary, sha256: createHash('sha256').update('claude bytes').digest('hex'), pluginDir: '/root/section-team-v0.2.1' }
+  assert.doesNotThrow(() => checkPin('/root/section-team-v0.2.1/', pin))
+  assert.throws(() => checkPin('/root/Section-Team-v0.2.1', pin),
+    { message: '--plugin=/root/Section-Team-v0.2.1 is not the worktree the round pinned: pass --plugin=/root/section-team-v0.2.1' })
 })

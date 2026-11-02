@@ -15,7 +15,7 @@ import { spawn as nodeSpawn, execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
@@ -26,6 +26,7 @@ import {
 import {
   BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
 } from './run-attempts.mjs'
+import { isAbsolutePath, samePath } from './os-paths.mjs'
 import { MEMORY_ROOT, backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -115,8 +116,8 @@ function gitLine(args) {
 // Rounds load the plugin from a worktree of PLUGIN_TAG, never the live checkout: --plugin= must be its absolute path,
 // at the tagged commit. Returns that commit, which every run records.
 export function pluginCommitOf(plugin, { git = gitLine } = {}) {
-  // Plugin paths are Windows paths, so path.win32 checks them the same way on any OS.
-  if (typeof plugin !== 'string' || !win32.isAbsolute(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
+  // Windows paths on Windows (and drive-letter paths anywhere); POSIX paths on Linux (os-paths.mjs).
+  if (!isAbsolutePath(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
   const commit = git(['-C', plugin, 'rev-parse', 'HEAD'])
   const tagged = git(['rev-parse', `${PLUGIN_TAG}^{commit}`])
   if (commit !== tagged) throw new Error(`${plugin} is at ${commit}, not at ${PLUGIN_TAG} (${tagged})`)
@@ -126,14 +127,14 @@ export function pluginCommitOf(plugin, { git = gitLine } = {}) {
 // Before each batch the worktree is clean and matches PLUGIN_TAG, and --plugin= is its root folder, not a subfolder.
 export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
   const top = git(['-C', plugin, 'rev-parse', '--show-toplevel'])
-  if (win32.resolve(top).toLowerCase() !== win32.resolve(plugin).toLowerCase()) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
+  if (!samePath(top, plugin)) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
   if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${PLUGIN_TAG} worktree`)
   if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
 }
 
 // The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed.
 export function checkPin(plugin, pin) {
-  if (win32.resolve(plugin).toLowerCase() !== win32.resolve(String(pin.pluginDir)).toLowerCase()) {
+  if (!samePath(plugin, String(pin.pluginDir))) {
     throw new Error(`--plugin=${plugin} is not the worktree the round pinned: pass --plugin=${pin.pluginDir}`)
   }
   if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round`)
@@ -258,14 +259,23 @@ export function prepareRun(run, { dir = runFolder(run), root = RUNS, seeds = SEE
 let activeChild = null
 const stopActiveChild = () => { if (activeChild) activeChild.kill(activeChild.child) }
 // taskkill exits 128 when the process is already gone; any other failure is said, since a live claude could still
-// write while section memory is put back.
-export function killTree(child, { execFile = execFileSync, log = console.error } = {}) {
+// write while section memory is put back. Linux has no taskkill: claude leads its own process group (spawnOptions),
+// so the whole group gets SIGKILL, as /F forces on Windows; ESRCH means it is already gone.
+export function killTree(child, { execFile = execFileSync, kill = process.kill, platform = process.platform, log = console.error } = {}) {
   try {
-    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    if (platform === 'win32') execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    else kill(-child.pid, 'SIGKILL')
   } catch (err) {
-    if (err.status !== 128) log(`could not stop claude (pid ${child.pid}): ${err.message}`)
+    const gone = platform === 'win32' ? err.status === 128 : err.code === 'ESRCH'
+    if (!gone) log(`could not stop claude (pid ${child.pid}): ${err.message}`)
   }
 }
+
+// How a builder's claude starts. On Linux it leads a new process group, so killTree can stop the servers and test
+// processes it started too; Windows keeps its options (taskkill /T follows the tree).
+export const spawnOptions = (cwd, env, platform = process.platform) => ({
+  cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...(platform === 'win32' ? {} : { detached: true }),
+})
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
 // Resolves once raw.json and stderr.txt are flushed, so the caller can read them. At timeoutMs it kills the child.
@@ -276,7 +286,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
   const args = builderArgs(base, prompt, { sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
   return new Promise((resolve, reject) => {
     const started = Date.now()
-    const child = spawn(binary, args, { cwd: dir, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(binary, args, spawnOptions(dir, env))
     activeChild = { child, kill }
     const outFile = createWriteStream(join(outDir, 'raw.json'))
     const errFile = createWriteStream(join(outDir, 'stderr.txt'))
