@@ -9,7 +9,7 @@ import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { childEnv, cleanSettings, commonArgs } from './clean-run.mjs'
 import {
-  ALLOWED, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions, mirrorSwap, parseVerdict, pendingJobs,
+  ALLOWED, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions, mirrorSwap, parseVerdict, pendingJobs,
   prepareJob, runJobs, unswap, withCopy,
 } from './judge.mjs'
 import { projectDirFor } from './run-attempts.mjs'
@@ -93,6 +93,16 @@ test('parseVerdict throws on a ranking that repeats a label', () => {
 
 test('parseVerdict throws on text with no JSON', () => {
   assert.throws(() => parseVerdict('Both solutions look fine.', 'h1-r1', LABELS), /json/)
+})
+
+// The reason goes into -reasks.json, -left-out.json and the log lines: one line, even when Node quotes the bad text.
+test('parseVerdict says on one line why the json block does not parse', () => {
+  const broken = '```json\n{\n  "X": {\n    "correctness": oops\n  }\n}\n```'
+  assert.throws(() => parseVerdict(broken, 'h1-r1', LABELS), err => {
+    assert.match(err.message, /^judge json does not parse: \S/)
+    assert.doesNotMatch(err.message, /\s{2}|[\r\n\t]/)
+    return true
+  })
 })
 
 test('pendingJobs lists every (pair, judge) not yet in the rows, pair by pair', () => {
@@ -323,8 +333,10 @@ test('runJobs reads a verdict from a lone result object too', async t => {
 test('judges run the round model and effort, verbose json, only the judge tools, and clean settings with section-team off', () => {
   const opts = { sessionId: 'sid-1', installedKeys: ['a@market'], pluginDir: 'C:/plug' }
   const args = judgeArgs('the prompt', opts)
+  // --permission-mode default: only ALLOWED runs, whatever the user's own default mode (Claude Code 2.1.296 accepts
+  // "default" although its --help lists "manual"; an unknown mode is refused before any session starts).
   assert.deepEqual(args, [
-    '-p', 'the prompt', '--output-format', 'json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId: 'sid-1' }),
+    '-p', 'the prompt', '--output-format', 'json', '--allowedTools', ALLOWED, '--permission-mode', 'default', ...commonArgs({ sessionId: 'sid-1' }),
     '--settings', JSON.stringify(cleanSettings({ installedKeys: ['a@market'], sectionTeam: false, pluginDir: 'C:/plug' })),
   ])
   const at = flag => args[args.indexOf(flag) + 1]
@@ -408,6 +420,27 @@ test('edgeCounts counts first and last folders per setup', () => {
   assert.throws(() => edgeCounts({ 'h4-r1': key['h4-r1'] }, jobs), /h5-r1/)
 })
 
+// edges.json counts the judgments that were saved, not the planned ones: a left-out job is not a judgment.
+test('countedEdges counts only the planned jobs that have a saved row', () => {
+  const key = { 'h4-r1': { X: 'solo', Y: 'lean', Z: 'team', W: 'max' }, 'h5-r1': { X: 'lean', Y: 'team', Z: 'max', W: 'solo' } }
+  const planned = ['h4-r1', 'h5-r1'].flatMap(pair => [1, 2].map(judge => ({ pair, judge, labels: LABELS4, swap: mirrorSwap(judge, LABELS4) })))
+  const rows = [{ pair: 'h4-r1', judge: 1 }, { pair: 'h5-r1', judge: 2 }]
+  assert.deepEqual(countedEdges(key, planned, rows), edgeCounts(key, [planned[0], planned[3]]))
+  assert.deepEqual(countedEdges(key, planned, rows), {
+    lean: { first: 0, last: 0 }, max: { first: 2, last: 0 }, solo: { first: 0, last: 1 }, team: { first: 0, last: 1 },
+  }, 'h4-r1 judge 1 sees max first and team last; h5-r1 judge 2 sees the mirror: max first, solo last')
+  assert.deepEqual(countedEdges(key, planned, []), {})
+})
+
+test('checkLeakScan refuses to judge a round with groups before its leak scan is written', t => {
+  const results = mkdtempSync(join(tmpdir(), 'judge-leak-'))
+  t.after(() => rmSync(results, { recursive: true, force: true }))
+  assert.throws(() => checkLeakScan(results, 'mo', ['h4-r1']), { message: 'run node bench/leak-scan.mjs --round=mo first' })
+  assert.doesNotThrow(() => checkLeakScan(results, 'mo', []), 'nothing to judge')
+  writeFileSync(join(results, 'leak-scan-mo.json'), '{}')
+  assert.doesNotThrow(() => checkLeakScan(results, 'mo', ['h4-r1']))
+})
+
 test('the committed prompt\'s example answer shows four labels and a full ranking', () => {
   const template = readFileSync(join(BENCH, 'judge-prompt.md'), 'utf8')
   const example = JSON.parse(template.split('\n')[35])
@@ -418,13 +451,18 @@ test('the committed prompt\'s example answer shows four labels and a full rankin
 })
 
 // A stand-in for the pinned binary: it writes the session transcript where Claude Code would and prints a verdict.
-function fakeJudge({ home, calls, transcript = true, stdout = verbose(fenced(good4)) }) {
+// With subagent set, the session also leaves <sessionId>/subagents/x.jsonl with that text, as a judge's Agent call would.
+function fakeJudge({ home, calls, transcript = true, stdout = verbose(fenced(good4)), subagent = null }) {
   return (command, args, options) => {
     const sessionId = args[args.indexOf('--session-id') + 1]
     calls.push({ command, args, options, sessionId, inW: readFileSync(join(options.cwd, 'W', 'who.txt'), 'utf8') })
     const project = projectDirFor(options.cwd, home)
     mkdirSync(project, { recursive: true })
     if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), transcriptOf())
+    if (subagent !== null) {
+      mkdirSync(join(project, sessionId, 'subagents'), { recursive: true })
+      writeFileSync(join(project, sessionId, 'subagents', 'x.jsonl'), subagent)
+    }
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough() })
     once(child.stdout, 'end').then(() => child.emit('close', 0))
     setImmediate(() => child.stdout.end(stdout))
@@ -449,7 +487,7 @@ test('each judge attempt starts the pinned binary in a fresh session of a mirror
   const { call, job, files, pin, env } = callSetup(t, home => fakeJudge({ home, calls }))
   const first = await call(job, 1)
   await call(job, 2)
-  assert.deepEqual(first, { stdout: verbose(fenced(good4)), transcript: transcriptOf() })
+  assert.deepEqual(first, { stdout: verbose(fenced(good4)), transcript: transcriptOf(), subagentTranscripts: [] })
   assert.deepEqual(calls.map(c => c.command), [pin.binary, pin.binary])
   assert.match(calls[0].sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
   assert.notEqual(calls[0].sessionId, calls[1].sessionId, 'a fresh session per attempt')
@@ -473,6 +511,35 @@ test('a judge session that left no transcript, or hit a usage limit, stops judgi
   const run = runJobs([{ ...limited.job, labels: LABELS4 }], { rows: [], call: limited.call, check: judgeCheck(PIN), files: limited.files, log: quiet })
   await assert.rejects(run, { message: 'judge h4-r1 #2 hit a usage or rate limit: resume judging in the next usage window' })
   assert.ok(!existsSync(limited.files.reasks) && !existsSync(limited.files.leftOut), 'no attempt used')
+})
+
+// Judges are checked like a solo run: their subagents' transcripts are kept and held to the round effort too.
+test('a judge attempt keeps its subagent transcripts and judgeCheck holds them to the round effort; compacted reads the main one', async t => {
+  const calls = []
+  const { call, job, files } = callSetup(t, home => fakeJudge({ home, calls, subagent: transcriptOf('high') }))
+  const answer = await call(job, 1)
+  assert.deepEqual(answer.subagentTranscripts, [transcriptOf('high')])
+  assert.equal(readFileSync(join(files.transcripts, 'h4-r1-2-a1', 'subagents', 'x.jsonl'), 'utf8'), transcriptOf('high'))
+  assert.deepEqual(judgeCheck(PIN)(answer), ['assistant effort high, expected medium'])
+  const compact = transcriptOf('medium', [{ type: 'system', subtype: 'compact_boundary' }])
+  const left = await runJobs([{ ...job, labels: LABELS4 }], { rows: [], call: async () => ({ ...answer, subagentTranscripts: [compact] }), check: () => [], files, log: quiet })
+  assert.equal(left, 0)
+  assert.ok(!existsSync(files.compacted), 'a compacted subagent is not a compacted judge')
+})
+
+// An API error or a missing result is not the judge's fault: judging stops and uses no attempt, so a resume asks again.
+test('a judge session that ends on an API error or with no result stops judging without using an attempt', async t => {
+  const ends = [
+    [INIT, { type: 'result', is_error: true, result: 'API Error: 529 overloaded' }],
+    [INIT, { type: 'result', is_error: true, result: 'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth token has expired"}}' }],
+    [INIT],
+  ]
+  for (const messages of ends) {
+    const setup = callSetup(t, home => fakeJudge({ home, calls: [], stdout: JSON.stringify(messages) }))
+    const run = runJobs([{ ...setup.job, labels: LABELS4 }], { rows: [], call: setup.call, check: judgeCheck(PIN), files: setup.files, log: quiet })
+    await assert.rejects(run, { message: 'judge h4-r1 #2 ended with an API error or no result: fix the cause (login, outage), then resume' }, JSON.stringify(messages.at(-1)))
+    assert.ok(!existsSync(setup.files.reasks) && !existsSync(setup.files.leftOut), 'no attempt used')
+  }
 })
 
 test('a binary that cannot start stops judging with one line', async t => {

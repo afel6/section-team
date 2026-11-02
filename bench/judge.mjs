@@ -5,8 +5,9 @@
 // transcript is kept in results/judge-<round>-transcripts/. An unusable attempt (a void session or a verdict that does
 // not parse) is saved raw to results/judge-<round>-raw/, listed in -reasks.json and asked again, at most twice; a
 // third unusable attempt is listed in -left-out.json and the exit code is 1. Judges whose session compacted are listed
-// in -compacted.json; -edges.json counts how often each setup was the first or last folder a judge saw. A usage or
-// rate limit, or a session that left no transcript, stops judging (exit 1) without using an attempt.
+// in -compacted.json; -edges.json counts how often each setup was the first or last folder of a saved judgment. A
+// usage or rate limit, another API error, a session with no result or one that left no transcript stops judging
+// (exit 1) without using an attempt. Judging refuses to start before the round's leak scan is written.
 // Resumable: a (pair, judge) already saved or left out is skipped, and a resumed job keeps its attempt count.
 // Each judge works in its own temp copy of the pair, with an empty scratch/ folder for probes; the harness deletes
 // that copy when the judge exits, so no judge can change what the next one grades.
@@ -22,7 +23,7 @@ import { judgeDirFor } from './anonymize.mjs'
 import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
-import { classifyEnd, projectDirFor } from './run-attempts.mjs'
+import { classifyEnd, filesAt, projectDirFor } from './run-attempts.mjs'
 import { NAME, RESULTS, parseArgs } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -57,7 +58,7 @@ export function parseVerdict(text, pair, labels) {
   try {
     verdict = JSON.parse(block[1])
   } catch (err) {
-    throw new Error(`judge json does not parse: ${err.message}`)
+    throw new Error(`judge json does not parse: ${err.message.replace(/\s+/g, ' ')}`)
   }
   if (typeof verdict !== 'object' || verdict === null || Array.isArray(verdict)) throw new Error('judge json is not an object')
   const scored = Object.fromEntries(labels.map(label => [label, checkScores(verdict[label], label)]))
@@ -151,6 +152,17 @@ export function edgeCounts(key, jobs) {
   return Object.fromEntries(setups.map(setup => [setup, { first: count(setup, 'first'), last: count(setup, 'last') }]))
 }
 
+// edgeCounts over the judgments that count: the planned jobs with a saved row (a left-out job is no judgment).
+export function countedEdges(key, planned, rows) {
+  const counted = new Set(rows.map(jobKey))
+  return edgeCounts(key, planned.filter(job => counted.has(jobKey(job))))
+}
+
+// The leak scan runs before any judge (spec "Leak scan"): a round with groups to judge needs its results file.
+export function checkLeakScan(results, round, groups) {
+  if (groups.length > 0 && !existsSync(join(results, `leak-scan-${round}.json`))) throw new Error(`run node bench/leak-scan.mjs --round=${round} first`)
+}
+
 // A results file's JSON; one line naming the file when it cannot be read or does not parse.
 function readJson(path) {
   let text
@@ -225,7 +237,7 @@ async function judgeJob(job, { call, check, files, log }) {
   throw new Error(`${jobLabel(job)} has ${attemptsUsed} re-asks saved but is not left out: check ${files.reasks}`)
 }
 
-// Runs each job through call(job, attempt) → { stdout, transcript } and check({ stdout, transcript }) → reasons,
+// Runs each job through call(job, attempt) → { stdout, transcript, subagentTranscripts } and check(that answer) → reasons,
 // saving rows as it goes. Returns the number of jobs this run left out.
 export async function runJobs(jobs, { rows, call, check, files, log }) {
   let saved = rows
@@ -281,16 +293,18 @@ export async function withCopy(source, fn, { log = console.error, remove = rmSyn
 }
 
 // The round's model, effort, --verbose and session id (commonArgs), and clean settings with section-team off, so a
-// judge never gets the supervisor brief of the setup it is judging.
+// judge never gets the supervisor brief of the setup it is judging. --permission-mode default: only ALLOWED runs,
+// whatever the user's own default mode is, so a judge cannot read the blind key.
 export const judgeArgs = (prompt, { sessionId, installedKeys, pluginDir }) => [
-  '-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId }),
+  '-p', prompt, '--output-format', 'json', '--allowedTools', ALLOWED, '--permission-mode', 'default', ...commonArgs({ sessionId }),
   '--settings', JSON.stringify(cleanSettings({ installedKeys, sectionTeam: false, pluginDir })),
 ]
 
-// check for runJobs: a judge is held to the pin like a solo run (initProblems maps judge to solo) and to the effort.
-export const judgeCheck = pin => ({ stdout, transcript }) => [
+// check for runJobs: a judge is held to the pin like a solo run (initProblems maps judge to solo), and its session and
+// subagent transcripts to the effort.
+export const judgeCheck = pin => ({ stdout, transcript, subagentTranscripts = [] }) => [
   ...initProblems(initOf(outputMessages(stdout)), { setup: 'judge', pin, pluginDir: pin.pluginDir }),
-  ...effortProblems([transcript]),
+  ...effortProblems([transcript, ...subagentTranscripts]),
 ]
 
 // ponytail: no timeout; a hung judge needs Ctrl+C, and the rerun redoes only that job, at the same attempt number.
@@ -304,20 +318,29 @@ function runClaude(binary, args, { cwd, env, spawn }) {
   })
 }
 
-// The session's transcript, copied to <transcripts>/<pair>-<judge>-a<attempt>.jsonl. A session that wrote none is a
-// harness fault (like a run's missing session file), so it stops judging instead of using up the job's attempts.
+// The session's transcript, copied to <transcripts>/<pair>-<judge>-a<attempt>.jsonl, and its subagent folder, copied
+// to <transcripts>/<pair>-<judge>-a<attempt>/ as run-attempts copyEvidence does. A session that wrote no transcript is
+// a harness fault (like a run's missing session file), so it stops judging instead of using up the job's attempts.
+// Returns the main text and the text of every .jsonl in the subagent folder.
 function keepTranscript({ cwd, sessionId, home, files, job, attempt }) {
-  const from = join(projectDirFor(cwd, home), `${sessionId}.jsonl`)
+  const project = projectDirFor(cwd, home)
+  const from = join(project, `${sessionId}.jsonl`)
   if (!existsSync(from)) throw new Error(`${jobLabel(job)} left no session transcript at ${from}: fix the harness, then resume`)
-  const text = readFileSync(from, 'utf8')
+  const transcript = readFileSync(from, 'utf8')
   mkdirSync(files.transcripts, { recursive: true })
-  writeFileSync(join(files.transcripts, `${attemptName(job, attempt)}.jsonl`), text)
-  return text
+  writeFileSync(join(files.transcripts, `${attemptName(job, attempt)}.jsonl`), transcript)
+  const subagents = join(project, sessionId)
+  if (!existsSync(subagents)) return { transcript, subagentTranscripts: [] }
+  const to = join(files.transcripts, attemptName(job, attempt))
+  cpSync(subagents, to, { recursive: true })
+  return { transcript, subagentTranscripts: filesAt(to).filter(file => file.endsWith('.jsonl')).sort().map(file => readFileSync(file, 'utf8')) }
 }
 
 // call for runJobs: each attempt is a fresh session (a new id) of the pinned binary, with the round's child
 // environment, in a fresh copy of the pair (mirrored for an even judge); its transcript is kept before the copy goes.
-// A usage or rate limit stops judging and uses no attempt, as it stops a batch of runs.
+// A usage or rate limit, another API error or a session with no result is not the judge's fault: it stops judging
+// and uses no attempt, as it stops a batch of runs. runClaude reports no exit code, so a missing result reads as
+// 'no-result' (exitCode 0), never 'crash'.
 export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn = nodeSpawn, log }) {
   const { binary, pluginDir } = pin
   const childEnvironment = childEnv(env, { pluginDir })
@@ -325,10 +348,10 @@ export function judgeCall({ pin, installedKeys, files, env = process.env, home =
     const sessionId = randomUUID()
     const args = judgeArgs(job.prompt, { sessionId, installedKeys, pluginDir })
     const stdout = await runClaude(binary, args, { cwd, env: childEnvironment, spawn })
-    if (classifyEnd({ messages: outputMessages(stdout) }) === 'api-limit') {
-      throw new Error(`${jobLabel(job)} hit a usage or rate limit: resume judging in the next usage window`)
-    }
-    return { stdout, transcript: keepTranscript({ cwd, sessionId, home, files, job, attempt }) }
+    const end = classifyEnd({ messages: outputMessages(stdout), exitCode: 0 })
+    if (end === 'api-limit') throw new Error(`${jobLabel(job)} hit a usage or rate limit: resume judging in the next usage window`)
+    if (end === 'api-other' || end === 'no-result') throw new Error(`${jobLabel(job)} ended with an API error or no result: fix the cause (login, outage), then resume`)
+    return { stdout, ...keepTranscript({ cwd, sessionId, home, files, job, attempt }) }
   }, { log, swap: job.swap })
 }
 
@@ -351,15 +374,22 @@ async function main() {
   const key = readKey(RESULTS, round)
   const template = readFileSync(join(BENCH, 'judge-prompt.md'), 'utf8')
   const groups = subfolders(judgeDir)
+  checkLeakScan(RESULTS, round, groups)
   // Every planned job is prepared before the first paid call, so a missing task file stops the run before it spends anything.
   const planned = pendingJobs(groups, [], perPair).map(job => prepareJob(job, judgeDir, template))
-  saveJson(files.edges, edgeCounts(key, planned))
   const pending = new Set(pendingJobs(groups, rows, perPair, leftOut).map(jobKey))
   const jobs = planned.filter(job => pending.has(jobKey(job))).slice(0, limit)
   console.log(`${jobs.length} judge job(s) to run`)
   const log = line => console.log(`${new Date().toISOString()} ${line}`)
   const call = judgeCall({ pin, installedKeys: installedPluginKeys(), files, log })
-  const leftOutTotal = leftOut.length + await runJobs(jobs, { rows, call, check: judgeCheck(pin), files, log })
+  let leftOutNow
+  try {
+    leftOutNow = await runJobs(jobs, { rows, call, check: judgeCheck(pin), files, log })
+  } finally {
+    // From the saved rows on every invocation, so a resume or a stop on a limit leaves it right.
+    saveJson(files.edges, countedEdges(key, planned, loadList(files.rows)))
+  }
+  const leftOutTotal = leftOut.length + leftOutNow
   if (leftOutTotal > 0) {
     console.error(`${leftOutTotal} judge job(s) left out after ${MAX_ATTEMPTS} attempts, listed in ${files.leftOut}`)
     process.exitCode = 1

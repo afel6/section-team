@@ -115,7 +115,7 @@ export function recordAttempt(outDir, entry) {
 }
 
 // Every file under path (path itself when it is a file).
-const filesAt = path => (statSync(path).isFile()
+export const filesAt = path => (statSync(path).isFile()
   ? [path]
   : readdirSync(path, { withFileTypes: true, recursive: true }).filter(e => e.isFile()).map(e => join(e.parentPath, e.name)))
 
