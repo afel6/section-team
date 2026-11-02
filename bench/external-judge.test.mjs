@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -195,6 +195,31 @@ test('importRound never overwrites a judged round and writes nothing when a case
   r.hand('case-02', JSON.stringify({ A: scores(7), B: scores(8), ranking: ['B', 'A'] }))
   assert.throws(() => importRound({ round: 'ho', out: r.out, as: 'hoag', results: r.results, log: () => {} }), /judge-hoag\.json.*would overwrite/)
   assert.equal(readFileSync(join(r.results, 'judge-ho.json'), 'utf8'), before, 'the paid verdicts are untouched')
+})
+
+// A judged mode round 'mo' (the 'ho' fixture under mo names) whose two cases both have a usable verdict.
+function judgedModeRound(t) {
+  const r = judgedRound(t)
+  for (const name of ['blind-key', 'judge', 'external-key']) copyFileSync(join(r.results, `${name}-ho.json`), join(r.results, `${name}-mo.json`))
+  r.hand('case-01', JSON.stringify({ A: scores(9), B: scores(7), ranking: ['A', 'B'] }))
+  r.hand('case-02', JSON.stringify({ A: scores(7), B: scores(8), ranking: ['B', 'A'] }))
+  return r
+}
+const CODEX = { name: 'Codex', heldOut: 'hocx', round: 'mocx', set: 'C:/Users/Asus/codex-judge-mo' }
+
+// Spec: each held-out check is recorded before any mode-round outside verdict is imported.
+test('importRound refuses a mode-round import that no outside judge names, or before its held-out check, and writes no verdicts', t => {
+  const r = judgedModeRound(t)
+  const imported = () => existsSync(join(r.results, 'judge-mocx.json')) || existsSync(join(r.results, 'blind-key-mocx.json'))
+  assert.throws(() => importRound({ round: 'mo', out: r.out, as: 'mocx', results: r.results, outside: [], log: () => {} }),
+    { message: 'no outside judge in bench/bars-mo.json imports its mode-round verdicts as mocx' })
+  assert.throws(() => importRound({ round: 'mo', out: r.out, as: 'mocx', results: r.results, outside: [CODEX], log: () => {} }),
+    { message: 'run node bench/external-judge.mjs check --as=hocx first' })
+  assert.ok(!imported(), 'no verdicts written')
+  assert.deepEqual(JSON.parse(readFileSync(join(r.results, 'outside-usable-mocx.json'), 'utf8')), { usable: 2, total: 2, problems: [] }, 'every import says how far it got')
+  writeFileSync(join(r.results, 'outside-check-ho-hocx.json'), '{}')
+  assert.deepEqual(importRound({ round: 'mo', out: r.out, as: 'mocx', results: r.results, outside: [CODEX], log: () => {} }), { same: 1, pairs: 1 })
+  assert.ok(imported())
 })
 
 test('import writes outside-usable even when a case is unusable', t => {

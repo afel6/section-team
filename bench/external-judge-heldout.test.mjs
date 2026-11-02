@@ -107,3 +107,16 @@ test('recordCheck writes outside-check-ho-<as>.json once and refuses to overwrit
   assert.throws(() => recordCheck({ results, as: 'hoag' }), /outside-check-ho-hoag\.json exists/)
   assert.equal(readFileSync(path, 'utf8'), saved)
 })
+
+// A held-out check recorded after that judge's mode-round import would not be a check made in advance.
+test('recordCheck refuses once the same judge\'s mode-round verdicts are imported, and writes nothing', t => {
+  const results = mkdtempSync(join(tmpdir(), 'bench-check-'))
+  t.after(() => rmSync(results, { recursive: true, force: true }))
+  for (const name of ['judge-ho.json', 'blind-key-ho.json', 'judge-hoag.json', 'blind-key-hoag.json']) copyFileSync(join(HELD_OUT, name), join(results, name))
+  writeFileSync(join(results, 'judge-moag.json'), '[]')
+  const outside = [{ name: 'Antigravity', heldOut: 'hoag', round: 'moag' }]
+  assert.throws(() => recordCheck({ results, as: 'hoag', outside }),
+    { message: 'mode-round verdicts for moag were imported before the held-out check; the check no longer counts' })
+  assert.ok(!existsSync(join(results, 'outside-check-ho-hoag.json')))
+  assert.deepEqual(recordCheck({ results, as: 'hoag', outside: [{ ...outside[0], round: 'moag2' }] }).passed, true, 'another judge\'s import does not stop it')
+})

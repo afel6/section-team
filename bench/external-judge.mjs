@@ -9,9 +9,11 @@
 // import: reads every case's verdict.json, checks it like an Opus verdict, maps the letters back to the round's labels
 //   and writes results/judge-<as>.json plus blind-key-<as>.json, so `node bench/aggregate.mjs --round=<as>` scores it.
 //   It always writes results/outside-usable-<as>.json, never overwrites a judged round, and writes no verdicts unless
-//   every case is usable.
+//   every case is usable. A mode-round import (any --round but ho) needs an outside judge of bench/bars-mo.json whose
+//   round is <as>, and that judge's held-out check recorded first.
 // rebuild-heldout: a fresh held-out case set for one judge, as c5ba259 wrote it, from the existing external-key-ho.json.
-// check: c5ba259's held-out rule for an imported judge, written once to results/outside-check-ho-<as>.json.
+// check: c5ba259's held-out rule for an imported judge, written once to results/outside-check-ho-<as>.json, and
+//   refused once that judge's mode-round verdicts are imported.
 // Usage: node bench/external-judge.mjs prepare --round=mo --out=C:/Users/Asus/codex-judge-mo
 //        node bench/external-judge.mjs copy --from=C:/Users/Asus/codex-judge-mo --to=C:/Users/Asus/ag-judge-mo
 //        node bench/external-judge.mjs import --round=mo --out=C:/Users/Asus/codex-judge-mo --as=mocx
@@ -23,6 +25,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
+import { readBars } from './bars-common.mjs'
 import { judgeDirFor } from './anonymize.mjs'
 import { fillPrompt, parseVerdict, subfolders } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
@@ -208,9 +211,22 @@ export function prepare({ round, out, results = RESULTS, judgeDir = judgeDirFor(
   return cases.length
 }
 
-// Reads everything first, writes verdicts only when every case is usable, and never over an existing round. The usable
-// count goes to outside-usable-<as>.json on every import, so a refused import still says how far it got.
-export function importRound({ round, out, as, results = RESULTS, log = console.log }) {
+// The outside judges of the mode round's bars (bench/bars-mo.json `outside`: name, heldOut, round).
+const outsideJudgesOf = outside => outside ?? readBars().outside
+
+// A mode-round import (any round but the held-out 'ho') belongs to one outside judge, and its held-out check is
+// recorded first (spec "Outside confirmation").
+function refuseBeforeCheck({ round, as, results, outside }) {
+  if (round === 'ho') return
+  const judge = outsideJudgesOf(outside).find(entry => entry.round === as)
+  if (!judge) throw new Error(`no outside judge in bench/bars-mo.json imports its mode-round verdicts as ${as}`)
+  if (!existsSync(join(results, `outside-check-ho-${judge.heldOut}.json`))) throw new Error(`run node bench/external-judge.mjs check --as=${judge.heldOut} first`)
+}
+
+// Reads everything first, writes verdicts only when every case is usable and the order holds, and never over an
+// existing round. The usable count goes to outside-usable-<as>.json on every import, so a refused import still says
+// how far it got. outside: the bars config's outside judges (read from bench/bars-mo.json when not given).
+export function importRound({ round, out, as, results = RESULTS, outside, log = console.log }) {
   const targets = [join(results, `judge-${as}.json`), join(results, `blind-key-${as}.json`)]
   const taken = targets.find(existsSync)
   if (taken) throw new Error(`${taken}: importing as round ${as} would overwrite it; pick another --as`)
@@ -222,14 +238,15 @@ export function importRound({ round, out, as, results = RESULTS, log = console.l
   const unknown = rows.filter(row => !key[row.pair]).map(row => `${row.case}: ${row.pair} is not in ${keyPath}`)
   const all = [...problems, ...unknown]
   writeFileSync(join(results, `outside-usable-${as}.json`), JSON.stringify({ usable: cases.length - all.length, total: cases.length, problems: all }, null, 2) + '\n')
+  refuseBeforeCheck({ round, as, results, outside })
   if (all.length > 0) throw new Error(`${all.length} case(s) not usable, nothing written:\n  ${all.join('\n  ')}`)
-  const outside = pairWinners(rows, key)
+  const winners = pairWinners(rows, key)
   writeFileSync(targets[0], JSON.stringify(rows, null, 2) + '\n')
   writeFileSync(targets[1], JSON.stringify(key, null, 2) + '\n')
-  const pairs = Object.keys(outside)
-  const same = pairs.filter(pair => outside[pair] === inside[pair]).length
+  const pairs = Object.keys(winners)
+  const same = pairs.filter(pair => winners[pair] === inside[pair]).length
   log(`${rows.length} verdicts imported as round ${as}. Same pair winner as the round's own judges: ${same} of ${pairs.length}.`)
-  for (const pair of pairs) log(`  ${pair}: outside ${outside[pair]}, inside ${inside[pair] ?? '–'}`)
+  for (const pair of pairs) log(`  ${pair}: outside ${winners[pair]}, inside ${inside[pair] ?? '–'}`)
   log(`Scores: node bench/aggregate.mjs --round=${as}`)
   return { same, pairs: pairs.length }
 }
@@ -285,10 +302,14 @@ export function outsideCheck({ results = RESULTS, as }) {
   return { gap, same, pairs: pairs.length, passed: gap >= 0.5 && same >= 7 }
 }
 
-// The held-out check is recorded once, before any mode-round verdict is imported, and never rewritten.
-export function recordCheck({ results = RESULTS, as }) {
+// The held-out check is recorded once, before any mode-round verdict of the same judge is imported, and never rewritten.
+export function recordCheck({ results = RESULTS, as, outside }) {
   const path = join(results, `outside-check-ho-${as}.json`)
   if (existsSync(path)) throw new Error(`${path} exists: the held-out check is recorded once`)
+  const judge = outsideJudgesOf(outside).find(entry => entry.heldOut === as)
+  if (judge && existsSync(join(results, `judge-${judge.round}.json`))) {
+    throw new Error(`mode-round verdicts for ${judge.round} were imported before the held-out check; the check no longer counts`)
+  }
   const result = outsideCheck({ results, as })
   writeFileSync(path, JSON.stringify(result, null, 2) + '\n', { flag: 'wx' })
   return result
