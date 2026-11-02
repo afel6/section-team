@@ -401,6 +401,10 @@ test('checkConds refuses any setup but solo, lean, team and max, so a round neve
   assert.throws(() => checkConds(['solo', 'forced']), { name: 'RangeError', message })
 })
 
+// The fake children's pid: odd, so never a Windows PID, and above Linux's pid_max, so a regression that reached the
+// real killTree would stop nothing.
+const FAKE_PID = 2147483647
+
 // A stand-in for the pinned binary: it writes the session transcript where Claude Code would and streams an init and a result.
 // With transcript false it writes no session file, as when the API fails before the first turn is saved. With hang
 // true it streams only the init and runs until it is killed (its streams ended), then closes with code null.
@@ -411,7 +415,7 @@ function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'su
     const project = projectDirFor(options.cwd, home)
     mkdirSync(project, { recursive: true })
     if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
-    const child = Object.assign(new EventEmitter(), { pid: 4242, stdout: new PassThrough(), stderr: new PassThrough() })
+    const child = Object.assign(new EventEmitter(), { pid: FAKE_PID, stdout: new PassThrough(), stderr: new PassThrough() })
     const lines = hang ? [{ ...init, session_id: sessionId }] : [{ ...init, session_id: sessionId }, result]
     Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', hang ? null : 0))
     const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
@@ -427,7 +431,7 @@ function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'su
 }
 
 // A kill for fake children: it ends their streams, so they close with code null. The real killTree would run
-// taskkill on the fake pid 4242, which may belong to an unrelated process.
+// taskkill on the fake pid; tests never rely on it.
 const endStreams = child => {
   child.stdout.end()
   child.stderr.end()
@@ -462,7 +466,7 @@ test('stopping the round mid-run stops the child with the kill its run was given
   await new Promise(resolve => setTimeout(resolve, 50))
   isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => {} })()
   await running
-  assert.deepEqual(killed, [4242], 'the default stop used the run\'s own kill')
+  assert.deepEqual(killed, [FAKE_PID], 'the default stop used the run\'s own kill')
   const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
   assert.deepEqual([record.timedOut, record.exitCode, record.end], [false, null, 'crash'])
 })
@@ -499,7 +503,7 @@ test('runOne kills a run at its time limit; raw.json keeps the init streamed bef
   const kill = child => { killed.push(child.pid); endStreams(child) }
   const deps = { ...base, spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 50 }
   await runOne(run, outDir, ctx, deps)
-  assert.deepEqual(killed, [4242], 'the injected kill stops the child once')
+  assert.deepEqual(killed, [FAKE_PID], 'the injected kill stops the child once')
   const raw = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
   assert.deepEqual(raw.map(m => [m.type, m.subtype]), [['system', 'init']], 'the init line written before the kill is kept')
   const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
@@ -508,11 +512,17 @@ test('runOne kills a run at its time limit; raw.json keeps the init streamed bef
 })
 
 test('runOne rejects with one friendly line when the pinned binary cannot start', async t => {
-  const { root, outDir, ctx, run, deps } = soloAttempt(t)
-  const binary = join(root, 'no-such-folder', 'claude-2.1.296.exe')
-  // The real spawn of a path that cannot exist: nothing runs.
-  await assert.rejects(runOne(run, outDir, { ...ctx, pin: { ...ctx.pin, binary } }, deps),
-    { message: `could not start claude (${binary}: ENOENT)` })
+  const { outDir, ctx, run, deps } = soloAttempt(t)
+  const calls = []
+  // An injected spawn that fails as a missing binary does: no real process is ever started.
+  const missing = command => {
+    calls.push(command)
+    const child = Object.assign(new EventEmitter(), { pid: undefined, stdout: new PassThrough(), stderr: new PassThrough() })
+    setImmediate(() => child.emit('error', Object.assign(new Error(`spawn ${command} ENOENT`), { code: 'ENOENT' })))
+    return child
+  }
+  await assert.rejects(runOne(run, outDir, ctx, { ...deps, spawn: missing }), { message: `could not start claude (${ctx.pin.binary}: ENOENT)` })
+  assert.deepEqual(calls, [ctx.pin.binary])
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8')).attempt, 1)
   assert.ok(!existsSync(join(outDir, 'run.json')))
 })
