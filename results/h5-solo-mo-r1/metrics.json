@@ -1,0 +1,143 @@
+{
+  "id": "h5-solo-mo-r1",
+  "task": "h5",
+  "cond": "solo-mo",
+  "base": "solo",
+  "rep": 1,
+  "dir": "/root/bench-runs/h5-38992f24",
+  "exitCode": 0,
+  "timedOut": false,
+  "wallMs": 116618,
+  "startedAt": "2026-11-02T20:13:27.155Z",
+  "sessionId": "29d2a70c-60ed-4de1-8712-46c637faa8e5",
+  "attempt": 1,
+  "end": "ok",
+  "subtype": "success",
+  "resultText": "I fixed both reported bugs and added `POST /groups/:id/import`. All 51 tests pass with `npm test`. Nothing is committed yet.\n\n**Bug fixes**\n1. **4.35 shown as 4.34:** in floating point, `4.35 * 100` comes out as `434.99999…`, and `parseAmount` cut off the fraction instead of rounding. It now rounds (`lib/validate.mjs`).\n2. **Balances not adding to zero:** `splitEvenly` gave everyone the rounded-down share and dropped the leftover cents. As the README says, the first people in `split` now pay one",
+  "pluginCommit": "404b9343893888b3585b56a724b13cfa0af9e3dc",
+  "sectionTeam": null,
+  "init": {
+    "plugins": [
+      {
+        "name": "cc-plugin-agents-md",
+        "path": "builtin",
+        "source": "cc-plugin-agents-md@builtin"
+      },
+      {
+        "name": "cc-plugin-telemetry",
+        "path": "builtin",
+        "source": "cc-plugin-telemetry@builtin"
+      }
+    ],
+    "mcp_servers": [],
+    "agents": [
+      "claude",
+      "Explore",
+      "general-purpose",
+      "Plan",
+      "statusline-setup",
+      "web-fetch"
+    ],
+    "skills": [
+      "session-start-hook",
+      "deep-research",
+      "design",
+      "design-sync",
+      "dataviz",
+      "update-config",
+      "verify",
+      "debug",
+      "code-review",
+      "simplify",
+      "batch",
+      "fewer-permission-prompts",
+      "doctor",
+      "loop",
+      "schedule",
+      "claude-api",
+      "workflow-authoring",
+      "run",
+      "run-skill-generator"
+    ],
+    "claude_code_version": "2.1.296",
+    "model": "claude-opus-5-5",
+    "apiKeySource": "none"
+  },
+  "envNames": [
+    "CLAUDE_CODE_PLUGIN_DIRS",
+    "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS",
+    "DISABLE_AUTOUPDATER",
+    "ENABLE_CLAUDEAI_MCP_SERVERS",
+    "SECTION_TEAM_AUTO_INSTALL_SKILLS"
+  ],
+  "transcript": {
+    "found": true,
+    "costUSD": 0.7194806000000001,
+    "durationMs": 115587,
+    "apiMs": 112681,
+    "turns": 22,
+    "isError": false,
+    "subtype": "success",
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 26,
+        "output": 14247,
+        "cacheRead": 516463,
+        "cacheWrite": 41393,
+        "costUSD": 0.7194806000000001
+      }
+    },
+    "tokens": {
+      "input": 26,
+      "output": 14247,
+      "cacheRead": 516463,
+      "cacheWrite": 41393,
+      "total": 572129
+    },
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "sessionId": "29d2a70c-60ed-4de1-8712-46c637faa8e5",
+    "finalText": " zero:** `splitEvenly` gave everyone the rounded-down share and dropped the leftover cents. As the README says, the first people in `split` now pay one cent more each. A 10.00 taxi is now 3.34 / 3.33 / 3.33, so the balances are Ann 6.66, Ben −3.33, Cara −3.33 (`lib/ledger.mjs`).\n\nThere's no migration, as you asked. Records already in the data file keep their stored cents, and their shares and balances are now worked out the new way. Any amount saved too low before the fix (4.34 for 4.35) stays that way in the file.\n\n**Import endpoint**\n- The handler and its checks are in `lib/import.mjs`, wired into `lib/routes.mjs`. It reuses the existing field checks from `lib/validate.mjs`, the balance code, and the shared formatting of expenses and payments.\n- It writes nothing for a dry run, or when every entry is skipped. Otherwise the whole import is saved in one write.\n\n**Tests**\n- `test/import.test.mjs` is new. It covers success, the ids for each kind and for skipped entries, dry runs, an all-skipped import leaving the file unchanged, the 404/400/413 order, every 422 rule, duplicates and already-recorded expenses with and without `skip_recorded`, and identical payments.\n- I added regression tests for both bugs to the existing ledger and validate test files.\n\n**README:** it has the new API table row and an \"Importing\" section naming `dry_run`, `skip_recorded` and every rule. \"Unknown fields are ignored\" now applies only to the other routes, and `lib/import.mjs` is listed under Layout."
+  },
+  "cost": {
+    "costUSD": 0.7194806000000001,
+    "costComputed": false
+  },
+  "split": {
+    "main": {
+      "opus": 557882
+    }
+  },
+  "splitCoverage": {
+    "complete": true,
+    "unattributed": {
+      "opus": 0
+    }
+  },
+  "hidden": {
+    "tests": 25,
+    "pass": 25,
+    "fail": 0,
+    "rate": 1
+  },
+  "own": {
+    "hasScript": true,
+    "passed": true,
+    "exitCode": 0,
+    "pass": 51,
+    "fail": 0
+  },
+  "code": {
+    "files": 4,
+    "lines": 316,
+    "testFiles": 3,
+    "testLines": 314,
+    "docsLines": 87
+  },
+  "team": {
+    "reports": 0,
+    "sections": {},
+    "summaries": 0
+  }
+}

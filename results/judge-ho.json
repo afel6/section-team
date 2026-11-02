@@ -1,0 +1,497 @@
+[
+  {
+    "pair": "h1-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Single file. X/ini2json.mjs:6-7 name and integer regexes; :48 BigInt comparison gives an exact ±MAX_SAFE limit; :54-56 strips '\\r' only before '\\n', so a lone CR and a trailing CR at end of file stay in the value; :64 null-prototype objects plus Object.hasOwn (:63,:83) make __proto__ and constructor ordinary keys; :59-68 section merging via a Map and the conflict check; :101-103 maps ENOENT/ENOTDIR/EISDIR to the right messages; :106 main() returns {stdout,stderr,code}, so it can be tested without side effects; :116 TextDecoder strips the BOM and maps invalid bytes to U+FFFD. Check order follows the spec: missing =, bad key, bad quoted value, duplicate (:72-83). Minor: :125 the import.meta.url === argv[1] guard would not run main if the tool were launched through a symlink. npm test: 108/108 pass; tests are grouped (encoding, whitespace, headers, values, errors, files) and cover subtle cases such as a second BOM, a BOM on line 2, a vertical tab not being trimmed, and line numbering with a lone CR. Probe of 40 cases: all correct. README gives an example, the format rules, and a full table of exit codes and messages with every reason string."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 8,
+      "notes": "Clean split between the parser library (Y/ini.mjs) and the command-line tool (Y/ini2json.mjs). Y/ini.mjs:36-37 Number plus isSafeInteger is correct, and very long digit strings become Infinity and stay strings; :54 split(/\\r?\\n/) handles lone CRs correctly; :51,:65 null-prototype objects and :63,:75 Object.hasOwn give correct __proto__ handling and conflict checks; parse() is one 30-line function, still readable. Y/ini2json.mjs:100-103 read-error mapping with a stat fallback for directories; :125 main runs unconditionally, which is fine for a tool-only file. Probe: identical output to X on all 40 cases, and quoted escapes are correct. npm test: 17/17 pass and cover the main rules (typing, __proto__, names, reason order, duplicates, conflict, usage and file errors), but there are far fewer edge cases than X (no second BOM, no CRLF line numbering, nothing beyond basic lone-CR checks). README: Y/README.md:39 wrongly says the escapes are `\\\"` and `\\` (should be `\\\\`); the exit-code table does not list the exact error messages or reason strings."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.7056008000000001
+  },
+  {
+    "pair": "h1-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "ini2json.mjs:59-98 small functions (parseHeader/parseEntry), null-prototype objects; BigInt range check at ini2json.mjs:8,47 is exact; manual CR handling at ini2json.mjs:54 is correct. main() returns {stdout,stderr,code} and is guarded by an import.meta check (ini2json.mjs:106-130), but the tests spawn the CLI instead of calling it. Ran npm test: 108/108 pass in 10 suites; assertions check stdout, stderr and exit code exactly. Same probe set as X: identical correct results. README lists every error message and reason with exit codes."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 8,
+      "notes": "ini.mjs:50-79 clean null-prototype parser; split(/\\r?\\n/) at ini.mjs:54 correctly keeps lone \\r. Number.isSafeInteger at ini.mjs:37 is correct. ini2json.mjs:13-19 redundant statSync fallback for directory detection. Ran npm test: 17/17 pass. Probes (BOM, CRLF, lone CR, __proto__/constructor, escapes, ±MAX_SAFE, 0xFF->U+FFFD, merged sections, duplicate across merged section, conflict, 65-char name, -0/01/TRUE, missing file/dir/usage) all gave correct output and exit codes 0/1/2/3. Tests: only 17 tests, less edge depth. README.md:44 typo says escapes are \\\" and \\ (should be \\\\); README does not list error reasons."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.6422618,
+    "swapped": true
+  },
+  {
+    "pair": "h1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: ini2json.mjs:49 splits lines on /\\r?\\n/, so a lone CR stays an ordinary character (probe gave a='1\\rb=2'); ini2json.mjs:47 and :61 use null-prototype objects, so __proto__ and constructor work as keys and sections (probe printed {\"__proto__\":{\"x\":1},\"constructor\":{}}); ini2json.mjs:60 detects conflicts cleanly by noting that top-level values are never objects; ini2json.mjs:39-40 compares with BigInt, so 9007199254740992 stays a string; ini2json.mjs:89 maps ENOTDIR to 'no such file'; ini2json.mjs:111 rethrows unexpected errors instead of hiding them. Error reasons are checked in the order the spec gives: bad key before bad quoted value before duplicate. What I ran: npm test passed 22/22. About 40 probes (BOM, invalid UTF-8, CRLF line numbers, safe-integer limits, -0/01/+1, five bad quoted values, valid escapes \\\" and \\\\, conflict, merging a repeated section, duplicate key across a repeated header, 64 vs 65-character names, usage errors, missing file, directory) all matched the spec exactly, and a 300k-line file took under 1 second. Weaknesses: the whole parser is one roughly 35-line forEach closure (ini2json.mjs:51-80); test/ini2json.test.mjs has only 22 tests with several assertions bundled into each, so a failure is harder to pin down, though every rule is covered (precedence at :126, CRLF line numbers at :133, file errors at :146). The README is clear, with an example and an exit-code table listing every message."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: the parser is split into parseHeader and parseEntry (ini2json.mjs:48-75) with named exit codes (ini2json.mjs:7-9); conflicts are tracked with an explicit topKeys Set (ini2json.mjs:51, :73); duplicates are checked with Object.hasOwn on null-prototype objects (ini2json.mjs:52, :70); CR is stripped only before a newline (ini2json.mjs:82-83); Number.isSafeInteger handles the integer limits (ini2json.mjs:43); a comment on TextDecoder documents BOM and U+FFFD handling (ini2json.mjs:110). What I ran: npm test passed 145 with 1 skipped (unreadable file, can't be set up on Windows). It gave byte-for-byte the same output as X on all of the roughly 40 probes listed in X's notes, all matching the spec, and a 300k-line file took under 1 second. Tests: 73 tests in 8 describe blocks (test/ini2json.test.mjs) compare the exact stdout text, so key order and number-versus-string types are checked, including the __proto__/constructor cases and the duplicate __proto__ case. Weaknesses: parseHeader and parseEntry change the shared state object while also returning it (ini2json.mjs:52-54, :72-74), which is pseudo-functional and slightly confusing; the odd 'ponytail:' comment at ini2json.mjs:71; readError (ini2json.mjs:92) does not handle ENOTDIR, so on POSIX a path through a file would say 'cannot read' (on Windows it gives ENOENT and 'no such file'). The README is clear, with exit codes and every reason listed."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "costUSD": 0.7419926
+  },
+  {
+    "pair": "h1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: output byte-identical to X on every probe (BOM, CRLF via split(/\\r?\\n/) Y/ini2json.mjs:49, U+FFFD, __proto__ sections, BigInt safe range :39-40, quoted escapes :18-33, precedence, conflict, file errors); ENOTDIR -> 'no such file' :89 is more faithful to the spec. npm test: 22/22 pass. README is clear, with an exit-code table that includes the stderr text. Defects: parseIni is one 37-line closure :46-83; the conflict check works out a top-level key from typeof !== 'object' :60, correct but indirect; bare exit-code numbers :98,105,113; fewer tests (22, with several assertions each in test/ini2json.test.mjs:39-155) that are less granular than X's 146."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: correct on every probe I ran (BOM+CRLF, lone CR kept, U+FFFD, __proto__/constructor keys via null-proto + Object.hasOwn X/ini2json.mjs:52,70, safe-int bound via Number.isSafeInteger :43, reason precedence, conflict via explicit topKeys Set :51,73, CR stripped only before LF :83). Small functions with named exit-code constants :7-9. npm test: 145 pass, 1 skipped (unreadable file, not possible on Windows), 0 fail; tests are black-box spawns that check code+stdout+stderr in one assertion (test/ini2json.test.mjs:45-51). README has an example and an exit-code table. Defects: ENOTDIR maps to 'cannot read' (:94), arguably should be 'no such file' on POSIX; stray 'ponytail:' comment :71; parseHeader/parseEntry return state while changing it in place."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "costUSD": 0.6212406000000001,
+    "swapped": true
+  },
+  {
+    "pair": "h1-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix X test: 147/147 pass. Ran a differential probe (scratch/p.mjs, ~35 inputs: section header edge cases [ / [ ] / [a]] / 65-char name, repeated-section merge, duplicate key in a reopened section, conflict, __proto__/constructor as keys and sections, quoted-value edge cases, error-reason order, 400-digit and unsafe integers, +1, CR CR LF, second BOM, lone CR, non-ASCII key, usage, missing file, directory, path through a file): every output correct. Strengths: X/ini2json.mjs:105 main() returns {stdout,stderr,code}, so it can be tested in-process; X/ini2json.mjs:124 runs the CLI only when executed directly; X/ini2json.mjs:69,95 null-prototype objects keep __proto__ an ordinary key; X/ini2json.mjs:70 a set tracks section names; X/ini2json.mjs:114 TextDecoder handles the BOM and turns invalid bytes into U+FFFD. Tests are thorough: 11 suites covering BOM line numbering, a BOM mid-file, mixed line endings, CR CR LF, the exported functions, and temp-folder cleanup (X/test/ini2json.test.mjs:18). README has an exit-code table. Defects: minor only; ENOTDIR is reported as 'no such file' (X/ini2json.mjs:100), which is defensible."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm --prefix Y test: 18/18 pass. The same differential probe gave output identical to X on every input, all correct. Strengths: compact; Y/ini2json.mjs:61-66 detects conflicts neatly because a top-level value is never an object; Y/ini2json.mjs:17 stat fallback for directories; null-prototype objects (Y/ini2json.mjs:81). Defects: Y/ini2json.mjs:120 main runs unconditionally on import and nothing is exported, so it can only be tested via a child process; Y/ini2json.mjs:93 changes e.message after the error is created; only 18 tests, each bundling many assertions, with less coverage than X (e.g. nothing checks that a BOM line still counts as line 1); Y/test/ini2json.test.mjs:10 the temp folder is never removed; package.json has no description. README is clear, with an exit-code table."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.6038428
+  },
+  {
+    "pair": "h1-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm --prefix Y test: 147/147 pass (CLI and module API). Same 33-case probe set as X: identical, spec-correct output. File and usage errors were correct. Strengths: clear structure with an explicit sections Set for merge and conflict checks (Y/ini2json.mjs:89-97); named exit-code constants (Y/ini2json.mjs:8-10); a pure main() that returns {stdout,stderr,code} and can be unit-tested (Y/ini2json.mjs:105-122); very thorough tests covering which reason wins (Y/test/ini2json.test.mjs:145-148), CR edge cases (:71-77), NBSP/VT/FF (:82-86) and conflict/duplicate details (:193-204), with temp-dir cleanup. Defects: the main-module check at Y/ini2json.mjs:124 compares import.meta.url with argv[1]; run through a symlink (as an npm bin install on POSIX would be) it printed nothing and exited 0, which I confirmed with scratch/linkY.mjs; the README lists the escapes as \\\" and \\ instead of \\\\ (Y/README.md:39); directory detection relies on EISDIR alone, with no stat fallback (Y/ini2json.mjs:101)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm --prefix X test: 18/18 pass. A 33-case probe script (scratch/p.mjs) gave the same output as Y, and every case met the spec: __proto__/constructor as keys and sections, conflict and duplicate rules, which reason wins when a line breaks two rules, CR/CRLF/BOM handling, safe-integer limits, quoted-value errors. File errors and usage messages were correct (directory -> 'is a directory', file/x -> 'no such file', empty-string arg). It still works when run through a symlink. Strengths: compact, readable code; null-prototype objects (X/ini2json.mjs:81); a statSync fallback for directory detection (X/ini2json.mjs:17,22-28); LineError keeps parse errors apart from unexpected ones (X/ini2json.mjs:93,114). Defects: conflict detection rests on an unstated rule that top-level values are never objects (X/ini2json.mjs:61-66); tests are thinner (18 tests in X/test/ini2json.test.mjs), with no unit tests and few checks of the CR edge cases or whitespace characters other than space and tab; the test temp directory is never removed (X/test/ini2json.test.mjs:10). Good README with an exit-code table."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.7322572,
+    "swapped": true
+  },
+  {
+    "pair": "h2-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: lib/validate.mjs:32-35 Number.isSafeInteger rejects 2.5, '3', 1e21, true and 2**53 instead of truncating with parseInt. lib/paginate.mjs:5 off-by-one slice fixed. lib/routes.mjs:17-23 exportItems sorts by sku and uses a CSV_COLUMNS constant. lib/routes.mjs:76 the export route comes before /items/:sku. lib/csv.mjs:2-9 compact CSV writer (CRLF on every line, quotes fields with , \" CR or LF, doubles inner quotes). server.mjs:51-58 send() takes an explicit `type`, so text replies can only be sent on purpose. Tests: test/api.test.mjs adds fractional qty for reserve and create, per_page=10 with 25 items, and CSV export with quoting/CRLF/sort/reserved plus an empty-store export; test/csv.test.mjs and test/paginate.test.mjs add unit tests; test/validate.test.mjs widens the reject list. README documents the route, qty rule, CSV format and layout. Ran: npm --prefix X test -> 37/37 pass. Probe: 2.5/'2'/'3e0'/0/-1 -> 400, 3.0 -> 201, export -> 200 text/csv with correct quoting and CRLF, POST export -> 404. Defects: minor only. No 405 for wrong method on export (consistent with repo). Fewer extreme-value tests than Y."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: logic is effectively identical to X. lib/validate.mjs:31-35 uses Number.isSafeInteger. lib/paginate.mjs:5 slice fixed. lib/routes.mjs:17-22 exportItems. lib/routes.mjs:75 export route ordered before /items/:sku. lib/csv.mjs:3-10 correct CSV writer. Tests are slightly broader: test/validate.test.mjs adds 1e300, Infinity, NaN, [4] and '2.5'; test/csv.test.mjs checks that spaces, tabs and ; stay unquoted; test/api.test.mjs inserts skus in reverse to prove sorting and checks the page-3 skus. README is clear and complete. Ran: npm --prefix Y test -> 39/39 pass. Same probe as X, same correct results. Defects: lib/paginate.mjs, lib/routes.mjs, lib/validate.mjs and server.mjs were converted from LF to CRLF, so each file's diff is a whole-file rewrite that hides the real change and mixes line endings in the repo. server.mjs:51-60 send() picks text mode from typeof body === 'string': a string body with no contentType passes undefined as the content-type header, which Node rejects, so the reply becomes a 500 (latent; no current route does this)."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.7430792
+  },
+  {
+    "pair": "h2-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix Y test: 37/37 pass. The same live probe gave output identical to X: 400 for fractional and string qty, CSV with content-type exactly text/csv, CRLF on every line, correct quoting. Strengths: same root-cause fix at lib/paginate.mjs:5; lib/validate.mjs:31-35 Number.isSafeInteger; server.mjs:50-58 uses an explicit `type` field for non-JSON replies, which is clearer and safer than guessing from the body type; lib/routes.mjs:17-23 export handler with a comment; route placed before /items/:sku (lib/routes.mjs:76); line endings kept LF, so the diff is minimal. Tests: test/api.test.mjs:72-108 (fractional reservation reserves nothing, full pages of 10, CSV with a \\r\\n inside a name and with comma and quotes, sort order, reserved column, header-only export); test/csv.test.mjs covers empty input; test/validate.test.mjs:28-32 adds 2.5, '3', '3abc', true and 2**53 to the rejected values. README rules, route table, CSV section and Layout all updated. Minor gaps: slightly fewer CSV unit cases than X (no unquoted-punctuation check); a handler that sets `type` with a non-string body would break, but no handler does that."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm --prefix X test: 39/39 pass. Live probe (scratch/probe.mjs): qty 2.5 and \"5\" -> 400; qty 2.0 -> 201; GET /items/export.csv -> 200, content-type exactly text/csv, every line ends in CRLF, quotes doubled; POST to the export path -> 404. Strengths: root-cause paging fix at lib/paginate.mjs:5 (removed -1 from the slice end); lib/validate.mjs:31-34 Number.isSafeInteger with a comment saying why parseInt was wrong; small lib/csv.mjs:3-10; export route placed before /items/:sku at lib/routes.mjs:75; good tests: test/api.test.mjs:154-192 (fractional reservation reserves nothing, 25 items paged by 10, CSV with comma, quote and LF, header-only export), test/csv.test.mjs:5-15, test/paginate.test.mjs:18-23 (includes page 25 of size 1), test/validate.test.mjs:50-54. README documents the stricter qty rule and the CSV format. Defects: server.mjs, lib/routes.mjs, lib/paginate.mjs and lib/validate.mjs rewritten with CRLF line endings, so a plain diff shows every line changed and the repo has mixed line endings; server.mjs:51-58 picks the content type by typeof body === 'string', so a string body without contentType would send an undefined header and crash (latent, no handler does it today). Rejecting numeric-string qty changes behaviour, but it is documented."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.6432634,
+    "swapped": true
+  },
+  {
+    "pair": "h2-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix X test: 43/43 pass. lib/paginate.mjs:5 removes the off-by-one (-1) in the slice, the root cause of 9 items on a 10-item page. lib/validate.mjs:31-34 uses Number.isSafeInteger instead of parseInt, so 2.5, '3', true and 2**53 get 400 on both POST /items and POST /reservations. lib/csv.mjs:3-12 quotes fields matching /[\",\\r\\n]/, doubles inner quotes and ends every line in CRLF. lib/routes.mjs:18-21 sorts by sku, and the route is added before /items/:sku. server.mjs:50-59 sends the body as plain text when contentType is given, with content-type exactly 'text/csv' and the correct byte length. Tests are strong: test/api.test.mjs:154-215 checks the exact error message, POST /items with 2.5, a numeric-string qty, a 25-item export that is not paged, paging params ignored, non-ASCII content-length and CRLF inside a field. test/validate.test.mjs:50-60 covers Infinity, NaN, a boxed number and MAX_SAFE_INTEGER. test/csv.test.mjs covers each quoting case separately plus unquoted spaces and empty fields. README documents the qty rule, the route, the CSV format and the layout. No defects found; persisted data loaded by store.mjs is still not re-validated, the same as SEED."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm --prefix Y test: 38/38 pass. The code is the same as X's: lib/paginate.mjs:5 fixes the slice, lib/validate.mjs:31-34 uses Number.isSafeInteger, lib/csv.mjs:3-10 is a correct CSV writer (written as arrow functions), lib/routes.mjs:17-20 adds the export route before :sku, and server.mjs:50-59 adds contentType support to send(). Tests are adequate but thinner: test/api.test.mjs:63-69 only checks that the fractional-qty error is a string, not the message, and there is no API test for POST /items with 2.5. test/api.test.mjs:78-93 covers quoting, CRLF inside a field and the empty store, but not that the export ignores paging or holds more than one page of items. test/csv.test.mjs:9-11 puts every quoting case in one assertion. test/validate.test.mjs:28-32 covers fractions, strings, true, an array and 2**53. README is good and adds a note that every page but the last holds exactly per_page entries. No correctness defects found."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.5408382
+  },
+  {
+    "pair": "h2-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: node --test (43/43 pass) + same live probe, behaviour identical to X and correct. Strengths: lib/validate.mjs:32 safe-integer check; lib/paginate.mjs:5 shared fix; lib/csv.mjs:5-12 correct CSV; lib/routes.mjs:18-21 exportItems with a clear comment, route ordered before :sku; server.mjs:51 contentType support. Tests are stronger: exact error body, fractional qty on both POST routes, numeric-string qty at the API level, export not paged with 25 items, export ignores per_page/page, non-ASCII content-length check, csv.test covers empty fields, spaces and a lone quote, validate tests cover MAX_SAFE_INTEGER, NaN, Infinity and new Number. README covers the CSV format and the qty rule, and updates the server.mjs layout line. Minor: the Errors cell for the export route is empty, and the string '3' is now rejected (documented)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: node --test (38/38 pass) + live probe of both bugs and the export, all correct. Strengths: lib/validate.mjs:32 Number.isSafeInteger, so no truncation of 2.5 or of '4abc'; lib/paginate.mjs:5 root-cause slice fix, which also fixes /reservations; lib/csv.mjs:3-10 compact, correct quoting with CRLF on every line; lib/routes.mjs:73 export route placed before /items/:sku; server.mjs:51 contentType passthrough with byte content-length; README documents CSV, the qty rules and that pages are full; routes.mjs:1-3 header comment updated. Weaknesses: test/api.test.mjs:63-69 fractional test only checks that error is a string and does not cover POST /items; no API test that the export ignores paging or that content-length is right for non-ASCII. Behaviour change: the string '3' is now rejected (documented)."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.6255535999999999,
+    "swapped": true
+  },
+  {
+    "pair": "h2-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm --prefix X test: 35/35 pass. Probe (scratch/p.mjs): qty 2.5 and '2' get 400 with a clear error, 2.0 and 1e2 are accepted; export.csv returns 200 with text/csv, CRLF line ends, correct quoting and doubled quotes; POST to it gets 404. lib/paginate.mjs:5 fixes the off-by-one slice. lib/validate.mjs:33 uses Number.isSafeInteger so values are refused, not rounded. lib/routes.mjs:17-29 has the CSV helper and exportItems inline, which is fine but mixes concerns in the routes file. lib/routes.mjs:81 places the export route before the sku route, as it must. server.mjs:50-57 adds contentType to send; it would throw if a handler gave a contentType with a non-string body (latent, minor). Tests: api.test.mjs:153-184 has one exact-string CSV test (sort order, comma, quote, CRLF inside a field, reserved count), an empty-store test, a 10/10/5 paging test and a fractional-qty test; it does not check the error body or that a string qty is refused at the API. README documents the route, the CSV rules and the stricter qty."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix Y test: 39/39 pass. The same probe gives the same results as X (400 for 2.5 and '2', text/csv with correct quoting and CRLF, 404 for POST). lib/paginate.mjs:5 fixes the slice. lib/validate.mjs:33 uses Number.isSafeInteger. lib/csv.mjs is a small reusable toCsv module; lib/routes.mjs:17-21 uses a CSV_COLUMNS constant for both the header and the row fields. lib/routes.mjs:75 orders the route correctly. server.mjs:50-59 adds a separate text/contentType reply; it would send an undefined header if text came without contentType (latent, minor). Tests: test/csv.test.mjs unit-tests quoting, CRLF on every line, and spaces/empty fields left as they are; api.test.mjs:153-210 checks the error body, a string qty, the reservations total, each page's boundary skus, 30 reverse-inserted items sorted, lone CR and lone LF names, and content-type on an empty store; validate.test.mjs adds 1e3 strings, arrays, Infinity, NaN and 2**53. README documents the route, the CSV rules with an example, the qty rule and the new module."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "costUSD": 0.5568062
+  },
+  {
+    "pair": "h2-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "lib/paginate.mjs:5 makes the same off-by-one fix. lib/validate.mjs:31-34 has the same Number.isSafeInteger parseQuantity fix. lib/routes.mjs:17-28 builds the CSV inline in routes (csvField plus exportItems): correct, but it mixes formatting into the route file. server.mjs:50-58 send() uses contentType to mean 'body is a ready string', which is fine. Tests: 35/35 pass. test/api.test.mjs:154-184 has one combined CSV test (comma, quote, CRLF, trailing LF, ordering, reserved count) and an empty-store test that doesn't check content-type. A lone CR is never tested, so a regex missing \\r would still pass. The fractional-qty test doesn't check the error message or the reservation count. Paging test checks page sizes only. README documents the route, the qty rule and the server.mjs change. Probe output was identical to X: 400 for 2.5 and '2', exact CSV, text/csv. No CSV formula-injection guard (not required)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "lib/paginate.mjs:5 fixes the off-by-one (slice end start+perPage). lib/validate.mjs:31-34 parseQuantity now needs Number.isSafeInteger(v) && v>=1, so 2.5, '5' and true get 400 instead of being truncated; the fix sits in the one function both POST routes use. lib/csv.mjs:3-10 is a small reusable toCsv (quotes on /[\",\\r\\n]/, doubles quotes, CRLF after every line). lib/routes.mjs:17-22 sorts by sku and puts the header first; the route at :75 comes before /items/:sku. server.mjs:51-59 send() takes {text, contentType}; small latent risk: text sent without a contentType would pass undefined as the header (no handler does this). Tests: 39/39 pass. test/api.test.mjs:154-210 covers the fractional qty (error message, reserved unchanged, reservation total 0, string qty), 25 items paging 10/10/5 with skus at the page edges, 30-item ordering, every quoting case including a lone CR, and the empty store with its content type. test/csv.test.mjs tests the helper on its own. test/validate.test.mjs:29 has a wide set of rejected values. README documents the route, the stricter qty rule with an example, and lib/csv.mjs in Layout. Probe: 2.5, '2' and 1e21 got 400; the CSV was exact with text/csv; POST to the export got 404. No CSV formula-injection guard (not required)."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "costUSD": 0.6014296,
+    "swapped": true
+  },
+  {
+    "pair": "h3-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: clean small helpers parseValue/parseStep/parseBase/parseItem (X/cron.mjs:24-69); day rule via domRestricted/dowRestricted flags where only an exact '*' counts as unrestricted (X/cron.mjs:86-87, 95-103); fast search that skips non-matching months and days (X/cron.mjs:132-147); the 5-year window applies to each result (X/cron.mjs:155-174); validates from and n before parsing; detailed SyntaxError messages, e.g. 'expected 5 space-separated fields, got 4' (X/cron.mjs:81). Rejects 7/s for day of week as a documented decision (X/cron.mjs:52, test/parse.test.mjs 'rejects 7/s'), which the task arguably allows. Ran npm --prefix X test: 99/99 pass. Tests are thorough: per-field bounds, names, many malformed inputs, leap years including the 2100 skip, the per-result 5-year window, and a TZ=Pacific/Kiritimati child-process check (test/next.test.mjs:'ignores the host time zone'). In probes and 300-case fuzz (vs Y and brute force) there were zero mismatches; 1000 sparse results took 5ms. README is complete and explains the per-result window (README.md:64-65). Minor: when expr is not a string and from is also bad, the from TypeError comes first (fine, both are TypeError)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: compact regex-based item parsing (Y/cron.mjs:20, 41-64); toValue range-checks names and numbers in one place (Y/cron.mjs:26-39); day matcher built from Sets (Y/cron.mjs:88-99); per-result 5-year window (Y/cron.mjs:102-119). Treats day-of-week 7/s as Sunday via Math.max(lo, stepMax) (Y/cron.mjs:58), a defensible reading. Weaknesses: redundant parts[0]==='' check (Y/cron.mjs:75) and a duplicated string-type check in next (Y/cron.mjs:122); scans day by day with no month skipping (Y/cron.mjs:108), 15ms for 1000 sparse results, which is acceptable; the RangeError message omits the expression (Y/cron.mjs:118). Ran npm --prefix Y test: 18/18 pass. Tests cover the core cases plus a good list of 33 malformed expressions (Y/cron.test.mjs:47-55), but have no timezone check, no test of the 5-year window across n>1, and no per-field bound sweep. Probes plus 300-case differential fuzz: identical to X on all random cases, and matches brute force. README is clear and complete but does not say whether the 5-year window applies per result."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.8097766000000001
+  },
+  {
+    "pair": "h3-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: small, well-named functions. Y/cron.mjs:37 parseStep, :45 parseBase, :60 parseItem. Y/cron.mjs:52 rejects n/s when n is above the step maximum (7/2), a documented decision that is tested at test/parse.test.mjs:117. Y/cron.mjs:132-147 skips non-matching months and days and searches within a day for the first match, so it is about 5x faster than X on sparse schedules. Error messages include the allowed range and the field count (Y/cron.mjs:28, :81), and the RangeError names the expression (Y/cron.mjs:170). Ran npm test: 99/99 pass across test/parse.test.mjs and test/next.test.mjs. The tests cover bounds for every field, many invalid forms, names, the day rule (including */1 and a full range counting as restricted), the 5-year window applied per result, the 2100 non-leap year, n=1000 and the host time zone. About 40 probes and a 300-case fuzz against a brute-force search showed 0 differences. README documents the spacing rules, examples, errors and the per-result 5-year window. Defects (minor): Y/cron.mjs:97-98 and :136 use Array.includes instead of a Set, which is slightly slower. The TypeError for a non-string expr comes from parseExpression after the from and n checks (Y/cron.mjs:157-163); that is fine but the order of checks differs from the task's order. Only spaces count as separators, so a tab is rejected, which matches the task."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: compact and clear. X/cron.mjs:20 uses one ITEM_RE regex to validate each item, so inputs like 1-2-3, */, -1 and 1/2/3 are rejected. X/cron.mjs:57-58 handles n/s, and X/cron.mjs:68 maps day of week 7 to 0. X/cron.mjs:88-98 implements the day rule correctly. X/cron.mjs:121-128 checks expr, from and n before parsing. X/cron.mjs:118 throws RangeError 'No match ...'. Ran npm test: 18/18 pass. Ran about 40 probes: all task cases are correct. A 300-case differential fuzz against Y and a brute-force search showed 0 differences. Defects: X/cron.mjs:108 walks every day for up to 5 years and never skips whole months, so 1000 results of '0 0 1 1 *' took about 66 ms (Y about 13 ms). X/cron.mjs:58 silently accepts dow '7/2' as [0], which is a debatable reading. Error messages give less detail than Y's: no allowed range, no field count (X/cron.mjs:36, :76). Tests are thin: X/cron.test.mjs has 18 tests that bundle many assertions, cover few invalid inputs and do not test n=1000 or the host time zone. README is accurate and concise but does not mention multiple or leading spaces."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.6772831999999999,
+    "swapped": true
+  },
+  {
+    "pair": "h3-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran npm --prefix X test: 15/15 pass. Probes: all ~27 malformed exprs give SyntaxError 'Invalid cron expression ...' (X/cron.mjs:17,31,47); TypeErrors for non-string/invalid Date/n=0,1001,1.5,'2',NaN (X/cron.mjs:103-109); RangeError 'No match' for 0 0 30 2 * and for Feb 29 from 2096-03 (X/cron.mjs:119); OR day rule and only-restricted rule right (X/cron.mjs:76-84); strictly-after and zeroed seconds right; n=1000 runs in under 50 ms. Defects: X/cron.mjs:89 uses Date.UTC, which maps years 0-99 to 19xx, so next('0 0 1 3 *', year 50) wrongly throws RangeError (obscure); X/cron.mjs:66 splits on \\s+, so tabs are accepted though the task says spaces; '7/2' in day of week gives [0] (X/cron.mjs:49), defensible. Day-by-day loop (X/cron.mjs:87-100) is simple and fast enough. Tests (X/cron.test.mjs) are compact, 15 cases covering the main paths but few edge cases (no window-boundary or DOW-7 range checks beyond basics). README is short but covers syntax, API and errors."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix Y test: 93/93 pass across 9 describe groups, including 5-year window edges just inside and outside, a later gap after the previous result, and no leap day in 2100. Probes: all malformed exprs give precise SyntaxErrors (Y/cron.mjs:18,24,36,44,47,52,58); the step token is validated on its own (Y/cron.mjs:33-39); TypeErrors correct (Y/cron.mjs:135-141); RangeError 'No match' carries the start time (Y/cron.mjs:148); handles years 0-99 via setUTCFullYear (Y/cron.mjs:104-109), so year 50 returns 0050-03-01; OR day rule right (Y/cron.mjs:93-100). The search skips whole months, days and hours (Y/cron.mjs:119-132); n=1000 finishes in under 60 ms. Minor: buildMatcher splits the fields twice, once directly and once via parse (Y/cron.mjs:87-89); '7/2' in day of week is rejected (Y/cron.mjs:52), defensible since n/s uses 0-6; spaces only, so tabs are rejected (Y/cron.mjs:73), a literal reading of the spec. README has a field table, the day rule, all error types, and explains the per-result 5-year window."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "costUSD": 0.6207252
+  },
+  {
+    "pair": "h3-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran npm --prefix Y test: 15/15 pass. Probes matched X on almost every case: names, ranges, steps, the either-day rule, leap days, the impossible 30 Feb, and all the error types. Defects: Date.UTC on Y/cron.mjs:89 maps years 0-99 to the 1900s, so next('0 0 * * *', new Date('0050-06-01Z')) throws a false RangeError; splitting on \\s+ (Y/cron.mjs:66) accepts tabs, which the spaces-only rule does not allow; Math.max(start, top) (Y/cron.mjs:49) makes day-of-week '7/2' return [0] silently instead of rejecting it. Strengths: a compact single-regex item parser (Y/cron.mjs:31) and a day-by-day search over the sorted hour and minute lists (Y/cron.mjs:87-100). Tests are fewer but have a good list of invalid expressions; most features get only one assertion. The README leaves out the 'only the restricted one counts' half of the day rule and the per-result window."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm --prefix X test: 93/93 pass, including the 5-year window edges and the year-2100 no-leap-day gap. Probes: names, day-of-week 7 handling, the either-day rule, leap years, and all TypeError/SyntaxError/RangeError cases were correct. Strengths: setUTCFullYear avoids the Date.UTC 0-99 year mapping (X/cron.mjs:104-109), so a from date in year 50 works; findNext skips whole months, days and hours (X/cron.mjs:119-132); n/s in day of week is limited to 0-6 (X/cron.mjs:52), so 7/2 is rejected; splits fields on literal spaces only (X/cron.mjs:73), as the task asks; the RangeError message includes the window start (X/cron.mjs:148). Minor: splitFields runs twice (buildMatcher calls it and then parse) (X/cron.mjs:87-89). README fully documents the grammar, the day rule, the errors and the per-result window."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "costUSD": 0.6087226000000001,
+    "swapped": true
+  },
+  {
+    "pair": "h3-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm --prefix X test: 114/114 pass. Probe of ~33 parse inputs plus next/error cases (scratch/p.mjs) and a 300-expression brute-force fuzz (scratch/f.mjs): 0 mismatches; TypeError/SyntaxError/RangeError are thrown with the required message prefixes. Strengths: X/cron.mjs:117-125 advance() skips by month/day/hour/minute using Date setters (years 0-99 safe); X/cron.mjs:15 a single item regex is strict and rejects +1, 0x1, 1.5, *-5; X/cron.mjs:139 argument validation in its own function; X/test/cron.test.mjs covers exact bounds per field (:56), local-timezone independence (:287), years 0-99 (:311), the 2100 leap gap (:375), n crossing the gap (:389), performance (:395). Defects: X/cron.mjs:49 rejects day-of-week 7/s with a SyntaxError (debatable reading of the task); README is accurate but lighter on examples."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm --prefix Y test: 23/23 pass. Same probes (scratch/p.mjs) and 300-expression brute-force fuzz (scratch/f.mjs): 0 mismatches; output identical to X except '* * * * 7/2', which Y maps to [0] via Math.max at Y/cron.mjs:51 (silent but defensible). Strengths: Y/cron.mjs:115-129 simple day loop over the hour/minute lists, correct and bounded; error types and prefixes correct; README is clear and notes the MON-SUN reversed-range pitfall. Defects: Y/cron.mjs:86-87 compile splits the expression twice (calls parse again); Y/cron.mjs:132 repeats the string type check; Y/cron.test.mjs has only 23 tests, with no per-field bound checks and no timezone or early-year tests, so it would catch fewer regressions."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.671448
+  },
+  {
+    "pair": "h3-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm --prefix Y test: 114/114 pass across 9 suites. Same probe results as X on every case (errors, OR day rule, Feb-29/2100 gap RangeError, years 0-99, TZ, near-max Date); timing fine (1000 daily in 26 ms, 1000 yearly in 44 ms). Strengths: Y/cron.mjs:15 one regex for item shape gives consistent messages; Y/cron.mjs:49 rejects day-of-week 7/s, per the spec's 0-6 rule for n/s; Y/cron.mjs:117-125 skips by month/day/hour/minute using Date setters so years 0-99 are not mapped to the 1900s (comment at line 119); validation factored out at Y/cron.mjs:139. Tests (Y/test/cron.test.mjs) cover field bounds, garbage input, names, TZ independence (line 287), years 0-99 (lines 311-320), the 2100 gap (line 375) and performance (line 394). README clear and complete. Minor: minute-by-minute stepping inside an hour is a bit slower than X, which does not matter in practice."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm --prefix X test: 23/23 pass. Probes (scratch/p.mjs, q.mjs): 5-7 gives [0,5,6], */2 gives [0,2,4,6], mixed-case names and ranges work; 1-2-3, -5, 5-, */0, 1,,2, +5, 1.5, tab, empty string and dom 0 all throw SyntaxError starting 'Invalid cron expression'; 0 0 30 2 * and the Feb-29 search from 2096 (2100 gap) throw RangeError 'No match'; bad from or n throw TypeError; DOM/DOW OR rule correct; years 0-99 correct (ms arithmetic); timing fine (1000 yearly in ~52 ms). Defects/notes: X/cron.mjs:51 maps day-of-week 7/s to [0] where the task says n/s uses 0-6 (lenient); X/cron.mjs:85-87 compile splits the expression twice (redundant). Tests (X/cron.test.mjs, 23 cases) cover the main features and errors but miss timezone independence, years 0-99, the 2100 leap gap and n boundaries. README clear, with a useful MON-SUN reversed-range warning."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 0.690037,
+    "swapped": true
+  }
+]
