@@ -1,0 +1,1 @@
+- [Bash limits and smoke tests](feedback_bash_limits.md) — background/mktemp bash denied; smoke-test via node script in .team/scratch

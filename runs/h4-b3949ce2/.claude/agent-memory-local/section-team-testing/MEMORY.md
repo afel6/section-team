@@ -1,0 +1,1 @@
+- [Test env quirks](project_test_env.md) — Node 22 test glob, Bash denials, \u escapes turned literal by edit tools

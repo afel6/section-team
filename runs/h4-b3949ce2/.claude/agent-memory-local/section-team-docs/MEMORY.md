@@ -1,0 +1,1 @@
+- [No Bash for docs](feedback_no_bash.md) — Bash denied here; verify docs by reading code and notes

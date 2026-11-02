@@ -1,0 +1,11 @@
+import { loadApp, flush, describeChildren } from '../../test/helpers/fake-dom.mjs';
+const page = loadApp();
+process.stdout.write(JSON.stringify(page.fetches.map((f) => [f.url, f.options])) + '\n');
+page.fetches[0].reply(200, { rooms: ['Aurora', 'Borealis', 'Cosmos'] });
+page.fetches[1].reply(200, { bookings: [{ id: 1, room: 'Aurora', title: '<b>x</b>', date: '2026-11-03', start: '09:00', end: '10:00' }] });
+await flush();
+process.stdout.write(JSON.stringify(page.el('room').children.map((o) => [o.value, o.textContent])) + '\n');
+process.stdout.write(JSON.stringify([describeChildren(page.el('booking-list').children[0]), page.violations, page.log]) + '\n');
+page.el('title').value = '  hi ';
+const ev = page.el('booking-form').dispatch('submit');
+process.stdout.write(JSON.stringify([ev, page.lastFetch().options]) + '\n');

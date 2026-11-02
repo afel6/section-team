@@ -1,0 +1,1 @@
+- [Sandbox scratch files](sandbox_scratch.md) — shell file writes denied; use Write to unique /tmp dir, then run node
