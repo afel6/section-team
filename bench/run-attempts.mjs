@@ -1,7 +1,8 @@
 // Attempts of one benchmark run (spec: docs/specs/2026-11-01-mode-round-design.md, "Attempts and reruns" and "Evidence"):
 // earlier attempts are archived, never deleted; each attempt's ending is classified; API failures and void runs stop the
 // batch (the round after the capped reruns); counted runs get a run.json with their evidence copied beside it.
-// results/<id>/attempts.json lists every capped failure and harness-bug rerun of the run, across attempts.
+// results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop and harness-bug rerun of the
+// run, across attempts; only the CAPPED kinds count toward the cap.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -38,6 +39,15 @@ export class RoundStop extends Stop {
   name = 'RoundStop'
   exitCode = 3
   constructor(reason) { super('round stopped', reason) }
+}
+// Required evidence (the session transcript, a builder's mode record) missing after a run: a harness or evidence error.
+// main exits 1 on it, like any other error: stop and report, never resume on its own. path is the missing file.
+export class EvidenceMissing extends Error {
+  name = 'EvidenceMissing'
+  constructor(message, path) {
+    super(message)
+    this.path = path
+  }
 }
 // main's exit code: 2 or 3 for a stop, 1 for any other error.
 export const exitCodeOf = err => (err instanceof BatchStop || err instanceof RoundStop ? err.exitCode : 1)
@@ -123,7 +133,7 @@ export function copyEvidence({ runDir, sessionId, outDir, base, home = homedir()
     { from: join(home, record), to: join(evidence, record), required: base !== 'solo' },
   ]
   const missing = items.find(item => item.required && !existsSync(item.from))
-  if (missing && !bestEffort) throw new Error(`evidence missing for ${sessionId}: ${missing.from}`)
+  if (missing && !bestEffort) throw new EvidenceMissing(`evidence missing for ${sessionId}: ${missing.from}`, missing.from)
   return items.filter(item => existsSync(item.from)).flatMap(item => {
     cpSync(item.from, item.to, { recursive: true })
     return filesAt(item.to)
@@ -155,7 +165,12 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
   const kind = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const result = resultOf(messages)
   const entry = { attempt, sessionId, at: new Date().toISOString() }
-  if (kind === 'api-limit') throw new BatchStop(`${run.id}: usage or rate limit (${firstLine(result.result)}); resume in the next usage window`)
+  // A limit is recorded but never capped (cappedCount skips the kind), so attempts.json lists every attempt.
+  if (kind === 'api-limit') {
+    const text = firstLine(result.result)
+    recordAttempt(outDir, { kind, ...entry, resultText: text })
+    throw new BatchStop(`${run.id}: usage or rate limit (${text}); resume in the next usage window`)
+  }
   if (kind === 'api-other') {
     const text = firstLine(result.result)
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
@@ -164,9 +179,10 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
   const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir }), ...effortProblems(evidenceTexts)]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
-    if (reasons.some(reason => VERSION_RULE.test(reason))) {
+    const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))
+    if (mismatch.length > 0) {
       recordAttempt(outDir, { kind: 'harness-bug', reason: 'version or model mismatch', ...entry, reasons })
-      throw new BatchStop('harness bug: version or model mismatch')
+      throw new BatchStop(`harness bug: ${run.id} attempt ${attempt}: version or model mismatch (${mismatch.join('; ')})`)
     }
     throw capStop(run, recordAttempt(outDir, { kind: 'void', ...entry, reasons }).capped, `void (${reasons.join('; ')})`)
   }

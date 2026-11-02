@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { outputMessages } from './clean-run.mjs'
-import { BatchStop, projectDirFor } from './run-attempts.mjs'
+import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPluginWorktree, checkRoundTag, checkVolumes, killTree, freshRepo,
   isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, taskProblems,
@@ -472,6 +472,23 @@ test('runOne stops the batch on an API failure that left no session file, instea
   await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
   assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8')).map(e => e.kind), ['api-other'])
   assert.ok(!existsSync(join(outDir, 'run.json')))
+})
+
+// A missing session file after a run that did not hit the API is a harness or evidence error: exit 1, stop and report.
+test('runOne stops with exit 1 when required evidence is missing, naming the init problems and listing the attempt uncapped', async t => {
+  const { home, outDir, ctx, init, run, deps: base } = soloAttempt(t)
+  const deps = { ...base, spawn: fakeClaude({ home, calls: [], init: { ...init, model: 'claude-sonnet-5' }, transcript: false }) }
+  const err = await runOne(run, outDir, ctx, deps).then(() => assert.fail('runOne resolved'), e => e)
+  const { sessionId } = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  const path = join(projectDirFor(deps.dir, home), `${sessionId}.jsonl`)
+  assert.ok(err instanceof EvidenceMissing && !(err instanceof BatchStop), 'not a batch or round stop')
+  assert.equal(exitCodeOf(err), 1)
+  assert.equal(err.message, `evidence missing for ${sessionId}: ${path}; init problems: model claude-sonnet-5, expected claude-opus-5-5`)
+  const history = JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8'))
+  assert.deepEqual(history.map(({ at, ...entry }) => entry), [{ kind: 'evidence-missing', attempt: 1, sessionId, path, reasons: ['model claude-sonnet-5, expected claude-opus-5-5'] }])
+  assert.ok(!Number.isNaN(Date.parse(history[0].at)))
+  assert.ok(!existsSync(join(outDir, 'run.json')) && !existsSync(join(outDir, 'void.json')))
+  assert.equal(recordAttempt(outDir, { kind: 'void' }).capped, 1, 'the entry does not count toward the cap')
 })
 
 test('runOne kills a run at its time limit; raw.json keeps the init streamed before the kill and run.json ends timeout, not void', async t => {

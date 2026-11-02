@@ -210,11 +210,11 @@ test('copyEvidence copies only this session in the evidence layout, and stops lo
   assert.throws(() => copyEvidence({ runDir: RUN_DIR, sessionId: '../sid-1', outDir: join(root, 'bad'), base: 'solo', home }), /session id/)
 })
 
-test('finishAttempt on a usage limit: no run.json, no cap use', t => {
+test('finishAttempt on a usage limit: no run.json, no cap use, one api-limit attempts entry each', t => {
   const outDir = tempRoot(t)
-  const limit = [init(), result({ is_error: true, result: "You've hit your limit · resets 5pm" })]
+  const limit = [init(), result({ is_error: true, result: "You've hit your limit · resets 5pm\nsecond line" })]
   for (let i = 0; i < 4; i++) {
-    assert.throws(() => finish(outDir, { messages: limit }), err => {
+    assert.throws(() => finish(outDir, { messages: limit, attempt: i + 1 }), err => {
       assert.ok(err instanceof BatchStop)
       assert.equal(err.exitCode, 2)
       assert.match(err.reason, /^h4-lean-mo-r1: .*hit your limit/)
@@ -222,7 +222,11 @@ test('finishAttempt on a usage limit: no run.json, no cap use', t => {
       return true
     })
   }
-  assert.deepEqual(readdirSync(outDir), [], 'no run.json, void.json or attempts entry')
+  assert.deepEqual(readdirSync(outDir), ['attempts.json'], 'no run.json or void.json')
+  const history = readJson(join(outDir, 'attempts.json'))
+  assert.deepEqual(history.map(e => [e.kind, e.attempt, e.sessionId, e.resultText]), [1, 2, 3, 4].map(n => ['api-limit', n, 'sid-1', "You've hit your limit · resets 5pm"]))
+  assert.ok(history.every(e => typeof e.at === 'string'))
+  assert.equal(recordAttempt(outDir, { kind: 'void' }).capped, 1, 'api-limit entries never count toward the cap')
 })
 
 test('finishAttempt on a third api-other: RoundStop', t => {
@@ -262,10 +266,15 @@ test('finishAttempt: a version or model mismatch is a harness bug that stops the
   const outDir = tempRoot(t)
   recordAttempt(outDir, { kind: 'void' })
   recordAttempt(outDir, { kind: 'api-other' })
-  for (const fields of [{ claude_code_version: '2.1.300' }, { model: 'claude-sonnet-5' }, { apiKeySource: 'ANTHROPIC_API_KEY' }]) {
-    assert.throws(() => finish(outDir, { messages: [init({ ...fields, mcp_servers: [{ name: 'x' }] }), result()] }), err => {
+  const mismatches = [
+    [{ claude_code_version: '2.1.300' }, 'claude_code_version 2.1.300, expected 2.1.296'],
+    [{ model: 'claude-sonnet-5' }, `model claude-sonnet-5, expected ${BENCH_MODEL}`],
+    [{ apiKeySource: 'ANTHROPIC_API_KEY' }, 'apiKeySource ANTHROPIC_API_KEY, expected none'],
+  ]
+  for (const [fields, values] of mismatches) {
+    assert.throws(() => finish(outDir, { messages: [init({ ...fields, mcp_servers: [{ name: 'x' }] }), result()], attempt: 2 }), err => {
       assert.ok(err instanceof BatchStop, 'never a round stop')
-      assert.equal(err.reason, 'harness bug: version or model mismatch')
+      assert.equal(err.reason, `harness bug: h4-lean-mo-r1 attempt 2: version or model mismatch (${values})`, 'the run, the attempt and the values, not the MCP reason')
       return true
     }, JSON.stringify(fields))
     assert.equal(readJson(join(outDir, 'void.json')).reasons.length, 2, 'void.json lists every reason')
@@ -279,7 +288,7 @@ test('finishAttempt: a version or model mismatch is a harness bug that stops the
 test('finishAttempt: a wrong section-team version is a void run, not a harness bug', t => {
   const outDir = tempRoot(t)
   const old = init({ plugins: [...BUILTINS, { ...SECTION_TEAM, version: '0.2.0' }] })
-  assert.throws(() => finish(outDir, { messages: [old, result()] }), err => err instanceof BatchStop && err.reason !== 'harness bug: version or model mismatch')
+  assert.throws(() => finish(outDir, { messages: [old, result()] }), err => err instanceof BatchStop && !err.reason.includes('harness bug'))
   assert.deepEqual(readJson(join(outDir, 'void.json')), { reasons: ['section-team version 0.2.0, expected 0.2.1'] })
   assert.deepEqual(readJson(join(outDir, 'attempts.json')).map(e => e.kind), ['void'])
 })

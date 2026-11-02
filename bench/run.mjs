@@ -8,6 +8,7 @@
 // Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] --conds=solo,lean,team,max
 //          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [id-substring ...]
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given)
+//        exit 1: harness or evidence error; stop and report, do not resume
 //        exit 2: the batch stopped (resume to rerun); exit 3: the round stopped (fix the cause as a harness bug first)
 //        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
 import { spawn as nodeSpawn, execFileSync } from 'node:child_process'
@@ -19,8 +20,10 @@ import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, installedPluginKeys, outputMessages, readPin } from './clean-run.mjs'
-import { archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor } from './run-attempts.mjs'
+import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, readPin } from './clean-run.mjs'
+import {
+  EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
+} from './run-attempts.mjs'
 import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -245,6 +248,14 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
   })
 }
 
+// Missing required evidence stays an exit-1 stop (no void, no cap): the init's problems go into the message for
+// diagnosis, and attempts.json lists the attempt, so the rerun shows between batches.
+function evidenceMissing(err, { run, outDir, sessionId, attempt, messages, ctx }) {
+  const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir })
+  recordAttempt(outDir, { kind: 'evidence-missing', attempt, sessionId, at: new Date().toISOString(), path: err.path, reasons })
+  return new EvidenceMissing(`${err.message}; init problems: ${reasons.join('; ') || 'none'}`, err.path)
+}
+
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
 // ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit, the home folder and the run folder.
@@ -264,7 +275,12 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })
   const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const bestEffort = ended === 'api-limit' || ended === 'api-other'
-  const copied = copyEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, bestEffort })
+  let copied
+  try {
+    copied = copyEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, bestEffort })
+  } catch (err) {
+    throw err instanceof EvidenceMissing ? evidenceMissing(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
+  }
   const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
   const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, env })
   console.log(`${new Date().toISOString()} end   ${run.id} ${kind} exit=${info.exitCode} wall=${Math.round(info.wallMs / 1000)}s`)
