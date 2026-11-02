@@ -764,3 +764,35 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 - [ ] **Write `docs/benchmark-modes-2026-11.md`** with every section the spec's Publishing lists, including the Limits section verbatim from the spec. Task table: reference sizes counted as raw source lines without tests, docs and package.json (blank and comment lines included): h4 464 (171 browser), h5 about 151 (about 122 code-only), h6 340. Put the raw data in `bench/data/modes/` with the recompute command, and update the README's Modes table.
 - [ ] **Commit**: `docs: publish the mode round`.
 - [ ] **Hand the picker-label change** (`hooks/lib/mode.mjs` `MODE_LABELS`, next plugin version) to the user as a follow-up task. It is a plugin change after the freeze.
+
+## Part G (cloud) — Runbook on the cloud machine (amendment of 2026-11-02; each step waits for the user's yes)
+
+No batch had run on 2026-11-02. The round runs on a cloud Linux machine from tag `mo-freeze-cloud` (branch `bench/mode-round-cloud`); the spec's "Cloud amendment" lists what differs. Tasks 28–34 hold with these paths and additions; Codex and Antigravity follow the run sheet's "Cloud round".
+
+### Task 28c: Machine, CLI and inputs
+- [ ] **Code**: the harness checkout is at `mo-freeze-cloud`. On a fresh machine: clone, check out `mo-freeze-cloud`, then `node bench/cloud-sync.mjs restore --round=mo` before anything else.
+- [ ] **CLI**: `npm i -g @anthropic-ai/claude-code@2.1.296`, then `claude --version` prints `2.1.296 (Claude Code)`. Stop and report if the install fails. (Done on 2026-11-02; the package's binary had SHA-256 `24972e3b…d0de`, and a fresh install gave the same.)
+- [ ] **Plugin worktree**: `git worktree add /root/section-team-v0.2.1 v0.2.1` (outside the repo and outside `/tmp`), then `git -C /root/section-team-v0.2.1 status --porcelain` and `git -C /root/section-team-v0.2.1 diff --stat v0.2.1` print nothing.
+- [ ] **Held-out inputs**: copy `judge-ho.json`, `blind-key-ho.json`, `judge-hoag.json` and `blind-key-hoag.json` from `bench/data/heldout` into `bench/results`, unchanged, and print their SHA-256 hashes. `external-key-ho.json` stays on the PC: the held-out outside checks run there, and Codex's `hocx` stays valid as recorded.
+- [ ] **Account email**: the user decides whether the round pushes with `--redact-email` (spec, Cloud amendment change 5). Without it, the first push stops on the transcripts' `session_context` line.
+
+### Task 30c: Preflight (yes; about $1)
+- [ ] **Check the push**: `git ls-remote origin refs/tags/v0.2.1 refs/tags/mo-freeze-cloud` lists both at the local hashes.
+- [ ] **Run it**: `node bench/preflight.mjs --round=mo --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results` → `results/preflight-mo.json`, pushed at once. Show the pin (binary, SHA-256, npm package).
+
+### Task 31c: Runs (yes, with the estimate)
+- [ ] **Before each batch**: Task 31's three guards, with `mo-freeze-cloud` in place of `mo-freeze`; `--plugin=/root/section-team-v0.2.1`.
+- [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results [--redact-email] mo-r1` (then `mo-r2`, `mo-r3`), started as a background job whose output goes to a log file in the session's scratchpad.
+  - Exit 1 naming the account email: stop and report; nothing was pushed.
+  - Exit 2 after "could not push": resume once the network is back; the resume pushes first.
+  - Other exits as in Task 31.
+- [ ] **If the machine vanished**: on the new machine, Task 28c's fresh-machine step, then resume the batch. A run that was in progress when the machine vanished has no pushed results and runs again.
+
+### Task 32c: Opus judging
+- [ ] As Task 32. After the trial judge and after the last judge: `node bench/cloud-sync.mjs push [--redact-email]`.
+
+### Task 33c: Outside judges
+- [ ] The run sheet's "Cloud round": the case sets go to the PC on `bench/mode-round-cloud-cases`, the verdicts, logs and held-out records come back on `bench/mode-round-cloud-verdicts`, and the imports run here.
+
+### Task 34c: Analysis and write-up
+- [ ] As Task 34, with the guards on `mo-freeze-cloud`. The write-up states that the round ran on the cloud machine and cites `mo-freeze-cloud`, `v0.2.1` and the spec's Cloud amendment. Then `node bench/cloud-sync.mjs push`.
