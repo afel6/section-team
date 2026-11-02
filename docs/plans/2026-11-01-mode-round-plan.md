@@ -774,25 +774,25 @@ No batch had run on 2026-11-02. The round runs on a cloud Linux machine from tag
 - [ ] **CLI**: `npm i -g @anthropic-ai/claude-code@2.1.296`, then `claude --version` prints `2.1.296 (Claude Code)`. Stop and report if the install fails. (Done on 2026-11-02; the package's binary had SHA-256 `24972e3b…d0de`, and a fresh install gave the same.)
 - [ ] **Plugin worktree**: `git worktree add /root/section-team-v0.2.1 v0.2.1` (outside the repo and outside `/tmp`), then `git -C /root/section-team-v0.2.1 status --porcelain` and `git -C /root/section-team-v0.2.1 diff --stat v0.2.1` print nothing.
 - [ ] **Held-out inputs**: copy `judge-ho.json`, `blind-key-ho.json`, `judge-hoag.json` and `blind-key-hoag.json` from `bench/data/heldout` into `bench/results`, unchanged, and print their SHA-256 hashes. `external-key-ho.json` stays on the PC: the held-out outside checks run there, and Codex's `hocx` stays valid as recorded.
-- [ ] **Account email**: the user decides whether the round pushes with `--redact-email` (spec, Cloud amendment change 5). Without it, the first push stops on the transcripts' `session_context` line.
+- [ ] **Account email**: the round uses `--redact-email` in every run, push and preflight command (the user's decision, 2026-11-02; spec, Cloud amendment change 5). The scan stays on and still stops a push on any address left.
 
 ### Task 30c: Preflight (yes; about $1)
 - [ ] **Check the push**: `git ls-remote origin refs/tags/v0.2.1 refs/tags/mo-freeze-cloud` lists both at the local hashes.
-- [ ] **Run it**: `node bench/preflight.mjs --round=mo --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results` → `results/preflight-mo.json`, pushed at once. Show the pin (binary, SHA-256, npm package).
+- [ ] **Run it**: `node bench/preflight.mjs --round=mo --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results --redact-email` → `results/preflight-mo.json`, pushed at once. Show the pin (binary, SHA-256, npm package).
 
 ### Task 31c: Runs (yes, with the estimate)
 - [ ] **Before each batch**: Task 31's three guards, with `mo-freeze-cloud` in place of `mo-freeze`; `--plugin=/root/section-team-v0.2.1`.
-- [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results [--redact-email] mo-r1` (then `mo-r2`, `mo-r3`), started as a background job whose output goes to a log file in the session's scratchpad.
+- [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=/root/section-team-v0.2.1 --sync=bench/mode-round-cloud-results --redact-email mo-r1` (then `mo-r2`, `mo-r3`), started as a background job whose output goes to a log file in the session's scratchpad.
   - Exit 1 naming the account email: stop and report; nothing was pushed.
   - Exit 2 after "could not push": resume once the network is back; the resume pushes first.
   - Other exits as in Task 31.
 - [ ] **If the machine vanished**: on the new machine, Task 28c's fresh-machine step, then resume the batch. A run that was in progress when the machine vanished has no pushed results and runs again.
 
 ### Task 32c: Opus judging
-- [ ] As Task 32. After the trial judge and after the last judge: `node bench/cloud-sync.mjs push [--redact-email]`.
+- [ ] As Task 32. After the trial judge and after the last judge: `node bench/cloud-sync.mjs push --redact-email`. Each judge attempt has 60 minutes; a timed-out attempt is re-asked like any other unusable attempt.
 
 ### Task 33c: Outside judges
 - [ ] The run sheet's "Cloud round": the case sets go to the PC on `bench/mode-round-cloud-cases`, the verdicts, logs and held-out records come back on `bench/mode-round-cloud-verdicts`, and the imports run here.
 
 ### Task 34c: Analysis and write-up
-- [ ] As Task 34, with the guards on `mo-freeze-cloud`. The write-up states that the round ran on the cloud machine and cites `mo-freeze-cloud`, `v0.2.1` and the spec's Cloud amendment. Then `node bench/cloud-sync.mjs push`.
+- [ ] As Task 34, with the guards on `mo-freeze-cloud`. The write-up states that the round ran on the cloud machine and cites `mo-freeze-cloud`, `v0.2.1` and the spec's Cloud amendment. Then `node bench/cloud-sync.mjs push --redact-email`.

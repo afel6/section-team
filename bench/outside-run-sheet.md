@@ -51,7 +51,7 @@ On the cloud machine, after the leak scan:
 
 - `node bench/external-judge.mjs prepare --round=mo --out=/root/codex-judge-mo`, then at once `node bench/external-judge.mjs copy --from=/root/codex-judge-mo --to=/root/ag-judge-mo`.
 - `node bench/cloud-sync.mjs publish --branch=bench/mode-round-cloud-cases /root/codex-judge-mo /root/ag-judge-mo`. It refuses a set that holds a `verdict.json`, a file in a `scratch/` folder or a key.
-- `node bench/cloud-sync.mjs push --branch=bench/mode-round-cloud-results` (with `--redact-email` if the round uses it), so the case key `results/external-key-mo.json` is pushed too.
+- `node bench/cloud-sync.mjs push --branch=bench/mode-round-cloud-results --redact-email`, so the case key `results/external-key-mo.json` is pushed too.
 
 On the PC, from a worktree of the cloud freeze, never from a plain `git fetch` of every branch:
 
