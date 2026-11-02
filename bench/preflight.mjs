@@ -6,13 +6,13 @@
 // Spec: docs/specs/2026-11-01-mode-round-design.md (Pinned CLI, Preflight).
 // Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the v0.2.1 worktree>
 import { spawnSync } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { initOf, initProblems, installedPluginKeys, outputMessages, resultOf } from './clean-run.mjs'
+import { initOf, initProblems, installedPluginKeys, listUnder, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
 import {
   NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder,
 } from './run.mjs'
@@ -36,16 +36,6 @@ export function versionOf(stdout) {
   return match[1]
 }
 
-function sha256Of(file) {
-  let bytes
-  try {
-    bytes = readFileSync(file)
-  } catch (err) {
-    throw new Error(`cannot read ${file} (${err.code ?? err.name})`, { cause: err })
-  }
-  return createHash('sha256').update(bytes).digest('hex')
-}
-
 // Copies the version's executable to the path every round run starts. A copy from an earlier preflight is kept, never
 // overwritten (a run may still hold it open), so it must match the source byte for byte like a fresh one.
 export function copyBinary({ home, version, run = spawnSync }) {
@@ -65,15 +55,6 @@ export function copyBinary({ home, version, run = spawnSync }) {
     throw new Error(`${binary} --version printed "${firstLine(r.stdout)}" (exit ${r.status}), expected ${version}`)
   }
   return { binary, sha256 }
-}
-
-function listUnder(dir) {
-  try {
-    return readdirSync(dir, { recursive: true }).map(path => path.replaceAll('\\', '/'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return []
-    throw err
-  }
 }
 
 // What claude.ai has synced into ~/.claude, as sorted paths relative to it; a run must leave it unchanged.

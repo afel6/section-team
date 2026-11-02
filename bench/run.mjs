@@ -20,11 +20,13 @@ import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, readPin } from './clean-run.mjs'
 import {
-  EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
+  SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, listUnder, outputMessages, readPin, sha256Of,
+} from './clean-run.mjs'
+import {
+  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
 } from './run-attempts.mjs'
-import { MEMORY_ROOT, backupSectionMemory, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
+import { MEMORY_ROOT, backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const REPO = dirname(BENCH)
@@ -127,6 +129,39 @@ export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
   if (win32.resolve(top).toLowerCase() !== win32.resolve(plugin).toLowerCase()) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
   if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${PLUGIN_TAG} worktree`)
   if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
+}
+
+// The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed.
+export function checkPin(plugin, pin) {
+  if (win32.resolve(plugin).toLowerCase() !== win32.resolve(String(pin.pluginDir)).toLowerCase()) {
+    throw new Error(`--plugin=${plugin} is not the worktree the round pinned: pass --plugin=${pin.pluginDir}`)
+  }
+  if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round`)
+}
+
+// ~/.claude/skills and ~/.claude/agents (synced/ left out) as sorted ~/.claude-relative paths, like the preflight's
+// syncedListing: the user's own skills and agents, which every init lists.
+const USER_FOLDERS = ['skills', 'agents']
+export const userListing = home => USER_FOLDERS.flatMap(folder => listUnder(join(home, '.claude', folder))
+  .filter(path => path.split('/')[0] !== 'synced').map(path => `${folder}/${path}`)).sort()
+
+// One run of the batch with the user's skills and agents checked against the batch start, before and after it: a
+// change stops the batch naming the run and the entries, before another paid run starts on a setup unlike the pin.
+export function watchUserLists(one, { home = homedir() } = {}) {
+  const start = new Set(userListing(home))
+  const check = (run, when) => {
+    const now = new Set(userListing(home))
+    const added = [...now].filter(path => !start.has(path))
+    const removed = [...start].filter(path => !now.has(path))
+    if (added.length + removed.length === 0) return
+    const changes = [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean).join('; ')
+    throw new BatchStop(`${run.id}: ~/.claude skills or agents changed ${when} the run (${changes}); put them back as the batch found them, then resume`)
+  }
+  return async (run, outDir) => {
+    check(run, 'before')
+    await one(run, outDir)
+    check(run, 'during')
+  }
 }
 
 // initProblems judges these setups only, so a round runs no other (forced included); the preflight checks each.
@@ -266,6 +301,8 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   const sessionId = randomUUID()
   const attempt = nextAttempt(outDir)
   writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
+  // The earlier attempt's solution folder is kept beside the new one (a harness-bug rerun replaces a counted run).
+  if (existsSync(dir)) renameRetry(dir, `${dir}-attempt-${attempt - 1}`)
   prepareRun(run, { dir, root })
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
@@ -346,12 +383,13 @@ async function main() {
   const pluginCommit = pluginCommitOf(plugin)
   checkPluginWorktree(plugin)
   const pin = readPin(RESULTS, tag)
+  checkPin(plugin, pin)
   const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, pluginCommit }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
-  await runAll(todo, { runOne: (r, o) => runOne(r, o, ctx) })
+  await runAll(todo, { runOne: watchUserLists((r, o) => runOne(r, o, ctx)) })
   console.log('all runs finished')
 }
 

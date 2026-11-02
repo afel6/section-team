@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { EventEmitter, once } from 'node:events'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -9,8 +10,9 @@ import { PassThrough } from 'node:stream'
 import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
-  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPluginWorktree, checkRoundTag, checkVolumes, killTree, freshRepo,
-  isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, taskProblems,
+  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
+  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, runAll, runFolder, runOne, taskProblems, userListing,
+  watchUserLists,
 } from './run.mjs'
 
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
@@ -543,4 +545,58 @@ test('runOne spawns the pinned binary with builderArgs for its own session id, a
     assert.ok(existsSync(join(outDir, 'attempt-1', name)), `attempt-1 keeps ${name}`)
   }
   assert.ok(!existsSync(join(projectDirFor(dir, home), `${first.sessionId}.jsonl`)), 'the second attempt starts without the first attempt\'s transcripts')
+  assert.equal(git(`${dir}-attempt-1`, 'log', '--format=%s', '-1'), 'init', 'the first attempt\'s solution folder is kept, renamed, never wiped')
+  assert.equal(git(dir, 'log', '--format=%s', '-1'), 'init', 'the second attempt gets a fresh folder')
+})
+
+// A fake home's ~/.claude with user skills and agents, and a synced folder a run may change.
+function fakeClaudeHome(t) {
+  const home = tempRoot(t)
+  for (const file of ['skills/tdd/SKILL.md', 'skills/synced/s1/SKILL.md', 'agents/helper.md']) {
+    mkdirSync(join(home, '.claude', file, '..'), { recursive: true })
+    writeFileSync(join(home, '.claude', file), 'x')
+  }
+  return home
+}
+
+test('userListing lists ~/.claude skills and agents without synced/, sorted, and a missing folder as empty', t => {
+  const home = fakeClaudeHome(t)
+  assert.deepEqual(userListing(home), ['agents/helper.md', 'skills/tdd', 'skills/tdd/SKILL.md'])
+  assert.deepEqual(userListing(join(home, 'no-such-home')), [])
+})
+
+test('watchUserLists stops the batch naming the run when user skills or agents change during or before it; synced/ is ignored', async t => {
+  const home = fakeClaudeHome(t)
+  const put = file => { mkdirSync(join(home, '.claude', file, '..'), { recursive: true }); writeFileSync(join(home, '.claude', file), 'x') }
+  const ran = []
+  const one = watchUserLists(async run => {
+    ran.push(run.id)
+    put('skills/synced/s2/SKILL.md')
+    if (run.id === 'h5-lean-mo-r1') put('skills/found/SKILL.md')
+  }, { home })
+  await one({ id: 'h4-lean-mo-r1' }, 'out')
+  await assert.rejects(one({ id: 'h5-lean-mo-r1' }, 'out'), err => {
+    assert.ok(err instanceof BatchStop)
+    assert.equal(err.reason, 'h5-lean-mo-r1: ~/.claude skills or agents changed during the run (added skills/found, skills/found/SKILL.md); put them back as the batch found them, then resume')
+    return true
+  })
+  rmSync(join(home, '.claude', 'skills', 'found'), { recursive: true })
+  rmSync(join(home, '.claude', 'agents', 'helper.md'))
+  await assert.rejects(one({ id: 'h6-lean-mo-r1' }, 'out'), { reason: 'h6-lean-mo-r1: ~/.claude skills or agents changed before the run (removed agents/helper.md); put them back as the batch found them, then resume' })
+  assert.deepEqual(ran, ['h4-lean-mo-r1', 'h5-lean-mo-r1'], 'no run starts after a change')
+})
+
+test('checkPin refuses a --plugin other than the pinned worktree and a binary whose bytes differ from the pin, in one line each', t => {
+  const root = tempRoot(t)
+  const binary = join(root, 'claude-2.1.296.exe')
+  writeFileSync(binary, 'claude bytes')
+  const sha256 = createHash('sha256').update('claude bytes').digest('hex')
+  const pin = { binary, sha256, pluginDir: 'C:/Users/Asus/section-team-v0.2.1' }
+  assert.doesNotThrow(() => checkPin('C:\\Users\\Asus\\Section-Team-v0.2.1\\', pin), 'slashes and case do not matter')
+  assert.throws(() => checkPin('C:/Users/Asus/section-team-v0.2.0', pin),
+    { message: '--plugin=C:/Users/Asus/section-team-v0.2.0 is not the worktree the round pinned: pass --plugin=C:/Users/Asus/section-team-v0.2.1' })
+  writeFileSync(binary, 'other bytes')
+  assert.throws(() => checkPin(pin.pluginDir, pin), { message: `${binary} differs from the binary the round pinned: put the pinned copy back; never re-pin a started round` })
+  rmSync(binary)
+  assert.throws(() => checkPin(pin.pluginDir, pin), { message: `cannot read ${binary} (ENOENT)` })
 })

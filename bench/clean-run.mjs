@@ -1,7 +1,8 @@
 // Run hygiene shared by run.mjs, preflight.mjs and judge.mjs (spec: docs/specs/2026-11-01-mode-round-design.md):
 // the round's pinned model and effort, the child environment, the clean --settings, reading claude's output, and the
 // init and transcript checks that void a run whose setup differs from the one the preflight pinned.
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, win32 } from 'node:path'
 
@@ -199,6 +200,27 @@ export function effortProblems(jsonlTexts, effort = BENCH_EFFORT) {
 export function compacted(jsonlText) {
   if (typeof jsonlText !== 'string') throw new TypeError('compacted takes a transcript text')
   return jsonLines(jsonlText).some(m => m.type === 'system' && m.subtype === 'compact_boundary')
+}
+
+// A file's SHA-256 in hex; one line naming the file when it cannot be read.
+export function sha256Of(file) {
+  let bytes
+  try {
+    bytes = readFileSync(file)
+  } catch (err) {
+    throw new Error(`cannot read ${file} (${err.code ?? err.name})`, { cause: err })
+  }
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+// Every path under dir, relative, with forward slashes; [] when dir does not exist.
+export function listUnder(dir) {
+  try {
+    return readdirSync(dir, { recursive: true }).map(path => path.replaceAll('\\', '/'))
+  } catch (err) {
+    if (err.code === 'ENOENT') return []
+    throw err
+  }
 }
 
 export function readPin(results, round) {
