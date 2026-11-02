@@ -1,0 +1,1 @@
+- [Env constraints](project_env_constraints.md) — root, Node 22 `--test dir` broken, helpers lack Bash, run mutants in scratch mirrors
