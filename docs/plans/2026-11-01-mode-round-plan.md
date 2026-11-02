@@ -446,7 +446,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 **Interfaces:**
 - Consumes: `isTestPath` (`bench/score.mjs`).
 - `WORDS = ['section-team', 'section', 'supervisor', 'REPORT', 'GRADE', 'reviewer', 'near-miss', 'near miss', 'nearmiss', 'mutant', 'Lean', 'Balanced', 'Max mode', '.team', 'ponytail']`.
-- `scanText(text) -> { [word]: count }`: case-insensitive whole-word matches, where letters, digits, `-` and `.` are word characters.
+- `scanText(text) -> { [word]: count }`: case-insensitive whole-word matches in file contents, where a letter or digit joins a word and `-` or `.` joins one only between two letters or digits ("boolean" and "clean-up" do not match "lean", "Lean." does). In relative paths only letters and digits join (`near-miss-1-parse.mjs` matches). Words that contain `-`, `.` or a space match literally.
 - `scanSolution(dir) -> { hits, extraPaths, testLines }`:
   - `hits` counts matches in file contents and in relative paths;
   - `extraPaths` lists every file that is not `package.json`, `*.md`, a code file (`.mjs .js .cjs .html .css .json`) or a test file by `isTestPath`, plus every file whose relative path has a `WORDS` hit.
@@ -697,8 +697,8 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
   - an HTTP JSON API plus a browser page served by the same server, with data in one JSON file;
   - its own page section: a form that calls the API, a list that updates after a change, and the API's error messages shown;
   - the entry file, port variable and data file path are fixed.
-- **Hidden tests:** HTTP only, including the served HTML and script checked for the spec's element ids and text.
-- **Size:** the reference is about 500–800 new lines, of which browser code is at least about 200. Author C also confirms from the text alone that it reads as two areas.
+- **Hidden tests:** they drive the server over HTTP: API status codes, bodies and error cases, and the served HTML checked for the spec's element ids and text. The served script is also run in a Node vm against a DOM and fetch stand-in that offers only the browser APIs the task text lists, and the tests check the page's behaviour there.
+- **Size:** the reference is about 500–800 new lines, of which browser code is at least about 200. As built: 464 new source lines without tests and docs (blank and comment lines counted), 171 of them browser code (HTML 41 + script 130); accepted, ruling 2026-11-02. Author C also confirms from the text alone that it reads as two areas.
 - **Commits:** as for h6.
 
 ## Part F — Freeze
@@ -723,7 +723,7 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 
 ### Task 28: Pin and check the held-out inputs
 - [ ] **Plugin worktree**: `git worktree add C:/Users/Asus/section-team-v0.2.1 v0.2.1`, then `git -C C:/Users/Asus/section-team-v0.2.1 status --porcelain` prints nothing.
-- [ ] **Held-out inputs**: copy them into this checkout's `bench/results`, unchanged: `external-key-ho.json`, `judge-hoag.json` and `blind-key-hoag.json` from `C:/Users/Asus/claude-team/bench/results`, and `judge-ho.json` and `blind-key-ho.json` from `bench/data/heldout`. Print their SHA-256 hashes.
+- [ ] **Held-out inputs**: copy them into this checkout's `bench/results`, unchanged: `external-key-ho.json` from `C:/Users/Asus/claude-team/bench/results`, and `judge-ho.json`, `blind-key-ho.json`, `judge-hoag.json` and `blind-key-hoag.json` from `bench/data/heldout`. Print their SHA-256 hashes.
 
 ### Task 29: Outside held-out checks (no Claude usage)
 - [ ] **Fresh sets**: `node bench/external-judge.mjs rebuild-heldout --out=C:/Users/Asus/codex-judge-ho2`, then `copy --from=C:/Users/Asus/codex-judge-ho2 --to=C:/Users/Asus/ag-judge-ho2`.
@@ -736,16 +736,22 @@ test('lean and balanced briefs do not mention .team/near-miss', () => {
 - [ ] **Run it from one shell**: `node bench/preflight.mjs --round=mo --plugin=C:/Users/Asus/section-team-v0.2.1` → `results/preflight-mo.json`. Show the pin.
 
 ### Task 31: Runs (yes, with the estimate: about $114 of runs, $89–137)
-- [ ] **Before each batch:** `git -C C:/Users/Asus/section-team-v0.2.1 status --porcelain`, `git -C C:/Users/Asus/section-team-v0.2.1 diff --stat v0.2.1` and `git diff --stat v0.2.1 mo-freeze -- agents hooks skills brief .claude-plugin scripts types package.json` all print nothing. Any output stops the round.
-- [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=C:/Users/Asus/section-team-v0.2.1 mo-r1` (then `mo-r2`, `mo-r3`). Exit 2 means resume in the next window; exit 3 means stop and report.
+- [ ] **Before the first batch:** until the round ends, do not install or remove anything in `~/.claude/skills` or `~/.claude/agents` (outside `synced/`). Start the round from a plain terminal and note which shell was used.
+- [ ] **Before each batch:** `git -C C:/Users/Asus/section-team-v0.2.1 status --porcelain`, `git -C C:/Users/Asus/section-team-v0.2.1 diff --stat v0.2.1` and `git diff --stat v0.2.1 mo-freeze -- agents hooks skills brief .claude-plugin scripts types package.json tests` all print nothing. Any output stops the round.
+- [ ] **One batch per usage window**: `node bench/run.mjs --tag=mo --conds=solo,lean,team,max --tasks=h4,h5,h6 --reps=3 --plugin=C:/Users/Asus/section-team-v0.2.1 mo-r1` (then `mo-r2`, `mo-r3`).
+  - Exit 1: harness or evidence error; stop and report, do not resume.
+  - Exit 2: the batch stopped. If the stop message says 'void' or names changed skills or agents, read the reasons, and restore `~/.claude` to the pinned lists before resuming; never re-pin. A 'harness bug' stop: stop and report. Otherwise resume in the next window.
+  - Exit 3: stop and report.
 - [ ] **After each batch**: run `node bench/score.mjs`, and list void runs, API failures and reruns.
 
 ### Task 32: Opus judging
 - [ ] **Prepare**: `node bench/anonymize.mjs --round=mo --conds=solo-mo,lean-mo,team-mo,max-mo --tasks=h4,h5,h6 --reps=3`, then `node bench/leak-scan.mjs --round=mo`.
 - [ ] **Trial judge** (its own yes): `node bench/judge.mjs --round=mo --per-pair=2 --limit=1`. Report the measured cost.
 - [ ] **Remaining judges** (yes, with the measured estimate): `node bench/judge.mjs --round=mo --per-pair=2`.
+- [ ] **If judging stops:** after an auth or API error, log in again (or wait out the outage), then resume judging.
 
 ### Task 33: Outside judges, mode round
+- [ ] **Order:** the held-out set is judged, imported and checked before any mode-round set is imported; the importer refuses otherwise.
 - [ ] **Sets**: `prepare --round=mo --out=C:/Users/Asus/codex-judge-mo`, then immediately `copy --from=C:/Users/Asus/codex-judge-mo --to=C:/Users/Asus/ag-judge-mo`.
 - [ ] **Codex** (yes): `node bench/codex-judge.mjs --set=C:/Users/Asus/codex-judge-mo`, then `import --round=mo --out=... --as=mocx`.
 - [ ] **Antigravity**: the user judges per case, then `import --as=moag`. When an import refuses, its `outside-usable-<as>.json` stays.
