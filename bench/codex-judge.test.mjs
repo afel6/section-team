@@ -83,13 +83,15 @@ const PROCEDURE = {
   '## Both judges': [
     '- The judge never opens anything outside its own case folder.',
     '- When a verdict is not usable, re-ask: start a new session on the same case. A case gets at most two re-asks.',
-    '- A fresh or rebuilt set always gets a new folder name. Attempt records are kept per set name, in `bench/results/codex-logs/<case set>/` and `bench/results/ag-logs/<case set>/`, so these folders are never emptied or reused.',
+    '- A fresh or rebuilt set always gets a new folder name. Attempt records are kept per set name, in `bench/results/codex-logs/<case set>/` and `bench/results/ag-logs/<case set>/`, so a log folder is never emptied or given to another set.',
+    '- The held-out set is judged, imported and checked (`node bench/external-judge.mjs check --as=<held-out name>`) before any mode-round set is imported; the importer refuses otherwise.',
   ],
   '## Codex': [
     '- If the same case stops the runner twice for the same reason, stop and report it to the coordinator. Do not hand-write attempt files.',
   ],
   '## Antigravity': [
-    '- To re-ask a case, first record the attempt in `bench/results/ag-logs/<case set>/<case>-a<n>.txt`, where n is that attempt\'s number. Move the text of its `verdict.json` into that file, or write the words "no verdict" in it when there is no `verdict.json`. Then open a new conversation on that case.',
+    '- To re-ask a case, first record the attempt in `bench/results/ag-logs/<case set>/<case>-a<n>.txt`, where n is that attempt\'s number. Move the text of its `verdict.json` into that file and delete `verdict.json` from the case folder, or write the words "no verdict" in it when there is no `verdict.json`. Empty the case\'s `scratch/` folder. Then open a new conversation on that case.',
+    '- If any case was judged in a conversation that had seen another case, stop and tell the coordinator: Antigravity is reported as not used.',
     '- After the last case, run `node bench/external-judge.mjs import --round=<r> --out=<ag set> --as=<name>`, for example `--round=mo --out=C:/Users/Asus/ag-judge-mo --as=moag`.',
     '- The import lists every case that is not usable. Re-ask each one as above, then run the import again.',
     '- A case still not usable after its second re-ask is left as it is. Antigravity is then reported as "not usable (k of 18)".',
@@ -179,7 +181,10 @@ test('an unusable verdict is moved aside and re-asked twice, then the case is re
   const { setDir, logDir } = caseSet(t, ['case-01'])
   const caseDir = join(setDir, 'case-01')
   const bad = attempt => ({ ...GOOD, ranking: ['A'], attempt })
+  const scratchSeen = []
   const { run, calls } = fakeCodex([({ caseDir: dir, attempt }) => {
+    scratchSeen.push(readdirSync(join(dir, 'scratch')))
+    writeFileSync(join(dir, 'scratch', `probe-${attempt}.mjs`), 'probe')
     writeFileSync(join(dir, 'verdict.json'), JSON.stringify(bad(attempt)))
     return { status: 0 }
   }])
@@ -187,6 +192,7 @@ test('an unusable verdict is moved aside and re-asked twice, then the case is re
   const [result] = runCases({ setDir, logDir, values: VALUES, run, log })
 
   assert.equal(calls.length, 3, 'a first ask and two re-asks')
+  assert.deepEqual(scratchSeen, [[], [], []], 'every re-ask starts with an empty scratch/')
   assert.deepEqual(calls.map(c => c.args[c.args.indexOf('-o') + 1]), [1, 2, 3].map(n => join(logDir, `case-01-a${n}.last.txt`)))
   for (const n of [1, 2, 3]) {
     assert.deepEqual(JSON.parse(readFileSync(join(logDir, `case-01-a${n}.verdict.json`), 'utf8')), bad(n))

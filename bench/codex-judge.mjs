@@ -5,7 +5,7 @@
 // argv), .jsonl (Codex's --json events), .err and .last.txt (its last message). Codex in a read-only sandbox cannot
 // write verdict.json, so the last message's final fenced json block stands in for it.
 // A verdict that fails the Opus verdict parser is moved to <case>-a<n>.verdict.json, its reason is written to
-// <case>-a<n>.unusable.txt, and the case is asked again in a fresh session, at most twice.
+// <case>-a<n>.unusable.txt, and the case is asked again in a fresh session, at most twice, with its scratch/ emptied.
 // A Codex that cannot start, or that exits non-zero without a usable verdict (a usage limit, a sign-in or network
 // failure), stops the run without using an attempt. Resumable: a case with a verdict.json is skipped, and a case's
 // attempt count comes from its .unusable.txt files, so no case is ever asked a fourth time.
@@ -135,6 +135,11 @@ function askCase({ caseDir, name, logDir, values, run }) {
   let problem = `no attempts left (reasons in ${logDir})`
   while (used < MAX_ATTEMPTS) {
     lastAttempt += 1
+    // A re-ask must not see the earlier attempt's probes (also after a resume).
+    if (lastAttempt > 1) {
+      rmSync(join(caseDir, 'scratch'), { recursive: true, force: true })
+      mkdirSync(join(caseDir, 'scratch'))
+    }
     const files = attemptFiles(logDir, name, lastAttempt)
     const asked = askCodex({ caseDir, files, values, run })
     seconds += asked.seconds
