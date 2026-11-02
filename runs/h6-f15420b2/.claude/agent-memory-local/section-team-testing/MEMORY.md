@@ -1,0 +1,1 @@
+- [Project env](project_env.md) — Node 22 `node --test test/` fails here; runs as root; Bash limits
