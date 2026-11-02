@@ -5,46 +5,18 @@
 // hiddenDecimals; ranges stay unrounded.
 // The CLI adds each headline's published label, outside confirmation and secondary measures (bars-outside.mjs).
 // Usage: node bench/bars.mjs --round=mo   (writes results/bars-mo.json)
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { DIMS } from './aggregate.mjs'
+import { configPath, groupOf, mean, qualities, readBars, readInput, shown } from './bars-common.mjs'
 import { outsideJudges, outsideLine, outsideReport, secondaryLine } from './bars-outside.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { round, sampleSD, tCrit975 } from './stats.mjs'
 
-export const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length
-export const groupOf = run => `${run.task}-r${run.rep}`
 // Solo runs always count as faithful; a mode run only with a faithful mode-check row.
 const isFaithful = (modeCheck, run) => run.cond.startsWith('solo-') || modeCheck[run.id]?.faithful === true
-const configPath = roundTag => fileURLToPath(new URL(`./bars-${roundTag}.json`, import.meta.url))
 const HELDOUT = fileURLToPath(new URL('./data/heldout/', import.meta.url))
-
-export const readBars = (file = configPath('mo')) => JSON.parse(readFileSync(file, 'utf8'))
-
-// One judge's scores for one solution; a score that is not a number stops the bars (a NaN gap would never miss).
-function judged(row, label) {
-  const values = DIMS.map(d => Number(row[label][d]))
-  if (!values.every(Number.isFinite)) throw new Error(`judge row ${row.pair} judge ${row.judge}: ${label} has a score that is not a number`)
-  return { quality: mean(values), tests: values[DIMS.indexOf('tests')] }
-}
-
-const cellOf = js => ({ quality: mean(js.map(j => j.quality)), tests: mean(js.map(j => j.tests)), judges: js.length })
-const mapValues = (obj, fn) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, fn(v)]))
-
-// { [group]: { [cond]: { quality, tests, judges } } }: per judge the mean of the 5 dimensions (and the tests score),
-// averaged over the group's usable judges, as aggregate.mjs's judgeScores computes quality.
-export function qualities(judgeRows, key) {
-  const cells = {}
-  for (const row of judgeRows) {
-    for (const [label, cond] of Object.entries(key[row.pair] ?? {})) {
-      if (!row[label]) continue
-      cells[row.pair] = { ...cells[row.pair], [cond]: [...(cells[row.pair]?.[cond] ?? []), judged(row, label)] }
-    }
-  }
-  return mapValues(cells, conds => mapValues(conds, cellOf))
-}
 
 // The groups, sorted, where both setups have a counted run and a quality; with a mode check, two faithful runs.
 function pairedGroups({ mode, vs, quals, summary, modeCheck }) {
@@ -139,30 +111,6 @@ const INPUTS = roundTag => [
   [`blind-key-${roundTag}.json`, `node bench/anonymize.mjs --round=${roundTag}`, 'object'],
   [`mode-check-${roundTag}.json`, `node bench/mode-check.mjs --round=${roundTag}`, 'object'],
 ]
-
-export function readInput(path, hint, shape) {
-  let text
-  try {
-    text = readFileSync(path, 'utf8')
-  } catch (err) {
-    if (err.code === 'ENOENT') throw new Error(`missing ${path}: ${hint}`, { cause: err })
-    throw new Error(`cannot read ${path} (${err.code ?? err.message})`, { cause: err })
-  }
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch (err) {
-    throw new Error(`${path} is not valid JSON`, { cause: err })
-  }
-  if (data === null || typeof data !== 'object' || Array.isArray(data) !== (shape === 'array')) throw new Error(`${path} is not a JSON ${shape}`)
-  return data
-}
-
-// The sign comes from the rounded value, so a float-noise zero always prints +0.00.
-export const shown = x => {
-  const r = round(x, 2)
-  return `${r >= 0 ? '+' : ''}${r.toFixed(2)}`
-}
 
 function lineOf(name, kind, r) {
   const head = `${name.padEnd(9)}${kind.padEnd(12)}${r.label ?? r.status}`

@@ -1,10 +1,10 @@
 // Outside confirmation, published labels and secondary measures for the mode round's bars (spec "Bars and rules":
 // Outside confirmation, Secondary measures; "Showing the size effect"). The CLI in bars.mjs adds them to each
 // comparison's headline; the faithful-only sensitivity check gets none of them.
-// bars.mjs imports this module and this module imports bars.mjs: each uses the other's exports only inside functions.
+// bars.mjs imports this module; both take what they share from bars-common.mjs, so there is no import cycle.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { groupOf, mean, qualities, readInput, shown } from './bars.mjs'
+import { groupOf, mean, qualities, readInput, shown } from './bars-common.mjs'
 import { pairWinners } from './external-judge.mjs'
 import { round, signTestP } from './stats.mjs'
 

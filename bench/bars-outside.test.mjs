@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { confirm, counting, groupGaps, labelFor, outsideFor, outsideJudges, rankWins, sizeEffect, sizeEffectHeldOut } from './bars-outside.mjs'
-import { readBars, shown } from './bars.mjs'
+import { readBars, shown } from './bars-common.mjs'
 import { signTestP } from './stats.mjs'
 
 const CONFIG = readBars()

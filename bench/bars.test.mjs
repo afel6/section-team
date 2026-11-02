@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { bars, comparison, main, qualities, readBars } from './bars.mjs'
+import { qualities, readBars } from './bars-common.mjs'
+import { bars, comparison, main } from './bars.mjs'
 import { round, sampleSD, signTestP, tCrit975 } from './stats.mjs'
 
 const CONFIG = readBars()
