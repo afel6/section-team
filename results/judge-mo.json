@@ -45,5 +45,100 @@
     ],
     "judge": 1,
     "costUSD": 2.1518808
+  },
+  {
+    "pair": "h4-r1",
+    "W": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 6,
+      "overall": 6,
+      "notes": "Own tests: 20/20 pass; broad but shallow (few rule edge cases). Data-file check too loose, server.mjs:49-65: a file with an extra top-level key ({\"nextId\":1,\"bookings\":[],\"x\":1}) or with overlapping bookings started normally instead of printing 'cannot read data file' and exiting 1 (confirmed by probe). server.mjs:285 echoes the raw PORT value, so a PORT containing a newline breaks the one-line rule. Otherwise passed the API/routing/concurrency/persistence/failed-save probes; serialized commit in server.mjs:128-140. README (44 lines) is brief but usable."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Own tests: 132/132 pass (server, page app with overlapping list fetches, final checks). Passed every black-box probe. server.mjs:96-98 synchronous writeFileSync makes concurrency trivially correct but blocks the event loop during saves; route table at server.mjs:108-129 is tidy; exits cleanly via process.exitCode (server.mjs:283). server.mjs:226 body reader ignores aborted requests without settling them (harmless in probes). Fixed PORT error text avoids multi-line stderr. Good README with examples."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Own tests: 288/288 pass (routes, rules, persistence, startup, static page checks, fake-DOM page behaviour). Passed every black-box probe, same set as W. server.mjs:137-146 saves via temp file + rename, so a failed save never corrupts the old file; server.mjs:318-335 handles all requests one at a time (simple and correct, but slow saves hold up reads); server.mjs:360 handles clientError; HttpError makes the flow clean. Strict data-file check (server.mjs:106-116). Thorough README with status codes and data format. Slightly behind W on test depth."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Own tests: 607/607 pass, including fake-DOM page tests (stale list fetches, cancel/submit), concurrency and persistence. Passed every black-box probe: startup errors (bad PORT, PORT checked before the data file, empty / extra-key / overlapping / directory data file, port in use), rules 1-10 in order, BOM, invalid UTF-8, chunked 413, 415/413 on a 300KB body, byte-exact routing via raw sockets, 30 concurrent overlapping POSTs -> exactly 1 x 201 and 29 x 409, unique ids, restart keeps bookings and next id, failed save -> 500 with nothing changed and no folder created. server.mjs:206-226 queue that commits only after a successful save; server.mjs:95-107 strict data-file check (even keeps nextId+1 safe). Minor: server.mjs:349 logs 'server error: ECONNRESET' on every aborted client. README covers env vars, startup, API and data file in detail."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X",
+      "W"
+    ],
+    "judge": 2,
+    "costUSD": 1.8149110000000004,
+    "swapped": true
+  },
+  {
+    "pair": "h4-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 142/142 pass. Probe (startup, concurrency, 413/415, routing, persistence, save failure): all pass. Strengths: one validator for both POST bodies and the data file, which is checked strictly (key set, ids below nextId, no overlaps) at server.mjs:58-84; mutations run one at a time and the store changes only after the write succeeds (server.mjs:180-193); a single HttpError path maps errors to replies (server.mjs:267-278). public/app.js:47-70 re-enables the button through an onSettle callback the moment the request settles, which matches the spec closely; stale list replies are dropped by a counter (app.js:135-141). Defects: a request with `Expect: foo` gets Node's 417 and a CONNECT request is dropped with no reply (the server never handles checkExpectation or connect); on 500 it does not log the cause anywhere (server.mjs:276). README (146 lines) is thorough: env vars, startup errors, rules, examples."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test: 306/306 pass across 7 test files plus a fake DOM. Probe: all pass. Strengths: error messages kept in one MSG table (server.mjs:22-36); rules 1-3 and 4-9 split into pure functions (server.mjs:73-83, 189-199); mutations serialized (server.mjs:208-218); the cause of a 500 goes to stderr, never stdout (server.mjs:301); the most complete README (218 lines, every route and the exit codes). The fail() helper exits only after the stderr write has flushed (server.mjs:100-102). Defects: same as W for `Expect: foo` (417) and CONNECT (dropped); validateFields destructures with inherited lookups (server.mjs:74), harmless for JSON.parse output; the client fills rooms with append rather than replaceChildren (public/app.js:124), fine on the first load."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 489/489 pass across 10 test files with HTML-tree and fake-DOM helpers. Probe: all pass, and it was the only one that answered `Expect: foo` with a normal 200 (server.mjs:365) and CONNECT on a known path with 405 (server.mjs:267-276, 366). Strengths: an aborted request body is rejected rather than processed (server.mjs:153-155); every request goes through one queue (server.mjs:300-308, 333) so all orderings are consistent; a store abstraction with commit-after-write (server.mjs:310-319); a separate bind-error handler is swapped for a logging one after listen (server.mjs:367-371). Client app.js mirrors the spec closely. Defects: sortBookings builds key arrays on every comparison (server.mjs:167-175), more convoluted than needed; GETs wait behind slow writes in the shared queue; README (112 lines) is shorter than W's or X's but covers usage, env vars, data file, API and rules."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 5,
+      "overall": 7,
+      "notes": "Ran npm test: 20/20 pass; there are few, broad tests (startup, routing, rules, concurrency, persistence, save failure, plus a small DOM test). Probe: all core checks pass (concurrency 1x201/9x409, unique ids, 413/415, BOM, routing, restart, 500 on save failure with no folder created). Defects: the whole server is top-level script state (server.mjs:112-134, 141), less modular and harder to test; readBody resolves on 'close' (server.mjs:189), so a body cut off by a client abort is still processed; `Expect: foo` gets 417 and CONNECT gets no reply; on a 200 list reply with a malformed body the client renders 'No bookings.' instead of an error (public/app.js:79); var-style client code. README is minimal (41 lines): usage, env vars, an API table and a curl example, with no listing of the validation rules or the error messages."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 1,
+    "costUSD": 1.7353656
   }
 ]
