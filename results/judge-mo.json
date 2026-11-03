@@ -140,5 +140,148 @@
     ],
     "judge": 1,
     "costUSD": 1.7353656
+  },
+  {
+    "pair": "h4-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Passed every probe and the page harness. Strengths: an HttpError class makes routing linear (server.mjs:19-24, 233-278); the body is buffered only for POST /api/bookings but always drained (server.mjs:101-112, 239-240); immutable frozen state (server.mjs:83, 201-202); the save error maps to 500 without changing state (server.mjs:186-193); app.js re-enables Book/Cancel exactly at settle via a callback (public/app.js:50-73). Weaknesses: parseStore only checks the key count, not the key names (server.mjs:77; still rejects bad files via later checks); the 409 lookup sorts to find the earliest overlap (server.mjs:197-199), fine but less direct; readBody has no abort handling (server.mjs:101-112). Tests: 142 tests in 2 large files (server.test.mjs 715 lines, app.test.mjs 616 lines) with a fake DOM; all pass. README (146 lines) is clear on env vars, startup errors, data file and API."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Passed every probe and the page harness. Strengths: very readable, pure validators shared between requests and the data file (server.mjs:43-90, 111-129); commit-then-swap inside the serialize queue (server.mjs:208-218, 233-252); one try/catch turns any failure into 500 and logs only a code to stderr (server.mjs:294-304); fail() exits after the stderr write flushes (server.mjs:100-102). app.js is clean (public/app.js:24-37 request wrapper, 88-109 sequence guard). Weaknesses: readBody has no close/aborted handling (server.mjs:165-180); it relies on Node emitting an error on abort, which it does (ECONNRESET seen on stderr). Tests: 306 tests over 6 files plus support helpers, covering HTML structure, page booking flows and server rules; all pass. README (218 lines) is the most detailed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Passed every probe and the page harness. Strengths: clean main()/store/handlers split (server.mjs:202-244, 310-319); the whole route runs inside a queue so state is read fresh, which makes concurrency trivially correct (server.mjs:321-339); aborted bodies are rejected and the socket destroyed (server.mjs:153-155); CONNECT gets a 405/404 on the raw socket (server.mjs:267-276); checkExpectation routing avoids Node's automatic 417 (server.mjs:365); a missing Content-Type is checked via typeof (server.mjs:160); data-file validation is thorough (server.mjs:88-107). Concise causes go to stderr only, never stdout. Weaknesses: every request is serialised, GETs included (minor throughput cost); the sortBookings key-array comparator is over-clever (server.mjs:167-175). Tests: 489 tests in 10 well-organised files with fake-DOM and HTML-tree helpers covering page structure, stale fetches and persistence; all pass. README (112 lines) covers env vars, data-file layout, API and errors."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 6,
+      "overall": 7,
+      "notes": "Fully correct in all my probes (startup, ~130 API cases, 20-way concurrency, persistence/restart, save-failure rollback for POST and DELETE, fake-DOM page harness). Strengths: compact, readable server.mjs; validation reused for data-file checks (server.mjs:82-108); state committed only after save (server.mjs:226-233, 243-250); a single queue serialises mutations (server.mjs:141-146); readBody counts every byte but keeps at most 10001 and resolves on close too (server.mjs:170-196); the page script is minimal and correct, with a list sequence guard (public/app.js:73-91). Weaknesses: tests are thin, 20 tests in 2 files; W/test/server.test.mjs:168 only regex-checks the page, with no label/form/element structure tests; booking-rule tables are small (server.test.mjs:180-223). README (README.md, 41 lines) is minimal and omits the error messages and data-file layout. app.js:58 uses spread with replaceChildren (fine). npm test: 20/20 pass."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 2,
+    "costUSD": 2.4836715999999996,
+    "swapped": true
+  },
+  {
+    "pair": "h4-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: atomic temp-file+rename save with temp cleanup (W/server.mjs:136-146); promise-chain lock serialises mutations, and state is committed only after a successful save, so a failed save changes nothing, next id included (server.mjs:201-210); strict data-file layout validation including id<nextId, duplicate ids and overlaps (server.mjs:91-121); exact byte-for-byte routing (server.mjs:265-292); page script ignores stale list fetches with a ticket counter and treats unreadable bodies as no reply (public/app.js:35-51, 82-99). Ran: npm test 322/322 pass; my probes 18/18 startup, 74/74 API (apart from the fetch-normalisation artifact; raw socket gives 404 for /api/./rooms), 12/12 persistence (500 on missing folder, next id preserved, no tmp leftovers), 21/22 fake-DOM page checks (the one miss was a bug in my probe). Weaknesses: no handling of CONNECT (connection dropped) or requests without a Host header (Node default 400); the temp file needs create permission in the data folder (server.mjs:138). README is very complete (273 lines: env vars, exit codes, API)."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: a repository with a serialised mutate queue that commits only after writeFile succeeds (X/server.mjs:153-170); clear route table with 404 before 405 (server.mjs:263-288); goes beyond the spec by answering CONNECT on the raw socket (server.mjs:312-322), handling Expect via checkExpectation and accepting requests without a Host header (requireHostHeader:false, server.mjs:349-350), so every method gets 404/405 JSON as the task wants; the error reply itself is guarded against throwing (server.mjs:301-309); page script uses a finally-based onSettle so Book and Cancel re-enable before anything else (public/app.js:24-40). Ran: npm test 414/414 pass (the largest suite, split by concern, with a fake DOM); my probes 18/18 startup, 74/74 API (the only solution where CONNECT returns 405 and a missing Host returns 200), 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weakness: saves use a plain writeFile, not atomic, so a crash mid-write could corrupt the data file (server.mjs:161). Good README."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 6,
+      "tests": 5,
+      "robustnessSecurity": 7,
+      "docsUsability": 6,
+      "overall": 7,
+      "notes": "Strengths: compact and correct; synchronous validation plus writeFileSync makes requests serialise naturally (Y/server.mjs:261-264, 302-343); strict data-file layout check (server.mjs:206-229); page script handles stale fetches and the no-reply cases correctly (script at server.mjs:128-144). Ran: npm test 10/10 pass; my probes 18/18 startup, 74/74 API (no-Host/CONNECT not handled, like W and Z), 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weaknesses: the whole HTML page and app.js live as template strings inside server.mjs (server.mjs:8-183), which is hard to maintain and lint; only 10 coarse tests; non-atomic save (server.mjs:262); the listen error handler would exit on any later server 'error' (server.mjs:409); loadRooms throws an unhandled error if rooms is not an array (server.mjs:82). Minimal 34-line README, though accurate."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: fully synchronous handling once the body is read, so concurrency is trivially correct (Z/server.mjs:291-303); atomic sync temp+rename save with cleanup (server.mjs:140-154); strict layout validation, and the data file is decoded with a fatal TextDecoder keeping the BOM (server.mjs:122-138); specific listen error lines (server.mjs:156-163). Ran: npm test 216/216 pass; my probes 18/18 startup, 74/74 API, 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weaknesses: synchronous readFileSync for the page on every request blocks the event loop (server.mjs:177-181); a successful list reply missing 'bookings' silently renders 'No bookings.' instead of an error (public/app.js:105); exceptions in .then handlers go unhandled (public/app.js:51-63); no CONNECT or no-Host handling; fewer tests than W and X. README is clear (177 lines)."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 2.4025703999999997
+  },
+  {
+    "pair": "h4-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: atomic temp-file + rename save with cleanup (server.mjs:136-146); a serialized lock around the overlap check and commit (server.mjs:201-257), so a failed save leaves the state and next id unchanged; ownField avoids reading inherited properties (server.mjs:54-56); explicit comment explaining the ASCII-only case folding (server.mjs:181); data file validated, including ids below nextId and no overlaps (server.mjs:91-121). My 109-check script passed every functional check: concurrency, byte limits, BOM, invalid UTF-8, restart persistence, 500 on save failure, no folders created. Client public/app.js:35-51 cleanly separates 'reached' from 'ok' and shape-checks replies. npm test: 322/322 pass across 10 test files, including fake-DOM client tests. Very thorough 273-line README. Defects: same as W, CONNECT gets no reply, a missing Host gets Node's 400, and Expect: foo gets 417; the 'error' handler exits even on errors after listening (server.mjs:340); index.html carries a large inline style block (fine, but noise)."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: the most complete handling of the spec's edge cases: CONNECT is answered on the raw socket (server.mjs:312-322), HTTP/1.1 requests without Host are accepted (server.mjs:349), and odd Expect headers go through the normal handler (server.mjs:350). My 109-check script showed only the 3 errors in my own script (fetch normalising dot-segments, and two miscounted ids), and Y alone passed the CONNECT, no-Host and Expect: foo probes. Clean repository with a serialized mutate queue; the state is committed only after the write succeeds (server.mjs:153-170); frozen state; MSG table (server.mjs:21-35); route table with the 404/405 split (server.mjs:263-288); replyWithError guards against throwing during the reply (server.mjs:301-309). Client: the send() finally hook re-enables buttons before the outcome is used (public/app.js:24-41), and replies are shape-checked. npm test: 414/414 across 11 well-organised files (startup, request-body, routing, page-script-api, ...). Detailed 211-line README. Defects: writeFile in place, not atomic (server.mjs:161); a crash mid-write could truncate the data file."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 6,
+      "docsUsability": 5,
+      "overall": 6,
+      "notes": "Strengths: a single file with the page and script embedded as strings (server.mjs:8-183); correct validation and error order (server.mjs:302-343); the 409 picks the earliest overlap by sorting (server.mjs:333-338); data-file layout validated (server.mjs:206-229). Passed all functional checks in my 109-check script, including the concurrency check (handling after the body is read is synchronous) and 500 with nothing changed on save failure. Defects: non-atomic writeFileSync straight onto the data file (server.mjs:261-264), so a partial write could truncate it; the client's success handlers don't check the reply shape, so a malformed 200 body throws an unhandled rejection (server.mjs:82, 139); 'error' handler after listen still exits the process (server.mjs:409); CONNECT gets no reply, a missing Host gets Node's 400, Expect: foo gets 417. Tests: only 10 tests (test/server.test.mjs, test/app.test.mjs), all pass, but coarse. README is 34 lines: usage and API table, little else."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: compact synchronous design that makes concurrent requests serial by construction (server.mjs:2-3, 291-303); atomic save via temp file + rename with cleanup (server.mjs:140-154), so a failed save changes nothing and uses up no id; strict data-file layout check (server.mjs:78-104), with the file decoded as fatal UTF-8 (server.mjs:132); ASCII-only case folding of the media type (server.mjs:204-208); byte-exact routing (server.mjs:248-273). My 109-check script passed every functional check (startup errors, all 10 booking rules, BOM, invalid UTF-8, 10000 vs 10001 bytes, 20 concurrent overlapping POSTs giving one 201, restart persistence, 500 on save failure). Client public/app.js:33-45 treats a JSON parse failure as no reply, and the newest list fetch wins (app.js:94-110). npm test: 216/216 pass, including fake-DOM client tests. Defects: CONNECT gets no reply at all, an HTTP/1.1 request without Host gets Node's 400 instead of the API's reply, and Expect: foo gets a bare 417 (raw-socket probes); synchronous fs calls block the event loop during saves."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 3.981225200000001,
+    "swapped": true
   }
 ]
