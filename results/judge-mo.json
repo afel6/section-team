@@ -425,5 +425,148 @@
     ],
     "judge": 1,
     "costUSD": 0.9918748000000001
+  },
+  {
+    "pair": "h5-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round; lib/ledger.mjs:12 leftover computed as cents - share*n (same effect). lib/import.mjs:33-46 parseImportBody uses hasOwn; :52 strict type; :93-106 duplicate/recorded logic same as W; :135 no write on dry run or all skipped. README adds a separate '## Import' section (placed after Rules) plus the table row and the unknown-fields wording. Tests: npm test 87/87 pass, the most of the four: test/amounts.test.mjs (4.35, leftover order, sum to zero, PATCH), import-checks (413/400 before 404, deleted expense not recorded, other groups), import-success (no tmp file left, 50 entries, identical payments). No defects found."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:12-34 ENTRY_TYPES table of [field, rule, parser] keeps rule order declarative; :59-61 comment explains the strict type check (avoids the 'toString'/array-key trap); :93-101 a single rule variable gives clear duplicate > already-recorded > skip logic; :125-128 no write on dry run or all skipped. README section is complete and the table row lists every status. Tests: npm test 82/82 pass, split into import-body/rules/success plus shared fixtures; cover the exact 10 KB boundary, 404 before body checks, rejected import burns no ids, restart after real vs dry run. No defects found."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:37-41 flag uses `in` (works for JSON.parse output, slightly less precise than hasOwn); :49 bad-type via typeof+Object.hasOwn(ENTRY_FIELDS); :92 packs the skip/problem branch into one dense ternary push-return line; :122 no write for dry run or all skipped. README complete, though a bit terser. Tests: npm test 52/52 pass; only 9 import tests, but dense: X/test/import.test.mjs:57-100 one big rules table, :118 duplicate vs already-recorded with and without skip, :147 all-skipped writes nothing, :177 restart persistence. Thinnest suite of the four."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round (4.35 bug), lib/ledger.mjs:12-13 leftover cents to first people. lib/import.mjs:35-39 parseFlag uses Object.hasOwn so null -> 400; :43 unknown field in Object.keys order; :57 strict type compare (rejects 'toString'/['expense']); :94-103 seen-set updated before the duplicate check, so earlier duplicate/recorded entries count; duplicate comes before already-recorded; :138-140 dry-run and all-skipped replies carry no state, so nothing is written. README adds the table row, an Importing section with all rules, and limits 'Unknown fields are ignored' to other routes. Tests: npm test 62/62 pass; test/import.test.mjs has 20 cases covering order of 400s, rules, duplicates across groups, skip ids, dry-run next ids, one write. No defects found."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 1.1654773999999999,
+    "swapped": true
+  },
+  {
+    "pair": "h5-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13 gives the left-over cents to the first people. lib/import.mjs is clean and readable: parseBody (50-58) with parseFlag using Object.hasOwn (43-47) so null gets the 400; parseEntry (62-80) maps ValidationError to rule names through check() (29-36); review (83-114) adds every valid expense key to `seen` before the skip/duplicate decision (100-101), so an earlier duplicate or skipped entry still counts; per-kind ids (126-129); no state on dry run or when everything is skipped (147). Small nit: missing space in `isObject =v` (18). Tests: 137 pass (npm test). Separate suites cover body checks (import-checks.test.mjs: __proto__ field, key order, 50 entries, 413 before the 404 check), every rule and its order (import-rules.test.mjs), many duplicate/recorded cases including PATCH and DELETE (import-dedupe.test.mjs), the reported bugs over HTTP plus a test that an old 434-cent record stays as it is (fixes.test.mjs:22-116), and dry run across a restart (import.test.mjs:188). README: table row lists 413 'too large' and 422; full rules section; unknown-fields sentence limited to the other routes; Layout updated. Probes could not be run (sandbox blocked writing to scratch and inline scripts); edge cases checked by reading the code."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is correct: entryType (33-39), parseExpenseEntry passes split only when its key is present (46), duplicate/recorded/skip logic inside importEntries (85-107) adds the key to `seen` before the checks (94-95); no write on dry run or when everything is skipped (134). The main handler is long, with the classifying loop inline, so it is a bit less modular than the others. Tests: 49 pass, only 8 import tests (test/import.test.mjs:18-182). They do cover body-check order, a rule list, the skip example, all-skipped, dry run and id numbering, but the bug fixes are tested only at unit level (validate.test.mjs:43, ledger.test.mjs:12-17), with no HTTP test for 4.35 or 10/3, and edge cases are thin (no 50-entry boundary, no PATCH/DELETE effect on already-recorded). README covers every rule and both flags; the table row lists 413 but its rule list does not say that an earlier duplicate still counts for `duplicate`."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13 using cents % n). lib/import.mjs reuses parseExpense from expenses.mjs (80), as the task suggested. But it checks fields first (entryProblem, 33-50) and then parses them again (78, 80), with a separate isMember for payments (30, 40-41), so the logic is duplicated. The comment on the typeof guard for an array `type` (35-36) shows careful thought. Duplicate/skip handling in planImport (71-90) is correct. Tests: 60 pass; 16 import tests (test/import.test.mjs) cover the 404-before-body order, 400 order, 50 entries, 413, null fields counting as given, own keys only, an earlier bad entry not counting for duplicate, PATCH/DELETE effects, all-skipped, dry run, and a restart with 4.35; there is also an HTTP test for the fixes (api.test.mjs:74). README is the most precise, including 'An earlier entry counts for duplicate even when it is itself...' and the balances map shape."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is well split into small parts: parseImportBody (33-46), checkEntry (50-68), brokenRule (75-81), classifyEntries (84-105), numberEntries (108-116); the all-skipped/dry-run guard is at 139. Clear and easy to read. Tests: 76 pass; 37 import tests (test/import.test.mjs) include body size limits at exactly 10240/10241 bytes, bytes vs characters, 413 and 400 before the group check, rule order, case and whitespace in duplicates, another group / deleted / patched expenses, skip not hiding other problems, all-skipped writing nothing, a restart, and dry-run ids. There is no explicit test that an old 434-cent record stays as it is. README: the rule list for unknown-field does not say which fields each type takes, and says 'trimmed and in lower case' without naming trim()/toLowerCase(); otherwise complete; the unknown-fields sentence is reworded correctly (README:74); Layout entry added."
+    },
+    "ranking": [
+      "W",
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "costUSD": 1.2942574
+  },
+  {
+    "pair": "h5-r3",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes. lib/import.mjs:62-80 parseEntry and lib/import.mjs:83-114 review are well split; lib/import.mjs:100 duplicate/already-recorded decided in one place and the key is added to `seen` regardless. Minor style nits: lib/import.mjs:18 `isObject =v` formatting, and the NOT_SHOWN placeholder constant (lib/import.mjs:16) for messages that are never shown. Ran: npm test 137/137 across fixes/import-checks/import-dedupe/import-rules/import tests with shared fixtures (test/import-fixtures.mjs); HTTP probe all passed; mutation test killed 18/18. Tests also cover legacy 434-cent records left untouched (test/fixes.test.mjs:109) and a GET not rewriting the file (test/fixes.test.mjs:98). README complete, including Object.keys order and the null rule."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes. lib/import.mjs:33-54 compact helpers (entryType, parseExpenseEntry, parsePaymentEntry); lib/import.mjs:46 explicit hasOwn for split. importEntries (lib/import.mjs:75-135) does classification and numbering inline in one 60-line function — readable but less factored. Ran: npm test 49/49; HTTP probe all passed; mutation test 15/18 — survived: entries keeping unknown keys (tests only use other-type fields as unknown, test/import.test.mjs:72-73), reversed `skipped` order (only single-index skips tested), and an all-skipped import that still saves (test at test/import.test.mjs:135 compares contents). Smallest suite (182 lines) but dense table-style cases. README complete."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:80 reuses parseExpense from expenses.mjs (good reuse), but lib/import.mjs:33-50 first runs the checks in entryProblem and then parses again (lib/import.mjs:78,80), and lib/import.mjs:40-41 re-implements the payment member checks inline instead of parseMember, so validation is duplicated. lib/import.mjs:36 typeof + hasOwn guards type lookup. Ran: npm test 60/60; HTTP probe all passed; mutation test 17/18 — missed the all-skipped-still-saves mutant because test/import.test.mjs:248 compares file text, which is identical after a no-op save. README section is clear and complete (explicitly notes dup-of-dup counting)."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13 spreads remainder cents. lib/import.mjs:33-46 parseImportBody checks in spec order with Object.hasOwn so null flags fail; lib/import.mjs:50-68 checkEntry wraps the existing parsers via parseAs (lib/import.mjs:23); lib/import.mjs:75-81 brokenRule adds every field-valid expense to `seen` so duplicate-of-duplicate/skipped works; lib/import.mjs:108-116 numbers each kind separately; lib/import.mjs:139 no state on dry run or all-skipped. Clean, small functions. Ran: npm test 76/76 pass; my HTTP probe (~45 checks: rule order, null split/flags, __proto__, spec dup examples, ids, dry run, all-skipped no write via mtime) all passed; mutation test killed 18/18 including the all-skipped-write mutant (test/import.test.mjs:348 checks mtime). README adds table row, full Importing section, scoped unknown-fields sentence, layout entry. No defects found."
+    },
+    "ranking": [
+      "W",
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "costUSD": 2.4408605999999997,
+    "swapped": true
   }
 ]
