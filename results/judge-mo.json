@@ -283,5 +283,147 @@
     "judge": 2,
     "costUSD": 3.981225200000001,
     "swapped": true
+  },
+  {
+    "pair": "h5-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Fixes: validate.mjs:64 Math.round (4.35 -> 435), ledger.mjs:12-13 remainder cents to first people (balances 6.66/-3.33/-3.33). lib/import.mjs: RuleError + check() wrapper (15-30), Object.hasOwn flags (60-64), entries counted for duplicate after field checks (94-99), all-skipped / dry_run write nothing (134). My HTTP probes (rule order, null split/dry_run, duplicate vs already-recorded examples, dry-run ids, 413, >50 entries, __proto__ key, identical payments) all gave correct replies. npm test: 65/65 pass; import.test.mjs has 20 HTTP tests, covering restart persistence and ids across groups. test/api.test.mjs:70-86 checks over HTTP that records already in the data file (434 cents) are left as saved. README has a full Importing section and qualifies 'Unknown fields are ignored'; small inaccuracy: it says unknown-field order is 'the order the body lists them' instead of Object.keys."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs works but assigns ids inside sortEntries (84-95), mixing checking with numbering; uses `flag in body` (38) instead of Object.hasOwn; `changed` guard avoids empty writes (123). All probes gave correct replies. npm test: 69/69; import.test.mjs has 24 tests, including 413 counted in bytes even for an unknown group, compares import against the POST routes and stored records, letter case of payer, limit values, and the task's example cases (396); validate.test.mjs:45 checks rounding. README section is complete, mentions Object.keys order, and the table row is right."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs is the cleanest: parseBody/parseEntry/sortEntries/addEntries are separate (115-131), named message constants (9-10), hasOwn flags (33-37), and an explicit 'no state when all skipped' (149). All probes gave correct replies. npm test: 70/70; import tests are split into import.test.mjs (19) and import-apply.test.mjs (8) with a shared helper; they cover exactly 10 KB vs over, 1 and 50 entries, false flags treated like absent ones, and that balances add up to 0. README Importing section is complete and accurate (Object.keys order, null handling)."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs throws plain string literals as control flow (36, 46-49, 63) and catches with a typeof check (78), which is fragile and non-idiomatic; otherwise its logic matches the others, and all probes gave correct replies. npm test: 51/51; only 9 import tests, none for 413 or a non-object body on this route, and api.test.mjs is unchanged, so the two reported bugs are tested only at the unit level (ledger.test.mjs:12-26, validate.test.mjs:45) and not over HTTP; no test that saved records are left as they are. README row and section are present but leave out the Object.keys ordering for unknown fields and 'even when itself duplicate/already-recorded'."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 1,
+    "costUSD": 0.8564158000000001
+  },
+  {
+    "pair": "h5-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same bug fixes. lib/import.mjs: a RuleError class with a .rule field (:15-20). :51 adds an Object.hasOwn check on split that changes nothing (parsed JSON cannot hold undefined). :94-99 uses a chain of `key !== null &&` conditions, which reads a little awkwardly but is correct. :134 skips the write when nothing was accepted, and parsed entries are flattened with `{type, ...fields}` (:113). Tests: npm test gives 65/65. test/import.test.mjs has 20 tests: ids per kind and across groups, 413 and 400, the body check order, every rule, a rejected import saving nothing, both spec examples, all-skipped writes nothing, dry run, dry-run next ids, and persistence across a restart (:256). test/api.test.mjs adds a no-migration test that checks the data file is unchanged. The README is the most detailed and closely mirrors the spec; its table row lists 201, (200 with dry_run), 400, 404, 413 and 422."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same bug fixes. lib/import.mjs:37-40 checks the flags with `flag in body`; that is safe because the unknown-field check at :31-32 runs first. lib/import.mjs:67-97 assigns ids inside sortEntries, which mixes sorting entries with building records (slightly less clean than X), but the logic is right: duplicate before already-recorded, and seen.add for every valid expense. :123-124 skips the write when nothing changed. Tests: npm test gives 69/69. test/import.test.mjs (447 lines) checks the data file against the POST routes (:66), persistence across a restart (:86), that a rejected import uses up no ids (:152), dry-run next ids (:185), 413 counted in bytes (:214), case-sensitive payers (:377), and both spec examples (:396). test/api.test.mjs adds a no-migration test for stored 434-cent records and a 4.35 round-trip test. The README is complete and clear."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same bug fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). Clean lib/import.mjs: a RuleError class (:18), check() turns a ValidationError into the rule name (:23-30), and sortEntries (:79-112) is kept separate from addEntries (:115-131). The comment at :81 explains why skipped entries still count for duplicates. :149 spreads state only when something was accepted, so an all-skipped import writes nothing; a dry run returns early at :147. Tests: npm test gives 70/70, the most thorough suite. Split into test/import.test.mjs (validation: the 413 boundary at exactly 10 KB, a non-object body before the group lookup, Object.keys order, 1 and 50 entries accepted, each rule order) and test/import-apply.test.mjs (ids, matching the POST routes and the data file, member order of balances, dry-run next ids, dry-run errors), with shared helpers in a non-.test file so the glob does not pick it up. test/api.test.mjs:56-77 adds HTTP regressions for 4.35, 0.29, 1.15 and PATCH. The README Importing section is precise and mentions the Object.keys order."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes as the others: lib/validate.mjs:64 (Math.round) and lib/ledger.mjs:12-13 (leftover cents to the first people). lib/import.mjs:15-29: the body checks run in the spec's order, with Object.hasOwn for the flags. lib/import.mjs:84-89: duplicate is checked before already-recorded, and seen.add runs for every expense that passes the field checks, so it matches both spec examples. lib/import.mjs:130: an import where everything is skipped, or a dry run, returns no state, so nothing is written. Weaknesses: lib/import.mjs:36,46-63 throw bare strings as rule names and the catch at :78 tells them apart with typeof, which is not idiomatic; lib/import.mjs:86 marks a skip by mutating the parsed result (result.skipped). Tests: npm test gives 51/51. test/import.test.mjs has 9 compact but dense tests covering ids per kind with skips (:37), dry run vs real (:50), all-skipped writes nothing (:59), 400 order including null flags and 413 (:82), and every rule (:104). It has the fewest import tests, no restart/persistence test, and does not check that a dry run leaves the next ids unchanged. Added ledger/validate regression tests for 4.35 and the 10.00 split. The README row and the Importing section are complete, and the 'Unknown fields' sentence is limited to the other routes."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 2,
+    "costUSD": 1.674716,
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round instead of Math.trunc (4.35 bug); lib/ledger.mjs:12-13 gives leftover cents to the first people, so balances sum to 0. Import lib/import.mjs: unknown body field found via Object.keys (:34); entries 1-50 (:37); flags rejected unless boolean when the key is present, null included (:40-44); strict type check (:52); unknown-field (:53); each parser wrapped so its error becomes the rule name (:23-30, :57-68); a remembered expense counts for duplicate even if it is a duplicate or skipped, and duplicate comes before already-recorded (:93-105); ids per kind (:114-117); no write on a dry run or when all entries are skipped (:135). Ran npm test: 87/87 pass. Most thorough suite: test/amounts.test.mjs (4.35, cent distribution, balances sum to 0), test/import-checks.test.mjs (413 and non-object body before the 404, every rule, duplicate subtleties, deleted or other-group expenses), test/import-success.test.mjs (restart survival, no tmp file left, dry-run ids, identical payments). README adds the table row, a full Import section, and limits 'Unknown fields are ignored' to the other routes. Could not run ad-hoc HTTP probes: scratch was not writable."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes as the others (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:12-34 is a clear table of [field, rule, parser] per entry type, with a comment explaining why the type check is strict (:59); checkEntry returns rule objects instead of throwing (:57-74); duplicate before already-recorded, and keys remembered for all field-valid expenses (:93-101); dry run and all-skipped imports return no state (:126-128). Ran npm test: 82/82 pass. Tests are split across import-body, import-rules and import-success, with a shared fixtures file; they cover exactly 10 KB being accepted, 50 entries, check precedence, a rejected import using no ids, and restart survival after real and dry runs. README has the table row, an Importing paragraph, and the narrowed unknown-fields sentence. Very close to W; slightly fewer edge tests."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is correct: type checked with typeof plus Object.hasOwn (:49), the same rule-mapping wrapper (:20-28), duplicate before already-recorded (:87-93). Flags use `name in body` (:38), which is fine for objects from JSON.parse. Readability suffers at :92, a dense nested ternary used as a return value. Ran npm test: 52/52 pass, the smallest suite (test/import.test.mjs, 9 tests, 188 lines), though it does cover check order, every rule, dedupe semantics, skipped ids, all-skipped writing nothing, and dry-run ids. README has the table row and an Importing section, but the unknown-field rule doesn't list which fields each type takes."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs pulls the entry sorting into its own function sortEntries (:79-108), names MIN_ENTRIES and MAX_ENTRIES constants, and uses parseFlag with Object.hasOwn (:35-39); logic is the same as W's and correct, including no write on a dry run or when all entries are skipped (:138-140). Ran npm test: 62/62 pass. test/import.test.mjs (20 tests) covers check order, 50 entries, 413 and non-object bodies, every rule, 4.35 kept to the cent, duplicate before already-recorded with and without skip, dry-run ids, and another group being untouched; no restart-survival test. README's Import section follows the spec closely, and the unknown-fields sentence is narrowed."
+    },
+    "ranking": [
+      "W",
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.9918748000000001
   }
 ]
