@@ -1,0 +1,1 @@
+- [Bash limits](project_bash_limits.md) — npm test ok; sed -i/python/tmp mutation copies denied; coders may lack Bash
