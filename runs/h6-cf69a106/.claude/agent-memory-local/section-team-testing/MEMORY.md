@@ -1,0 +1,1 @@
+- [Project env quirks](project_env.md) — Node 22 `--test dir/` fails, root sandbox, Bash write limits, Edit and escapes
