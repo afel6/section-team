@@ -1,0 +1,1 @@
+- [Bash permissions](feedback_bash_permissions.md) — use single plain commands with absolute paths; compound/cd/heredoc commands get denied

@@ -1,0 +1,1 @@
+- [Test runner](project_test_runner.md) — run `node --test 'test/*.test.mjs'`; `node --test test/` breaks on Node 22; Bash limits here

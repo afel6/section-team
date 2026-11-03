@@ -1,1 +1,1 @@
-- [Bash permissions](feedback_bash_permissions.md) — use single plain commands with absolute paths; compound/cd/heredoc commands get denied
+- [Smoke testing via node script](feedback_smoke_testing.md) — shell server launches/curl denied; use one `node /tmp/.../smoke.mjs`; never half-close raw sockets

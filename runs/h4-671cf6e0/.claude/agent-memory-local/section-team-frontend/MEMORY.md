@@ -1,1 +1,1 @@
-- [Benchmark environment](project_bench_env.md) — autonomous benchmark, Bash may be denied, no npm install, no Fable
+- [Bench conventions](project_bench_conventions.md) — automated benchmark runs; Bash heredocs to /tmp denied, use Write then node

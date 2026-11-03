@@ -1,6 +1,6 @@
-# Meeting-room booking app — full spec (verbatim from the user; final, no questions possible)
+# Meeting-room booking app — full spec (verbatim from the user; final, no questions allowed)
 
-Constraints: Node.js built-ins only (no npm install). Node v22. Project tests must pass at the end.
+Constraints: Use only Node.js built-ins (no npm install). Node v22. Do not use the Fable model.
 
 Build a meeting-room booking app: an HTTP server `server.mjs` (an ES module, run as `node server.mjs`) that serves a JSON API and a browser page, and keeps its data in one JSON file.
 
@@ -62,5 +62,5 @@ Build a meeting-room booking app: an HTTP server `server.mjs` (an ES module, run
 - Cancel: clicking a `Cancel` button disables it and sends `DELETE /api/bookings/<id>` for its booking; the button is enabled again when the request settles. On 204 `#error` is emptied; on any other status `#error` shows the reply's error message (for example `booking not found` when the booking was already gone). After either of these, the list is fetched again. With no reply, `#error` shows `Could not reach the server.` and the list is not fetched again.
 - Filter: a `change` event on `#filter-date` fetches the list again at once; the `input` event does nothing. `Show all` sets the value of `#filter-date` to the empty string and fetches the list again once, without dispatching any event.
 
-## Also
-Add tests with node:test, a `package.json` ("type": "module", a "start" script that runs `node server.mjs`, and a "test" script), and a README with usage.
+## Deliverables
+Also add tests with node:test, a `package.json` ("type": "module", a "start" script that runs `node server.mjs`, and a "test" script), and a README with usage. When finished, the project's own tests must pass.
