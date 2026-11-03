@@ -1,0 +1,12 @@
+{
+  "name": "jsonpatch",
+  "version": "1.0.0",
+  "description": "JSON Pointer (RFC 6901) and JSON Patch (RFC 6902) library and CLI",
+  "type": "module",
+  "exports": "./jsonpatch.mjs",
+  "bin": { "jsonpatch": "./jsonpatch-cli.mjs" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room bookings</title>
+<style>
+  :root {
+    --ink: #1d232b;
+    --muted: #5b6672;
+    --line: #d5dbe1;
+    --paper: #f6f4ef;
+    --card: #ffffff;
+    --accent: #1f5f8b;
+    --danger: #a12a2a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    font: 16px/1.5 system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+  }
+  main { max-width: 42rem; margin: 0 auto; }
+  h1 { font-size: 1.75rem; letter-spacing: -0.01em; margin: 0 0 1.5rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+  form, .filters {
+    display: grid;
+    gap: 0.75rem 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    align-items: end;
+    padding: 1rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.25rem; }
+  label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+  input, select, button { font: inherit; }
+  input, select {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.375rem;
+    background: #fff;
+  }
+  button {
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--accent);
+    border-radius: 0.375rem;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button[type="button"] { background: #fff; color: var(--accent); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  :focus-visible { outline: 3px solid #f2b134; outline-offset: 2px; }
+  #error { min-height: 1.5em; margin: 1rem 0 0; color: var(--danger); font-weight: 600; }
+  #booking-list { list-style: none; margin: 0; padding: 0; }
+  #booking-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    overflow-wrap: anywhere;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Room bookings</h1>
+
+  <form id="booking-form" novalidate>
+    <div class="field">
+      <label for="room">Room</label>
+      <select id="room" name="room"></select>
+    </div>
+    <div class="field">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title">
+    </div>
+    <div class="field">
+      <label for="date">Date</label>
+      <input type="date" id="date" name="date">
+    </div>
+    <div class="field">
+      <label for="start">Start</label>
+      <input type="time" id="start" name="start">
+    </div>
+    <div class="field">
+      <label for="end">End</label>
+      <input type="time" id="end" name="end">
+    </div>
+    <button type="submit" id="book">Book</button>
+  </form>
+
+  <p id="error" role="alert"></p>
+
+  <h2>Bookings</h2>
+  <div class="filters">
+    <div class="field">
+      <label for="filter-date">Show date</label>
+      <input type="date" id="filter-date">
+    </div>
+    <button type="button" id="show-all">Show all</button>
+  </div>
+  <ul id="booking-list"></ul>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

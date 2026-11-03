@@ -1,0 +1,14 @@
+{
+  "name": "meeting-room-booking",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Meeting-room booking app: JSON API and browser page, Node.js built-ins only",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

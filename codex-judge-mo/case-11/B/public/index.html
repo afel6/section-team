@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room bookings</title>
+<style>
+  :root {
+    --ink: #1d232b;
+    --muted: #5b6573;
+    --paper: #f6f4ef;
+    --card: #ffffff;
+    --line: #d9d4c9;
+    --accent: #2f5d50;
+    --danger: #a3302a;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    color: var(--ink);
+    background: var(--paper);
+  }
+  body { max-width: 44rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 2rem; letter-spacing: -0.01em; margin: 0 0 1.5rem; border-bottom: 2px solid var(--ink); padding-bottom: 0.5rem; }
+  h2 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 2rem 0 0.75rem; }
+  form, .filter { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
+  form { display: grid; grid-template-columns: max-content 1fr; gap: 0.6rem 1rem; align-items: center; }
+  .filter { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; }
+  label { font-weight: 600; }
+  input, select, button { font: inherit; font-size: 1rem; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  button { cursor: pointer; }
+  button[type="submit"] { grid-column: 2; justify-self: start; background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  #booking-list { list-style: none; padding: 0; margin: 1rem 0 0; }
+  #booking-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  #error { color: var(--danger); font-weight: 600; min-height: 1.5em; }
+</style>
+</head>
+<body>
+<h1>Room bookings</h1>
+
+<h2>New booking</h2>
+<form id="booking-form" novalidate>
+  <label for="room">Room</label>
+  <select id="room" name="room"></select>
+  <label for="title">Title</label>
+  <input type="text" id="title" name="title">
+  <label for="date">Date</label>
+  <input type="date" id="date" name="date">
+  <label for="start">Start</label>
+  <input type="time" id="start" name="start">
+  <label for="end">End</label>
+  <input type="time" id="end" name="end">
+  <button type="submit" id="book">Book</button>
+</form>
+
+<p id="error" role="alert"></p>
+
+<h2>Bookings</h2>
+<div class="filter">
+  <label for="filter-date">Show date</label>
+  <input type="date" id="filter-date">
+  <button type="button" id="show-all">Show all</button>
+</div>
+<ul id="booking-list"></ul>
+
+<script src="/app.js"></script>
+</body>
+</html>
