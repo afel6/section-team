@@ -1,0 +1,1 @@
+- [Benchmark environment](project_bench_env.md) — autonomous benchmark, Bash may be denied, no npm install, no Fable

@@ -1,0 +1,8 @@
+{
+  "name": "room-bookings",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/"
+  }
+}
