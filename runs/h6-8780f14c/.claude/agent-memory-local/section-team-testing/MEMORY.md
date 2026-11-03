@@ -1,0 +1,1 @@
+- [Project env quirks](project_env.md) — node 22 `--test dir/` fails, root user, Bash denials; near-miss via mirror dir

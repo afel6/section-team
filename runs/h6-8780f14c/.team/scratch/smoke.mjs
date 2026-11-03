@@ -1,0 +1,35 @@
+import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { applyPatch } from '../../jsonpatch.mjs';
+
+process.chdir(new URL('.', import.meta.url).pathname);
+const CLI = '../../jsonpatch-cli.mjs';
+const run = (args, input) => {
+  const r = spawnSync('node', [CLI, ...args], { input });
+  console.log(JSON.stringify(args), r.status, JSON.stringify(r.stdout.toString()), JSON.stringify(r.stderr.toString()));
+};
+writeFileSync('p.json', '[{"op":"add","path":"/1","value":5},{"op":"copy","from":"","path":"/c"}]');
+writeFileSync('d.json', Buffer.from('﻿{"b":-0}'));
+run(['p.json', 'd.json']);
+run(['p.json'], 'null');
+run(['-']);
+run(['p.json/x']);
+run(['.']);
+run(['-', 'd.json'], '[{"op":"x"}]');
+run(['p.json'], Buffer.alloc(2000000, 32));
+run(['/dev/zero']);
+writeFileSync('bad.json', Buffer.from([0xff]));
+run(['bad.json']);
+writeFileSync('empty.json', '');
+run(['empty.json']);
+writeFileSync('deep.json', '['.repeat(1001) + ']'.repeat(1001));
+run(['deep.json']);
+writeFileSync('deep2.json', '['.repeat(1000) + ']'.repeat(1000));
+run(['p.json', 'deep2.json'].reverse().reverse().slice(0, 1).concat('deep2.json'));
+const p = [];
+for (let i = 0; i < 6000; i++) p.push({ op: 'copy', from: '', path: '/a' });
+const r = applyPatch({}, p);
+console.log('deep apply ok', typeof r);
+console.log(applyPatch({ a: -0 }, []), Object.is(applyPatch({ a: -0 }, []).a, -0));
+const proto = JSON.parse('{"__proto__":1}');
+console.log(applyPatch(proto, [{ op: 'add', path: '/__proto__', value: { x: 1 } }, { op: 'add', path: '/constructor', value: 2 }]));
