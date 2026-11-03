@@ -1,0 +1,73 @@
+{
+  "id": "h5-solo-mo-r3",
+  "task": "h5",
+  "cond": "solo-mo",
+  "base": "solo",
+  "rep": 3,
+  "dir": "/root/bench-runs/h5-2cade8b5",
+  "exitCode": 0,
+  "timedOut": false,
+  "wallMs": 116064,
+  "startedAt": "2026-11-03T02:43:27.203Z",
+  "sessionId": "b7ea6bc4-6859-46c3-8a67-e308ce33e405",
+  "attempt": 1,
+  "end": "ok",
+  "subtype": "success",
+  "resultText": "I fixed both reported bugs and added the import endpoint. All 49 tests pass (the existing ones plus the new ones); nothing is committed yet.\n\n**Bug fixes**\n1. **4.35 shown as 4.34:** amounts were cut down to whole cents instead of rounded, and `4.35 * 100` comes out as `434.99999999999994` in JavaScript. `parseAmount` in `lib/validate.mjs` now rounds.\n2. **Balances not adding up to zero:** `splitEvenly` in `lib/ledger.mjs` gave everyone the rounded-down share and lost the leftover cents. Now the",
+  "pluginCommit": "404b9343893888b3585b56a724b13cfa0af9e3dc",
+  "sectionTeam": null,
+  "init": {
+    "plugins": [
+      {
+        "name": "cc-plugin-agents-md",
+        "path": "builtin",
+        "source": "cc-plugin-agents-md@builtin"
+      },
+      {
+        "name": "cc-plugin-telemetry",
+        "path": "builtin",
+        "source": "cc-plugin-telemetry@builtin"
+      }
+    ],
+    "mcp_servers": [],
+    "agents": [
+      "claude",
+      "Explore",
+      "general-purpose",
+      "Plan",
+      "statusline-setup",
+      "web-fetch"
+    ],
+    "skills": [
+      "session-start-hook",
+      "deep-research",
+      "design",
+      "design-sync",
+      "dataviz",
+      "update-config",
+      "verify",
+      "debug",
+      "code-review",
+      "simplify",
+      "batch",
+      "fewer-permission-prompts",
+      "doctor",
+      "loop",
+      "schedule",
+      "claude-api",
+      "workflow-authoring",
+      "run",
+      "run-skill-generator"
+    ],
+    "claude_code_version": "2.1.296",
+    "model": "claude-opus-5-5",
+    "apiKeySource": "none"
+  },
+  "envNames": [
+    "CLAUDE_CODE_PLUGIN_DIRS",
+    "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS",
+    "DISABLE_AUTOUPDATER",
+    "ENABLE_CLAUDEAI_MCP_SERVERS",
+    "SECTION_TEAM_AUTO_INSTALL_SKILLS"
+  ]
+}
