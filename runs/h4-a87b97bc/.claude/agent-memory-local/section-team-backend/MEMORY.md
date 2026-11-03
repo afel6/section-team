@@ -1,0 +1,1 @@
+- [Node test script glob](project_node_test_script.md) — `node --test test/` fails on Node 22; use `test/*.test.mjs`

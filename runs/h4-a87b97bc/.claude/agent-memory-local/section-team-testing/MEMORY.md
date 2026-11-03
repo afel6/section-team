@@ -1,0 +1,1 @@
+- [Probe scratch location](probe_scratch_location.md) — write probes as node scripts in .team/probe/, not shell loops in /tmp
