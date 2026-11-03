@@ -1,0 +1,1 @@
+- [Test conventions](project_test_conventions.md) — node:test over HTTP via helpers; don't edit lib/; file-unchanged checks via mtime+text
