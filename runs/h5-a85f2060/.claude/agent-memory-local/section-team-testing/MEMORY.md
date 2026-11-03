@@ -1,0 +1,1 @@
+- [Bash limits](project_bash_limits.md) — Bash writes/scripts denied here; only npm test + read-only; near-misses checked by reading the tests

@@ -1,0 +1,274 @@
+.team/near-miss/26-import.mjs:1:// near-miss: an earlier entry that broke a rule still counts for the duplicate check (its key is added to seen)
+.team/near-miss/26-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/26-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/26-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/26-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/26-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/26-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/26-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/26-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/26-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/25-import.mjs:1:// near-miss: recorded keys are built from raw descriptions (not trimmed or lower-cased)
+.team/near-miss/25-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/25-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/25-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/25-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/25-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/25-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/25-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/25-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/25-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/16-import.mjs:1:// near-miss: expenseKey includes the split, so same expense with a different split is not a duplicate
+.team/near-miss/16-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/16-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/16-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/16-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/16-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/16-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/16-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/16-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/16-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/18-import.mjs:1:// near-miss: a payment from a member to themselves is accepted (to === from check removed)
+.team/near-miss/18-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/18-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/18-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/18-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/18-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/18-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/18-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/18-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/18-import.mjs:78:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/13-import.mjs:1:// near-miss: parseFlag treats a null flag as absent (false) instead of rejecting it
+.team/near-miss/13-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/13-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/13-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/13-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/13-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/13-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/13-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/13-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/13-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/06-import.mjs:1:// near-miss: skipped entries consume expense ids (nextExpenseId starts at state.nextExpenseId + skipped.length)
+.team/near-miss/06-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/06-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/06-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/06-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/06-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/06-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/06-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/06-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/06-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/22-import.mjs:1:// near-miss: duplicate problems are collected apart and appended last, so problems are not sorted by index
+.team/near-miss/22-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/22-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/22-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/22-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/22-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/22-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/22-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/22-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/22-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/01-import.mjs:1:// near-miss: unknown body field check uses `in` against an object (inherited keys like toString pass)
+.team/near-miss/01-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/01-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/01-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/01-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/01-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/01-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/01-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/01-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/01-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/23-import.mjs:1:// near-miss: skip_recorded is parsed before dry_run in parseBody, so with two bad flags the wrong one is reported
+.team/near-miss/23-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/23-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/23-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/23-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/23-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/23-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/23-import.mjs:59:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/23-import.mjs:60:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/23-import.mjs:81:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/08-import.mjs:1:// near-miss: dry run replies 201 instead of 200
+.team/near-miss/08-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/08-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/08-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/08-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/08-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/08-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/08-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/08-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/08-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/20-import.mjs:1:// near-miss: reply balances are computed from the old state, not the state after the import
+.team/near-miss/20-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/20-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/20-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/20-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/20-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/20-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/20-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/20-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/20-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/02-import.mjs:1:// near-miss: expenseKey trims the description but does not lower-case it
+.team/near-miss/02-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/02-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/02-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/02-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/02-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/02-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/02-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/02-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/02-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/17-import.mjs:1:// near-miss: the reported unknown body field is the first in sorted order, not in body order
+.team/near-miss/17-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/17-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/17-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/17-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/17-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/17-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/17-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/17-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/17-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/15-import.mjs:1:// near-miss: body is validated before the group lookup, so a bad body on an unknown group gives 400 not 404
+.team/near-miss/15-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/15-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/15-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/15-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/15-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/15-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/15-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/15-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/15-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/03-import.mjs:1:// near-miss: expenseKey lower-cases the description but does not trim it
+.team/near-miss/03-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/03-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/03-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/03-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/03-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/03-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/03-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/03-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/03-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/07-import.mjs:1:// near-miss: an import whose entries were all skipped still writes state (only dry run suppresses it)
+.team/near-miss/07-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/07-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/07-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/07-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/07-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/07-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/07-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/07-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/07-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/09-import.mjs:1:// near-miss: entry type compared loosely (kind = String(entry.type))
+.team/near-miss/09-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/09-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/09-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/09-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/09-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/09-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/09-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/09-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/09-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/04-import.mjs:1:// near-miss: seen.add(key) only for expenses that are neither duplicate nor recorded
+.team/near-miss/04-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/04-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/04-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/04-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/04-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/04-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/04-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/04-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/04-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/05-import.mjs:1:// near-miss: payments take their ids from the expense counter
+.team/near-miss/05-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/05-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/05-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/05-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/05-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/05-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/05-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/05-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/05-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/10-ledger.mjs:1:// near-miss: the remainder cents go to the LAST people instead of the first
+.team/near-miss/10-ledger.mjs:2:// Money maths on whole cents: how an expense is shared, what each member is owed or owes, and how to settle up.
+.team/near-miss/10-ledger.mjs:3:// Amounts are stored as cents and shown by the API as numbers (435 cents is 4.35).
+.team/near-miss/10-ledger.mjs:9:// Each person's part of an amount in cents, as [name, cents] pairs in the order of people. When the amount does
+.team/near-miss/10-ledger.mjs:10:// not divide evenly, the first people pay one cent more each, so the parts always add up to the amount.
+.team/near-miss/10-ledger.mjs:17:// An expense as the API shows it: amounts as numbers, plus each person's share keyed by name.
+.team/near-miss/10-ledger.mjs:25:// Each member's balance in cents, as a Map in the group's member order. A payer is owed the whole expense
+.team/near-miss/10-ledger.mjs:26:// minus their own share; a payment from A to B moves A up and B down.
+.team/near-miss/10-ledger.mjs:41:// What each member of the group is owed (positive) or owes (negative), in the group's member order.
+.team/near-miss/10-ledger.mjs:46:// The member furthest on one side: sign 1 is owed the most, sign -1 owes the most. Ties go to the member who
+.team/near-miss/10-ledger.mjs:47:// comes first in the map; null when nobody is on that side.
+.team/near-miss/10-ledger.mjs:56:// Payments that would bring every balance to 0, as [{from, to, amount}]: the member who owes the most pays the
+.team/near-miss/10-ledger.mjs:57:// member who is owed the most whichever is smaller of the two, until nobody owes anything.
+.team/near-miss/27-import.mjs:1:// near-miss: expenseKey trims the description only at the end (trimEnd, leading spaces kept)
+.team/near-miss/27-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/27-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/27-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/27-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/27-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/27-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/27-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/27-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/27-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/12-import.mjs:1:// near-miss: already-recorded keys come from expenses of ALL groups (group filter dropped in review())
+.team/near-miss/12-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/12-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/12-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/12-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/12-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/12-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/12-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/12-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/12-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/19-import.mjs:1:// near-miss: entry count limit is off by one (accepts MAX_ENTRIES + 1 entries; message text unchanged)
+.team/near-miss/19-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/19-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/19-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/19-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/19-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/19-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/19-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/19-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/19-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/24-ledger.mjs:1:// near-miss: balances come out in alphabetical member order instead of the group's member order
+.team/near-miss/24-ledger.mjs:2:// Money maths on whole cents: how an expense is shared, what each member is owed or owes, and how to settle up.
+.team/near-miss/24-ledger.mjs:3:// Amounts are stored as cents and shown by the API as numbers (435 cents is 4.35).
+.team/near-miss/24-ledger.mjs:9:// Each person's part of an amount in cents, as [name, cents] pairs in the order of people. When the amount does
+.team/near-miss/24-ledger.mjs:10:// not divide evenly, the first people pay one cent more each, so the parts always add up to the amount.
+.team/near-miss/24-ledger.mjs:17:// An expense as the API shows it: amounts as numbers, plus each person's share keyed by name.
+.team/near-miss/24-ledger.mjs:25:// Each member's balance in cents, as a Map in the group's member order. A payer is owed the whole expense
+.team/near-miss/24-ledger.mjs:26:// minus their own share; a payment from A to B moves A up and B down.
+.team/near-miss/24-ledger.mjs:41:// What each member of the group is owed (positive) or owes (negative), in the group's member order.
+.team/near-miss/24-ledger.mjs:46:// The member furthest on one side: sign 1 is owed the most, sign -1 owes the most. Ties go to the member who
+.team/near-miss/24-ledger.mjs:47:// comes first in the map; null when nobody is on that side.
+.team/near-miss/24-ledger.mjs:56:// Payments that would bring every balance to 0, as [{from, to, amount}]: the member who owes the most pays the
+.team/near-miss/24-ledger.mjs:57:// member who is owed the most whichever is smaller of the two, until nobody owes anything.
+.team/near-miss/21-import.mjs:1:// near-miss: a null split is treated as absent (every member) via entry.split ?? undefined
+.team/near-miss/21-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/21-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/21-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/21-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/21-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/21-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/21-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/21-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/21-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/14-import.mjs:1:// near-miss: already-recorded is checked before duplicate (the two ifs are swapped)
+.team/near-miss/14-import.mjs:2:// POST /groups/:id/import: records a list of expenses and payments for a group in one go, all of them or none.
+.team/near-miss/14-import.mjs:3:// Same handler contract as lib/groups.mjs: it returns a new store instead of changing the one it gets.
+.team/near-miss/14-import.mjs:18:// Thrown while reviewing an entry: rule is the first import rule the entry breaks.
+.team/near-miss/14-import.mjs:26:// Runs parse and returns its value, or throws BrokenRule(rule) when parse throws a ValidationError.
+.team/near-miss/14-import.mjs:36:// Two expenses are the same when payer, amount in cents and description (trimmed, lower case) match.
+.team/near-miss/14-import.mjs:40:// A boolean body flag: false when its key is absent, otherwise it must be true or false.
+.team/near-miss/14-import.mjs:57:// The fields of one entry as { kind, fields }, or throws BrokenRule with the first rule it breaks, from
+.team/near-miss/14-import.mjs:58:// not-an-object to bad-split (bad-amount for a payment).
+.team/near-miss/14-import.mjs:79:// Sorts every entry into parsed (with its kind and fields), skipped indexes and problems, in entry order.
+.team/near-miss/11-validate.mjs:1:// near-miss: parseAmount truncates cents with Math.trunc instead of rounding
+.team/near-miss/11-validate.mjs:2:// Input checks for request bodies and query strings. Each parser returns the clean value or throws a
+.team/near-miss/11-validate.mjs:3:// ValidationError, which the server turns into a 400 reply.
+.team/near-miss/11-validate.mjs:20:// Digits with at most two decimals, as String() writes a number: "12", "12.5", "4.35".
+.team/near-miss/11-validate.mjs:42:// A list of 2 to 20 member names, each used once. Names are case-sensitive: "Ann" and "ann" are two people.
+.team/near-miss/11-validate.mjs:61:// Amounts arrive as numbers such as 12.5 or 4.35 and are kept as whole cents, so sums never drift.
+.team/near-miss/11-validate.mjs:70:// A name that must belong to one of members; message says which field was wrong.
+.team/near-miss/11-validate.mjs:76:// Who shares an expense: a non-empty list of members without repeats. Missing means every member, in group order.
