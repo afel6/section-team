@@ -1,0 +1,1 @@
+- [Near-miss via loader hook](near-miss-via-loader-hook.md) — the shell blocks swapping copies into lib/; use a node loader hook plus a node driver script

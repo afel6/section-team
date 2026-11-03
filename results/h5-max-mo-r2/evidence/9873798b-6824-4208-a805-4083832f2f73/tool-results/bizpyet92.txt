@@ -1,0 +1,575 @@
+     1	// Shared fixtures for the POST /groups/:id/import suites (not a test file itself).
+     2	import assert from 'node:assert/strict'
+     3	import { readFileSync, statSync } from 'node:fs'
+     4	import { startApp, tempDataFile } from './helpers.mjs'
+     5	
+     6	export const trip = { id: 'trip', name: 'Ski trip', members: ['Ann', 'Ben', 'Cara'] }
+     7	export const flat = { id: 'flat', name: 'Flat', members: ['Ann', 'Ben', 'Cara'] }
+     8	export const everyone = trip.members
+     9	
+    10	// A valid expense or payment entry, with some fields replaced.
+    11	export const expense = (over = {}) => ({ type: 'expense', description: 'Hotel', payer: 'Ann', amount: 90, ...over })
+    12	export const payment = (over = {}) => ({ type: 'payment', from: 'Ben', to: 'Ann', amount: 30, ...over })
+    13	
+    14	// The same expense as POST /groups/:id/expenses takes it (no type).
+    15	export const asPost = ({ type, ...fields }) => fields
+    16	
+    17	// Runs fn({ call, file, restart, importInto }) with the "trip" group created on a fresh data file.
+    18	export async function withTrip(fn) {
+    19	  const data = tempDataFile()
+    20	  let app = await startApp(data.file)
+    21	  try {
+    22	    assert.equal((await app.call('POST', '/groups', trip)).status, 201)
+    23	    const call = (...args) => app.call(...args)
+    24	    const restart = async () => {
+    25	      await app.stop()
+    26	      app = await startApp(data.file)
+    27	    }
+    28	    const importInto = (body, group = 'trip') => call('POST', `/groups/${group}/import`, body)
+    29	    await fn({ call, file: data.file, restart, importInto })
+    30	  } finally {
+    31	    await app.stop()
+    32	    data.cleanup()
+    33	  }
+    34	}
+    35	
+    36	// What identifies one write of the data file: a save renames a new file over it, so the inode changes.
+    37	export function snapshot(file) {
+    38	  const { ino, mtimeMs } = statSync(file)
+    39	  return { ino, mtimeMs, text: readFileSync(file, 'utf8') }
+    40	}
+    41	
+    42	// Everything the API shows about a group's ledger.
+    43	export async function ledger(call, group = 'trip') {
+    44	  const [expenses, payments, balances] = await Promise.all(
+    45	    ['expenses', 'payments', 'balances'].map(part => call('GET', `/groups/${group}/${part}`)),
+    46	  )
+    47	  return { ...expenses.body, ...payments.body, ...balances.body }
+    48	}
+    49	
+    50	// Asserts that a request left the data file and the ledger exactly as they were.
+    51	export async function assertNothingSaved({ call, file }, before) {
+    52	  assert.deepEqual(snapshot(file), before.file)
+    53	  assert.deepEqual(await ledger(call), before.ledger)
+    54	}
+    55	
+    56	// The data file and the ledger as they are now, for assertNothingSaved.
+    57	export async function capture({ call, file }) {
+    58	  return { file: snapshot(file), ledger: await ledger(call) }
+    59	}
+    60	// POST /groups/:id/import: the checks on the request as a whole (413, not an object, 404, 400), in order.
+    61	import { test } from 'node:test'
+    62	import assert from 'node:assert/strict'
+    63	import { assertNothingSaved, capture, expense, payment, withTrip } from './import-fixtures.mjs'
+    64	
+    65	const ENTRIES_ERROR = { error: 'entries must be an array of 1 to 50 items' }
+    66	const DRY_RUN_ERROR = { error: 'dry_run must be true or false' }
+    67	const SKIP_ERROR = { error: 'skip_recorded must be true or false' }
+    68	const MAX_BODY_BYTES = 10 * 1024
+    69	
+    70	// Sends body (an object, or raw JSON text) and asserts the exact status and reply, and that nothing was saved.
+    71	async function assertRefused(ctx, body, status, reply, group = 'trip') {
+    72	  const before = await capture(ctx)
+    73	  const r = await ctx.importInto(body, group)
+    74	  assert.equal(r.status, status, typeof body === 'string' ? body : JSON.stringify(body))
+    75	  assert.deepEqual(r.body, reply)
+    76	  await assertNothingSaved(ctx, before)
+    77	}
+    78	
+    79	// Raw JSON text of exactly `bytes` bytes for a valid one-payment import, padded with spaces inside the object.
+    80	function paddedBody(bytes) {
+    81	  const text = JSON.stringify({ entries: [payment()] })
+    82	  return `${text.slice(0, -1)}${' '.repeat(bytes - Buffer.byteLength(text))}}`
+    83	}
+    84	
+    85	test('import: an unknown group is 404 not found, before any check of the body fields', () => withTrip(async ctx => {
+    86	  const notFound = { error: 'not found' }
+    87	  await assertRefused(ctx, { entries: [expense()] }, 404, notFound, 'nope')
+    88	  await assertRefused(ctx, { bogus: 1, entries: 'x', dry_run: null }, 404, notFound, 'nope')
+    89	  await assertRefused(ctx, { entries: [null] }, 404, notFound, 'nope')
+    90	}))
+    91	
+    92	test('import: a body that is not a JSON object is 400, even for an unknown group', () => withTrip(async ctx => {
+    93	  for (const text of ['[]', '[{"entries": []}]', 'null', '"entries"', '7', 'true']) {
+    94	    await assertRefused(ctx, text, 400, { error: 'body must be a JSON object' })
+    95	    await assertRefused(ctx, text, 400, { error: 'body must be a JSON object' }, 'nope')
+    96	  }
+    97	  await assertRefused(ctx, '{"entries": [', 400, { error: 'invalid JSON' })
+    98	}))
+    99	
+   100	test('import: a body over 10 KB is 413; exactly 10 KB is accepted', () => withTrip(async ctx => {
+   101	  await assertRefused(ctx, paddedBody(MAX_BODY_BYTES + 1), 413, { error: 'body too large' })
+   102	  await assertRefused(ctx, paddedBody(MAX_BODY_BYTES + 1), 413, { error: 'body too large' }, 'nope')
+   103	  const r = await ctx.importInto(paddedBody(MAX_BODY_BYTES))
+   104	  assert.equal(r.status, 201)
+   105	  assert.deepEqual(r.body, {
+   106	    expenses: [], payments: [{ id: 1, from: 'Ben', to: 'Ann', amount: 30 }], skipped: [], balances: { Ann: -30, Ben: 30, Cara: 0 },
+   107	  })
+   108	}))
+   109	
+   110	test('import: an unknown body field is 400 naming the first one in Object.keys order', () => withTrip(async ctx => {
+   111	  const entries = [expense()]
+   112	  await assertRefused(ctx, { entries, extra: 1 }, 400, { error: 'unknown field extra' })
+   113	  await assertRefused(ctx, { zeta: 1, entries, alpha: 2 }, 400, { error: 'unknown field zeta' })
+   114	  // Integer-like keys come first in Object.keys, whatever their place in the text.
+   115	  await assertRefused(ctx, '{"entries": [], "b": 1, "2": 1}', 400, { error: 'unknown field 2' })
+   116	  await assertRefused(ctx, `{"__proto__": {}, "entries": ${JSON.stringify(entries)}}`, 400, { error: 'unknown field __proto__' })
+   117	  for (const name of ['Entries', 'dryRun', 'dry_run ', 'skip-recorded', 'type', '']) {
+   118	    await assertRefused(ctx, { entries, [name]: false }, 400, { error: `unknown field ${name}` })
+   119	  }
+   120	}))
+   121	
+   122	test('import: an unknown field is reported before bad entries and bad flags', () => withTrip(async ctx => {
+   123	  await assertRefused(ctx, { dry_run: 'x', entries: 'x', extra: null }, 400, { error: 'unknown field extra' })
+   124	}))
+   125	
+   126	test('import: entries must be an array of 1 to 50 items', () => withTrip(async ctx => {
+   127	  const fiftyOne = Array.from({ length: 51 }, () => payment())
+   128	  for (const entries of [undefined, null, {}, { 0: payment() }, 'entries', 1, true, [], fiftyOne]) {
+   129	    await assertRefused(ctx, { entries }, 400, ENTRIES_ERROR)
+   130	  }
+   131	  await assertRefused(ctx, {}, 400, ENTRIES_ERROR)
+   132	}))
+   133	
+   134	test('import: 50 entries are accepted, each with its own id', () => withTrip(async ({ importInto }) => {
+   135	  const r = await importInto({ entries: Array.from({ length: 50 }, () => payment()) })
+   136	  assert.equal(r.status, 201)
+   137	  assert.deepEqual(r.body, {
+   138	    expenses: [],
+   139	    payments: Array.from({ length: 50 }, (_, i) => ({ id: i + 1, from: 'Ben', to: 'Ann', amount: 30 })),
+   140	    skipped: [],
+   141	    balances: { Ann: -1500, Ben: 1500, Cara: 0 },
+   142	  })
+   143	}))
+   144	
+   145	test('import: a bad entries list is reported before bad flags', () => withTrip(async ctx => {
+   146	  await assertRefused(ctx, { dry_run: 'x', skip_recorded: 'x', entries: [] }, 400, ENTRIES_ERROR)
+   147	  await assertRefused(ctx, { skip_recorded: null, dry_run: null, entries: [expense()] }, 400, DRY_RUN_ERROR)
+   148	}))
+   149	
+   150	test('import: dry_run and skip_recorded must be booleans when given, null included', () => withTrip(async ctx => {
+   151	  const entries = [expense()]
+   152	  for (const value of [null, 'true', 'false', 0, 1, '', [], {}, [true]]) {
+   153	    await assertRefused(ctx, { entries, dry_run: value }, 400, DRY_RUN_ERROR)
+   154	    await assertRefused(ctx, { entries, skip_recorded: value }, 400, SKIP_ERROR)
+   155	    await assertRefused(ctx, { entries, dry_run: true, skip_recorded: value }, 400, SKIP_ERROR)
+   156	  }
+   157	}))
+   158	
+   159	test('import: flags given as false behave as left out and the import is saved', () => withTrip(async ({ call, importInto }) => {
+   160	  const r = await importInto({ entries: [expense()], dry_run: false, skip_recorded: false })
+   161	  assert.equal(r.status, 201)
+   162	  assert.deepEqual((await call('GET', '/groups/trip/expenses')).body, { expenses: r.body.expenses })
+   163	}))
+   164	
+   165	test('import: entries with bad fields and an unknown group are still 404 first', () => withTrip(async ctx => {
+   166	  await assertRefused(ctx, { entries: [expense({ amount: 0 })] }, 404, { error: 'not found' }, 'Trip')
+   167	}))
+   168	// POST /groups/:id/import: the 422 rules each entry is checked against, in order, and that a 422 saves nothing.
+   169	import { test } from 'node:test'
+   170	import assert from 'node:assert/strict'
+   171	import { asPost, assertNothingSaved, capture, expense, flat, payment, withTrip } from './import-fixtures.mjs'
+   172	
+   173	// Imports entries (an array, or the raw JSON text of a whole body) and asserts the exact 422 reply, and that
+   174	// nothing was saved.
+   175	async function assertProblems(ctx, entries, problems, flags = {}) {
+   176	  const before = await capture(ctx)
+   177	  const r = await ctx.importInto(typeof entries === 'string' ? entries : { entries, ...flags })
+   178	  assert.equal(r.status, 422, typeof entries === 'string' ? entries : JSON.stringify(entries))
+   179	  assert.deepEqual(r.body, { error: 'import rejected', problems })
+   180	  await assertNothingSaved(ctx, before)
+   181	}
+   182	
+   183	// One entry on its own must break exactly `rule`.
+   184	const assertRule = (ctx, entry, rule) => assertProblems(ctx, [entry], [{ index: 0, rule }])
+   185	
+   186	// Imports entries and asserts a 201 (they broke no rule).
+   187	async function assertAccepted({ importInto }, entries, flags = {}) {
+   188	  const r = await importInto({ entries, ...flags })
+   189	  assert.equal(r.status, 201, JSON.stringify(entries))
+   190	  return r.body
+   191	}
+   192	
+   193	test('import 422: null, arrays and other non-objects are not-an-object', () => withTrip(async ctx => {
+   194	  const entries = [null, [], [expense()], 'expense', 5, true, false]
+   195	  await assertProblems(ctx, entries, entries.map((_, index) => ({ index, rule: 'not-an-object' })))
+   196	}))
+   197	
+   198	test('import 422: a type other than exactly "expense" or "payment" is bad-type', () => withTrip(async ctx => {
+   199	  const types = [['expense'], ['payment'], 'Expense', 'expense ', 'payments', '', null, 1, { expense: true }, 'toString', 'constructor', '__proto__']
+   200	  for (const type of types) await assertRule(ctx, expense({ type }), 'bad-type')
+   201	  const { type, ...noType } = expense()
+   202	  await assertRule(ctx, noType, 'bad-type')
+   203	  await assertRule(ctx, {}, 'bad-type')
+   204	}))
+   205	
+   206	test('import 422: a field the entry type does not take is unknown-field, before its field rules', () => withTrip(async ctx => {
+   207	  await assertRule(ctx, expense({ from: 'Ann' }), 'unknown-field')
+   208	  await assertRule(ctx, expense({ id: 1 }), 'unknown-field')
+   209	  await assertRule(ctx, expense({ Split: ['Ann'] }), 'unknown-field')
+   210	  await assertRule(ctx, payment({ description: 'Back' }), 'unknown-field')
+   211	  await assertRule(ctx, payment({ split: ['Ann'] }), 'unknown-field')
+   212	  await assertRule(ctx, payment({ payer: 'Ann' }), 'unknown-field')
+   213	  await assertRule(ctx, { type: 'expense', note: 'x' }, 'unknown-field')
+   214	  await assertRule(ctx, { type: 'payment', amount: 0, extra: null }, 'unknown-field')
+   215	  const raw = `{"entries": [{"type": "expense", "description": "Hotel", "payer": "Ann", "amount": 9, "__proto__": {}}]}`
+   216	  await assertProblems(ctx, raw, [{ index: 0, rule: 'unknown-field' }])
+   217	}))
+   218	
+   219	test('import 422: expense fields are checked as on POST, description, payer, amount, split', () => withTrip(async ctx => {
+   220	  const cases = [
+   221	    [{ description: '' }, 'bad-description'], [{ description: ' \t\n' }, 'bad-description'],
+   222	    [{ description: null }, 'bad-description'], [{ description: 'x'.repeat(201) }, 'bad-description'],
+   223	    [{ description: 5 }, 'bad-description'],
+   224	    [{ payer: 'Dan' }, 'bad-payer'], [{ payer: 'ann' }, 'bad-payer'], [{ payer: null }, 'bad-payer'], [{ payer: ['Ann'] }, 'bad-payer'],
+   225	    [{ amount: 0 }, 'bad-amount'], [{ amount: -1 }, 'bad-amount'], [{ amount: 4.355 }, 'bad-amount'],
+   226	    [{ amount: '10' }, 'bad-amount'], [{ amount: null }, 'bad-amount'], [{ amount: 1000000.01 }, 'bad-amount'],
+   227	    [{ split: null }, 'bad-split'], [{ split: [] }, 'bad-split'], [{ split: ['Ann', 'Ann'] }, 'bad-split'],
+   228	    [{ split: ['Ann', 'Dan'] }, 'bad-split'], [{ split: 'Ann' }, 'bad-split'], [{ split: ['ann'] }, 'bad-split'],
+   229	  ]
+   230	  for (const [over, rule] of cases) await assertRule(ctx, expense(over), rule)
+   231	  for (const [field, rule] of [['description', 'bad-description'], ['payer', 'bad-payer'], ['amount', 'bad-amount']]) {
+   232	    const { [field]: dropped, ...rest } = expense()
+   233	    await assertRule(ctx, rest, rule)
+   234	  }
+   235	  await assertAccepted(ctx, [expense({ description: 'x'.repeat(200), amount: 1000000 }), expense({ amount: 0.01, description: 'Tip' })])
+   236	}))
+   237	
+   238	test('import 422: the first broken expense rule decides', () => withTrip(async ctx => {
+   239	  await assertRule(ctx, expense({ description: '', payer: 'Dan', amount: 0, split: null }), 'bad-description')
+   240	  await assertRule(ctx, expense({ payer: 'Dan', amount: 0, split: null }), 'bad-payer')
+   241	  await assertRule(ctx, expense({ amount: 0, split: null }), 'bad-amount')
+   242	}))
+   243	
+   244	test('import 422: payment fields, bad-from, bad-to (stranger or same as from), bad-amount', () => withTrip(async ctx => {
+   245	  const cases = [
+   246	    [{ from: 'Dan' }, 'bad-from'], [{ from: null }, 'bad-from'], [{ from: 'ben' }, 'bad-from'],
+   247	    [{ to: 'Dan' }, 'bad-to'], [{ to: null }, 'bad-to'], [{ to: 'Ben' }, 'bad-to'],
+   248	    [{ amount: 0 }, 'bad-amount'], [{ amount: '30' }, 'bad-amount'], [{ amount: 1.001 }, 'bad-amount'], [{ amount: null }, 'bad-amount'],
+   249	    [{ from: 'Dan', to: 'Dan', amount: 0 }, 'bad-from'], [{ to: 'Ben', amount: 0 }, 'bad-to'],
+   250	  ]
+   251	  for (const [over, rule] of cases) await assertRule(ctx, payment(over), rule)
+   252	  for (const [field, rule] of [['from', 'bad-from'], ['to', 'bad-to'], ['amount', 'bad-amount']]) {
+   253	    const { [field]: dropped, ...rest } = payment()
+   254	    await assertRule(ctx, rest, rule)
+   255	  }
+   256	}))
+   257	
+   258	test('import 422: one problem per bad entry, sorted by index, valid entries left out', () => withTrip(async ctx => {
+   259	  const entries = [expense(), { type: 'loan' }, payment(), null, expense({ description: 'Skis', amount: 0 }), payment({ to: 'Ben' })]
+   260	  await assertProblems(ctx, entries, [
+   261	    { index: 1, rule: 'bad-type' }, { index: 3, rule: 'not-an-object' },
+   262	    { index: 4, rule: 'bad-amount' }, { index: 5, rule: 'bad-to' },
+   263	  ])
+   264	}))
+   265	
+   266	test('import 422: duplicate matches payer, amount in cents and trimmed lower-cased description', () => withTrip(async ctx => {
+   267	  const dup = [{ index: 1, rule: 'duplicate' }]
+   268	  await assertProblems(ctx, [expense(), expense({ description: '  hOTEL \n' })], dup)
+   269	  await assertProblems(ctx, [expense({ description: ' hotel' }), expense({ description: 'HOTEL ' })], dup)
+   270	  await assertProblems(ctx, [expense({ description: 'Café' }), expense({ description: ' CAFÉ\t' })], dup)
+   271	  await assertProblems(ctx, [expense({ split: ['Ann', 'Ben'] }), expense({ split: ['Cara'] })], dup)
+   272	  await assertProblems(ctx, [expense({ split: ['Ben'] }), payment(), expense()], [{ index: 2, rule: 'duplicate' }])
+   273	  // The same amount written two ways in the JSON text is one amount.
+   274	  const entry = amount => `{"type": "expense", "description": "Hotel", "payer": "Ann", "amount": ${amount}}`
+   275	  await assertProblems(ctx, `{"entries": [${entry('10')}, ${entry('10.00')}, ${entry('1e1')}]}`, [...dup, { index: 2, rule: 'duplicate' }])
+   276	}))
+   277	
+   278	test('import: expenses differing in payer, amount or inner text are not duplicates', () => withTrip(async ctx => {
+   279	  const entries = [
+   280	    expense(), expense({ payer: 'Ben' }), expense({ amount: 90.01 }), expense({ description: 'Ho tel' }), expense({ description: 'Hotels' }),
+   281	  ]
+   282	  const body = await assertAccepted(ctx, entries)
+   283	  assert.deepEqual(body.expenses.map(({ id, description, payer, amount }) => ({ id, description, payer, amount })),
+   284	    entries.map(({ description, payer, amount }, i) => ({ id: i + 1, description, payer, amount })))
+   285	  assert.deepEqual(body.skipped, [])
+   286	}))
+   287	
+   288	test('import 422: every later copy is a duplicate; an earlier entry with a bad field does not count', () => withTrip(async ctx => {
+   289	  await assertProblems(ctx, [expense(), expense(), expense()], [{ index: 1, rule: 'duplicate' }, { index: 2, rule: 'duplicate' }])
+   290	  await assertProblems(ctx, [expense({ split: null }), expense()], [{ index: 0, rule: 'bad-split' }])
+   291	  await assertProblems(ctx, [expense({ extra: 1 }), expense(), expense()], [{ index: 0, rule: 'unknown-field' }, { index: 2, rule: 'duplicate' }])
+   292	}))
+   293	
+   294	test('import 422: already-recorded matches the group\'s current expenses', () => withTrip(async ctx => {
+   295	  const { call } = ctx
+   296	  await call('POST', '/groups/trip/expenses', { ...asPost(expense()), split: ['Ann'] })
+   297	  await assertRule(ctx, expense({ description: ' hotel ', split: ['Ben', 'Cara'] }), 'already-recorded')
+   298	  await call('PATCH', '/groups/trip/expenses/1', { amount: 60 })
+   299	  await assertRule(ctx, expense({ amount: 60 }), 'already-recorded')
+   300	  await call('DELETE', '/groups/trip/expenses/1')
+   301	  await assertAccepted(ctx, [expense({ amount: 60 })])
+   302	  await assertRule(ctx, expense({ amount: 60 }), 'already-recorded') // recorded by the import above
+   303	}))
+   304	
+   305	test('import: an expense of another group is not already-recorded', () => withTrip(async ctx => {
+   306	  await ctx.call('POST', '/groups', flat)
+   307	  await ctx.call('POST', '/groups/flat/expenses', asPost(expense()))
+   308	  const body = await assertAccepted(ctx, [expense()])
+   309	  assert.deepEqual(body.expenses.map(e => e.id), [2])
+   310	}))
+   311	
+   312	test('import 422: duplicate wins over already-recorded, and a recorded entry still counts as earlier', () => withTrip(async ctx => {
+   313	  await ctx.call('POST', '/groups/trip/expenses', asPost(expense()))
+   314	  const entries = [expense(), expense({ description: 'HOTEL' })]
+   315	  await assertProblems(ctx, entries, [{ index: 0, rule: 'already-recorded' }, { index: 1, rule: 'duplicate' }])
+   316	  await assertProblems(ctx, entries, [{ index: 1, rule: 'duplicate' }], { skip_recorded: true })
+   317	  await assertProblems(ctx, entries, [{ index: 1, rule: 'duplicate' }], { skip_recorded: true, dry_run: true })
+   318	}))
+   319	
+   320	test('import 422: skip_recorded only skips already-recorded; other problems still reject', () => withTrip(async ctx => {
+   321	  await ctx.call('POST', '/groups/trip/expenses', asPost(expense()))
+   322	  await assertProblems(ctx, [expense(), { type: 'loan' }], [{ index: 1, rule: 'bad-type' }], { skip_recorded: true })
+   323	  await assertProblems(ctx, [expense(), payment({ from: 'Ann' })], [{ index: 1, rule: 'bad-to' }], { skip_recorded: true })
+   324	}))
+   325	
+   326	test('import 422: payments are never duplicate or already-recorded', () => withTrip(async ctx => {
+   327	  await ctx.call('POST', '/groups/trip/payments', asPost(payment()))
+   328	  const body = await assertAccepted(ctx, [payment(), payment(), payment()])
+   329	  assert.deepEqual(body.payments, [2, 3, 4].map(id => ({ id, from: 'Ben', to: 'Ann', amount: 30 })))
+   330	  assert.deepEqual(body.balances, { Ann: -120, Ben: 120, Cara: 0 })
+   331	}))
+   332	
+   333	test('import 422: a rejected import burns no ids', () => withTrip(async ctx => {
+   334	  await assertProblems(ctx, [expense(), payment(), null], [{ index: 2, rule: 'not-an-object' }])
+   335	  assert.equal((await ctx.call('POST', '/groups/trip/expenses', asPost(expense()))).body.id, 1)
+   336	  assert.equal((await ctx.call('POST', '/groups/trip/payments', asPost(payment()))).body.id, 1)
+   337	}))
+   338	// POST /groups/:id/import: successful imports, ids, skipped entries, dry runs and what reaches the data file.
+   339	import { test } from 'node:test'
+   340	import assert from 'node:assert/strict'
+   341	import { asPost, assertNothingSaved, capture, everyone, expense, flat, ledger, payment, snapshot, withTrip } from './import-fixtures.mjs'
+   342	
+   343	const taxi = expense({ description: 'Taxi', amount: 20 })
+   344	const skis = expense({ description: 'Skis', payer: 'Cara', amount: 12.5, split: ['Cara', 'Ben'] })
+   345	
+   346	// Leaves the next expense id at 3 and the next payment id at 2, with Taxi recorded in trip.
+   347	async function seedIds(call) {
+   348	  await call('POST', '/groups', flat)
+   349	  await call('POST', '/groups/flat/expenses', { description: 'Rent', payer: 'Ben', amount: 500 })
+   350	  await call('POST', '/groups/trip/expenses', asPost(taxi))
+   351	  await call('POST', '/groups/flat/payments', { from: 'Cara', to: 'Ann', amount: 5 })
+   352	}
+   353	
+   354	// [expense, skipped expense, payment, expense] imported after seedIds.
+   355	const mixedEntries = [expense(), { ...taxi, description: ' taxi ', split: ['Ben'] }, payment(), skis]
+   356	const mixedReply = {
+   357	  expenses: [
+   358	    { id: 3, description: 'Hotel', payer: 'Ann', amount: 90, split: everyone, shares: { Ann: 30, Ben: 30, Cara: 30 } },
+   359	    { id: 4, description: 'Skis', payer: 'Cara', amount: 12.5, split: ['Cara', 'Ben'], shares: { Cara: 6.25, Ben: 6.25 } },
+   360	  ],
+   361	  payments: [{ id: 2, from: 'Ben', to: 'Ann', amount: 30 }],
+   362	  skipped: [1],
+   363	  balances: { Ann: 43.33, Ben: -12.92, Cara: -30.41 },
+   364	}
+   365	
+   366	test('import 201: expenses and payments shown as their POST routes show them, with balances', () => withTrip(async ({ call, importInto }) => {
+   367	  const r = await importInto({ entries: [expense(), payment()] })
+   368	  assert.equal(r.status, 201)
+   369	  assert.deepEqual(r.body, {
+   370	    expenses: [{ id: 1, description: 'Hotel', payer: 'Ann', amount: 90, split: everyone, shares: { Ann: 30, Ben: 30, Cara: 30 } }],
+   371	    payments: [{ id: 1, from: 'Ben', to: 'Ann', amount: 30 }],
+   372	    skipped: [],
+   373	    balances: { Ann: 30, Ben: 0, Cara: -30 },
+   374	  })
+   375	  assert.deepEqual(await ledger(call), { expenses: r.body.expenses, payments: r.body.payments, balances: r.body.balances })
+   376	}))
+   377	
+   378	test('import 201: each entry matches what POST gives for the same fields, description kept as given', () => withTrip(async ({ call, importInto }) => {
+   379	  await call('POST', '/groups', flat)
+   380	  const entries = [expense({ description: '  Hotel night ', amount: 4.35, split: ['Ben', 'Ann'] }), expense({ amount: 10 }), payment({ amount: 0.29 })]
+   381	  const r = await importInto({ entries })
+   382	  assert.equal(r.status, 201)
+   383	  const posted = [
+   384	    (await call('POST', '/groups/flat/expenses', asPost(entries[0]))).body,
+   385	    (await call('POST', '/groups/flat/expenses', asPost(entries[1]))).body,
+   386	  ]
+   387	  const withoutId = ({ id, ...rest }) => rest
+   388	  assert.deepEqual(r.body.expenses.map(withoutId), posted.map(withoutId))
+   389	  assert.deepEqual(r.body.expenses[0], { id: 1, description: '  Hotel night ', payer: 'Ann', amount: 4.35, split: ['Ben', 'Ann'], shares: { Ben: 2.18, Ann: 2.17 } })
+   390	  assert.deepEqual(r.body.expenses[1].shares, { Ann: 3.34, Ben: 3.33, Cara: 3.33 })
+   391	  assert.deepEqual(r.body.payments, [{ id: 1, from: 'Ben', to: 'Ann', amount: 0.29 }])
+   392	}))
+   393	
+   394	test('import 201: ids run on per kind in entry order; skipped entries take none', () => withTrip(async ({ call, importInto }) => {
+   395	  await seedIds(call)
+   396	  const r = await importInto({ entries: mixedEntries, skip_recorded: true })
+   397	  assert.equal(r.status, 201)
+   398	  assert.deepEqual(r.body, mixedReply)
+   399	  assert.deepEqual((await call('GET', '/groups/trip/balances')).body, { balances: mixedReply.balances })
+   400	  assert.equal((await call('POST', '/groups/trip/expenses', asPost(expense({ description: 'Bus' })))).body.id, 5)
+   401	  assert.equal((await call('POST', '/groups/flat/payments', asPost(payment()))).body.id, 3)
+   402	}))
+   403	
+   404	test('import 201: ids are shared with every group', () => withTrip(async ({ call, importInto }) => {
+   405	  await call('POST', '/groups', flat)
+   406	  const first = await importInto({ entries: [expense(), payment(), expense({ description: 'Bus' })] }, 'flat')
+   407	  assert.deepEqual([first.body.expenses.map(e => e.id), first.body.payments.map(p => p.id)], [[1, 2], [1]])
+   408	  const second = await importInto({ entries: [payment(), expense()] })
+   409	  assert.deepEqual([second.body.expenses.map(e => e.id), second.body.payments.map(p => p.id)], [[3], [2]])
+   410	  assert.deepEqual(second.body.balances, { Ann: 30, Ben: 0, Cara: -30 })
+   411	}))
+   412	
+   413	test('import 201: when every entry is skipped, nothing is written and the reply shows current balances', () => withTrip(async ctx => {
+   414	  const { call, importInto } = ctx
+   415	  await call('POST', '/groups/trip/expenses', asPost(expense()))
+   416	  await call('POST', '/groups/trip/expenses', asPost(taxi))
+   417	  const expected = { expenses: [], payments: [], skipped: [0, 1], balances: (await call('GET', '/groups/trip/balances')).body.balances }
+   418	  const before = await capture(ctx)
+   419	  const r = await importInto({ entries: [taxi, expense({ description: 'HOTEL' })], skip_recorded: true })
+   420	  assert.deepEqual([r.status, r.body], [201, expected])
+   421	  await assertNothingSaved(ctx, before)
+   422	  const dry = await importInto({ entries: [taxi, expense({ description: 'HOTEL' })], skip_recorded: true, dry_run: true })
+   423	  assert.deepEqual([dry.status, dry.body], [200, expected])
+   424	  await assertNothingSaved(ctx, before)
+   425	}))
+   426	
+   427	test('import dry run: 200 with the same body as the real import, and nothing saved', () => withTrip(async ctx => {
+   428	  const { call, importInto } = ctx
+   429	  await seedIds(call)
+   430	  const before = await capture(ctx)
+   431	  const dry = await importInto({ entries: mixedEntries, skip_recorded: true, dry_run: true })
+   432	  assert.deepEqual([dry.status, dry.body], [200, mixedReply])
+   433	  await assertNothingSaved(ctx, before)
+   434	  const real = await importInto({ dry_run: false, entries: mixedEntries, skip_recorded: true })
+   435	  assert.deepEqual([real.status, real.body], [201, mixedReply])
+   436	}))
+   437	
+   438	test('import dry run: the next real POSTs get the ids the dry run showed', () => withTrip(async ctx => {
+   439	  const { call, importInto } = ctx
+   440	  await seedIds(call)
+   441	  const dry = await importInto({ entries: [payment(), expense()], dry_run: true })
+   442	  assert.deepEqual([dry.body.expenses.map(e => e.id), dry.body.payments.map(p => p.id)], [[3], [2]])
+   443	  assert.equal((await call('POST', '/groups/trip/expenses', asPost(expense()))).body.id, 3)
+   444	  assert.equal((await call('POST', '/groups/trip/payments', asPost(payment()))).body.id, 2)
+   445	}))
+   446	
+   447	test('import dry run: problems are the same 422 and nothing is saved', () => withTrip(async ctx => {
+   448	  await ctx.call('POST', '/groups/trip/expenses', asPost(expense()))
+   449	  const before = await capture(ctx)
+   450	  const r = await ctx.importInto({ entries: [payment(), expense()], dry_run: true })
+   451	  assert.deepEqual([r.status, r.body], [422, { error: 'import rejected', problems: [{ index: 1, rule: 'already-recorded' }] }])
+   452	  await assertNothingSaved(ctx, before)
+   453	}))
+   454	
+   455	test('import 201: a real import writes the data file, and it survives a restart', () => withTrip(async ctx => {
+   456	  const { call, file, importInto, restart } = ctx
+   457	  const before = snapshot(file)
+   458	  const r = await importInto({ entries: [expense(), payment(), skis] })
+   459	  assert.equal(r.status, 201)
+   460	  assert.notEqual(snapshot(file).ino, before.ino)
+   461	  const after = await ledger(call)
+   462	  await restart()
+   463	  assert.deepEqual(await ledger(call), after)
+   464	  assert.deepEqual(after.balances, r.body.balances)
+   465	  assert.equal((await call('POST', '/groups/trip/expenses', asPost(taxi))).body.id, 3)
+   466	  assert.equal((await call('POST', '/groups/trip/payments', asPost(payment()))).body.id, 2)
+   467	}))
+   468	
+   469	test('import: a dry run leaves nothing behind after a restart', () => withTrip(async ctx => {
+   470	  const { call, importInto, restart } = ctx
+   471	  const r = await importInto({ entries: [expense(), payment()], dry_run: true })
+   472	  assert.equal(r.status, 200)
+   473	  await restart()
+   474	  assert.deepEqual(await ledger(call), { expenses: [], payments: [], balances: { Ann: 0, Ben: 0, Cara: 0 } })
+   475	  assert.equal((await importInto({ entries: [expense()] })).body.expenses[0].id, 1)
+   476	}))
+diff --git a/test/api.test.mjs b/test/api.test.mjs
+index 8f5e111..bcd8de6 100644
+--- a/test/api.test.mjs
++++ b/test/api.test.mjs
+@@ -53,6 +53,31 @@ test('POST /groups/:id/expenses takes a split of some members', () => withApp(as
+   assert.deepEqual(r.body.shares, { Cara: 6.25, Ben: 6.25 })
+ }))
+ 
++test('POST /groups/:id/expenses keeps 4.35 as 4.35, not 4.34', () => withApp(async call => {
++  await call('POST', '/groups', trip)
++  const r = await call('POST', '/groups/trip/expenses', { description: 'Coffee', payer: 'Ann', amount: 4.35, split: ['Ann'] })
++  assert.equal(r.status, 201)
++  assert.equal(r.body.amount, 4.35)
++  assert.deepEqual(r.body.shares, { Ann: 4.35 })
++  assert.equal((await call('GET', '/groups/trip/expenses')).body.expenses[0].amount, 4.35)
++  const paid = await call('POST', '/groups/trip/payments', { from: 'Ben', to: 'Ann', amount: 4.35 })
++  assert.equal(paid.body.amount, 4.35)
++  assert.deepEqual((await call('GET', '/groups/trip/balances')).body, { balances: { Ann: -4.35, Ben: 4.35, Cara: 0 } })
++}))
++
++test('a 10.00 taxi for three: shares 3.34, 3.33, 3.33 and balances that add up to 0', () => withApp(async call => {
++  await call('POST', '/groups', trip)
++  const r = await call('POST', '/groups/trip/expenses', { description: 'Taxi', payer: 'Ann', amount: 10 })
++  assert.deepEqual(r.body.shares, { Ann: 3.34, Ben: 3.33, Cara: 3.33 })
++  const { balances } = (await call('GET', '/groups/trip/balances')).body
++  assert.deepEqual(balances, { Ann: 6.66, Ben: -3.33, Cara: -3.33 })
++  assert.equal(Object.values(balances).reduce((sum, amount) => sum + Math.round(amount * 100), 0), 0)
++  assert.deepEqual((await call('GET', '/groups/trip/settle-up')).body, { payments: [
++    { from: 'Ben', to: 'Ann', amount: 3.33 },
++    { from: 'Cara', to: 'Ann', amount: 3.33 },
++  ] })
++}))
++
+ test('POST /groups/:id/expenses refuses bad fields with 400, and 404 for an unknown group', () => withApp(async call => {
+   await call('POST', '/groups', trip)
+   const cases = [
+diff --git a/test/ledger.test.mjs b/test/ledger.test.mjs
+index 8218ff1..9cc919c 100644
+--- a/test/ledger.test.mjs
++++ b/test/ledger.test.mjs
+@@ -9,6 +9,36 @@ test('splitEvenly gives everyone the same part, in the order given', () => {
+   assert.deepEqual(splitEvenly(1250, ['Ann']), [['Ann', 1250]])
+ })
+ 
++test('splitEvenly gives the leftover cents one each to the first people in the order given', () => {
++  assert.deepEqual(splitEvenly(1000, ['Ann', 'Ben', 'Cara']), [['Ann', 334], ['Ben', 333], ['Cara', 333]])
++  assert.deepEqual(splitEvenly(1000, ['Cara', 'Ben', 'Ann']), [['Cara', 334], ['Ben', 333], ['Ann', 333]])
++  assert.deepEqual(splitEvenly(1001, ['Ann', 'Ben', 'Cara']), [['Ann', 334], ['Ben', 334], ['Cara', 333]])
++  assert.deepEqual(splitEvenly(2, ['Ann', 'Ben', 'Cara']), [['Ann', 1], ['Ben', 1], ['Cara', 0]])
++  assert.deepEqual(splitEvenly(1, ['Ann', 'Ben']), [['Ann', 1], ['Ben', 0]])
++})
++
++test('splitEvenly parts always add up to the amount and differ by at most a cent', () => {
++  const people = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']
++  for (let size = 1; size <= people.length; size++) {
++    for (const cents of [1, 2, 99, 100, 101, 1000, 1001, 12345, 100000000]) {
++      const parts = splitEvenly(cents, people.slice(0, size)).map(([, part]) => part)
++      assert.equal(parts.reduce((a, b) => a + b, 0), cents, `${cents} / ${size}`)
++      assert.ok(Math.max(...parts) - Math.min(...parts) <= 1, `${cents} / ${size}`)
++      assert.deepEqual(parts, [...parts].sort((a, b) => b - a), `${cents} / ${size}: bigger parts first`)
++    }
++  }
++})
++
++test('balances of an uneven split add up to 0: 10.00 paid by Ann for three', () => {
++  const state = {
++    groups: [group],
++    expenses: [{ id: 1, group: 'trip', description: 'Taxi', payer: 'Ann', amount: 1000, split: ['Ann', 'Ben', 'Cara'] }],
++    payments: [],
++  }
++  assert.deepEqual(balances(state, group), { Ann: 6.66, Ben: -3.33, Cara: -3.33 })
++  assert.deepEqual(expenseView(state.expenses[0]).shares, { Ann: 3.34, Ben: 3.33, Cara: 3.33 })
++})
++
+ test('expenseView shows amounts as numbers with each share', () => {
+   const expense = { id: 4, group: 'trip', description: 'Fuel', payer: 'Ben', amount: 1250, split: ['Ann', 'Ben'] }
+   assert.deepEqual(expenseView(expense), {
+diff --git a/test/validate.test.mjs b/test/validate.test.mjs
+index a742639..d16bdc8 100644
+--- a/test/validate.test.mjs
++++ b/test/validate.test.mjs
+@@ -42,6 +42,17 @@ test('parseAmount turns an amount into whole cents', () => {
+   assert.equal(parseAmount(1000000), 100000000)
+ })
+ 
++test('parseAmount rounds to the nearest cent, so floating-point amounts like 4.35 are not a cent short', () => {
++  assert.equal(parseAmount(4.35), 435)
++  assert.equal(parseAmount(0.29), 29)
++  assert.equal(parseAmount(1.15), 115)
++  assert.equal(parseAmount(999999.99), 99999999)
++  // Every two-decimal amount up to 1000.00 comes back as exactly its cents.
++  for (let cents = 1; cents <= 100000; cents++) {
++    if (parseAmount(cents / 100) !== cents) assert.fail(`${cents / 100} gave ${parseAmount(cents / 100)} cents`)
++  }
++})
++
+ test('parseAmount rejects zero, negatives, extra decimals, strings and too much', () => {
+   for (const v of [0, -5, 1.234, '12', 1000000.01, NaN, Infinity, 1e21, null, undefined]) {
+     assert.throws(() => parseAmount(v), ValidationError, `amount ${String(v)}`)
