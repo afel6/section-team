@@ -1,0 +1,161 @@
+TAP version 13
+# Subtest: bug 1: a 4.35 coffee is kept and shown as 4.35, not 4.34
+ok 1 - bug 1: a 4.35 coffee is kept and shown as 4.35, not 4.34
+  ---
+  duration_ms: 122.988583
+  type: 'test'
+  ...
+# Subtest: bug 1: amounts with up to 2 decimals are kept exactly on expenses, payments and PATCH; bad ones still refused
+ok 2 - bug 1: amounts with up to 2 decimals are kept exactly on expenses, payments and PATCH; bad ones still refused
+  ---
+  duration_ms: 199.627176
+  type: 'test'
+  ...
+# Subtest: bug 2: a 10.00 taxi for Ann, Ben and Cara is shared 3.34, 3.33, 3.33 and the balances add up to 0
+ok 3 - bug 2: a 10.00 taxi for Ann, Ben and Cara is shared 3.34, 3.33, 3.33 and the balances add up to 0
+  ---
+  duration_ms: 78.689937
+  type: 'test'
+  ...
+# Subtest: bug 2: the extra cents go one each to the first people in split (not the payer, not the last); PATCH follows
+ok 4 - bug 2: the extra cents go one each to the first people in split (not the payer, not the last); PATCH follows
+  ---
+  duration_ms: 94.409656
+  type: 'test'
+  ...
+# Subtest: records saved before the fix are left as they are (no migration) and shared by the fixed rule
+ok 5 - records saved before the fix are left as they are (no migration) and shared by the fixed rule
+  ---
+  duration_ms: 82.960262
+  type: 'test'
+  ...
+# Subtest: import: 413 over 10 KB (exactly 10 KB is read) and 400 for a non-object body, then 404 for an unknown group
+ok 6 - import: 413 over 10 KB (exactly 10 KB is read) and 400 for a non-object body, then 404 for an unknown group
+  ---
+  duration_ms: 94.056054
+  type: 'test'
+  ...
+# Subtest: import 400: unknown field <name> names the first extra field in Object.keys order, before every other check; nothing saved
+ok 7 - import 400: unknown field <name> names the first extra field in Object.keys order, before every other check; nothing saved
+  ---
+  duration_ms: 144.021681
+  type: 'test'
+  ...
+# Subtest: import 400: entries must be an array of 1 to 50 items, checked before dry_run and before the entry rules; nothing saved
+ok 8 - import 400: entries must be an array of 1 to 50 items, checked before dry_run and before the entry rules; nothing saved
+  ---
+  duration_ms: 170.106229
+  type: 'test'
+  ...
+# Subtest: import 400: dry_run, then skip_recorded, must be true or false; a null value counts as given; 400 comes before 422; nothing saved
+ok 9 - import 400: dry_run, then skip_recorded, must be true or false; a null value counts as given; 400 comes before 422; nothing saved
+  ---
+  duration_ms: 169.834622
+  type: 'test'
+  ...
+# Subtest: import 422: not-an-object, then bad-type; problems sorted by index
+ok 10 - import 422: not-an-object, then bad-type; problems sorted by index
+  ---
+  duration_ms: 131.920952
+  type: 'test'
+  ...
+# Subtest: import 422: unknown-field is a field the entry type does not take, checked before the field rules
+ok 11 - import 422: unknown-field is a field the entry type does not take, checked before the field rules
+  ---
+  duration_ms: 129.765958
+  type: 'test'
+  ...
+# Subtest: import 422: expense rules as on POST, the first broken one wins: bad-description, bad-payer, bad-amount, bad-split
+ok 12 - import 422: expense rules as on POST, the first broken one wins: bad-description, bad-payer, bad-amount, bad-split
+  ---
+  duration_ms: 127.544557
+  type: 'test'
+  ...
+# Subtest: import 422: payment rules: bad-from, then bad-to (a stranger or the same as from), then bad-amount
+ok 13 - import 422: payment rules: bad-from, then bad-to (a stranger or the same as from), then bad-amount
+  ---
+  duration_ms: 125.719467
+  type: 'test'
+  ...
+# Subtest: import 422: duplicate: same payer, cents and trimmed lower-case description, split ignored; earlier entries that broke a rule do not count
+ok 14 - import 422: duplicate: same payer, cents and trimmed lower-case description, split ignored; earlier entries that broke a rule do not count
+  ---
+  duration_ms: 129.065667
+  type: 'test'
+  ...
+# Subtest: import 422: an earlier already-recorded entry counts for duplicate, skipped or not; skipping hides only already-recorded
+ok 15 - import 422: an earlier already-recorded entry counts for duplicate, skipped or not; skipping hides only already-recorded
+  ---
+  duration_ms: 158.76634
+  type: 'test'
+  ...
+# Subtest: import already-recorded: only the group's current expenses count (edits, deletes, other groups); split ignored
+ok 16 - import already-recorded: only the group's current expenses count (edits, deletes, other groups); split ignored
+  ---
+  duration_ms: 120.371146
+  type: 'test'
+  ...
+# Subtest: import: identical payments are all imported (never duplicate); 50 entries is allowed; balances in member order
+ok 17 - import: identical payments are all imported (never duplicate); 50 entries is allowed; balances in member order
+  ---
+  duration_ms: 77.348351
+  type: 'test'
+  ...
+# Subtest: import: when every entry is skipped it succeeds with empty lists and writes nothing; dry_run gives the same with 200
+ok 18 - import: when every entry is skipped it succeeds with empty lists and writes nothing; dry_run gives the same with 200
+  ---
+  duration_ms: 138.125247
+  type: 'test'
+  ...
+# Subtest: import 201: ids per kind in entry order from the next POST ids, POST-shaped replies, saved in the data file
+ok 19 - import 201: ids per kind in entry order from the next POST ids, POST-shaped replies, saved in the data file
+  ---
+  duration_ms: 168.751281
+  type: 'test'
+  ...
+# Subtest: import dry_run: same body with 200, nothing saved, and the next real ids are the ones it showed
+ok 20 - import dry_run: same body with 200, nothing saved, and the next real ids are the ones it showed
+  ---
+  duration_ms: 178.180525
+  type: 'test'
+  ...
+# Subtest: import dry_run keeps every error reply (404, 400, 413, 422) the same, and a rejected import uses no id
+ok 21 - import dry_run keeps every error reply (404, 400, 413, 422) the same, and a rejected import uses no id
+  ---
+  duration_ms: 153.461277
+  type: 'test'
+  ...
+# Subtest: the other routes still ignore unknown fields, and their errors are unchanged
+ok 22 - the other routes still ignore unknown fields, and their errors are unchanged
+  ---
+  duration_ms: 97.160275
+  type: 'test'
+  ...
+# Subtest: lib/import.mjs exists
+ok 23 - lib/import.mjs exists
+  ---
+  duration_ms: 0.306696
+  type: 'test'
+  ...
+# Subtest: README documents the import: API entry, fields, every rule, and unknown fields ignored only elsewhere
+ok 24 - README documents the import: API entry, fields, every rule, and unknown fields ignored only elsewhere
+  ---
+  duration_ms: 2.323248
+  type: 'test'
+  ...
+# Subtest: the package.json test script passes and runs more tests than the seed's own suite
+ok 25 - the package.json test script passes and runs more tests than the seed's own suite
+  ---
+  duration_ms: 1188.315027
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4159.276169
+

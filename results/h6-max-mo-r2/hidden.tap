@@ -2,283 +2,283 @@ TAP version 13
 # Subtest: parsePointer returns a new array of tokens, decoding ~1 to / and ~0 to ~
 ok 1 - parsePointer returns a new array of tokens, decoding ~1 to / and ~0 to ~
   ---
-  duration_ms: 52.269056
+  duration_ms: 47.461934
   type: 'test'
   ...
 # Subtest: a ~ not followed by 0 or 1, or a non-empty pointer not starting with /, is a SyntaxError: invalid pointer
 ok 2 - a ~ not followed by 0 or 1, or a non-empty pointer not starting with /, is a SyntaxError: invalid pointer
   ---
-  duration_ms: 31.577178
+  duration_ms: 31.351454
   type: 'test'
   ...
 # Subtest: a pointer that is not a primitive string, a String object included, is a TypeError: pointer must be a string
 ok 3 - a pointer that is not a primitive string, a String object included, is a TypeError: pointer must be a string
   ---
-  duration_ms: 39.725478
+  duration_ms: 30.07032
   type: 'test'
   ...
 # Subtest: on an object a token names an own member only; __proto__, constructor and toString are ordinary names
 ok 4 - on an object a token names an own member only; __proto__, constructor and toString are ordinary names
   ---
-  duration_ms: 37.011077
+  duration_ms: 33.645867
   type: 'test'
   ...
 # Subtest: on an array 0 or a digit 1-9 and digits name an element below the length; - names none; other tokens are a bad index
 ok 5 - on an array 0 or a digit 1-9 and digits name an element below the length; - names none; other tokens are a bad index
   ---
-  duration_ms: 36.922457
+  duration_ms: 35.201561
   type: 'test'
   ...
 # Subtest: a string, number, boolean or null has no members, not even 0 or length
 ok 6 - a string, number, boolean or null has no members, not even 0 or length
   ---
-  duration_ms: 33.656696
+  duration_ms: 31.319373
   type: 'test'
   ...
 # Subtest: applyPatch never changes doc or patch, also when it throws after earlier operations succeeded
 ok 7 - applyPatch never changes doc or patch, also when it throws after earlier operations succeeded
   ---
-  duration_ms: 38.358283
+  duration_ms: 34.928065
   type: 'test'
   ...
 # Subtest: the result shares no object or array with doc or patch; a patch of [] returns a deep copy
 ok 8 - the result shares no object or array with doc or patch; a patch of [] returns a deep copy
   ---
-  duration_ms: 43.722214
+  duration_ms: 34.512619
   type: 'test'
   ...
 # Subtest: numbers are kept exactly, -0 included, and copies keep member order
 ok 9 - numbers are kept exactly, -0 included, and copies keep member order
   ---
-  duration_ms: 33.425692
+  duration_ms: 31.88924
   type: 'test'
   ...
 # Subtest: member order: array-index names first in ascending order, then other names in the order they were added
 ok 10 - member order: array-index names first in ascending order, then other names in the order they were added
   ---
-  duration_ms: 33.330338
+  duration_ms: 46.818622
   type: 'test'
   ...
 # Subtest: a patch that is not an array (Array.isArray) throws PatchError: patch must be an array, index null
 ok 11 - a patch that is not an array (Array.isArray) throws PatchError: patch must be an array, index null
   ---
-  duration_ms: 35.30661
+  duration_ms: 35.407675
   type: 'test'
   ...
 # Subtest: a hole in the patch counts as undefined: not an object
 ok 12 - a hole in the patch counts as undefined: not an object
   ---
-  duration_ms: 37.145543
+  duration_ms: 31.0414
   type: 'test'
   ...
 # Subtest: every operation is checked before any is applied; then they run in order and the first failure stops
 ok 13 - every operation is checked before any is applied; then they run in order and the first failure stops
   ---
-  duration_ms: 33.891606
+  duration_ms: 41.119018
   type: 'test'
   ...
 # Subtest: members are own properties, enumerable or not; inherited ones never count; members an op does not use are ignored
 ok 14 - members are own properties, enumerable or not; inherited ones never count; members an op does not use are ignored
   ---
-  duration_ms: 31.587627
+  duration_ms: 44.456405
   type: 'test'
   ...
 # Subtest: not an object: null, an array, or a typeof other than object; any other object goes on to the next rule
 ok 15 - not an object: null, an array, or a typeof other than object; any other object goes on to the next rule
   ---
-  duration_ms: 41.950837
+  duration_ms: 36.996893
   type: 'test'
   ...
 # Subtest: bad op: op missing, or not === one of the six strings
 ok 16 - bad op: op missing, or not === one of the six strings
   ---
-  duration_ms: 34.129233
+  duration_ms: 38.485671
   type: 'test'
   ...
 # Subtest: bad path: path missing, not a string, or not a valid pointer
 ok 17 - bad path: path missing, not a string, or not a valid pointer
   ---
-  duration_ms: 37.84029
+  duration_ms: 30.490629
   type: 'test'
   ...
 # Subtest: bad from: for move and copy, from missing, not a string, or not a valid pointer
 ok 18 - bad from: for move and copy, from missing, not a string, or not a valid pointer
   ---
-  duration_ms: 46.624341
+  duration_ms: 34.503367
   type: 'test'
   ...
 # Subtest: missing value: add, replace and test need an own value member; a value of null is present
 ok 19 - missing value: add, replace and test need an own value member; a value of null is present
   ---
-  duration_ms: 36.07136
+  duration_ms: 38.399562
   type: 'test'
   ...
 # Subtest: cannot remove root: a remove whose path is ""; the path / is the member named ""
 ok 20 - cannot remove root: a remove whose path is ""; the path / is the member named ""
   ---
-  duration_ms: 34.800002
+  duration_ms: 33.049506
   type: 'test'
   ...
 # Subtest: cannot move into own child: from tokens are a proper prefix of path tokens
 ok 21 - cannot move into own child: from tokens are a proper prefix of path tokens
   ---
-  duration_ms: 33.509803
+  duration_ms: 32.571794
   type: 'test'
   ...
 # Subtest: the reason is the first form rule that applies
 ok 22 - the reason is the first form rule that applies
   ---
-  duration_ms: 44.849709
+  duration_ms: 43.270384
   type: 'test'
   ...
 # Subtest: add: "" replaces the document; an object gets or keeps the member; on an array - appends and an index up to the length inserts
 ok 23 - add: "" replaces the document; an object gets or keeps the member; on an array - appends and an index up to the length inserts
   ---
-  duration_ms: 50.610382
+  duration_ms: 34.649164
   type: 'test'
   ...
 # Subtest: add follows only the parent: an index past the length is path not found, a token that is neither - nor an index is a bad index
 ok 24 - add follows only the parent: an index past the length is path not found, a token that is neither - nor an index is a bad index
   ---
-  duration_ms: 49.383137
+  duration_ms: 36.582719
   type: 'test'
   ...
 # Subtest: remove: the named value goes, and later array elements move down
 ok 25 - remove: the named value goes, and later array elements move down
   ---
-  duration_ms: 44.048011
+  duration_ms: 42.628087
   type: 'test'
   ...
 # Subtest: replace: "" replaces the document, otherwise the path must name a value, which keeps its place
 ok 26 - replace: "" replaces the document, otherwise the path must name a value, which keeps its place
   ---
-  duration_ms: 38.724093
+  duration_ms: 37.45836
   type: 'test'
   ...
 # Subtest: move: remove at from, then add at path, so an array index in path counts after the removal
 ok 27 - move: remove at from, then add at path, so an array index in path counts after the removal
   ---
-  duration_ms: 50.806183
+  duration_ms: 34.329808
   type: 'test'
   ...
 # Subtest: copy: a deep copy of from, taken before anything changes, is added at path, which may lie inside from
 ok 28 - copy: a deep copy of from, taken before anything changes, is added at path, which may lie inside from
   ---
-  duration_ms: 39.589379
+  duration_ms: 42.63485
   type: 'test'
   ...
 # Subtest: test: equal JSON values pass (0 equals -0, members in any order) and the document is unchanged
 ok 29 - test: equal JSON values pass (0 equals -0, members in any order) and the document is unchanged
   ---
-  duration_ms: 37.353845
+  duration_ms: 36.518943
   type: 'test'
   ...
 # Subtest: test failed: different types, lengths, members or characters (no Unicode normalization)
 ok 30 - test failed: different types, lengths, members or characters (no Unicode normalization)
   ---
-  duration_ms: 34.844083
+  duration_ms: 40.346237
   type: 'test'
   ...
 # Subtest: documents and values 1000 levels deep are copied, followed and compared
 ok 31 - documents and values 1000 levels deep are copied, followed and compared
   ---
-  duration_ms: 70.624898
+  duration_ms: 85.419901
   type: 'test'
   ...
 # Subtest: prints JSON.stringify(result, null, 2) and a newline, with nothing on stderr, and exits 0
 ok 32 - prints JSON.stringify(result, null, 2) and a newline, with nothing on stderr, and exits 0
   ---
-  duration_ms: 193.148819
+  duration_ms: 197.104716
   type: 'test'
   ...
 # Subtest: a missing <doc>, or an argument that is exactly -, means standard input
 ok 33 - a missing <doc>, or an argument that is exactly -, means standard input
   ---
-  duration_ms: 157.812866
+  duration_ms: 155.701063
   type: 'test'
   ...
 # Subtest: a byte order mark at the very start is ignored, on files and stdin; a second one, or one later, is not
 ok 34 - a byte order mark at the very start is ignored, on files and stdin; a second one, or one later, is not
   ---
-  duration_ms: 223.7264
+  duration_ms: 221.358162
   type: 'test'
   ...
 # Subtest: not 1 or 2 arguments, or both inputs standard input, prints the usage line and exits 2
 ok 35 - not 1 or 2 arguments, or both inputs standard input, prints the usage line and exits 2
   ---
-  duration_ms: 168.435633
+  duration_ms: 166.919208
   type: 'test'
   ...
 # Subtest: no such file: nothing exists at the path (ENOENT or ENOTDIR), with the argument as given, exit 1
 ok 36 - no such file: nothing exists at the path (ENOENT or ENOTDIR), with the argument as given, exit 1
   ---
-  duration_ms: 419.017724
+  duration_ms: 486.344885
   type: 'test'
   ...
 # Subtest: is a directory: the path names a directory, exit 1
 ok 37 - is a directory: the path names a directory, exit 1
   ---
-  duration_ms: 288.694507
+  duration_ms: 298.253561
   type: 'test'
   ...
 # Subtest: too large: more than 1048576 bytes read, a byte order mark included, from a file or stdin; checked before decoding
 ok 38 - too large: more than 1048576 bytes read, a byte order mark included, from a file or stdin; checked before decoding
   ---
-  duration_ms: 492.779402
+  duration_ms: 484.762295
   type: 'test'
   ...
 # Subtest: cannot read: standard input that fails to read (here a write-only handle), exit 1
 ok 39 - cannot read: standard input that fails to read (here a write-only handle), exit 1
   ---
-  duration_ms: 73.066369
+  duration_ms: 69.991055
   type: 'test'
   ...
 # Subtest: invalid UTF-8: bytes that are not valid UTF-8, even inside a JSON string, exit 3
 ok 40 - invalid UTF-8: bytes that are not valid UTF-8, even inside a JSON string, exit 3
   ---
-  duration_ms: 1016.492322
+  duration_ms: 895.612766
   type: 'test'
   ...
 # Subtest: invalid JSON: text JSON.parse rejects, an empty input included, exit 3
 ok 41 - invalid JSON: text JSON.parse rejects, an empty input included, exit 3
   ---
-  duration_ms: 1030.579106
+  duration_ms: 1019.532409
   type: 'test'
   ...
 # Subtest: too deep: more than 1000 levels, where [] and {} have depth 1 and a string never adds depth, exit 3
 ok 42 - too deep: more than 1000 levels, where [] and {} have depth 1 and a string never adds depth, exit 3
   ---
-  duration_ms: 666.976805
+  duration_ms: 601.567903
   type: 'test'
   ...
 # Subtest: a PatchError from applyPatch prints Error: <message> and exits 4
 ok 43 - a PatchError from applyPatch prints Error: <message> and exits 4
   ---
-  duration_ms: 220.225651
+  duration_ms: 263.660289
   type: 'test'
   ...
 # Subtest: steps run in order: arguments, then the patch input (read, decode, parse, depth), then the doc input, then applying
 ok 44 - steps run in order: arguments, then the patch input (read, decode, parse, depth), then the doc input, then applying
   ---
-  duration_ms: 416.180632
+  duration_ms: 379.641074
   type: 'test'
   ...
 # Subtest: the doc input is not read when the patch input fails: standard input left open does not block
 ok 45 - the doc input is not read when the patch input fails: standard input left open does not block
   ---
-  duration_ms: 46.206994
+  duration_ms: 48.178266
   type: 'test'
   ...
 # Subtest: the solution has a package.json (type module, a test script) and a README
 ok 46 - the solution has a package.json (type module, a test script) and a README
   ---
-  duration_ms: 0.868871
+  duration_ms: 1.834503
   type: 'test'
   ...
 # Subtest: the solution has tests written with node:test
 ok 47 - the solution has tests written with node:test
   ---
-  duration_ms: 1.541761
+  duration_ms: 7.418138
   type: 'test'
   ...
 1..47
@@ -289,5 +289,5 @@ ok 47 - the solution has tests written with node:test
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 6740.153634
+# duration_ms 6572.903475
 

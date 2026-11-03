@@ -2,229 +2,229 @@ TAP version 13
 # Subtest: the listening line: PORT=0 prints the port the OS picked, leading zeros are dropped, an unset or empty PORT is 3000 (when taken: exit 1)
 ok 1 - the listening line: PORT=0 prints the port the OS picked, leading zeros are dropped, an unset or empty PORT is 3000 (when taken: exit 1)
   ---
-  duration_ms: 271.966293
+  duration_ms: 259.686287
   type: 'test'
   ...
 # Subtest: a bad PORT (not only ASCII digits, above 65535) or a port in use: exit 1, one stderr line; PORT is checked first, then the data file read
 ok 2 - a bad PORT (not only ASCII digits, above 65535) or a port in use: exit 1, one stderr line; PORT is checked first, then the data file read
   ---
-  duration_ms: 968.126383
+  duration_ms: 956.69779
   type: 'test'
   ...
 # Subtest: a data file that is a directory, empty or not valid JSON: "cannot read data file <DATA_FILE as given>", exit 1, file untouched
 ok 3 - a data file that is a directory, empty or not valid JSON: "cannot read data file <DATA_FILE as given>", exit 1, file untouched
   ---
-  duration_ms: 396.275518
+  duration_ms: 363.034472
   type: 'test'
   ...
 # Subtest: a data file holding valid JSON that is not in the server's layout (42, {"bookings":5}, "x", true): rejected the same way, file untouched
 ok 4 - a data file holding valid JSON that is not in the server's layout (42, {"bookings":5}, "x", true): rejected the same way, file untouched
   ---
-  duration_ms: 241.990662
+  duration_ms: 252.556222
   type: 'test'
   ...
 # Subtest: DATA_FILE: unset or empty is bookings.json in the working directory (not next to server.mjs); a relative one resolves against it
 ok 5 - DATA_FILE: unset or empty is bookings.json in the working directory (not next to server.mjs); a relative one resolves against it
   ---
-  duration_ms: 394.840673
+  duration_ms: 400.501934
   type: 'test'
   ...
 # Subtest: a missing data file or folder means no bookings; a failed save is 500 internal error and changes nothing, the next id included
 ok 6 - a missing data file or folder means no bookings; a failed save is 500 internal error and changes nothing, the next id included
   ---
-  duration_ms: 87.409374
+  duration_ms: 99.280343
   type: 'test'
   ...
 # Subtest: only a POST that creates or a DELETE that removes writes the data file; edits made from outside are not noticed
 ok 7 - only a POST that creates or a DELETE that removes writes the data file; edits made from outside are not noticed
   ---
-  duration_ms: 160.174162
+  duration_ms: 166.636158
   type: 'test'
   ...
 # Subtest: bookings and the next id survive a restart (each change is saved before its reply); ids are never reused
 ok 8 - bookings and the next id survive a restart (each change is saved before its reply); ids are never reused
   ---
-  duration_ms: 230.542552
+  duration_ms: 238.912019
   type: 'test'
   ...
 # Subtest: requests at once: of overlapping POSTs one is 201 and the rest 409; distinct POSTs get distinct ids and survive a restart
 ok 9 - requests at once: of overlapping POSTs one is 201 and the rest 409; distinct POSTs get distinct ids and survive a restart
   ---
-  duration_ms: 195.142399
+  duration_ms: 185.768482
   type: 'test'
   ...
 # Subtest: GET /api/rooms: 200 {"rooms": ["Aurora", "Borealis", "Cosmos"]} with the JSON content type; the query is ignored
 ok 10 - GET /api/rooms: 200 {"rooms": ["Aurora", "Borealis", "Cosmos"]} with the JSON content type; the query is ignored
   ---
-  duration_ms: 76.648276
+  duration_ms: 78.976474
   type: 'test'
   ...
 # Subtest: paths are compared byte for byte: other spellings are 404 not found, whatever the method
 ok 11 - paths are compared byte for byte: other spellings are 404 not found, whatever the method
   ---
-  duration_ms: 88.863162
+  duration_ms: 76.206036
   type: 'test'
   ...
 # Subtest: a known path with a method not listed for it is 405 method not allowed, HEAD and OPTIONS included
 ok 12 - a known path with a method not listed for it is 405 method not allowed, HEAD and OPTIONS included
   ---
-  duration_ms: 21.286719
+  duration_ms: 14.519525
   type: 'test'
   ...
 # Subtest: the whole body is read before any reply, so 415, 413, 405 and 404 replies to large or slow bodies reach the client, never early
 ok 13 - the whole body is read before any reply, so 415, 413, 405 and 404 replies to large or slow bodies reach the client, never early
   ---
-  duration_ms: 1656.032615
+  duration_ms: 1646.201412
   type: 'test'
   ...
 # Subtest: rule 1: the media type must be application/json (letter case and spaces or tabs around it ignored), else 415
 ok 14 - rule 1: the media type must be application/json (letter case and spaces or tabs around it ignored), else 415
   ---
-  duration_ms: 32.222011
+  duration_ms: 22.142343
   type: 'test'
   ...
 # Subtest: rule 3: a body that is not a JSON object (a leading BOM included) is 400 body must be a JSON object
 ok 15 - rule 3: a body that is not a JSON object (a leading BOM included) is 400 body must be a JSON object
   ---
-  duration_ms: 13.355244
+  duration_ms: 11.774402
   type: 'test'
   ...
 # Subtest: rule 4: room must be one of Aurora, Borealis, Cosmos
 ok 16 - rule 4: room must be one of Aurora, Borealis, Cosmos
   ---
-  duration_ms: 17.808193
+  duration_ms: 10.787763
   type: 'test'
   ...
 # Subtest: rule 5: title must be 1 to 80 characters (UTF-16 code units, after trimming)
 ok 17 - rule 5: title must be 1 to 80 characters (UTF-16 code units, after trimming)
   ---
-  duration_ms: 19.100996
+  duration_ms: 11.125654
   type: 'test'
   ...
 # Subtest: rule 6: date must be a valid YYYY-MM-DD date
 ok 18 - rule 6: date must be a valid YYYY-MM-DD date
   ---
-  duration_ms: 31.974593
+  duration_ms: 22.323385
   type: 'test'
   ...
 # Subtest: rule 7: start must be HH:MM
 ok 19 - rule 7: start must be HH:MM
   ---
-  duration_ms: 16.793023
+  duration_ms: 12.39714
   type: 'test'
   ...
 # Subtest: rule 8: end must be HH:MM
 ok 20 - rule 8: end must be HH:MM
   ---
-  duration_ms: 20.442499
+  duration_ms: 13.338141
   type: 'test'
   ...
 # Subtest: rule 9: end must be after start
 ok 21 - rule 9: end must be after start
   ---
-  duration_ms: 4.318039
+  duration_ms: 3.300501
   type: 'test'
   ...
 # Subtest: rules 4 to 9: valid edge values are stored as sent, except the title, which is stored trimmed
 ok 22 - rules 4 to 9: valid edge values are stored as sent, except the title, which is stored trimmed
   ---
-  duration_ms: 40.400105
+  duration_ms: 30.100041
   type: 'test'
   ...
 # Subtest: 413 counts the bytes received (10000 pass, 10001 do not, chunked too); the body is decoded whole as UTF-8, bad bytes becoming U+FFFD
 ok 23 - 413 counts the bytes received (10000 pass, 10001 do not, chunked too); the body is decoded whole as UTF-8, bad bytes becoming U+FFFD
   ---
-  duration_ms: 165.086177
+  duration_ms: 162.092159
   type: 'test'
   ...
 # Subtest: the first failing rule decides the reply
 ok 24 - the first failing rule decides the reply
   ---
-  duration_ms: 14.908281
+  duration_ms: 10.767548
   type: 'test'
   ...
 # Subtest: rule 10: no overlap with a booking of the same room and date; the 409 names the overlapping booking that starts earliest
 ok 25 - rule 10: no overlap with a booking of the same room and date; the 409 names the overlapping booking that starts earliest
   ---
-  duration_ms: 28.729065
+  duration_ms: 19.341006
   type: 'test'
   ...
 # Subtest: POST creates exactly id, room, title (trimmed), date, start and end, ids from 1, other keys ignored; DELETE is 204, or 404 for a bad or unknown id
 ok 26 - POST creates exactly id, room, title (trimmed), date, start and end, ids from 1, other keys ignored; DELETE is 204, or 404 for a bad or unknown id
   ---
-  duration_ms: 126.307338
+  duration_ms: 115.104755
   type: 'test'
   ...
 # Subtest: GET /api/bookings: sorted by date, start, room order; ?date= keeps that date (first value, decoded as URLSearchParams does); a bad date is 400
 ok 27 - GET /api/bookings: sorted by date, start, room order; ?date= keeps that date (first value, decoded as URLSearchParams does); a bad date is 400
   ---
-  duration_ms: 164.467166
+  duration_ms: 106.929473
   type: 'test'
   ...
 # Subtest: GET / and GET /app.js are 200 text/html and text/javascript (charset=utf-8), query ignored; one <title> and one <h1>, both Room bookings; one script
 ok 28 - GET / and GET /app.js are 200 text/html and text/javascript (charset=utf-8), query ignored; one <title> and one <h1>, both Room bookings; one script
   ---
-  duration_ms: 16.242905
+  duration_ms: 9.147894
   type: 'test'
   ...
 # Subtest: page markup: the form, its five fields with their own labels and Book; outside it the filter, Show all, the list and an empty \#error
 ok 29 - page markup: the form, its five fields with their own labels and Book; outside it the filter, Show all, the list and an empty \#error
   ---
-  duration_ms: 2.188664
+  duration_ms: 1.101859
   type: 'test'
   ...
 # Subtest: page: at load app.js requests GET /api/rooms and GET /api/bookings at once; \#room gets one <option> per room, the list one <li> per booking
 ok 30 - page: at load app.js requests GET /api/rooms and GET /api/bookings at once; \#room gets one <option> per room, the list one <li> per booking
   ---
-  duration_ms: 7.507068
+  duration_ms: 3.986056
   type: 'test'
   ...
 # Subtest: page: a rooms or list request with an error status or no reply shows the message, leaving \#room or the list as it was; a list success leaves \#error alone
 ok 31 - page: a rooms or list request with an error status or no reply shows the message, leaving \#room or the list as it was; a list success leaves \#error alone
   ---
-  duration_ms: 28.22282
+  duration_ms: 22.218904
   type: 'test'
   ...
 # Subtest: page: change on \#filter-date fetches ?date=<value> at once, input does nothing, Show all empties it and fetches once; only the last list fetch counts
 ok 32 - page: change on \#filter-date fetches ?date=<value> at once, input does nothing, Show all empties it and fetches once; only the last list fetch counts
   ---
-  duration_ms: 3.110678
+  duration_ms: 3.0676
   type: 'test'
   ...
 # Subtest: page: submit never reloads; it disables Book and POSTs exactly Content-Type: application/json and the values unchanged; a submit while disabled sends nothing
 ok 33 - page: submit never reloads; it disables Book and POSTs exactly Content-Type: application/json and the values unchanged; a submit while disabled sends nothing
   ---
-  duration_ms: 3.5145
+  duration_ms: 2.704165
   type: 'test'
   ...
 # Subtest: page: on 201 Book is enabled before anything else, only the title is emptied, \#error is emptied and the list is fetched again with the filter
 ok 34 - page: on 201 Book is enabled before anything else, only the title is emptied, \#error is emptied and the list is fetched again with the filter
   ---
-  duration_ms: 6.597044
+  duration_ms: 4.237667
   type: 'test'
   ...
 # Subtest: page: a booking reply with another status, or no reply, shows the message exactly and keeps the form and the list; no field is checked by the script
 ok 35 - page: a booking reply with another status, or no reply, shows the message exactly and keeps the form and the list; no field is checked by the script
   ---
-  duration_ms: 19.192845
+  duration_ms: 12.800225
   type: 'test'
   ...
 # Subtest: page: Cancel disables its button and sends DELETE /api/bookings/<its id>; then \#error is emptied (204) or shows the message, and the list is fetched again
 ok 36 - page: Cancel disables its button and sends DELETE /api/bookings/<its id>; then \#error is emptied (204) or shows the message, and the list is fetched again
   ---
-  duration_ms: 13.530802
+  duration_ms: 10.594974
   type: 'test'
   ...
 # Subtest: the solution has a package.json (type module, start runs node server.mjs, a test script), a README with usage and node:test tests
 ok 37 - the solution has a package.json (type module, start runs node server.mjs, a test script), a README with usage and node:test tests
   ---
-  duration_ms: 1.802159
+  duration_ms: 3.759803
   type: 'test'
   ...
 # Subtest: the listening line is the only thing the server wrote to stdout, after every request above
 ok 38 - the listening line is the only thing the server wrote to stdout, after every request above
   ---
-  duration_ms: 5.180463
+  duration_ms: 2.677312
   type: 'test'
   ...
 1..38
@@ -235,5 +235,5 @@ ok 38 - the listening line is the only thing the server wrote to stdout, after e
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 5698.252299
+# duration_ms 5456.816559
 
