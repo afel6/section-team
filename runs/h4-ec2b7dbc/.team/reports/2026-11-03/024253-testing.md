@@ -1,0 +1,10 @@
+## REPORT · testing · 2026-11-03 02:58
+Status:       done
+Job:          Write the node:test suite for the booking app, prove it with near-miss copies, and do final verification.
+Changed:      /root/bench-runs/h4-ec2b7dbc/package.json (test script); /root/bench-runs/h4-ec2b7dbc/test/helpers/{server.mjs,html.mjs,page.mjs}; /root/bench-runs/h4-ec2b7dbc/test/{startup,persistence,unexpected-failure,routing,list-delete,booking-rules,request-body,page-html,page-script-api,page-load-list,page-actions}.test.mjs; /root/bench-runs/h4-ec2b7dbc/.team/near-miss/1..42-*; /root/bench-runs/h4-ec2b7dbc/.team/tools/{near-miss-make.mjs,near-miss-run.mjs,procs.mjs}; /root/bench-runs/h4-ec2b7dbc/.team/notes/decisions.md (3 testing lines)
+Tests:        `npm test`: 414 pass, 0 fail, 0 skipped, ~5 s. Near-miss runner: 42/42 copies fail the suite; originals pass in the scratch copy; the real originals' git hashes are unchanged.
+Quality:      9/10 (reviewer, 1 fix round; round 0 scored 8 with duplication at 6). Final project review of server.mjs and public/*: 9/10, pass, no spec violations.
+Coordination: supervisor (main): asked it to forward the README.md:198 test-command fix to docs; it has already updated decisions.md line 4 to the new script. No spec violations to send to backend or frontend.
+Helpers used: sonnet ×7 (coder: 5 test files in parallel, 2 fix-round coders), opus ×3 (reviewer: gate, re-grade, final project review)
+Problems:     README.md:198 still says `node --test test/` (docs owns it, fix requested). A leftover `node server.mjs` (pid 9751) from the backend's smoke probe is still running, not from the tests. Near-misses are swapped in a scratch copy, not in place, to protect parallel edits.
+Next:         Docs fixes README.md:198. If security changes server.mjs after this, run `npm test` and `node .team/tools/near-miss-make.mjs && node .team/tools/near-miss-run.mjs` again. Optional ideas from the final review: write the data file to a temp file and rename it over the original; share the CONNECT error body with sendError.

@@ -1,0 +1,1 @@
+- [vm harness gotchas](project_vm_harness.md) — cross-realm deepEqual fails in node:vm; use Write tool for notes, not Bash heredoc

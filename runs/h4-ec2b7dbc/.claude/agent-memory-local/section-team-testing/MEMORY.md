@@ -1,0 +1,1 @@
+- [Test env quirks](project_test_env.md) — Bash allowlist, Node 22 --test glob, near-miss tools in .team/tools, raw socket half-close gotcha

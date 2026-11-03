@@ -1,0 +1,1 @@
+- [Bench shell limits](project_bench_env.md) — no compound shell/tmp writes; scratch under .team/backend-smoke/
