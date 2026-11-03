@@ -568,5 +568,147 @@
     "judge": 2,
     "costUSD": 2.4408605999999997,
     "swapped": true
+  },
+  {
+    "pair": "h6-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 243/243 pass across 6 well-split test files (pointer, form, ops, copies, cli, cli-input). Ran a 94-case library probe: 93 pass; the only miss is jsonpatch.mjs:187, which reads patch[i] without Object.hasOwn, so a hole picks up a value planted on Array.prototype (an unlikely case). CLI probes were all correct, including stdin being a directory -> 'Error: stdin: cannot read' exit 1 (jsonpatch-cli.mjs:61-65 / readFd at :23), counting actual bytes read at :41 (/dev/zero -> too large), and BOM handled by TextDecoder (:104). Form checks are clean (jsonpatch.mjs:58-77); setMember uses defineProperty so __proto__ is safe (:29). Iterative depth check (cli:85). Minor: busy-wait sleep on EAGAIN (cli:19-21) is a bit hacky; deepCopy/deepEqual are recursive (fine at the 1000-level limit). README is clear."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 10,
+      "notes": "Ran npm test: 388 tests, 386 pass and 2 skipped (mode-000 permission tests skip as root). Passed all 94 library probes, including the polluted-prototype hole case thanks to Object.hasOwn(patch, i) at jsonpatch.mjs:203. A small Document class (jsonpatch.mjs:114-166) keeps add/remove/replace clear; remove returns the removed value for move (:147-154); move with from===path still checks that from exists (:183-186). CLI: the stream read is capped (jsonpatch-cli.mjs:16-30); the text-scan depth check (:61-80) is correct for valid JSON; stdin directory -> 'cannot read' exit 1. All CLI probes (usage, ENOENT/ENOTDIR, dir, BOM, UTF-8, depth 1000/1001, size boundary, order of inputs) were correct. Tests are thorough and grouped by area (purity, order, test-op, input)."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran npm test: 15/15 pass, but these are coarse multi-assert tests (test/jsonpatch.test.mjs 10, test/cli.test.mjs 5), so they give weaker coverage. Library: 93/94 probes pass; the hole case fails at jsonpatch.mjs:207 (patch[i] with no hasOwn check). Iterative deepCopy/deepEqual (jsonpatch.mjs:43-104) are robust for deep values, and JSON.parse RangeError maps to 'too deep' (jsonpatch-cli.mjs:110-113). Defect: readStdin (cli:58-73) uses process.stdin, which turns an EISDIR read into empty input, so `node jsonpatch-cli.mjs p.json < dir` prints 'Error: stdin: invalid JSON' with exit 3 instead of 'cannot read' with exit 1 (seen in my probe). Code is more verbose: PatchError is thrown deep inside walk() (:120-130) and there are parallel path/pathString fields (:187). README is fine."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 37/37 pass (28 library, 9 CLI). Library: 93/94 probes pass; the hole case fails at jsonpatch.mjs:187. Clean structure: checkForm returns a normalised op (:135-151), step/resolve/locate helpers (:73-118), sameTokens check for move (:169). CLI file reading is capped and correct (jsonpatch-cli.mjs:29-58), with an iterative depth check that exits early (:85-97). Defect: readStdinLimited (cli:60-83) treats EISDIR on stdin as an empty stream, so `< dir` gives 'invalid JSON' exit 3 instead of 'cannot read' exit 1 (seen in my probe); the try/catch around `process.stdin` at :65-70 does nothing useful. Uses prototype-assigned name (jsonpatch.mjs:9), which is fine. README is good, with RFC links."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 1.3486466
+  },
+  {
+    "pair": "h6-r1",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Library is correct on all probes, with a tidy structure: checkForm (jsonpatch.mjs:58), resolve with OperationFailure (jsonpatch.mjs:89-107), applyOne (jsonpatch.mjs:150). The CLI is fully synchronous and reads at most MAX+1 bytes (jsonpatch-cli.mjs:23-44). It correctly gives 'cannot read' for stdin from a directory and passed every CLI probe, including a stdin pipe delayed over 1.2 s. Handling EAGAIN on fd 0 by sleeping with Atomics.wait and polling (jsonpatch-cli.mjs:18-35) works but is hacky. Recursive copy overflows only beyond the limit. Strong suite: 243 tests, all passed, with separate copies/form/ops/cli-input files and helpers. README is clear and explains <name>."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Library is correct on all probes. A clean Document class with an internal OpFailure that is turned into PatchError with the right index (jsonpatch.mjs:94-217). Reads holes as undefined even if Array.prototype has index properties (jsonpatch.mjs:203). Equal pointer strings imply equal tokens, as the comment notes (jsonpatch.mjs:182). The CLI reads files and stdin through one capped stream reader (jsonpatch-cli.mjs:17-58). It correctly reports 'cannot read' for stdin from a directory, handles directories opened read-only through EISDIR (jsonpatch-cli.mjs:54), and passed all 35 CLI probes. Recursive clone overflows only beyond the spec's limit. Most thorough suite: 388 tests (386 passed, 2 skipped under root), split by area (patch-purity, patch-form, cli-order, cli-input). README has an exit table with examples; claims Node >=21 (package.json engines)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Library is correct on every probe. Only solution with non-recursive deepCopy and deepEqual (jsonpatch.mjs:43,83); it survived a 9000-deep document where the others overflowed the stack. Pointer check by one regex (jsonpatch.mjs:11). The integer status codes NOT_FOUND/BAD_INDEX (jsonpatch.mjs:106-117), the separate fromString/pathString fields and the repeated new PatchError strings make the code wordier than needed. The CLI handles ENOENT/ENOTDIR/directories/limits correctly, and its text-based depth scan copes with escapes (jsonpatch-cli.mjs:78). Defect: stdin from a directory prints 'invalid JSON' instead of 'cannot read' (jsonpatch-cli.mjs:64-72, for-await swallows the EISDIR). Thinnest suite: 15 tests (test/jsonpatch.test.mjs, test/cli.test.mjs), all passed, but each covers many rules lightly. README is fine."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Library is compact and correct: own-member lookup with defineProperty in setMember (jsonpatch.mjs:36), all form checks before any apply (jsonpatch.mjs:183-195), copies at every insert (jsonpatch.mjs:156,164,174), move checks from exists before the same-path no-op (jsonpatch.mjs:168-169). Passed all ~100 library probes and all 35 CLI probes (ENOENT/ENOTDIR/EISDIR, /dev/zero too large, /proc/self/mem cannot read, 1048576 vs 1048577 bytes with BOM, invalid UTF-8, depth 1000/1001, read order, exit 4). Defect: stdin redirected from a directory prints 'invalid JSON' instead of 'cannot read', because the stream error from process.stdin (jsonpatch-cli.mjs:71-81) never fires. Recursive clone/equal (jsonpatch.mjs:40,56) overflows only far beyond the 1000-level limit. Own suite passed 37/37 and covers the main rules plus CLI order and size limits (test/cli.test.mjs:72,96), but is lighter than Y's or Z's. README has a clear exit-code table."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 2.322639400000001,
+    "swapped": true
+  },
+  {
+    "pair": "h6-r2",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Library is fully iterative: deepCopy at jsonpatch.mjs:44 and deepEqual at jsonpatch.mjs:67. setMember uses defineProperty (jsonpatch.mjs:35), so __proto__ is stored as an ordinary member. Error reasons are mapped cleanly in childKey (jsonpatch.mjs:92). Passed all 87 of my library probes. CLI reads files in 64K chunks and counts bytes actually read (jsonpatch-cli.mjs:41-48). It checks for a directory both before and after open (jsonpatch-cli.mjs:34,38) and checks depth iteratively (jsonpatch-cli.mjs:78). It falls back to an iterative stringifier when JSON.stringify overflows (jsonpatch-cli.mjs:143-150), so a ~16k-deep result printed correctly. A top-level catch (jsonpatch-cli.mjs:188) keeps stderr to one line even on unexpected failures. Passed every CLI probe: ENOTDIR, /dev/zero too large, /proc/self/mem cannot read, BOM counted in size, patch checked before doc. Own tests: 521 passed, 2 skipped (root), spread across 6 well-organised files. README has a clear table of exit codes and messages. Minor: the async read code is a bit more involved than needed."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Library is iterative throughout (clone at jsonpatch.mjs:51, equal at jsonpatch.mjs:85) and passed all 87 probes. It sets name on the prototype (jsonpatch.mjs:9), which works but is a slightly odd choice. CLI always uses its own iterative stringifier (jsonpatch-cli.mjs:116), so a ~16k-deep result printed correctly. Read limits and error mapping are correct (jsonpatch-cli.mjs:17-58), and all CLI probes passed. Weakness: errors that are not CliError are rethrown uncaught (jsonpatch-cli.mjs:179). With a gigantic output this gave a raw 'Invalid string length' stack trace on stderr. Own tests: 16 passed. They are dense and include a byte-for-byte check against JSON.stringify output and a deep-result test (test/cli.test.mjs:82), but are fewer and coarser than the others. README is good, though its exit-code table is out of order and does not list the exact messages."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Clean, compact library with iterative clone and equal (jsonpatch.mjs:49,77). Looks up holes explicitly (jsonpatch.mjs:216). Passed all 87 probes. CLI reads at most MAX_BYTES+1 into a single buffer (jsonpatch-cli.mjs:42-49) and passed every read, decode, depth and order probe. Defect: it writes JSON.stringify directly with no guard (jsonpatch-cli.mjs:122). A ~16k-deep result, built from a 998-deep input with copy operations, crashed with an uncaught RangeError stack trace, breaking the one-line-stderr rule. The closeSync in finally (jsonpatch-cli.mjs:55) could also throw. Own tests: 36 passed, 1 skipped. They cover the main CLI paths, including the BOM size edge and the patch-before-doc order, but are lighter than W's or Z's. README is clear and has a table of exit codes and messages."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Library is correct on all 87 probes. However, jsonEqual is recursive (jsonpatch.mjs:59-69): a 100k-deep test value threw a RangeError out of applyPatch, which should throw nothing but PatchError. That depth is beyond the 1000-level guarantee. deepCopy uses defineProperty on sparse pre-sized arrays (jsonpatch.mjs:34,49), which works but is unusual. CLI checks depth by scanning the text with string-aware bracket counting (jsonpatch-cli.mjs:79-98); it was correct on brackets inside strings and on deep objects. readStdin guards against settling twice (jsonpatch-cli.mjs:52-76). A deep result gives a clean one-line 'Error: result too deep to print' with exit 1 (jsonpatch-cli.mjs:134-139): not a crash, but not output either. Own tests: 314 passed, 1 skipped, across 3 thorough files. README is clear and has an exit-code table."
+    },
+    "ranking": [
+      "W",
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 1.5556687999999999
   }
 ]
