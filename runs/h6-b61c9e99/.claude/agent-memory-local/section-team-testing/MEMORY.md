@@ -1,0 +1,1 @@
+- [Node test gotchas](node-test-gotchas.md) — Node 22 `--test dir/` fails, big-diff hangs, stdin dir fd, mutation-script safety
