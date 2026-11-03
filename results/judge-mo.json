@@ -1,0 +1,49 @@
+[
+  {
+    "pair": "h4-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Strengths: a compact, readable server.mjs (325 lines). serialize() at server.mjs:129-134 orders creates and deletes; the rule checks run before the queue and the overlap check inside it (server.mjs:142-182). save() (server.mjs:136-140) updates memory only after writeFile succeeds. readBody (server.mjs:93-118) counts every byte while keeping at most 10001. Ran: npm test gave 20/20 passing. My probe passed 102/102 (concurrency, save failure, restart, routing, all rules). Defects: parseStore (server.mjs:49-65) does not check the top-level keys, so a data file {\"nextId\":1,\"bookings\":[],\"junk\":1} is accepted and the server starts listening, though it is not the layout this server writes (X, Y and Z exit 1). It also allows overlapping stored bookings. Tests are thin: 20 coarse tests bundle many assertions, with few edge cases on the page side (app.test.mjs is 5 tests). README is only 44 lines and short on error and exit details. The app.js `.apply` spread is old-style."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: after the body is read, request handling is fully synchronous, including fs.writeFileSync at server.mjs:96-98. That makes requests effectively one at a time with no queue, and createStore.commit (server.mjs:258-267) saves before swapping state. Routes are a table at server.mjs:124-129 with a small route() at server.mjs:108-122. The data-file check (server.mjs:62-76) rejects extra keys, duplicate ids and overlaps. main (server.mjs:278-304) sets exitCode instead of calling exit abruptly, and gives a fixed PORT message to keep stderr to one line. Ran: npm test gave 132/132 passing (server, page, final). My probe passed 102/102. README is about 180 lines. Weaknesses: the synchronous write blocks the event loop during saves; readBody (server.mjs:218-227) never settles if the client aborts mid-body (no close handler, so the request is silently dropped); sendStatic re-reads the files on every request."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: server.mjs:137-146 saves atomically (write a temp file, rename it over, clean up on error), and commit (server.mjs:243-247) changes memory only after the save. server.mjs:318-335 sends every request through one global queue, so concurrency is trivially correct. server.mjs:360-363 has a clientError handler; server.mjs:301-305 logs unexpected errors to stderr on one line; server.mjs:106-116 checks the data file strictly. MSG constants are at server.mjs:25-39. Ran: npm test gave 288/288 passing across 7 well-named files (static page, page behaviour, booking rules, routes, persistence, startup). My probe passed 102/102. README is about 210 lines and thorough. Weaknesses: the temp file `<file>.<pid>.tmp` is an extra write next to the data file, and rename replaces symlinks; the global queue also serialises GETs and static files behind slow saves."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: server.mjs:206-226 holds the store in a repository whose commit saves first and only then swaps the state (frozen), and which runs creates and deletes one at a time, so a failed save keeps the next id. server.mjs:95-107 checks the data file strictly (exact keys, ids below nextId, unique ids, no overlaps); line 103 also requires nextId+1 to stay a safe integer, so a saved file always reloads. server.mjs:309-331 routes cleanly, with the /api/bookings/ prefix handled before the static files. server.mjs:357-358 lets the stderr write finish before exiting. app.js:33-52 has one request() returning ok, error or none, matching the spec's reply model. Ran: npm test gave 607/607 passing (fake-DOM page tests, startup, persistence, body and field rules). My probe passed 102/102, and it rejected the data file with an extra key. README is about 205 lines, detailed. Minor: fieldError (server.mjs:70-78) uses ROOMS.includes without a typeof check (harmless); there is no clientError handler; about 400 lines with some ceremony (Object.freeze everywhere)."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X",
+      "W"
+    ],
+    "judge": 1,
+    "costUSD": 2.1518808
+  }
+]
