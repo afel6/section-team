@@ -23,6 +23,7 @@ It costs about 3.6 times as much as plain Claude Code, for cleaner, better-teste
 - Claude Code with plugin support. The Team Board strip, `/team` and `/chats` use the Mods API (`hooks/register.tsx`).
 - Access to the Claude 5 models: sections and the reviewer run on Opus 5.5 (the reviewer on Sonnet 5.5 in Lean mode), the coder helper on Sonnet 5.5, the scout helper on Haiku 5.5.
 - Node.js 22.3 or later (or 20.16 or later) for the hooks and tests, because they use `process.getBuiltinModule`; tested on v26.
+- For headless runs (`claude -p`), set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. Otherwise `claude -p` stops background subagents 10 minutes after the last turn, which cut off the testing section's final review in a probe on Claude Code 2.1.296. The mode round ran this way, with a time limit on each run.
 - Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `security-review` (security), `claude-api` (ai-llm, ai-engineer), `web-design-guidelines` (uiux). Other skills a job names are loaded only if they are installed.
 
 ## Install
@@ -83,5 +84,5 @@ Section heads skip your global `CLAUDE.md` (it can cost many thousands of tokens
 - `npm run test:board` — Team Board (claude plugin test)
 - `npm run validate` — plugin validation
 - `node scripts/gen-agents.mjs --check` — agent files match the roster
-- `node --test bench/*.test.mjs` — benchmark scorer. `bench/score.mjs` records each run's per-agent model split from the subagent transcripts; `bench/aggregate.mjs` reports the Opus share of cost (`opusSharePct`). `node bench/run.mjs --conds=...` also takes `lean` and `max` (the team with that mode file set), and blind judging labels up to four setups X, Y, Z and W. No mode round has been run yet.
+- `node --test bench/*.test.mjs` — benchmark scorer. `bench/score.mjs` records each run's per-agent model split from the subagent transcripts; `bench/aggregate.mjs` reports the Opus share of cost (`opusSharePct`). `node bench/run.mjs --conds=...` also takes `lean` and `max` (the team with that mode file set), and blind judging labels up to four setups X, Y, Z and W. The [mode round](docs/benchmark-modes-2026-11.md) of 2026-11 used them, and its raw data is in `bench/data/modes/`.
 - Design: `docs/specs/2026-11-01-quality-modes-design.md` (modes), `docs/specs/2026-10-24-solo-builder-sections-design.md` (v3), `docs/specs/2026-10-12-claude-team-design.md` · Plans: `docs/plans/2026-11-01-quality-modes-plan.md`, `docs/plans/2026-10-24-section-team-v3-plan.md` · Phase 0: `docs/phase0-results.md`
