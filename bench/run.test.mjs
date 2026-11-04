@@ -10,8 +10,8 @@ import { PassThrough } from 'node:stream'
 import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import {
-  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  CONDITIONS, DEFAULT_CONDS, HIDDEN_SETS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
+  freshRepo, isTwoStage, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, tagStage, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
@@ -581,16 +581,18 @@ const FAKE_PID = 2147483647
 
 // A stand-in for the pinned binary: it writes the session transcript where Claude Code would and streams an init and a result.
 // With transcript false it writes no session file, as when the API fails before the first turn is saved. With hang
-// true it streams only the init and runs until it is killed (its streams ended), then closes with code null.
-function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false }) {
+// true it streams only the init and runs until it is killed (its streams ended), then closes with code null. A null
+// result writes the init alone and exits; reportedSession is the session id its init claims, for a resume that forks.
+function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false, reportedSession = null }) {
   return (command, args, options) => {
     calls.push({ command, args, options })
-    const sessionId = args[args.indexOf('--session-id') + 1]
+    const sessionId = args[args.indexOf(args.includes('--resume') ? '--resume' : '--session-id') + 1]
     const project = projectDirFor(options.cwd, home)
     mkdirSync(project, { recursive: true })
     if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
     const child = Object.assign(new EventEmitter(), { pid: FAKE_PID, stdout: new PassThrough(), stderr: new PassThrough() })
-    const lines = hang ? [{ ...init, session_id: sessionId }] : [{ ...init, session_id: sessionId }, result]
+    const started = { ...init, session_id: reportedSession ?? sessionId }
+    const lines = hang || result === null ? [started] : [started, result]
     Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', hang ? null : 0))
     const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
     // A hanging child's init is written at once (the stream holds it until runOne pipes it): written from setImmediate,
@@ -867,4 +869,181 @@ test('checkPin on Linux compares the worktree path case for case', { skip: proce
   assert.doesNotThrow(() => checkPin('/root/section-team-v0.2.1/', pin))
   assert.throws(() => checkPin('/root/Section-Team-v0.2.1', pin),
     { message: '--plugin=/root/Section-Team-v0.2.1 is not the worktree the round pinned: pass --plugin=/root/section-team-v0.2.1' })
+})
+
+// --- Two-stage tasks (h7) ---
+
+test('h7 has a time limit per stage, and only h7 is a two-stage task', () => {
+  assert.equal(TIMEOUT_MIN.h7, 120)
+  assert.ok(isTwoStage('h7'))
+  for (const task of ['easy', 'h4', 'h5', 'h6', 'constructor']) assert.ok(!isTwoStage(task), task)
+  assert.deepEqual(HIDDEN_SETS, ['s1', 's2', 'reg'])
+})
+
+test('builderArgs on a resume uses --resume instead of --session-id and changes nothing else', () => {
+  const options = { sessionId: 'sid', installedKeys: ['a@market'], pluginDir: 'C:/p' }
+  const first = builderArgs('team', 'the prompt', options)
+  const second = builderArgs('team', 'the prompt', { ...options, resume: true })
+  assert.ok(!second.includes('--session-id'))
+  assert.deepEqual(second, first.map(arg => (arg === '--session-id' ? '--resume' : arg)))
+})
+
+test('taskProblems finds nothing wrong with h7 and asks a two-stage task for its second prompt and all three hidden sets', t => {
+  assert.deepEqual(taskProblems(['h7']), [])
+  const bench = tempRoot(t)
+  assert.deepEqual(taskProblems(['h7'], bench), ['h7: missing bench/tasks/h7.md, bench/tasks/h7-s2.md, bench/hidden/h7/s1.test.mjs, bench/hidden/h7/s2.test.mjs, bench/hidden/h7/reg.test.mjs'])
+  mkdirSync(join(bench, 'tasks'))
+  mkdirSync(join(bench, 'hidden', 'h7'), { recursive: true })
+  for (const file of ['tasks/h7.md', 'tasks/h7-s2.md', 'hidden/h7/s1.test.mjs', 'hidden/h7/s2.test.mjs']) writeFileSync(join(bench, file), 'x')
+  assert.deepEqual(taskProblems(['h7'], bench), ['h7: missing bench/hidden/h7/reg.test.mjs'])
+})
+
+// A stand-in for two spawns of the binary: each behaves as fakeClaude with its stage's options, after writing the
+// stage's files into the run folder as the run's agents would.
+const stagedClaude = ({ home, calls, init, stages }) => {
+  let at = 0
+  return (command, args, options) => {
+    const { files = {}, ...stage } = stages[at++]
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(options.cwd, name), text)
+    return fakeClaude({ home, calls, init, ...stage })(command, args, options)
+  }
+}
+
+// A solo attempt of h7 into a temp root; a test gives each stage's options.
+function stagedAttempt(t, stages) {
+  const base = soloAttempt(t)
+  const calls = []
+  const run = { id: 'h7-solo-mo-r1', task: 'h7', cond: 'solo-mo', base: 'solo', rep: 1 }
+  const outDir = join(base.root, 'results', run.id)
+  return { ...base, run, outDir, calls, deps: { ...base.deps, spawn: stagedClaude({ home: base.home, calls, init: base.init, stages }) } }
+}
+const readRecord = outDir => JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+
+test('runOne gives a two-stage task its second prompt by --resume in the same session, and keeps raw-s1.json and raw-s2.json', async t => {
+  const { outDir, ctx, run, calls, deps, pin } = stagedAttempt(t, [{}, {}])
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(calls.length, 2)
+  const { sessionId } = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  const options = { sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir }
+  const [first, second] = calls
+  assert.ok(first.args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'h7.md'), 'utf8')), 'stage 1 gets the task prompt')
+  assert.ok(second.args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'h7-s2.md'), 'utf8')), 'stage 2 gets the second prompt')
+  assert.deepEqual(first.args, builderArgs('solo', first.args[1], options))
+  assert.deepEqual(second.args, builderArgs('solo', second.args[1], { ...options, resume: true }))
+  assert.ok(!second.args.includes('--session-id'), 'a resume must not force a session id')
+  assert.deepEqual([first.command, second.command], [pin.binary, pin.binary])
+  assert.equal(second.options.cwd, first.options.cwd, 'the same folder, where the session lives')
+  for (const name of ['raw-s1.json', 'raw-s2.json', 'stderr-s1.txt', 'stderr-s2.txt']) assert.ok(existsSync(join(outDir, name)), name)
+  assert.ok(!existsSync(join(outDir, 'raw.json')))
+  assert.ok(existsSync(join(outDir, 'evidence', `${sessionId}.jsonl`)))
+  const record = readRecord(outDir)
+  assert.deepEqual([record.end, record.sessionId, record.exitCode, record.timedOut], ['ok', sessionId, 0, false])
+  assert.deepEqual(record.stages.map(s => [s.stage, s.end, s.exitCode, s.timedOut]), [[1, 'ok', 0, false], [2, 'ok', 0, false]])
+  assert.equal(record.wallMs, record.stages[0].wallMs + record.stages[1].wallMs)
+  assert.equal(record.startedAt, record.stages[0].startedAt)
+})
+
+test('runOne tags the folder after each stage, uncommitted work included, and copies it after stage 1', async t => {
+  const { outDir, ctx, run, deps } = stagedAttempt(t, [{ files: { 'a.mjs': 'one\n' } }, { files: { 'a.mjs': 'two\n', 'b.mjs': 'new\n' } }])
+  await runOne(run, outDir, ctx, deps)
+  const { dir } = deps
+  assert.equal(git(dir, 'show', 'stage-1:a.mjs'), 'one')
+  assert.equal(git(dir, 'show', 'stage-2:a.mjs'), 'two')
+  assert.deepEqual(git(dir, 'diff', '--name-only', 'stage-1', 'stage-2').split('\n'), ['a.mjs', 'b.mjs'])
+  const record = readRecord(outDir)
+  assert.equal(record.snapshot, `${dir}-s1`)
+  assert.equal(readFileSync(join(record.snapshot, 'a.mjs'), 'utf8'), 'one\n', 'the copy keeps stage 1\'s code')
+  assert.ok(!existsSync(join(record.snapshot, 'b.mjs')))
+  assert.equal(readFileSync(join(dir, 'a.mjs'), 'utf8'), 'two\n')
+})
+
+test('tagStage is not stopped by a hook the solution installed, and tags even with nothing to commit', t => {
+  const root = tempRoot(t)
+  const dir = join(root, 'run')
+  freshRepo(dir, { root })
+  mkdirSync(join(dir, '.git', 'hooks'), { recursive: true })
+  writeFileSync(join(dir, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+  writeFileSync(join(dir, 'a.mjs'), 'x\n')
+  tagStage(dir, 'stage-1')
+  tagStage(dir, 'stage-2')
+  assert.equal(git(dir, 'show', 'stage-1:a.mjs'), 'x')
+  assert.equal(git(dir, 'rev-parse', 'stage-1^{tree}'), git(dir, 'rev-parse', 'stage-2^{tree}'))
+})
+
+test('a stage 1 that does not end ok gets no second prompt and no copy; the run ends as stage 1 did', async t => {
+  const { outDir, ctx, run, calls, deps } = stagedAttempt(t, [{ hang: true }])
+  await runOne(run, outDir, ctx, { ...deps, timeoutMs: 50 })
+  assert.equal(calls.length, 1)
+  const record = readRecord(outDir)
+  assert.deepEqual([record.end, record.timedOut, record.snapshot], ['timeout', true, null])
+  assert.deepEqual(record.stages.map(s => [s.stage, s.end]), [[1, 'timeout']])
+  assert.ok(!existsSync(`${deps.dir}-s1`))
+  assert.ok(!existsSync(join(outDir, 'raw-s2.json')))
+})
+
+test('an API failure in either stage stops the batch; stage 1\'s stops it before stage 2 starts', async t => {
+  const overloaded = { type: 'result', subtype: 'success', is_error: true, result: 'API Error: 529 overloaded' }
+  const inFirst = stagedAttempt(t, [{ result: overloaded }])
+  await assert.rejects(runOne(inFirst.run, inFirst.outDir, inFirst.ctx, inFirst.deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
+  assert.equal(inFirst.calls.length, 1)
+  const inSecond = stagedAttempt(t, [{}, { result: overloaded }])
+  await assert.rejects(runOne(inSecond.run, inSecond.outDir, inSecond.ctx, inSecond.deps), err => err instanceof BatchStop && /API failure/.test(err.reason))
+  assert.equal(inSecond.calls.length, 2)
+  assert.ok(!existsSync(join(inSecond.outDir, 'run.json')))
+})
+
+test('a stage 2 that writes no result ends the run that way, never as stage 1\'s ok', async t => {
+  const { outDir, ctx, run, deps } = stagedAttempt(t, [{}, { result: null }])
+  await runOne(run, outDir, ctx, deps)
+  const record = readRecord(outDir)
+  assert.equal(record.end, 'no-result')
+  assert.deepEqual(record.stages.map(s => s.end), ['ok', 'no-result'])
+})
+
+test('a stage 1 whose init is void gets no second prompt, and a resume as another session or a void stage 2 init voids the run', async t => {
+  const voidFirst = stagedAttempt(t, [{ init: { ...soloAttempt(t).init, model: 'claude-sonnet-5' } }])
+  await assert.rejects(runOne(voidFirst.run, voidFirst.outDir, voidFirst.ctx, voidFirst.deps), /version or model mismatch/)
+  assert.equal(voidFirst.calls.length, 1)
+  const forked = stagedAttempt(t, [{}, { reportedSession: 'another-session' }])
+  await assert.rejects(runOne(forked.run, forked.outDir, forked.ctx, forked.deps), err => err instanceof BatchStop && /stage 2 ran as session another-session/.test(err.reason))
+  assert.match(readFileSync(join(forked.outDir, 'void.json'), 'utf8'), /another-session/)
+  const voidSecond = stagedAttempt(t, [{}, { init: { ...soloAttempt(t).init, mcp_servers: [{ name: 'stray' }] } }])
+  await assert.rejects(runOne(voidSecond.run, voidSecond.outDir, voidSecond.ctx, voidSecond.deps), err => err instanceof BatchStop && /MCP servers loaded: stray/.test(err.reason))
+})
+
+test('a second attempt keeps the first attempt\'s stage copy beside its solution folder', async t => {
+  const { outDir, ctx, run, deps } = stagedAttempt(t, [{ files: { 'a.mjs': 'first\n' } }, {}, { files: { 'a.mjs': 'second\n' } }, {}])
+  await runOne(run, outDir, ctx, deps)
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(readFileSync(join(`${deps.dir}-s1-attempt-1`, 'a.mjs'), 'utf8'), 'first\n')
+  assert.equal(readFileSync(join(`${deps.dir}-s1`, 'a.mjs'), 'utf8'), 'second\n')
+  assert.ok(existsSync(join(outDir, 'attempt-1', 'raw-s1.json')))
+})
+
+test('a single-stage task still spawns once, writes raw.json and records no stages', async t => {
+  const { home, outDir, ctx, init, run, deps: base } = soloAttempt(t)
+  const calls = []
+  await runOne(run, outDir, ctx, { ...base, spawn: fakeClaude({ home, calls, init }) })
+  assert.equal(calls.length, 1)
+  assert.ok(existsSync(join(outDir, 'raw.json')) && existsSync(join(outDir, 'stderr.txt')))
+  assert.ok(!existsSync(join(outDir, 'raw-s1.json')))
+  const record = readRecord(outDir)
+  assert.ok(!('stages' in record) && !('snapshot' in record))
+  assert.ok(!existsSync(`${base.dir}-s1`))
+  assert.throws(() => git(base.dir, 'rev-parse', '--verify', '-q', 'stage-1'))
+})
+
+test('a tag that fails loses only stage 2\'s change measure: the run is said, and counted', async t => {
+  const stuck = { files: {} }
+  const { outDir, ctx, run, deps } = stagedAttempt(t, [{}, stuck])
+  const errors = t.mock.method(console, 'error', () => {})
+  const spawn = (command, args, options) => {
+    if (args.includes('--resume')) writeFileSync(join(options.cwd, '.git', 'index.lock'), '')
+    return deps.spawn(command, args, options)
+  }
+  await runOne(run, outDir, ctx, { ...deps, spawn })
+  assert.equal(readRecord(outDir).end, 'ok')
+  assert.equal(git(deps.dir, 'rev-parse', '--verify', 'stage-1^{commit}').length, 40)
+  assert.throws(() => git(deps.dir, 'rev-parse', '--verify', '-q', 'stage-2'))
+  assert.match(String(errors.mock.calls.at(-1).arguments[0]), /could not tag stage-2 in .*: /)
 })

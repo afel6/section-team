@@ -85,9 +85,10 @@ export function cleanSettings({ installedKeys, sectionTeam, pluginDir } = {}) {
   }
 }
 
-export function commonArgs({ sessionId } = {}) {
+// A resume names the session it continues with --resume: --session-id would ask for a new session of that id.
+export function commonArgs({ sessionId, resume = false } = {}) {
   if (typeof sessionId !== 'string' || sessionId === '') throw new TypeError('commonArgs needs a sessionId')
-  return ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', '--session-id', sessionId]
+  return ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', resume ? '--resume' : '--session-id', sessionId]
 }
 
 // undefined when the text is not JSON: callers expect cut-off and non-JSON lines and skip them.

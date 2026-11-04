@@ -1,6 +1,8 @@
 // Runs the section-team benchmark: each task × condition × repetition as a fresh headless session of the CLI the
 // preflight pinned, in an empty git repo, with the clean run of clean-run.mjs (model, effort, settings, environment).
 // Saves claude's stream-json output (raw.json) per run. Resumable: finished runs are skipped.
+// A two-stage task (TWO_STAGE_TASKS) gets its second prompt by --resume in the same session once stage 1 ended ok: the run
+// keeps raw-s1.json and raw-s2.json, tags the folder stage-1 and stage-2, and copies it to <folder>-s1 after stage 1.
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
@@ -28,7 +30,7 @@ import {
   SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, readPin, sha256Of,
 } from './clean-run.mjs'
 import {
-  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
+  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, firstLine, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
 } from './run-attempts.mjs'
 import { checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
@@ -43,7 +45,12 @@ export const RUNS = join(homedir(), 'bench-runs').replaceAll('\\', '/')
 export const RESULTS = join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
-export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60 }
+// Per stage for a two-stage task.
+export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120 }
+// Tasks whose second prompt (tasks/<task>-s2.md) arrives after the first build. Their hidden tests are hidden/<task>/<set>.test.mjs.
+const TWO_STAGE_TASKS = ['h7']
+export const isTwoStage = task => TWO_STAGE_TASKS.includes(task)
+export const HIDDEN_SETS = ['s1', 's2', 'reg']
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
 export { PLUGIN_KEY } from './clean-run.mjs'
@@ -242,10 +249,14 @@ export function checkConds(conds) {
   if (other !== undefined) throw new RangeError(`a round runs solo, lean, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
 }
 
+const taskFiles = task => (isTwoStage(task)
+  ? [`tasks/${task}.md`, `tasks/${task}-s2.md`, ...HIDDEN_SETS.map(set => `hidden/${task}/${set}.test.mjs`)]
+  : [`tasks/${task}.md`, `hidden/${task}.test.mjs`])
+
 // Every task that cannot run: a missing prompt, missing hidden tests or no timeout. Empty when all are fine.
 export function taskProblems(tasks, bench = BENCH) {
   return tasks.flatMap(t => {
-    const missing = [`tasks/${t}.md`, `hidden/${t}.test.mjs`].filter(f => !existsSync(join(bench, f))).map(f => `bench/${f}`)
+    const missing = taskFiles(t).filter(f => !existsSync(join(bench, f))).map(f => `bench/${f}`)
     if (!Object.hasOwn(TIMEOUT_MIN, t)) missing.push('a timeout in TIMEOUT_MIN')
     return missing.length ? [`${t}: missing ${missing.join(', ')}`] : []
   })
@@ -276,9 +287,9 @@ export const builderEnv = (env, { pluginDir }) => childEnv(env, { pluginDir })
 
 // stream-json writes the init as raw.json's first line, so a run killed at its time limit keeps it. Every setup
 // loads plugins from the worktree; only solo turns section-team off.
-export function builderArgs(base, prompt, { sessionId, installedKeys, pluginDir }) {
+export function builderArgs(base, prompt, { sessionId, resume = false, installedKeys, pluginDir }) {
   const settings = cleanSettings({ installedKeys, sectionTeam: base !== 'solo', pluginDir })
-  return ['-p', prompt, '--output-format', 'stream-json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId }), '--settings', JSON.stringify(settings)]
+  return ['-p', prompt, '--output-format', 'stream-json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId, resume }), '--settings', JSON.stringify(settings)]
 }
 
 // <RUNS>/<task>-<8 hex of the id's hash>: the setup never shows in the folder name, so it cannot end up in a
@@ -371,21 +382,26 @@ export function killTree(child, { execFile = execFileSync, kill = process.kill, 
 // terminal or a stopped background job reaches it too, even when the harness is killed outright.
 export const spawnOptions = (cwd, env) => ({ cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 
+// Where a stage's output goes; a single-stage run (stage null) writes raw.json and stderr.txt.
+const rawFile = stage => (stage === null ? 'raw.json' : `raw-s${stage}.json`)
+const errFile = stage => (stage === null ? 'stderr.txt' : `stderr-s${stage}.txt`)
+const promptFile = (task, stage) => (stage === 2 ? `${task}-s2.md` : `${task}.md`)
+
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
-// Resolves once raw.json and stderr.txt are flushed, so the caller can read them. At timeoutMs it kills the child.
-function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs }) {
+// Resolves once the output files are flushed, so the caller can read them. At timeoutMs it kills the child.
+function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage = null }) {
   const base = baseOf(run)
-  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', `${run.task}.md`), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
+  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', promptFile(run.task, stage)), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const { binary } = ctx.pin
-  const args = builderArgs(base, prompt, { sessionId, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
+  const args = builderArgs(base, prompt, { sessionId, resume: stage === 2, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
   return new Promise((resolve, reject) => {
     const started = Date.now()
     const child = spawn(binary, args, spawnOptions(dir, env))
     activeChild = { child, kill }
-    const outFile = createWriteStream(join(outDir, 'raw.json'))
-    const errFile = createWriteStream(join(outDir, 'stderr.txt'))
+    const outFile = createWriteStream(join(outDir, rawFile(stage)))
+    const errorFile = createWriteStream(join(outDir, errFile(stage)))
     child.stdout.pipe(outFile)
-    child.stderr.pipe(errFile)
+    child.stderr.pipe(errorFile)
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
@@ -395,19 +411,19 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
       activeChild = null
       clearTimeout(timer)
       outFile.end()
-      errFile.end()
+      errorFile.end()
     }
     // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory. The
     // rejection waits until raw.json and stderr.txt are closed, so nothing that runs next races a stream still opening.
     child.on('error', spawnErr => {
       finish()
       const failed = new Error(`could not start claude (${binary}: ${spawnErr.code ?? spawnErr.message})`)
-      Promise.all([finished(outFile), finished(errFile)]).then(() => reject(failed), () => reject(failed))
+      Promise.all([finished(outFile), finished(errorFile)]).then(() => reject(failed), () => reject(failed))
     })
     child.on('close', code => {
       finish()
       const info = { exitCode: code, timedOut, wallMs: Date.now() - started, startedAt: new Date(started).toISOString() }
-      Promise.all([finished(outFile), finished(errFile)]).then(() => resolve(info), reject)
+      Promise.all([finished(outFile), finished(errorFile)]).then(() => resolve(info), reject)
     })
   })
 }
@@ -418,6 +434,60 @@ function withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx 
   const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir })
   recordAttempt(outDir, { kind: 'evidence-missing', attempt, sessionId, at: new Date().toISOString(), path: err.path, reasons })
   return new EvidenceMissing(`${err.message}; init problems: ${reasons.join('; ') || 'none'}`, err.path)
+}
+
+// Everything the run left (ignored files aside) committed and tagged, so what a stage changed is a diff between tags.
+// A hook the solution installed must not stop the harness.
+export function tagStage(dir, tag) {
+  const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.email=bench@local', '-c', 'user.name=bench', '-c', 'core.hooksPath=/dev/null', ...args], { stdio: ['ignore', 'ignore', 'pipe'] })
+  git('add', '-A')
+  git('commit', '-q', '--allow-empty', '-m', tag)
+  git('tag', '-f', tag)
+}
+
+// The tags only serve stage 2's change measure (score.mjs stageChange reads a missing tag as not measured), so a failure,
+// such as a lock a killed git left behind, is said and never costs the paid run.
+function tagOrSay(dir, tag) {
+  try {
+    tagStage(dir, tag)
+  } catch (err) {
+    console.error(`could not tag ${tag} in ${dir}: ${firstLine(err.stderr ?? err.message)}; stage 2's change will not be measured`)
+  }
+}
+
+// Where the copy of a run's folder after stage 1 goes: beside it, so the code runs from the same kind of place.
+const stageCopyOf = dir => `${dir}-s1`
+const readMessages = (outDir, stage) => outputMessages(readFileSync(join(outDir, rawFile(stage)), 'utf8'))
+
+// One stage of a single-stage task.
+async function singleStage(claude, outDir) {
+  const info = await claude(null)
+  return { info, messages: readMessages(outDir, null), extraReasons: [] }
+}
+
+// Both stages of a two-stage task. Stage 2 starts only after a stage 1 that ended ok with a good init: anything else is
+// scored as it ended, and a void or stopped run spends no more. What finishAttempt judges is the last stage that ran
+// (stage 1's result must not stand in for a stage 2 that wrote none). The hidden sets s2 and reg then fail for a run
+// that never reached stage 2.
+async function twoStages(claude, { run, outDir, dir, sessionId, ctx }) {
+  const first = await claude(1)
+  const firstMessages = readMessages(outDir, 1)
+  const firstEnd = classifyEnd({ messages: firstMessages, timedOut: first.timedOut, exitCode: first.exitCode })
+  const stageOne = { stage: 1, ...first, end: firstEnd }
+  const good = firstEnd === 'ok' && initProblems(initOf(firstMessages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir }).length === 0
+  if (!good) return { info: { ...first, stages: [stageOne], snapshot: null }, messages: firstMessages, extraReasons: [] }
+  tagOrSay(dir, 'stage-1')
+  cpSync(dir, stageCopyOf(dir), { recursive: true })
+  const second = await claude(2)
+  tagOrSay(dir, 'stage-2')
+  const messages = readMessages(outDir, 2)
+  const stageTwo = { stage: 2, ...second, end: classifyEnd({ messages, timedOut: second.timedOut, exitCode: second.exitCode }) }
+  const resumedAs = initOf(messages)?.session_id
+  return {
+    info: { ...second, wallMs: first.wallMs + second.wallMs, startedAt: first.startedAt, stages: [stageOne, stageTwo], snapshot: stageCopyOf(dir) },
+    messages,
+    extraReasons: resumedAs === undefined || resumedAs === sessionId ? [] : [`stage 2 ran as session ${resumedAs}, not ${sessionId}`],
+  }
 }
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
@@ -432,12 +502,13 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   // The earlier attempt's solution folder is kept beside the new one (a harness-bug rerun replaces a counted run).
   // Renamed before session.json is written, so a failed rename leaves outDir as it was and a resume reuses the number.
   if (existsSync(dir)) renameRetry(dir, `${dir}-attempt-${attempt - 1}`)
+  if (existsSync(stageCopyOf(dir))) renameRetry(stageCopyOf(dir), `${stageCopyOf(dir)}-attempt-${attempt - 1}`)
   writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
   prepareRun(run, { dir, root })
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
-  const info = await runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs })
-  const messages = outputMessages(readFileSync(join(outDir, 'raw.json'), 'utf8'))
+  const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage })
+  const { info, messages, extraReasons } = isTwoStage(run.task) ? await twoStages(claude, { run, outDir, dir, sessionId, ctx }) : await singleStage(claude, outDir)
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
   if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })
   const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
@@ -449,7 +520,7 @@ export async function runOne(run, outDir, ctx, deps = {}) {
     throw err instanceof EvidenceMissing ? withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
   }
   const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
-  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, env })
+  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, extraReasons, env })
   console.log(`${new Date().toISOString()} end   ${run.id} ${kind} exit=${info.exitCode} wall=${Math.round(info.wallMs / 1000)}s`)
 }
 

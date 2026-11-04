@@ -70,10 +70,12 @@ test('publishRun pushes the run\'s results and its solution folders, history bun
   const run = finishedRun(m)
   mkdirSync(`${run.runDir}-attempt-1`, { recursive: true })
   write(join(`${run.runDir}-attempt-1`, 'old.mjs'), 'old\n')
+  mkdirSync(`${run.runDir}-s1`, { recursive: true })
+  write(join(`${run.runDir}-s1`, 'stage.mjs'), 'stage 1\n')
   assert.deepEqual(publishRun(run, m.ctx), { committed: true, pushed: true })
   const files = branchFiles(m.remote, RESULTS_BRANCH)
   for (const file of ['results/h4-solo-mo-r1/run.json', 'results/h4-solo-mo-r1/evidence/s1.jsonl', 'runs/h4-0123abcd/server.mjs',
-    'runs/h4-0123abcd/bookings.json', 'runs/h4-0123abcd/.gitignore', 'runs/h4-0123abcd.git.bundle', 'runs/h4-0123abcd.git.json', 'runs/h4-0123abcd-attempt-1/old.mjs']) {
+    'runs/h4-0123abcd/bookings.json', 'runs/h4-0123abcd/.gitignore', 'runs/h4-0123abcd.git.bundle', 'runs/h4-0123abcd.git.json', 'runs/h4-0123abcd-attempt-1/old.mjs', 'runs/h4-0123abcd-s1/stage.mjs']) {
     assert.ok(files.includes(file), file)
   }
   assert.ok(!files.some(file => file.includes('/.git/')), 'no nested .git folder')

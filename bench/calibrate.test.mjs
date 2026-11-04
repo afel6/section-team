@@ -195,3 +195,28 @@ test('CLI: no task or an unknown task exits 1 with a one-line message and no sta
     assert.doesNotMatch(err, /\bat .*:\d+:\d+/)
   }
 })
+
+test('calibrate runs a two-stage task against its stage-1 reference, and lays stage-1 near-misses on that reference', () => {
+  const { tmp, root, seeds } = fixture('t7')
+  write(root, 't7/reference-s1/a.txt', 'ref')
+  write(root, 't7/near-miss-s1/m1/a.txt', 'm1')
+  write(root, 't7/near-miss-s1/m2/a.txt', 'ref')
+  const seen = []
+  const run = (task, dir, { s1Dir } = {}) => {
+    const read = (folder, file) => (existsSync(join(folder, file)) ? readFileSync(join(folder, file), 'utf8') : 'none')
+    seen.push({ task, s1Dir, stageOne: read(s1Dir, 'a.txt'), final: read(dir, 'a.txt') })
+    const fail = [read(s1Dir, 'a.txt'), read(dir, 'a.txt'), read(dir, 'sub/b.txt')].filter(text => text !== 'ref').length
+    return { tests: 3, pass: 3 - fail, fail, rate: (3 - fail) / 3, tap: '' }
+  }
+  const lines = []
+  try {
+    const verdict = calibrate('t7', { root, seeds, run, log: line => lines.push(line) })
+    assert.deepEqual(verdict.problems.filter(p => !/n3|m2/.test(p)), [], 'the near-misses that fail a test pass')
+    assert.ok(verdict.problems.some(p => /near-miss s1\/m2 fails no hidden test/.test(p)), 'a stage-1 near-miss that fails nothing is named')
+    assert.equal(seen[0].s1Dir, join(root, 't7', 'reference-s1'), 'the reference runs with the stage-1 reference')
+    assert.deepEqual(seen.map(s => [s.stageOne, s.final]).at(-2), ['m1', 'ref'], 'a stage-1 near-miss on the stage-1 reference, the final reference unchanged')
+    assert.ok(lines.some(line => line.startsWith('near-miss s1/m1 ')), lines.join('; '))
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})

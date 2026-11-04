@@ -1,6 +1,7 @@
 // Scores every finished benchmark run: cost/tokens/time from the transcript (cost computed from the session's
 // transcripts when the CLI wrote none, as on a timeout), hidden-test pass rate,
 // the project's own `npm test`, code size, agent/model use. Writes results/<id>/metrics.json and results/summary.json.
+// A two-stage task (h7) scores its three hidden sets, and what stage 2 changed and called (metrics.stage2).
 // Usage: node bench/score.mjs
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -11,7 +12,7 @@ import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { initOf, outputMessages, resultOf } from './clean-run.mjs'
 import { projectDirFor } from './run-attempts.mjs'
-import { RESULTS, SEEDS } from './run.mjs'
+import { HIDDEN_SETS, RESULTS, SEEDS, isTwoStage } from './run.mjs'
 import { transcriptCost } from './transcript-cost.mjs'
 
 const BENCH = fileURLToPath(new URL('.', import.meta.url))
@@ -148,6 +149,17 @@ export function costOf({ transcript, evidenceTexts }) {
   return { costUSD: evidenceTexts?.length ? transcriptCost(evidenceTexts).costUSD : NaN, costComputed: true }
 }
 
+// A two-stage run always computes its cost: a resumed CLI's total may count stage 1 again, and adding the stages' totals
+// would then count it twice. Its tokens and modelUsage are the last stage's for the same reason; the transcripts hold the whole.
+export const runCost = ({ run, transcript, evidenceTexts }) => costOf({ transcript: run.stages ? null : transcript, evidenceTexts })
+
+// The stream-json text of a run: raw.json, or a two-stage run's stages joined in order.
+export function readRaw(outDir) {
+  const stages = [join(outDir, 'raw-s1.json'), join(outDir, 'raw-s2.json')].filter(existsSync)
+  if (stages.length === 0) return readFileSync(join(outDir, 'raw.json'), 'utf8')
+  return stages.map(path => readFileSync(path, 'utf8')).join('\n')
+}
+
 // The run's session id: session.json's (written before every attempt), else raw.json's (runs made before session.json); null without either.
 // The id becomes part of a path, so an id that is not plain throws, as does a session.json that does not parse. Each error is one fixed line.
 export function runSession(outDir) {
@@ -201,12 +213,30 @@ export function hiddenEnv(dir, env = process.env) {
   return { ...pickEnv(HIDDEN_ENV_KEYS, env), TARGET_DIR: dir }
 }
 
-export function hiddenTests(task, dir) {
-  const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', join(BENCH, 'hidden', `${task}.test.mjs`)], {
-    env: hiddenEnv(dir), encoding: 'utf8', timeout: 300_000, windowsHide: true,
-  })
-  const tap = `${r.stdout ?? ''}\n${r.stderr ?? ''}`
-  const counts = parseTap(r.stdout ?? '')
+const HIDDEN_LIMIT_MS = 300_000
+
+function runHiddenFile(file, env, timeoutMs) {
+  const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', file], { env, encoding: 'utf8', timeout: timeoutMs, windowsHide: true })
+  return { counts: parseTap(r.stdout ?? ''), cut: Boolean(r.error), tap: `${r.stdout ?? ''}\n${r.stderr ?? ''}` }
+}
+
+// A two-stage task's sets: s1 on the copy made after stage 1, s2 and reg on the final code. S1_DIR lets s2 and reg start
+// the stage-1 code too, to write the data they then migrate. The primary measure is fail, summed over the sets; a set
+// killed at the limit is named in incomplete, so its zero failures cannot read as a pass.
+function hiddenSets(task, dir, s1Dir, bench, timeoutMs) {
+  const runs = HIDDEN_SETS.map(set => [set, runHiddenFile(join(bench, 'hidden', task, `${set}.test.mjs`), { ...hiddenEnv(set === 's1' ? s1Dir : dir), S1_DIR: s1Dir }, timeoutMs)])
+  const sum = key => runs.reduce((total, [, { counts }]) => total + counts[key], 0)
+  return {
+    tests: sum('tests'), pass: sum('pass'), fail: sum('fail'), rate: sum('tests') ? sum('pass') / sum('tests') : 0,
+    parts: Object.fromEntries(runs.map(([set, { counts }]) => [set, counts])),
+    incomplete: runs.filter(([, { counts, cut }]) => cut || counts.tests === 0).map(([set]) => set),
+    tap: runs.map(([set, { tap }]) => `# set ${set}\n${tap}`).join('\n'),
+  }
+}
+
+export function hiddenTests(task, dir, { s1Dir = dir, bench = BENCH, timeoutMs = HIDDEN_LIMIT_MS } = {}) {
+  if (isTwoStage(task)) return hiddenSets(task, dir, s1Dir, bench, timeoutMs)
+  const { counts, tap } = runHiddenFile(join(bench, 'hidden', `${task}.test.mjs`), hiddenEnv(dir), timeoutMs)
   return { ...counts, rate: counts.tests ? counts.pass / counts.tests : 0, tap }
 }
 
@@ -232,6 +262,9 @@ export const sameAsSeed = (seedDir, rel, path) => {
   return existsSync(seedFile) && statSync(seedFile).isFile() && readFileSync(seedFile).equals(readFileSync(path))
 }
 
+// What a file counts as: 'docs', 'test', 'code', or null when it is none of them (rel uses '/' separators).
+const fileKind = rel => (/\.md$/i.test(rel) ? 'docs' : CODE_EXT.has(extname(rel)) ? (isTestPath(rel) ? 'test' : 'code') : null)
+
 // Lines of code, tests and docs in a solution. With seedDir, a file byte-identical to the seed's same path is the
 // seed's work, not the solution's, and is left out.
 export function codeStats(dir, seedDir = null) {
@@ -242,7 +275,7 @@ export function codeStats(dir, seedDir = null) {
       const p = join(d, name)
       if (statSync(p).isDirectory()) { walk(p); continue }
       const rel = relative(dir, p).replace(/\\/g, '/')
-      const kind = /\.md$/i.test(name) ? 'docs' : CODE_EXT.has(extname(name)) ? (isTestPath(rel) ? 'test' : 'code') : null
+      const kind = fileKind(rel)
       if (!kind || sameAsSeed(seedDir, rel, p)) continue
       const lines = readFileSync(p, 'utf8').split('\n').length
       if (kind === 'docs') stats.docsLines += lines
@@ -251,6 +284,34 @@ export function codeStats(dir, seedDir = null) {
   }
   if (existsSync(dir)) walk(dir)
   return stats
+}
+
+// What stage 2 changed, as codeStats counts a solution (lines are added plus removed), from the tags run.mjs made; null
+// when the run has no such tags (it stopped after stage 1).
+export function stageChange(dir) {
+  const r = spawnSync('git', ['-C', dir, 'diff', '--numstat', '--no-renames', 'stage-1', 'stage-2'], { encoding: 'utf8', windowsHide: true })
+  if (r.status !== 0) return null
+  const rows = r.stdout.split('\n').map(line => /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line)).filter(Boolean)
+    .map(([, added, removed, rel]) => ({ rel, lines: (Number(added) || 0) + (Number(removed) || 0) }))
+    .filter(({ rel }) => !rel.split('/').some(part => SKIP_DIRS.has(part)))
+  const ofKind = kind => rows.filter(({ rel }) => fileKind(rel) === kind)
+  const lines = list => list.reduce((total, row) => total + row.lines, 0)
+  return { files: ofKind('code').length, lines: lines(ofKind('code')), testFiles: ofKind('test').length, testLines: lines(ofKind('test')), docsLines: lines(ofKind('docs')) }
+}
+
+// What the main session called in a stage (its raw file): fresh Agent calls by type, and SendMessage calls, which
+// continue an agent from earlier. A helper's own calls (parent_tool_use_id) are left out.
+export function stageCalls(raw) {
+  const calls = outputMessages(raw).filter(m => m?.type === 'assistant' && !m.parent_tool_use_id && Array.isArray(m.message?.content))
+    .flatMap(m => m.message.content.filter(part => part.type === 'tool_use'))
+  const fresh = calls.filter(call => call.name === 'Agent' || call.name === 'Task').map(call => call.input?.subagent_type ?? 'general-purpose')
+  return { freshAgents: fresh.length, agentTypes: count(fresh), sendMessages: calls.filter(call => call.name === 'SendMessage').length }
+}
+
+// The stage-2 measures of a two-stage run; both null for a run that stopped after stage 1.
+export function stageTwoMetrics(outDir, dir) {
+  const raw = join(outDir, 'raw-s2.json')
+  return { change: stageChange(dir), calls: existsSync(raw) ? stageCalls(readFileSync(raw, 'utf8')) : null }
 }
 
 function teamStats(dir) {
@@ -264,20 +325,21 @@ function teamStats(dir) {
 
 // One run's metrics. Transcripts come from the run's evidence/ copy when it has one (Claude Code's project folder otherwise),
 // the session id from session.json, and code size leaves out files unchanged from the task's seed.
-function scoreRun(id) {
-  const outDir = join(RESULTS, id)
+export function scoreRun(id, { results = RESULTS, hidden: runHidden = hiddenTests, own = ownTests } = {}) {
+  const outDir = join(results, id)
   const run = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
-  const transcript = parseTranscript(readFileSync(join(outDir, 'raw.json'), 'utf8'))
+  const transcript = parseTranscript(readRaw(outDir))
   const sessionId = runSession(outDir)
   const transcripts = transcriptDir(outDir, run.dir)
   const roles = collectRolesFrom(transcripts, sessionId)
   const split = roles && agentModelSplit(roles)
-  const hidden = hiddenTests(run.task, run.dir)
+  const hidden = runHidden(run.task, run.dir, { s1Dir: run.snapshot ?? run.dir })
   writeFileSync(join(outDir, 'hidden.tap'), hidden.tap)
   return {
-    ...run, transcript, cost: costOf({ transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split, splitCoverage: splitCoverage(split, transcript.modelUsage),
-    hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own: ownTests(run.dir),
+    ...run, transcript, cost: runCost({ run, transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split, splitCoverage: splitCoverage(split, transcript.modelUsage),
+    hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate, ...(hidden.parts ? { parts: hidden.parts, incomplete: hidden.incomplete } : {}) }, own: own(run.dir),
     code: codeStats(run.dir, seedDirFor(run.task)), team: teamStats(run.dir),
+    ...(run.stages ? { stage2: stageTwoMetrics(outDir, run.dir) } : {}),
   }
 }
 
@@ -293,18 +355,23 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
+// A two-stage run's failures per hidden set.
+const setsNote = ({ parts, incomplete }) => (parts
+  ? ` (fail ${HIDDEN_SETS.map(set => `${set} ${parts[set].fail}`).join(' ')}${incomplete.length ? `, incomplete ${incomplete.join(' ')}` : ''})`
+  : '')
+
 // The line ends with how the run ended (run.json's end; '?' for held-out runs, which have none). A cost computed from
 // transcripts is marked.
 export function scoreLine({ id, hidden, own, transcript, cost, wallMs, timedOut, end }) {
   const usd = `$${Number.isFinite(cost.costUSD) ? cost.costUSD.toFixed(2) : '?'}${cost.costComputed ? ' computed' : ''}`
-  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  ${usd}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}  end=${end ?? '?'}`
+  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}${setsNote(hidden)}  own ${own.passed ? 'ok ' : 'FAIL'}  ${usd}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}  end=${end ?? '?'}`
 }
 
 export const summaryRow = r => ({
   id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, isError: r.transcript.isError === true, wallMs: r.wallMs,
   costUSD: r.cost.costUSD, costComputed: r.cost.costComputed, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
   agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
-  hidden: r.hidden, own: r.own, code: r.code, team: r.team,
+  hidden: r.hidden, own: r.own, code: r.code, team: r.team, ...(r.stage2 ? { stage2: r.stage2 } : {}),
 })
 
 // One plain line and exit 1 on any failure; a missing input names the step that makes it.

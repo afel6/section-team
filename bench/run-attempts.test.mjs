@@ -420,3 +420,13 @@ test('pendingRuns keeps the round stopped while a run has used its capped reruns
   })
   assert.deepEqual(pendingRuns(runs, { results, rerun: ['h4-b-mo-r1'], reason: 'fix 0a1b2c3', at: 'T' }).map(r => r.id), ['h4-b-mo-r1'])
 })
+
+test('finishAttempt voids a run on the extra reasons its caller found, recorded like any other; none changes nothing', t => {
+  const outDir = join(tempRoot(t), 'results', 'h7-lean-mo-r1')
+  mkdirSync(outDir, { recursive: true })
+  const line = 'stage 2 ran as session other, not sid-1'
+  assert.throws(() => finish(outDir, { extraReasons: [line] }), err => err instanceof BatchStop && err.reason.includes(line))
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'void.json'), 'utf8')).reasons, [line])
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+  assert.equal(finish(outDir, { extraReasons: [] }).kind, 'ok')
+})

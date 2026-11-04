@@ -462,3 +462,22 @@ test('main refuses a round that is not letters and digits', t => {
   assert.equal(exitCode, 1)
   assert.match(errors[0], /usage: node bench\/mode-check\.mjs --round=<tag>/)
 })
+
+test('h7 is held to the rules of h4, the other multi-area task', t => {
+  const dir = runDir(t)
+  const check = roles => checkRun({ cond: 'team-mo', task: 'h7', roles, runDir: dir, record: 'balanced' })
+  assert.deepEqual(check(teamH4(dir)), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'docs'])).broken, ['testing not woken'])
+  assert.deepEqual(check(teamH4(dir, [], ['backend', 'testing', 'docs'])).broken, ['main did not wake frontend'])
+  assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'])
+})
+
+test('a round under any tag is checked: the setup comes from the part before the tag', t => {
+  const dir = runDir(t)
+  assert.deepEqual(checkRun({ cond: 'team-sm', task: 'h7', roles: teamH4(dir), runDir: dir, record: 'balanced' }), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(checkRun({ cond: 'solo-sm', task: 'h7', roles: null, runDir: null, record: null }), { faithful: true, broken: [], tier: null })
+  assert.throws(() => checkRun({ cond: 'forced-sm', task: 'h7', roles: [], runDir: null, record: null }), /unknown setup "forced-sm"/)
+  const results = runDir(t)
+  writeRun(results, 'h7-team-sm-r1', { dir, roles: teamH4(dir), record: 'balanced' })
+  assert.deepEqual(modeCheck({ results, round: 'sm' }), { 'h7-team-sm-r1': { cond: 'team-sm', task: 'h7', faithful: true, broken: [], tier: 'multi' } })
+})

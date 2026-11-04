@@ -141,9 +141,9 @@ export function publishItems({ items, message }, options) {
   return { committed, pushed }
 }
 
-// The run folder and the earlier attempts' folders run.mjs kept beside it (<dir>-attempt-<n>).
+// The run folder and what run.mjs kept beside it: earlier attempts (<dir>-attempt-<n>) and stage copies (<dir>-s1).
 function solutionFolders(runDir) {
-  const prefix = `${basename(runDir)}-attempt-`
+  const prefix = `${basename(runDir)}-`
   const parent = dirname(runDir)
   const attempts = existsSync(parent) ? readdirSync(parent).filter(name => name.startsWith(prefix)).map(name => join(parent, name)) : []
   return [runDir, ...attempts].filter(existsSync)

@@ -160,8 +160,9 @@ function runRecord({ run, dir, info, sessionId, attempt, kind, result, ctx, init
 }
 
 // Ends one attempt: a run.json for a counted run, otherwise void.json and/or an attempts entry and a BatchStop or RoundStop.
-// env is the child environment the attempt ran with (run.json records its names).
-export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin, ctx, evidenceTexts, write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
+// env is the child environment the attempt ran with (run.json records its names). extraReasons void it too: what only
+// the caller can see, such as a second stage that resumed as another session.
+export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin, ctx, evidenceTexts, extraReasons = [], write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
   const kind = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const result = resultOf(messages)
   const entry = { attempt, sessionId, at: new Date().toISOString() }
@@ -176,7 +177,7 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
   }
   const init = initOf(messages)
-  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir }), ...effortProblems(evidenceTexts)]
+  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir }), ...effortProblems(evidenceTexts), ...extraReasons]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
     const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))

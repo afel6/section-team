@@ -332,3 +332,9 @@ test('readPin reads the round pin and names the preflight command when it is mis
   writeFileSync(file, JSON.stringify(PIN))
   assert.deepEqual(readPin(results, 'mo'), PIN)
 })
+
+test('commonArgs on a resume names the session with --resume and never --session-id', () => {
+  assert.deepEqual(commonArgs({ sessionId: 'abc', resume: true }),
+    ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', '--resume', 'abc'])
+  assert.throws(() => commonArgs({ resume: true }), { message: 'commonArgs needs a sessionId' })
+})
