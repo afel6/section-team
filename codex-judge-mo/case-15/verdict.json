@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "A/lib/validate.mjs:64 fixes cent truncation; A/lib/ledger.mjs:10 allocates remainder cents correctly. A/lib/import.mjs:77 preserves duplicate precedence, and :104 applies validated batches without consuming skipped IDs or saving dry runs. No functional defect found. Coverage weakness: A/test/import.test.mjs:207 and :223 compare file contents but cannot detect redundant identical rewrites or count successful saves. A/README.md:53 describes field order less precisely than Object.keys ordering. npm test hit sandbox EPERM; unchanged suites with in-memory files passed 64/65, with only the inherited subprocess test blocked. All 471 independent HTTP cases and lifecycle checks passed, including historical-record preservation and failed-save rollback."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "No confirmed defects. B/lib/validate.mjs:64 and B/lib/ledger.mjs:10 correctly fix both monetary bugs. B/lib/import.mjs:88 enforces duplicate-before-recorded precedence; :104 rejects before committing state; :124 prevents dry-run and all-skipped writes. B/test/import.test.mjs:86 explicitly verifies one save and restart persistence; :133, :152 and :167 verify zero saves, file identity and unchanged IDs. B/README.md:38 and :50 document the required contract completely. npm test hit sandbox EPERM; unchanged suites with in-memory files passed 68/69, with only the inherited subprocess test blocked. All 471 independent HTTP cases and lifecycle checks passed. Ranked first for particularly strong persistence and boundary assertions."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "No confirmed functional defects. C/lib/validate.mjs:64 and C/lib/ledger.mjs:11 fix monetary calculations. C/lib/import.mjs:79 separates validation and duplicate classification from independent ID allocation at :115; :147 and :149 avoid unnecessary writes. C/test/import.test.mjs:15 covers byte boundaries, and C/test/import-apply.test.mjs:46 checks POST and stored-record parity. Coverage gap: successful imports lack an explicit single-save-count assertion. C/README.md:38, :50 and :75 satisfy the documentation requirements. npm test hit sandbox EPERM; unchanged suites with in-memory files passed 69/70, with only the inherited subprocess test blocked. All 471 independent HTTP cases and lifecycle checks passed."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 8,
+    "tests": 8,
+    "robustnessSecurity": 10,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "No confirmed functional defects. D/lib/validate.mjs:64 fixes rounding, and D/lib/ledger.mjs:12 distributes remaining cents. D/lib/import.mjs:82 correctly handles recorded/skipped duplicates; :108 allocates independent IDs; :130 avoids no-op writes. Maintainability weaknesses: :36 and :46 throw strings, while :67 describes a recorded property the implementation does not return. D/test/import.test.mjs:50 and :59 cover basic dry-run/skipping behavior but omit exact save counts and import restart coverage. D/README.md:36 and :50 document the required endpoint and rules. npm test hit sandbox EPERM; unchanged suites with in-memory files passed 50/51, with only the inherited subprocess test blocked. All 471 independent HTTP cases and lifecycle checks passed."
+  },
+  "ranking": ["B", "C", "A", "D"]
+}

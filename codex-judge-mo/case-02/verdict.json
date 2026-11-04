@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "A/jsonpatch.mjs:28 safely defines special member names; :183 validates all forms before applying. A/README.md:9 and :38 clearly explain the API, CLI and errors. Defects: :187 executes inherited operations at sparse patch-array holes instead of rejecting undefined; recursive copying at :33 leaks a raw RangeError after valid copies grow the working document beyond the initial depth limit. Ran npm --prefix A test (sandbox spawn EPERM), then its four library suites with node --test --test-isolation=none: 155 passed. Shared in-memory CLI checks passed 24/24, including byte/depth limits, UTF-8, BOM and error ordering. Targeted probes reproduced both defects. A/test/patch-copies.test.mjs:164 provides strong numeric/order/independence coverage, but misses intermediate growth."
+  },
+  "B": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "B/jsonpatch.mjs:204 correctly treats inherited patch indices as holes; :33 safely handles __proto__, and the operation helpers are readable. B/test/patch-form.test.mjs:64 explicitly tests inherited holes; B/README.md:10 and :45 document usage clearly. Defects: B/jsonpatch-cli.mjs:96 checks lexical bracket depth, so a deep duplicate member later overwritten by a shallow value incorrectly produces exit 3; recursive clone at B/jsonpatch.mjs:38 leaks RangeError during valid intermediate copy growth. Ran npm --prefix B test (sandbox spawn EPERM), then five library suites with isolation disabled: 288 passed. Shared in-memory CLI checks passed 23/24; the overwritten-member case failed. An additional 26-case CLI harness passed its baseline checks; targeted probes reproduced both defects."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 7,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "C/jsonpatch.mjs:42 and :86 use iterative copying/equality; unlike the others, C completed the intermediate-growth probe. Safe property writes at :37 and explicit validation at :181 are clear. C/README.md:28 and :39 document the API and CLI well. Defects: :207 executes inherited operations at patch-array holes; C/jsonpatch-cli.mjs:115 measures source-text depth, wrongly rejecting deeply nested duplicate members that JSON.parse overwrites to produce a shallow document. Ran npm --prefix C test (sandbox spawn EPERM), then node --test --test-isolation=none C/test/jsonpatch.test.mjs: 10 groups passed. Shared in-memory CLI checks passed 23/24, failing the duplicate-member case; 18 additional library checks passed. C/test/jsonpatch.test.mjs:44 covers all operations, but coverage is less extensive than A/B and omits both defects."
+  },
+  "D": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "D/jsonpatch.mjs:36 safely handles special names, and :135 normalizes validated operations clearly. D/jsonpatch-cli.mjs:85 correctly measures parsed-value depth; D/README.md:28 and :44 explain contracts, usage and exit codes. Defects: D/jsonpatch.mjs:187 executes inherited operations at sparse patch-array holes; recursive clone at :40 leaks a non-PatchError RangeError after valid copy operations grow an initially depth-1000 document. Ran npm --prefix D test (sandbox spawn EPERM), then node --test --test-isolation=none D/test/jsonpatch.test.mjs: 28 passed. Shared in-memory CLI checks passed 24/24; targeted probes reproduced both defects. D/test/jsonpatch.test.mjs:250 meaningfully tests immutability, but its depth test at :276 misses intermediate growth and its hole test at :70 misses inherited indices."
+  },
+  "ranking": ["B", "A", "C", "D"]
+}

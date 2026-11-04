@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "A/server.mjs:179 serializes mutations; A/server.mjs:186 commits memory after saving. A/public/app.js:126 protects against stale list replies, and A/README.md:7 gives thorough usage guidance. Defects: A/server.mjs:297 interpolates invalid PORT verbatim; a PORT containing LF produced two stderr lines instead of one. A/server.mjs:308 omits CONNECT/checkExpectation handlers: TCP probes observed no CONNECT reply and an automatic non-JSON 417 for Expect: custom. Own node --test was blocked by sandbox EPERM; subprocess-free browser tests passed 48/48. All 28 additional HTTP checks with an in-memory file stub passed; disk persistence tests could not run."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "B/server.mjs:203 preserves serialized, save-before-memory mutations; B/server.mjs:260 matches raw paths correctly. B/public/app.js:88 handles stale list outcomes, with comprehensive documentation at B/README.md:29. Defect: B/server.mjs:316 registers no CONNECT/checkExpectation handlers. TCP probes confirmed CONNECT /api/rooms closes without 405, and Expect: custom produces an automatic non-JSON 417 before the body arrives. npm --prefix B test was blocked by sandbox EPERM; the three browser/HTML test files passed 41/41 with --test-isolation=none. All 28 additional HTTP checks with an in-memory file stub passed; disk persistence remains unverified."
+  },
+  "C": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "C/server.mjs:143 bounds body buffering, C/server.mjs:299 serializes requests, and C/server.mjs:314 updates memory only after saving. C/server.mjs:365 handles unknown Expect values correctly; documentation at C/README.md:10 is thorough. Defect: C/server.mjs:267 immediately ends CONNECT sockets without draining declared bodies; a TCP probe received 405 while withholding all body bytes. C/test/server-edge-requests.test.mjs:43 covers only bodyless CONNECT. Browser/HTML tests passed 83/83 with --test-isolation=none. Normal npm test was blocked by EPERM; full in-process execution hit unavailable scratch directories. All 28 additional HTTP checks with an in-memory file stub passed."
+  },
+  "D": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 7,
+    "robustnessSecurity": 8,
+    "docsUsability": 8,
+    "overall": 8,
+    "notes": "D/server.mjs:82 validates stored data carefully; D/server.mjs:220 serializes creation and saves before updating memory. D/public/app.js:75 suppresses stale list outcomes; D/README.md:6 documents basic usage clearly. Defects: D/server.mjs:115 embeds raw invalid PORT in diagnostics; an LF produced two stderr lines. D/server.mjs:299 lacks CONNECT/checkExpectation handlers, yielding no CONNECT reply and automatic non-JSON 417 responses in TCP probes. Browser tests passed 5/5, but D/test/app.test.mjs:62 always supplies successful JSON parsing, leaving malformed-reply coverage absent. Normal tests were blocked by EPERM and server tests by unavailable scratch directories. All 28 additional HTTP checks with an in-memory file stub passed."
+  },
+  "ranking": ["C", "B", "A", "D"]
+}

@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "A/jsonpatch.mjs:48 implements iterative copying preserving negative zero and member order; :38 safely handles special property names. Defect at :199: inherited numeric properties supply operations for sparse patch holes, which must instead produce 'not an object'; confirmed by an in-memory probe. A/jsonpatch-cli.mjs:153 overflows while serializing a valid 84092-byte, depth-1000 patch producing a depth-6986 result; exited 1. Ran node --test --experimental-test-isolation=none test/jsonpatch.test.mjs: 10/10 passed. Thirteen routine direct CLI probes passed, including UTF-8, BOM, byte limits, depth rejection and error precedence. A/test/cli.test.mjs:66 misses expanded-result serialization. A/README.md:27 clearly documents the API, usage and errors."
+  },
+  "B": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "B/jsonpatch.mjs:46 provides iterative cloning; :165 cleanly enforces ordered operation validation. Defect at :220: inherited operations execute at sparse patch holes; confirmed in memory. B/jsonpatch-cli.mjs:121 overflows on the valid depth-6986 result, and :130 rethrows the RangeError, printing a stack trace and exiting 1. Ran node --test --experimental-test-isolation=none test/jsonpatch.test.mjs: 28/28 passed. Thirteen routine direct CLI probes passed. Coverage is stronger than A, including non-enumerable operation members at B/test/jsonpatch.test.mjs:278 and duplicate BOM rejection at B/test/cli.test.mjs:71, but misses inherited holes and output depth growth. B/README.md:30 clearly explains contracts and CLI errors."
+  },
+  "C": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "C/jsonpatch.mjs:33 and :58 implement iterative copying and equality; :28 safely defines special member names. Defect at :206: inherited operations execute at sparse patch holes; confirmed in memory. C/jsonpatch-cli.mjs:111 streams iterative serialization: the valid depth-6986 probe succeeded with 13973 output lines. Thirteen routine direct CLI probes also passed. Ran node --test --experimental-test-isolation=none on pointer, patch-form, patch-copy and patch-ops test files: 163/163 passed. C/test/cli-read.test.mjs:97 unconditionally requires /dev/zero; a direct probe confirmed that path is absent on this Windows host, making that test nonportable. C/README.md:20 clearly documents immutability, errors, limits and usage."
+  },
+  "D": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "D/jsonpatch.mjs:29 safely defines member names, :39 copies iteratively, and :205 validates all operations before application. Defect at :209: inherited operations execute at sparse patch holes; confirmed in memory. D/jsonpatch-cli.mjs:122 serializes iteratively; the valid depth-6986 probe succeeded with 13973 output lines. Thirteen routine direct CLI probes passed. Ran node --test --experimental-test-isolation=none on pointer, patch-form, patch-integrity and patch-ops test files: 469/469 passed. Strongest overall behavioral coverage, although D/test/patch-form.test.mjs:112 misses inherited holes. D/test/cli-errors.test.mjs:172 appropriately skips unavailable /dev/zero tests. D/README.md:23 clearly documents semantics, usage and errors."
+  },
+  "ranking": ["D", "C", "B", "A"]
+}

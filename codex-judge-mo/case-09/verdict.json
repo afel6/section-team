@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "No substantive defect found. Correct money fixes at lib/validate.mjs:64 and lib/ledger.mjs:12; import precedence, duplicate tracking and atomic state construction at lib/import.mjs:50,100,125. test/fixes.test.mjs:97 explicitly protects existing saved records. README.md:38,50,74 meets documentation requirements. Ran every own test with virtual scratch storage: 136/137 passed; test/api.test.mjs:206 failed only because child spawning is blocked. All 62 independent HTTP probes passed. Strongest regression coverage."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 10,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "No substantive defect found. lib/import.mjs:90 correctly remembers recorded/skipped predecessors; :108 allocates independent IDs; :134 suppresses dry-run and all-skipped writes. Money fixes at lib/validate.mjs:64 and lib/ledger.mjs:10 are correct. README.md:38,50,75 satisfies requirements. test/import.test.mjs:43,115,157 covers core behavior but lacks targeted byte-boundary, imported-restart and edited-record cases. Ran every own test with virtual scratch: 48/49 passed; test/api.test.mjs:206 hit sandbox spawn EPERM. All 62 independent HTTP probes passed."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 8,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "No substantive defect found. lib/import.mjs:71 separates planning, :100 allocates independent IDs, and :120 avoids unnecessary saves. Minor maintainability drawback: fields validated at :33 are parsed again at :80. test/import.test.mjs:175,221,285 covers unusual JSON keys, edited records and restart persistence. README.md:50,57 clearly explains precedence and duplicate predecessors. Ran every own test with virtual scratch: 59/60 passed; test/api.test.mjs:217 hit sandbox spawn EPERM. All 62 independent HTTP probes passed."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "No substantive defect found. lib/import.mjs:33,50,75 cleanly separates body, field and duplicate checks; :108 assigns independent IDs and :139 prevents dry-run/all-skipped saves. test/import.test.mjs:46,296,348,449 covers byte boundaries, duplicate precedence and unchanged-file behavior. Unlike A, added tests lack an explicit legacy-record preservation fixture. README.md:38,50 documents the required contract. Ran every own test with virtual scratch: 75/76 passed; test/api.test.mjs:216 hit sandbox spawn EPERM. All 62 independent HTTP probes passed."
+  },
+  "ranking": ["A", "D", "C", "B"]
+}

@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 6,
+    "docsUsability": 8,
+    "overall": 7,
+    "notes": "Clear validation, serialized mutations and stale-list protection (A/server.mjs:129; A/public/app.js:107), with concise usage documentation (A/README.md:5). Defects: direct overwriting can corrupt persisted data after a partial save failure (A/server.mjs:137); startup accepts extra store keys and overlapping bookings that the server cannot produce (A/server.mjs:49). Invalid PORT values containing newlines produce multiple stderr lines (A/server.mjs:285), confirmed by running the original server with PORT containing '12\\n34'. Ran npm --prefix A test: blocked by spawn EPERM. Ran node --test --test-isolation=none A/test/app.test.mjs: 5 passed. Shared in-memory handler probes passed 37 checks; fault injection confirmed persisted-file corruption while memory remained unchanged."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 8,
+    "tests": 8,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "Strong raw routing, ordered validation, bounded body collection and strict stored-data validation (B/server.mjs:69, B/server.mjs:102, B/server.mjs:153, B/server.mjs:217). Browser handling correctly suppresses stale list outcomes (B/public/app.js:102); documentation explains usage and storage clearly (B/README.md:9, B/README.md:159). Main defect: saving overwrites the existing file directly, so a partial write failure damages persisted state despite preserving memory (B/server.mjs:97, B/server.mjs:263). Ran npm --prefix B test: blocked by spawn EPERM; backend fallback encountered mkdtemp EPERM. Ran node --test --test-isolation=none B/test/app.test.mjs: 41 passed. Shared in-memory probes passed 37 checks and reproduced partial-write corruption."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 9,
+    "overall": 10,
+    "notes": "Best persistence handling: temporary-file write and rename preserve the previous file on failed saves, with memory committed afterward (C/server.mjs:137, C/server.mjs:243). Strict startup validation and serialized request handling closely follow the contract (C/server.mjs:106, C/server.mjs:318). Tests cover meaningful API, persistence and browser cases; documentation explains storage guarantees (C/test/persistence.test.mjs:79; C/README.md:188). No material defect found in the inspected behavior. Ran npm --prefix C test: blocked by spawn EPERM; backend fallback encountered mkdtemp EPERM. Ran node --test --test-isolation=none C/test/page-behaviour.test.mjs C/test/page-static.test.mjs: 76 passed. Shared in-memory probes passed 37 checks; injected partial-write and rename failures preserved persisted data, bookings and next id."
+  },
+  "D": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Well-structured repository serialization, ordered validation and exact routing (D/server.mjs:206, D/server.mjs:240, D/server.mjs:301). Browser behavior handles stale requests and control sequencing correctly (D/public/app.js:113, D/public/app.js:142). Particularly thorough tests check body-draining timing and forbidden browser APIs (D/test/booking-body.test.mjs:214; D/test/helpers/fake-dom.mjs:178). Main defect: direct writeFile can corrupt persisted data after a partial failed save (D/server.mjs:133), explicitly acknowledged in D/README.md:183. Ran npm --prefix D test: blocked by spawn EPERM; backend fallback encountered mkdtemp EPERM. Ran node --test --test-isolation=none D/test/app-load-list.test.mjs D/test/app-submit-cancel.test.mjs D/test/page-html.test.mjs: 108 passed. Shared in-memory probes passed 37 checks and reproduced partial-write corruption."
+  },
+  "ranking": ["C", "D", "B", "A"]
+}

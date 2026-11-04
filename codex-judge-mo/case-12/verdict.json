@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "A/jsonpatch.mjs:30 safely handles special member names; A/jsonpatch.mjs:39 preserves order, negative zero and independence through iterative copying. A/jsonpatch-cli.mjs:122 handles deep output successfully. Defect: A/jsonpatch.mjs:209 executes inherited numeric properties in sparse patch arrays instead of treating holes as undefined; reproduced an inherited add succeeding instead of throwing 'operation 0: not an object'. In-process library tests passed 469/469; npm test was blocked by sandbox EPERM. CLI encoding, size, depth, precedence and exit-code probes passed. Serializer comparisons matched native output for 5,019 values. A/README.md:23 clearly documents the API."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "B/jsonpatch.mjs:28 safely defines members; B/jsonpatch.mjs:33 copies iteratively. B/jsonpatch-cli.mjs:111 streams iterative pretty output and passed the depth-4750 result probe. Defect: B/jsonpatch.mjs:206 accepts inherited operations in sparse patch holes; reproduced unexpected mutation in the returned document instead of the required form error. B/test/cli-read.test.mjs:97 unconditionally assumes /dev/zero exists, making that test fail on Windows. In-process library tests passed 163/163; npm test was blocked by sandbox EPERM. Additional CLI encoding, limits, ordering and error probes passed. B/README.md:29 documents usage and limits clearly."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "C/jsonpatch.mjs:40 safely defines members, C/jsonpatch.mjs:46 clones iteratively, and C/jsonpatch.mjs:165 implements ordered form validation. Defects: C/jsonpatch.mjs:220 executes inherited operations in sparse patch holes; C/jsonpatch-cli.mjs:121 overflows during serialization. A valid depth-952 patch producing depth-4750 output caused an unhandled RangeError, multiline stderr and exit 1. In-process library tests passed 28/28; npm test was blocked by sandbox EPERM. Additional library and CLI probes passed for ownership, copying, UTF-8, BOM, limits and error precedence. C/test/cli.test.mjs:115 tests input depth but misses generated output depth. C/README.md:30 documents API behavior clearly."
+  },
+  "D": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "D/jsonpatch.mjs:38 safely defines members; D/jsonpatch.mjs:48 and D/jsonpatch.mjs:82 provide iterative copying and equality. Defects: D/jsonpatch.mjs:199 executes inherited operations in sparse patch holes; D/jsonpatch-cli.mjs:153 cannot serialize sufficiently deep generated results. The valid depth-952 patch producing depth-4750 output returned 'Error: Maximum call stack size exceeded' and exit 1. In-process library tests passed 10/10; the default node --test runner was blocked by sandbox EPERM. Direct CLI success, UTF-8, size, depth, directory and exit-code probes passed. D/test/jsonpatch.test.mjs:139 tests deep library behavior but misses CLI serialization. D/README.md:55 clearly explains exit codes."
+  },
+  "ranking": ["A", "B", "C", "D"]
+}

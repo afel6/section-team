@@ -1,0 +1,39 @@
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 7,
+    "docsUsability": 10,
+    "overall": 8,
+    "notes": "Strong literal routing and whole-body handling (A/server.mjs:301, A/server.mjs:341), serialized save-before-publish mutations (A/server.mjs:206), safe text rendering and stale-response suppression (A/public/app.js:83, A/public/app.js:113), and thorough documentation (A/README.md:27). Confirmed in-memory: A/server.mjs:103 validates nextId + 1 rather than nextId, accepting {nextId:true,bookings:[]}; the next POST returns id:true at A/server.mjs:268 and its saved state cannot reload. A/test/startup.test.mjs:274 misses this boolean case. Direct overwrite at A/server.mjs:133 can damage the previous file on a partial write failure; A/README.md:183 acknowledges this limitation (source finding, no physical disk fault injected). Ran npm --prefix A test: blocked before suites by sandbox spawn EPERM. Ran the three browser/HTML suites with node --test --test-isolation=none: 108 passed, zero failed. Direct invalid-JSON startup check exited 1 with the required diagnostic."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "Most robust persistence: temporary-file write plus rename preserves the previous file on failed saves (B/server.mjs:136), memory publishes afterward (B/server.mjs:242), and request serialization protects concurrent mutations (B/server.mjs:318). Precise validation, literal routing, frontend race handling, broad persistence tests and excellent usage documentation (B/server.mjs:55, B/server.mjs:257, B/public/app.js:96, B/test/persistence.test.mjs:26, B/README.md:12). Extreme confirmed boundary defect: B/server.mjs:111 accepts nextId=9007199254740991, but the unchecked increment at B/server.mjs:231 yields an unreloadable store and eventually duplicate ids. Source functions with mocked writes produced ids 9007199254740991, 9007199254740992, 9007199254740992. Ran npm test in B: sandbox spawn EPERM prevented suite execution. The two browser/static suites passed 76 tests with test isolation disabled. Direct invalid-JSON startup check exited 1 correctly."
+  },
+  "C": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Clear literal routing, ordered validation, bounded body draining, and synchronous save-before-publish commits (C/server.mjs:102, C/server.mjs:153, C/server.mjs:218, C/server.mjs:258). Frontend renders plain text and suppresses stale outcomes (C/public/app.js:85, C/public/app.js:108); documentation is comprehensive (C/README.md:12). C/server.mjs:97 overwrites the live data file, so a late disk-write failure can corrupt durable state despite preserving memory (source finding, no physical disk fault injected). Confirmed extreme id-boundary bug: C/server.mjs:72 accepts MAX_SAFE_INTEGER as nextId; C/server.mjs:180 then writes an unsafe nextId, making restart fail and later ids repeat. Ran npm --prefix C test: sandbox spawn EPERM blocked execution. Ran node --test --test-isolation=none C/test/app.test.mjs: 41 passed. Backend reruns could not create scratch temp directories; these were environment failures. In-memory checks passed 26 ordinary routing/validation/draining/rollback cases. Direct invalid-JSON startup check exited 1 correctly."
+  },
+  "D": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 7,
+    "docsUsability": 8,
+    "overall": 7,
+    "notes": "Compact implementation with correct validation order, raw path routing, serialized mutations and memory updates only after saving (D/server.mjs:142, D/server.mjs:204, D/server.mjs:129, D/server.mjs:136). Frontend safely renders values and guards stale list replies (D/public/app.js:93, D/public/app.js:107); README gives usable setup/API instructions (D/README.md:5). Native run with PORT containing a newline confirmed D/server.mjs:285 echoes it into multiple stderr lines, violating the one-line startup-error rule. Direct overwrite at D/server.mjs:137 risks losing prior durable JSON after partial write failure; this is source-backed, not physically fault-injected. D/server.mjs:58 and D/server.mjs:179 also lack an id-exhaustion guard. Tests cover important API/persistence cases but frontend coverage is much narrower (D/test/app.test.mjs:71). Ran npm --prefix D test: sandbox spawn EPERM blocked both files. Ran node --test --test-isolation=none D/test/app.test.mjs: all 5 passed. Direct invalid-JSON startup check exited 1 correctly."
+  },
+  "ranking": ["B", "C", "A", "D"]
+}
