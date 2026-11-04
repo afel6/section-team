@@ -8,7 +8,7 @@ import { assembleBrief, modeRules } from '../hooks/lib/brief.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 
 const BRIEF_DIR = fileURLToPath(new URL('../brief/', import.meta.url))
-const FIXTURE = fileURLToPath(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('./fixtures/supervisor-balanced.md', import.meta.url))
 const MODES = ['lean', 'balanced', 'max']
 const JOB_GATE = "Every job message states this mode's gate"
 const NEAR_MISS_RULE = '- The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.'
@@ -44,8 +44,20 @@ const readFailure = (dir, message) => err => {
 
 after(() => temps.forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
-test('balanced brief is the v0.1.1 supervisor brief, character for character', () => {
+test('balanced brief matches its fixture, character for character', () => {
   assert.equal(assembleBrief('balanced'), readFileSync(FIXTURE, 'utf8').trim())
+})
+
+// Measured on local transcripts, 2026-10-24 to 2026-11-04: 59% of the spend on section heads went on rewriting an expired prompt cache.
+test('every mode gives a new job a fresh section and keeps SendMessage for the same job', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes("- Keep each job's agent id. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues the same job: a fix list, a question, a resume."), mode)
+    assert.ok(brief.includes('start a fresh one on the final-review job'), mode)
+    assert.ok(brief.includes('(wake it if it has no id)'), mode)
+    assert.ok(!brief.includes('Wake each section once per session'), mode)
+    assert.ok(!brief.includes('so it keeps its context'), mode)
+  }
 })
 
 test('balanced brief leaves out the job-message gate sentence that only lean and max carry', () => {
@@ -104,7 +116,7 @@ test('each gate part states its mode\'s GATES values', () => {
     assert.equal(gate.includes(sections), fixRounds !== GATES.balanced.fixRounds, `${mode}: the "Sections get" line is wrong`)
     assert.equal(part(`gate-${mode}`).includes('near-miss'), nearMiss, `${mode}: near-miss must appear only when GATES says so`)
     assert.equal(gate.includes(NEAR_MISS_RULE), nearMiss, `${mode}: the near-miss gate rule is wrong`)
-    if (mode === 'balanced') continue // Balanced stays the v0.1.1 brief word for word, so it has no job-message rule
+    if (mode === 'balanced') continue // Balanced jobs use the sections' default gate, so it has no job-message rule
     const job = gate.find(line => line.startsWith(`- ${JOB_GATE}`))
     assert.ok(job !== undefined, `${mode}: the gate lacks the job-message rule`)
     assert.ok(job.includes('the near-miss check') === nearMiss, `${mode}: the job-message rule must name the near-miss check only when GATES says so`)

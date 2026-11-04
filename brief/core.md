@@ -11,7 +11,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## How to wake a section
 - Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files; the Opus reviewer checks the code) and never `name` (not available).
-- Keep a list of awake sections and the agent id each spawn returned. Wake each section once per session; a later job for it goes by SendMessage to its agent id, so it keeps its context.
+- Keep each job's agent id. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues the same job: a fix list, a question, a resume.
 - Every job message contains:
   - the goal; relevant files and decisions so far;
   - `Skills for this job: …` — at most 4, picked from the installed skills and plugins that fit that section and this task (read-only skills for advisors);
@@ -19,7 +19,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
   - the agent ids of the awake builder sections, and which of them to coordinate with;
   - "End with your REPORT block."
 - Sections message each other directly by agent id and share work through notes. Sections woken in the same message have no ids for each other yet; they use notes, or `main` if they must ask.
-- A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it first if asleep) and include the asker's agent id so the owner replies to it directly. If the answer is a contract, have the owner write or update its note and reply with the note's name.
+- A section falls back to you (`main`) when an id is missing or a message fails: forward its request with SendMessage to the other section's agent id (wake it if it has no id) and include the asker's agent id so the owner replies to it directly. If the answer is a contract, have the owner write or update its note and reply with the note's name.
 - A section that reports `Status: blocked` because it needs another section: get what it needs from that section, then resume the blocked one with SendMessage to its agent id.
 
 ## Notes
@@ -41,7 +41,7 @@ ai-engineer advises on AI decisions; ai-llm builds AI features.
 
 ## Rules that win inside section-team
 - For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers. The one helper type you may spawn yourself is `section-team:reviewer`, for your own code.
-- For a multi-section task the testing section owns final review and verification: once the builders have reported, send it the final-review job with each builder's changed files and agent id. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back (the plugin refuses an ungraded code REPORT). Never tell a section to skip its gate. After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.
+- For a multi-section task the testing section owns final review and verification: once the builders have reported, start a fresh one on the final-review job with each builder's changed files and agent id. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back (the plugin refuses an ungraded code REPORT). Never tell a section to skip its gate. After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## New skills

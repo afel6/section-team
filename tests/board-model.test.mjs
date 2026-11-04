@@ -121,6 +121,21 @@ test('sectionUsage: head, helpers and a grandchild roll up to the section; helpe
   assert.deepEqual(result, { frontend: { total: 3340, out: 334, helpers: 2, models: [['haiku', 1], ['sonnet', 1]] } })
 })
 
+test('sectionUsage: two spawns of one section add up to one section', () => {
+  const later = { id: 'S2', type: 'section-team:frontend', status: 'running', description: 'second job' }
+  const result = sectionUsage({
+    agents: [{ ...HEAD, status: 'completed' }, later],
+    spawns: {
+      S1: { subagentType: 'section-team:frontend', model: 'claude-opus-5-5' },
+      S2: { subagentType: 'section-team:frontend', model: 'claude-opus-5-5' },
+      H1: { parentAgentId: 'S1', subagentType: 'Explore', model: 'claude-haiku-5-5' },
+      H2: { parentAgentId: 'S2', subagentType: 'Explore', model: 'claude-haiku-5-5' },
+    },
+    usage: { S1: { total: 1000, out: 100 }, S2: { total: 500, out: 50 }, H1: { total: 20, out: 2 }, H2: { total: 30, out: 3 } },
+  })
+  assert.deepEqual(result, { frontend: { total: 1550, out: 155, helpers: 2, models: [['haiku', 2]] } })
+})
+
 test('sectionUsage: agents with no section ancestor are ignored, even with helpers of their own', () => {
   const result = sectionUsage({
     agents: [HEAD, { id: 'X1', type: 'general-purpose', status: 'running', description: 'supervisor helper' }, { id: 'X2', type: 'Explore', status: 'running', description: 'its helper' }],

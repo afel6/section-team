@@ -14,7 +14,7 @@ import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.url))
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
-const FIXTURE = readFileSync(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url), 'utf8').trim()
+const FIXTURE = readFileSync(new URL('./fixtures/supervisor-balanced.md', import.meta.url), 'utf8').trim()
 const MARKER = '[section-team supervisor]'
 const UNGRADED_LINE = 'A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode\'s gate before you call that work done.'
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
@@ -294,7 +294,7 @@ test('a Max mode file at the repo root applies to a session started in a subfold
   assert.ok(ctx.includes('## Mode\n- This project runs in Max mode (from .team/mode.json).'))
 })
 
-test('without a mode file the context is the v0.1.1 brief plus a Balanced mode section', () => {
+test('without a mode file the context is the Balanced brief plus a Balanced mode section', () => {
   assert.equal(
     buildContext(repo(), tempHome(), {}),
     `${FIXTURE}\n\n## Mode\n- This project runs in Balanced mode (default).\n- Automatic skill installs: off (default).\n- ${UNGRADED_LINE}`,
