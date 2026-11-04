@@ -1,0 +1,43 @@
+I couldn’t write `verdict.json` because the filesystem is read-only. No solution files were changed.
+
+```json
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 8,
+    "docsUsability": 7,
+    "overall": 8,
+    "notes": "Clear validation, exact routing and serialized mutations (A/server.mjs:46, A/server.mjs:220, A/server.mjs:266); useful concise usage documentation (A/README.md:6). Defects: unescaped PORT input produces multiple stderr lines for an embedded newline (A/server.mjs:115); missing CONNECT/checkExpectation handlers leave requests outside specified routing (A/server.mjs:299). Direct overwrite cannot preserve persisted state after a partial write fails (A/server.mjs:137), confirmed with modeled ENOSPC. Accepted nextId near MAX_SAFE_INTEGER produces duplicate IDs and unreloadable data (A/server.mjs:93, A/server.mjs:226). Ran own tests using --test-isolation=none: 5 browser tests passed; server tests had 7 failures and 8 cancellations from unavailable scratch fixtures. Independent in-memory probes passed 28 normal-behavior checks."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Strong persisted-state validation, serialized handling and browser race protection (B/server.mjs:100, B/server.mjs:321, B/public/app.js:117). Handles CONNECT and unknown Expect headers explicitly (B/server.mjs:365), giving it the strongest protocol coverage. README explains configuration and persistence clearly (B/README.md:10). CONNECT replies before consuming a declared body (B/server.mjs:267); an in-memory probe confirmed an immediate reply without data listeners. Direct overwrite loses durable state under modeled partial-write failure (B/server.mjs:127). ID increment also lacks an exhaustion guard (B/server.mjs:222). Ran own suites using --test-isolation=none: 83 browser/HTML tests passed; 87 failures and 315 cancellations were environmental scratch-fixture errors. In-memory concurrency produced exactly one 201 and nineteen 409 replies; ordinary failed-save rollback passed."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "Readable shared validation, exact routing, safe text rendering and comprehensive documentation (C/server.mjs:73, C/server.mjs:260, C/public/app.js:67, C/README.md:29). Missing CONNECT/checkExpectation handlers allow dropped CONNECT requests and automatic 417 responses instead of required route responses (C/server.mjs:316); startup listener inspection confirmed their absence. Direct overwrite fails to preserve persisted data after modeled partial-write ENOSPC (C/server.mjs:216). Accepted MAX_SAFE_INTEGER nextId advances to a value its own startup validator rejects (C/server.mjs:125, C/server.mjs:239), reproduced in memory. Ran own suites using --test-isolation=none: 41 browser/HTML tests passed; 62 failures and 203 cancellations came from unavailable scratch fixtures. Fourteen independent in-memory assertions passed, including overlap serialization and ordinary save-failure rollback."
+  },
+  "D": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "Well-structured validation, serialized commits, bounded POST buffering and thorough browser tests (D/server.mjs:101, D/server.mjs:154, D/server.mjs:180, D/test/app.test.mjs:1). Usage and persistence documentation are detailed (D/README.md:24, D/README.md:46). Invalid PORT containing a newline emits multiple stderr lines (D/server.mjs:297), reproduced in memory. Missing CONNECT/checkExpectation handlers retain incorrect Node defaults (D/server.mjs:308). Modeled partial-write failure returned 500 but left persisted JSON unreadable (D/server.mjs:188). Boundary nextId values produced duplicate IDs and failed reload (D/server.mjs:78, D/server.mjs:202). Ran own suites using --test-isolation=none: all 48 browser/HTML tests passed; 92 server tests encountered environmental scratch-fixture failures. Independent probes confirmed one 201 plus nineteen 409s for concurrent overlaps and correct ordinary failed-save ID rollback."
+  },
+  "ranking": ["B", "C", "D", "A"]
+}
+```

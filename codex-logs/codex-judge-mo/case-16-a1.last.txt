@@ -1,0 +1,43 @@
+All 18 ledger/validation tests passed per solution. The sandbox blocked full HTTP/persistence testing and denied writing `verdict.json`. Scores distinguish code and coverage quality; those environment failures are not solution defects.
+
+```json
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "A/lib/validate.mjs:64 and A/lib/ledger.mjs:12 correctly fix cents and remainder allocation. A/lib/import.mjs:69 implements duplicate precedence; :96 handles atomic results, independent ids, dry runs and skips without mutating saved records. A/README.md:36 documents the required endpoint and statuses. Main weaknesses: string exceptions at A/lib/import.mjs:36 and :46, and A/test/import.test.mjs:59 checks only file contents, so it would miss an unnecessary rewrite; no dedicated import restart or single-save assertion. Ran npm --prefix A test: sandbox spawn EPERM. With --test-isolation=none, all 18 ledger/validation tests passed; HTTP/store tests were blocked by unavailable writable scratch. Import test syntax passed. No functional defect found by inspection."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "B/lib/import.mjs:51, :79 and :115 clearly separate ordered entry checks, duplicate/recorded classification and immutable application. Money fixes are correct at B/lib/validate.mjs:64 and B/lib/ledger.mjs:12. B/test/import.test.mjs:15 exercises exact body limits and error precedence; B/test/import-helpers.mjs:54 can detect unwanted saves, and B/test/import-apply.test.mjs:46 compares imports with POST records. B/README.md:38 supplies all required statuses and rules. Remaining test gaps: no explicit successful-import single-save count, import restart or legacy-record preservation regression. Ran npm --prefix B test: sandbox spawn EPERM. With --test-isolation=none, all 18 ledger/validation tests passed; HTTP/store tests were blocked by unavailable writable scratch. New test files passed syntax checks. No functional defect found by inspection."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "C/lib/import.mjs:30 preserves body-check precedence, :67 handles duplicate/skipped entries correctly, and :99 returns immutable state only for real changes. Correct money fixes at C/lib/validate.mjs:64 and C/lib/ledger.mjs:12. Strongest persistence coverage: C/test/import.test.mjs:86 checks exactly one save and restart; :133 and :167 count zero saves for skips/dry runs; :351 covers Unicode comparison semantics. C/test/api.test.mjs:98 covers legacy records. C/README.md:38 documents all required statuses and rules. Minor maintenance cost: persistence tests patch global fs exports at C/test/import.test.mjs:37, though restoration is registered. Ran npm --prefix C test: sandbox spawn EPERM. With --test-isolation=none, all 18 ledger/validation tests passed; HTTP/store tests were blocked by unavailable writable scratch. Import test syntax passed. No functional defect found by inspection."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "D/lib/import.mjs:40 implements ordered checks, :77 correctly retains earlier valid expenses for duplicate detection, and :104 allocates independent ids and suppresses saves for dry/all-skipped imports. D/lib/validate.mjs:64 and D/lib/ledger.mjs:12 correctly repair money handling. D/test/api.test.mjs:72 verifies saved records are not migrated; D/test/import.test.mjs:256 checks restart persistence. D/README.md:38 and :50 clearly document the contract. Main gap: D/test/import.test.mjs:207 and :223 compare file contents without counting writes, and successful imports lack a single-save assertion. Ran npm --prefix D test: sandbox spawn EPERM. With --test-isolation=none, all 18 ledger/validation tests passed; HTTP/store tests were blocked by unavailable writable scratch. Import test syntax passed. No functional defect found by inspection."
+  },
+  "ranking": ["C", "B", "D", "A"]
+}
+```

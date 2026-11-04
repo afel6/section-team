@@ -1,0 +1,43 @@
+Could not save `verdict.json`: the read-only sandbox denied access.
+
+```json
+{
+  "A": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 8,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "A/jsonpatch.mjs:35 safely preserves special names, member order and -0; :135 validates all forms before application. A/README.md:7 clearly documents API, CLI and errors. Defects: :187 accepts inherited operations at sparse patch positions instead of rejecting holes; recursive cloning at :40, called at :174, throws raw RangeError after valid copies deepen intermediate results. Native library tests passed 28/28; own CLI tests passed 9/9 with virtual filesystem/process transport. Direct CLI success/error smoke checks passed. Default test runner was blocked by sandbox spawn EPERM."
+  },
+  "B": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "B/jsonpatch.mjs:43 and :83 use iterative cloning/equality; five nested root-copy operations succeeded at result depth 32000. B/jsonpatch-cli.mjs:17 caps actual bytes read; B/README.md:7 documents usage and errors clearly. Defects: B/jsonpatch.mjs:207 accepts inherited operations at sparse patch positions; B/jsonpatch-cli.mjs:115 measures textual nesting, wrongly rejecting a shallow parsed object whose earlier deep duplicate member was overwritten. Native library tests passed 10/10; 18 additional in-memory CLI checks and direct CLI smoke checks passed. Default runner/own CLI subprocess tests were blocked by sandbox spawn EPERM."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 9,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "C/jsonpatch.mjs:203 correctly rejects holes despite inherited numeric properties; :33 safely creates special member names. C/test/patch-purity.test.mjs:23 checks preservation and independence; C/README.md:9 clearly explains usage. Defects: C/jsonpatch-cli.mjs:96 checks textual depth, rejecting shallow parsed values with overwritten deep duplicate members; recursive cloning at C/jsonpatch.mjs:37, used at :191, throws raw RangeError on valid copies growing intermediate depth. Native library tests passed 288/288. Additional in-memory CLI probes passed 19 checks and reproduced two duplicate-member failures; direct CLI smoke checks passed. Default runner was blocked by sandbox spawn EPERM."
+  },
+  "D": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 9,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "D/jsonpatch.mjs:29 safely preserves special member names; :183 validates forms before application. D/jsonpatch-cli.mjs:85 measures parsed-value depth correctly, including overwritten duplicates; D/README.md:7 clearly documents API and CLI. Defects: D/jsonpatch.mjs:187 accepts inherited operations at sparse patch positions; recursive deepCopy at :33, used at :172, throws raw RangeError when valid copies deepen intermediate results. Native library tests passed 155/155; 25 additional in-memory CLI checks and direct CLI smoke checks passed. Default runner/full CLI suites could not run under sandbox subprocess restrictions (spawn EPERM)."
+  },
+  "ranking": ["B", "C", "D", "A"]
+}
+```

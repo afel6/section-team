@@ -1,0 +1,43 @@
+The read-only sandbox rejected writing `verdict.json`. Test-worker and CLI-fixture restrictions are recorded separately from solution defects.
+
+```json
+{
+  "A": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "A/jsonpatch.mjs:35 safely handles special names; :44 and :67 provide iterative copying/equality preserving numbers, order and isolation. A/jsonpatch-cli.mjs:143 handles deeply expanded results; A/README.md:30 documents contracts and :61 explains exit codes. Defect at A/jsonpatch.mjs:217: reading patch[i] accepts an inherited operation at a sparse hole. A one-slot array with an inherited add returned {x:1}; required operation 0: not an object. Ran npm --prefix A test (sandbox spawn EPERM), then node --test --test-isolation=none on its four library test files: 408/408 passed. Own CLI suites were blocked by absent scratch/read-only permissions. Direct CLI checks passed, and 25 in-memory CLI cases using actual source with fs/process adapters passed, including a depth-4500 result. Extensive tests miss inherited patch slots."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 9,
+    "docsUsability": 8,
+    "overall": 8,
+    "notes": "B/jsonpatch.mjs:44, :51 and :85 implement safe member writes and iterative copying/equality; B/jsonpatch-cli.mjs:116 prints deeply expanded results. B/README.md:44 gives usage and :57 exit codes. Defect at B/jsonpatch.mjs:242: inherited numeric properties fill sparse patch holes; the probe returned {x:1} instead of operation 0: not an object. Ran npm --prefix B test (sandbox spawn EPERM) and node --test --test-isolation=none B/test/jsonpatch.test.mjs: 9/9 passed. Own CLI setup was blocked by absent scratch/read-only permissions. All 25 in-memory CLI cases using actual source with fs/process adapters passed, including depth-4500 output. B/test/cli.test.mjs:82 usefully tests deep output, but the compact suite misses inherited patch indices and covers fewer validation combinations than A."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "C/jsonpatch.mjs:45 safely writes special names; :49 and :77 use iterative copying/equality, and :216 correctly treats inherited patch indices as holes. C/README.md:24 and :53 clearly document contracts and exit codes. Defect at C/jsonpatch-cli.mjs:122: native JSON.stringify overflows on valid deeply expanded results. A depth-900 document and four replacements, each with a depth-900 value, produce depth 4500 from a 25,349-byte patch of depth 902; an actual CLI pipeline reproduced an uncaught RangeError and multiline stack trace instead of success. Ran npm --prefix C test (sandbox spawn EPERM), then node --test --test-isolation=none C/test/jsonpatch.test.mjs: 26/26 passed. Own CLI fixtures were blocked by absent scratch/read-only permissions. In-memory CLI cases passed 24/25; C/test/jsonpatch.test.mjs:281 tests deep library values but omits deep CLI output."
+  },
+  "D": {
+    "correctness": 7,
+    "codeQuality": 8,
+    "tests": 8,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 7,
+    "notes": "D/jsonpatch.mjs:28 safely handles special member names and :38 copies iteratively; D/README.md:29 and :48 explain the API and CLI. Three reproduced defects: D/jsonpatch.mjs:204 executes inherited operations at sparse holes; D/jsonpatch-cli.mjs:115 measures source nesting, rejecting an overwritten depth-1001 duplicate member although JSON.parse produces shallow {x:0}; :135 returns exit 1 with result too deep to print for valid deeply expanded results. Direct CLI pipelines confirmed both CLI defects. Ran npm --prefix D test (sandbox spawn EPERM), then node --test --test-isolation=none D/test/jsonpatch.test.mjs D/test/pointer-form.test.mjs: 246/246 passed. Own CLI setup was blocked by absent scratch/read-only permissions. In-memory CLI cases passed 22/25. Thorough ordinary-operation coverage misses inherited slots, duplicate-key depth and expanded-result output."
+  },
+  "ranking": ["A", "B", "C", "D"]
+}
+```

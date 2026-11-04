@@ -1,0 +1,43 @@
+Could not write `verdict.json` because the workspace is read-only.
+
+```json
+{
+  "A": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Strongest balance of durability, structure and coverage. A/server.mjs:136 saves atomically; :201 serializes mutations; :207 commits memory only after saving. A/public/app.js:82 correctly suppresses stale list outcomes. A/README.md:14 documents usage thoroughly. Defect: A/server.mjs:339 installs no CONNECT or checkExpectation handling; in-memory HTTP parser probes showed CONNECT /api/rooms receives no response and GET /api/rooms with Expect: custom receives empty 417 instead of 200 JSON. Ran node --test A/test/*.test.mjs: sandbox spawn EPERM prevented execution. In-process execution passed 52 UI/static tests; integration tests encountered sandbox mkdtemp EPERM. Independent filesystem-mocked probes passed 65 assertions covering validation, concurrency, draining, rollback and restart behavior."
+  },
+  "B": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Clear repository abstraction and broad edge-case coverage. B/server.mjs:153 serializes changes and commits memory after saving; :349 handles HTTP cases missed by the other solutions. B/public/app.js:109 suppresses stale list outcomes. B/README.md:20 explains startup and configuration. Main defect: B/server.mjs:161 directly overwrites the sole data file. Injecting a partial write followed by ENOSPC preserved memory but corrupted persisted JSON, preventing restart. B/test/persistence.test.mjs:91 misses partial-write failures. B/server.mjs:312 also sends CONNECT responses before draining their bodies. Ran npm --prefix B test: blocked by sandbox spawn EPERM. Four page suites passed 83 tests with isolation disabled; server tests encountered sandbox mkdtemp EPERM. Independent mocked-handler probes passed 29 assertions."
+  },
+  "C": {
+    "correctness": 8,
+    "codeQuality": 9,
+    "tests": 7,
+    "robustnessSecurity": 7,
+    "docsUsability": 8,
+    "overall": 8,
+    "notes": "Readable implementation with correct ordered validation, raw routing and stale-list suppression at C/server.mjs:302, :364 and :128. C/README.md:6 gives concise usage instructions. Main weakness: C/server.mjs:262 directly overwrites persisted data, exposing existing bookings to corruption on partial-write failure; C/test/server.test.mjs:180 covers only failure before writing. C/server.mjs:247 interpolates invalid PORT verbatim; PORT containing a newline produces multiple stderr lines. C/server.mjs:401 also leaves CONNECT and custom expectations to Node defaults; parser probes showed missing CONNECT responses and empty 417 responses. Ran npm test: blocked by sandbox spawn EPERM. In-process execution passed three UI tests; seven server tests encountered sandbox mkdtemp EPERM. Independent mocked-handler probes passed 54 assertions. UI coverage omits cancellation behavior."
+  },
+  "D": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 9,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Strong persistence and careful API/browser behavior. D/server.mjs:140 saves atomically; :225 saves before updating memory; :248 preserves raw paths. D/public/app.js:98 suppresses stale list outcomes. D/test/server.test.mjs:633 covers rollback, :677 concurrency and :700 large-body draining. D/README.md:13 provides comprehensive usage documentation. Defect: D/server.mjs:312 lacks CONNECT and checkExpectation handlers; in-memory HTTP parser probes showed no response for CONNECT /api/rooms and empty 417 for GET /api/rooms with Expect: custom. Synchronous filesystem operations also block request processing. Ran npm --prefix D test: blocked by sandbox spawn EPERM. Direct app tests passed 24/24; server tests encountered sandbox mkdtemp EPERM. Independent filesystem-mocked probes passed 24 checks."
+  },
+  "ranking": ["A", "D", "B", "C"]
+}
+```

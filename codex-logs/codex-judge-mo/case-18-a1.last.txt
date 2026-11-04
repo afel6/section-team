@@ -1,0 +1,43 @@
+No confirmed implementation defects found; ranking reflects regression coverage. Full suites hit sandbox `EPERM` restrictions. The read-only sandbox also prevented saving `verdict.json`.
+
+```json
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "Correct cent rounding and remainder distribution (A/lib/validate.mjs:64; A/lib/ledger.mjs:11). Import preserves validation precedence, duplicate history, independent IDs and no-write behavior (A/lib/import.mjs:35,79,117). Required documentation is complete (A/README.md:38,50). Broad import coverage includes cross-group isolation and dry-run ID reuse (A/test/import.test.mjs:291,298). Testing gap: the one-write test checks final contents rather than counting writes (A/test/import.test.mjs:60). Ran npm test, blocked by spawn EPERM; disabling isolation encountered mkdtemp EPERM. Ledger/validation tests passed 17/17; 137 in-memory request assertions with virtual persistence passed."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "Correct monetary fixes and immutable import construction (B/lib/validate.mjs:64; B/lib/ledger.mjs:11; B/lib/import.mjs:98). Duplicate-before-recorded handling correctly retains skipped entries in history (B/lib/import.mjs:87). Complete endpoint documentation (B/README.md:38,50). Strong 100,000-value money conversion regression (B/test/validate.test.mjs:45). Import tests are less comprehensive: all-skipped checks compare bytes only, and persistence checks do not establish a single write (B/test/import.test.mjs:147,177). Ran npm test, blocked by spawn EPERM; disabling isolation encountered mkdtemp EPERM. Ledger/validation tests passed 18/18; 137 in-memory request assertions with virtual persistence passed."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "Correct monetary fixes, ordered validation, duplicate precedence and independent IDs without migration (C/lib/validate.mjs:64; C/lib/ledger.mjs:11; C/lib/import.mjs:44,84,105). Complete documentation (C/README.md:38,50). Strongest verification: exact 10 KB boundary, inode/mtime/content checks for refused imports, and mixed dry-run/skipped ID behavior (C/test/import-body.test.mjs:41; C/test/import-fixtures.mjs:37; C/test/import-success.test.mjs:90). Minor gap: successful persistence is checked through inode changes and restart rather than direct write counting (C/test/import-success.test.mjs:118). Ran npm test, blocked by spawn EPERM; disabling isolation encountered mkdtemp EPERM. Ledger/validation tests passed 19/19; 137 in-memory request assertions with virtual persistence passed."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "Correct rounding, remainder allocation, strict validation, duplicate handling and atomic candidate state (D/lib/validate.mjs:64; D/lib/ledger.mjs:11; D/lib/import.mjs:33,93,111). Complete documentation (D/README.md:38,63). Broad tests cover global nonreused IDs, all-skipped file metadata, identical payments and PATCH money regression (D/test/import-success.test.mjs:81,123,214; D/test/amounts.test.mjs:81). Relative gaps: rejection snapshots cannot detect identical-content rewrites, and body-size tests omit exact-limit acceptance (D/test/import-checks.test.mjs:22,65). Ran npm test, blocked by spawn EPERM; disabling isolation encountered mkdtemp EPERM. Ledger/validation tests passed 20/20; 137 in-memory request assertions with virtual persistence passed."
+  },
+  "ranking": ["C", "D", "A", "B"]
+}
+```

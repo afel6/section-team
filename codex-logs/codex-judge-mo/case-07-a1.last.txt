@@ -1,0 +1,43 @@
+Ranking: D, A, C, B. All 147 standalone browser tests passed. Server integration tests were sandbox-blocked. Writing `verdict.json` was denied by the read-only filesystem.
+
+```json
+{
+  "A": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Strong ordered validation and atomic save-before-commit persistence (A/server.mjs:57,140,223), stale-list suppression (A/public/app.js:92), and clear configuration documentation (A/README.md:29). Defect: A/server.mjs:312 installs no CONNECT/checkExpectation handlers; in-memory Node HTTP parser probes showed CONNECT /api/rooms closes without the required JSON 405, while Expect: custom produces an immediate non-JSON 417 before draining the body. npm --prefix A test was blocked by sandbox spawn EPERM; server tests with isolation disabled were blocked by unavailable scratch fixtures. node --test --test-isolation=none A/test/app.test.mjs passed 24/24. Mock-filesystem partial-write probes preserved the previous file and allowed restart."
+  },
+  "B": {
+    "correctness": 8,
+    "codeQuality": 8,
+    "tests": 7,
+    "robustnessSecurity": 6,
+    "docsUsability": 7,
+    "overall": 7,
+    "notes": "Readable validation, literal routing and synchronous mutation serialization (B/server.mjs:302,364); useful core API/concurrency tests (B/test/server.test.mjs:90,152) and basic usage documentation (B/README.md:6). Defects: B/server.mjs:262 overwrites the live data file; injected partial-write EIO returned 500 and preserved memory but corrupted saved JSON, causing simulated restart to exit 1. B/server.mjs:401 omits CONNECT/checkExpectation handling; parser probes produced no CONNECT reply and premature non-JSON 417. B/server.mjs:247 interpolates raw invalid PORT: a newline-containing value produced two stderr lines. npm --prefix B test was blocked by spawn EPERM; in-process server tests could not create scratch fixtures. node --test --test-isolation=none B/test/app.test.mjs passed 3/3; 14 mock-I/O request checks passed. Browser coverage is much narrower than the other solutions."
+  },
+  "C": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 7,
+    "docsUsability": 9,
+    "overall": 8,
+    "notes": "Well-structured validation, serialized mutations and exact routing (C/server.mjs:73,153,257), extensive browser tests and detailed usage documentation (C/README.md:16). Defects: C/server.mjs:161 overwrites the live data file; partial-write EIO fault injection preserved memory but corrupted persisted JSON and prevented simulated restart. C/server.mjs:312 handles CONNECT separately and calls socket.end at line 321 before reading its body; the Node parser probe returned 405 while all four declared body bytes were still missing. npm --prefix C test was blocked by spawn EPERM; in-process server fixtures were blocked by unavailable scratch. node --test --test-isolation=none on C/test/page-html.test.mjs, page-actions.test.mjs, page-load-list.test.mjs and page-script-api.test.mjs passed 83/83. Custom Expect correctly waited for the body."
+  },
+  "D": {
+    "correctness": 9,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 8,
+    "docsUsability": 9,
+    "overall": 9,
+    "notes": "Strong asynchronous atomic persistence and serialized save-before-commit mutations (D/server.mjs:136,201), safe rendering and stale-list suppression (D/public/app.js:57,82), broad concurrency/rollback tests and thorough documentation (D/README.md:29). Defect: D/server.mjs:339 installs no CONNECT/checkExpectation handlers; Node parser probes showed CONNECT /api/rooms closes without JSON 405 and Expect: custom receives an immediate non-JSON 417 before body draining. The normal whole-suite run was blocked by spawn EPERM; fixture-dependent server tests remained blocked by unavailable scratch with isolation disabled. node --test --test-isolation=none D/test/app-actions.test.mjs D/test/app-list.test.mjs passed 37/37. Independent handler probes passed 166 assertions; mock-filesystem partial-write probes preserved saved data and restartability."
+  },
+  "ranking": ["D", "A", "C", "B"]
+}
+```

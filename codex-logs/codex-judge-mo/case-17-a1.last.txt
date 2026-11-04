@@ -1,0 +1,43 @@
+The read-only sandbox prevented saving `verdict.json`. No functional defects were found; ranking reflects test coverage and code structure.
+
+```json
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "A/lib/validate.mjs:64 and A/lib/ledger.mjs:12 correctly fix cents and remainder distribution. A/lib/import.mjs:75 preserves duplicate precedence; :118 builds atomic state and suppresses dry-run/all-skipped writes. A/README.md:38 documents the endpoint completely. Broad HTTP coverage includes precedence, persistence and IDs (A/test/import.test.mjs:184, :372, :427). Minor gap: no import-specific save-failure injection. npm --prefix A test was blocked by sandbox spawn EPERM. Replaying unchanged tests with in-memory storage and real HTTP passed 75/76; only the inherited startup subprocess test remained blocked. All 33 import tests and 32 shared HTTP checks passed."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 8,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "B/lib/validate.mjs:64 and B/lib/ledger.mjs:11 fix both monetary defects. B/lib/import.mjs:74 correctly implements duplicate/skip precedence; :100 assigns independent IDs and :120 avoids unnecessary saves. Minor maintainability issue: expense validation at :44 repeats parsing performed at :80. B/README.md:38 contains the required API documentation. B/test/import.test.mjs:33 claims one-write coverage without counting writes; :248 compares unchanged bytes only. npm --prefix B test was blocked by sandbox spawn EPERM. In-memory-storage replay with real HTTP passed 59/60, with only the inherited startup subprocess blocked. All 17 import tests and 32 shared HTTP checks passed."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "C/lib/validate.mjs:64 and C/lib/ledger.mjs:12 correctly repair monetary calculations. C/lib/import.mjs:92 handles duplicate tracking correctly; :108 rejects before allocating IDs and :134 suppresses dry-run/all-skipped writes. C/README.md:38 and :50 satisfy documentation requirements. Coverage is narrower: C/test/import.test.mjs:150 checks unchanged bytes without detecting identical rewrites, and the suite lacks import-specific restart and legacy-record fixtures. npm --prefix C test was blocked by sandbox spawn EPERM. Replaying unchanged tests with in-memory storage and real HTTP passed 48/49; only the inherited startup subprocess remained blocked. All eight import tests and 32 shared HTTP checks passed."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "D/lib/validate.mjs:64 and D/lib/ledger.mjs:13 correctly fix rounding and cent conservation. D/lib/import.mjs:100 enforces duplicate precedence; :121 rejects atomically and :147 avoids dry-run/all-skipped writes. D/README.md:38 and :50 fully document the endpoint. Strongest regression coverage includes existing-record preservation (D/test/fixes.test.mjs:98), duplicate/skip interactions (D/test/import-dedupe.test.mjs:181), and import persistence (D/test/import.test.mjs:139). Minor gap: no import-specific save-failure injection. npm --prefix D test was blocked by sandbox spawn EPERM. In-memory-storage replay with real HTTP passed 136/137; only the inherited startup subprocess remained blocked. All 32 shared HTTP checks passed, including write counts, failed-save rollback and retained legacy records."
+  },
+  "ranking": ["D", "A", "B", "C"]
+}
+```

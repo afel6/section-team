@@ -1,0 +1,3 @@
+Reading additional input from stdin...
+2026-11-03T14:17:43.064250Z ERROR codex_core::tools::router: error=collab spawn failed: Fatal error: failed to load model context for thread 01a1a1c5-409e-78f0-b3ed-15852ae9bbc0: invalid thread-store request: no rollout found for thread id 01a1a1c5-409e-78f0-b3ed-15852ae9bbc0
+2026-11-03T14:24:47.429328Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings

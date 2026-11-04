@@ -1,0 +1,45 @@
+No implementation defects were reproduced. Ranking reflects test coverage. Each solution passed 341 independent assertions across 119 local HTTP requests using in-memory persistence.
+
+The read-only workspace prevented native persistence testing and writing `verdict.json`; subprocess restrictions blocked one inherited startup test per solution.
+
+```json
+{
+  "A": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "Correct cents rounding (A/lib/validate.mjs:64), remainder allocation (A/lib/ledger.mjs:10), and atomic import state construction (A/lib/import.mjs:84). README requirements satisfied (A/README.md:38). Extensive HTTP and split-invariant coverage. Coverage gaps: persistence test does not count writes (A/test/import-success.test.mjs:147); ordinary dry-run checks bytes without detecting identical rewrites (:164). Native parser/ledger tests: 20/20 passed. Full suite with in-memory filesystem: 86 passed, one inherited startup test blocked by EPERM. Independent HTTP probes: 341 assertions passed, including save-failure rollback and legacy-record preservation."
+  },
+  "B": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 10,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 10,
+    "notes": "Correct ordered validation, duplicate precedence, independent ids, and no-write modes (B/lib/import.mjs:44, B/lib/import.mjs:84, B/lib/import.mjs:126). Complete endpoint documentation (B/README.md:38). Strongest persistence-observation coverage uses inode, timestamp, and contents (B/test/import-fixtures.mjs:38); monetary HTTP regressions include payments and settlement (B/test/api.test.mjs:56). Remaining gap: inode change proves a save occurred, not exactly one write (B/test/import-success.test.mjs:123). Native parser/ledger tests: 19/19 passed. Full suite with in-memory filesystem: 81 passed, one inherited startup test blocked by EPERM. Independent HTTP probes: 341 assertions passed. No confirmed implementation defect."
+  },
+  "C": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 8,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "Compact implementation correctly validates entries, tracks duplicates, assigns ids, and avoids writes for dry/all-skipped imports (C/lib/import.mjs:47, C/lib/import.mjs:87, C/lib/import.mjs:100). Money fixes and required documentation are correct (C/lib/validate.mjs:64; C/lib/ledger.mjs:10; C/README.md:38). Coverage gaps: all-skipped test checks contents only (C/test/import.test.mjs:147); no successful 50-entry or repeated-payment batch test; persistence test does not count writes (:177). Native parser/ledger tests: 18/18 passed. Full suite with in-memory filesystem: 51 passed, one inherited startup test blocked by EPERM. Independent HTTP probes: 341 assertions passed. No confirmed implementation defect."
+  },
+  "D": {
+    "correctness": 10,
+    "codeQuality": 9,
+    "tests": 9,
+    "robustnessSecurity": 10,
+    "docsUsability": 10,
+    "overall": 9,
+    "notes": "Clear separation of body validation, entry parsing, classification, and state construction (D/lib/import.mjs:42, D/lib/import.mjs:54, D/lib/import.mjs:79, D/lib/import.mjs:110). Correct money fixes and complete documentation (D/lib/validate.mjs:64; D/lib/ledger.mjs:10; D/README.md:38). Tests cover repeated payments, 50 entries, skip precedence, and dry-run ids. Coverage gaps: the 'one write' test checks final contents rather than write count (D/test/import.test.mjs:60); ordinary dry-run verifies unchanged bytes only (:263). Native parser/ledger tests: 17/17 passed. Full suite with in-memory filesystem: 61 passed, one inherited startup test blocked by EPERM. Independent HTTP probes: 341 assertions passed. No confirmed implementation defect."
+  },
+  "ranking": ["B", "A", "D", "C"]
+}
+```
