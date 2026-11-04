@@ -28,7 +28,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
 import { readBars } from './bars-common.mjs'
 import { judgeDirFor } from './anonymize.mjs'
-import { checkLeakScan, fillPrompt, parseVerdict, subfolders } from './judge.mjs'
+import { checkLeakScan, fillPrompt, parseVerdict, subfolders, taskTextOf } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -166,8 +166,6 @@ function readJson(path) {
     throw new Error(`${path} is not valid JSON: fix or replace it`, { cause: err })
   }
 }
-
-const taskTextOf = (bench, pair) => readFileSync(join(bench, 'tasks', `${pair.split('-')[0]}.md`), 'utf8')
 
 // Every group's labels and task text, read before anything is copied: each group must hold the same 2 to 4 solutions.
 function checkPairs(judgeDir, pairs, bench) {

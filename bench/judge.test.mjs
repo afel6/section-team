@@ -437,6 +437,17 @@ test('prepareJob gives judge 2 of a two-solution pair the X/Y swap, and judge 1 
   assert.match(first.prompt, /^Solutions: X, Y\. SEED\/ is the repo/)
 })
 
+test('prepareJob gives the judges of a two-stage task both prompts, and a single-stage task its file as it is', t => {
+  const judgeDir = mkdtempSync(join(tmpdir(), 'judge-dir-'))
+  t.after(() => rmSync(judgeDir, { recursive: true, force: true }))
+  for (const pair of ['h7-r1', 'h2-r1']) for (const label of ['X', 'Y']) mkdirSync(join(judgeDir, pair, label), { recursive: true })
+  const task = name => readFileSync(join(BENCH, 'tasks', `${name}.md`), 'utf8')
+  const { prompt } = prepareJob({ pair: 'h7-r1', judge: 1 }, judgeDir, '{{TASK}}')
+  assert.ok(prompt.startsWith(task('h7')), 'the first prompt comes first')
+  assert.ok(prompt.endsWith(task('h7-s2')), 'the second prompt comes last')
+  assert.equal(prepareJob({ pair: 'h2-r1', judge: 1 }, judgeDir, '{{TASK}}').prompt, task('h2'))
+})
+
 test('edgeCounts counts first and last folders per setup', () => {
   const key = { 'h4-r1': { X: 'solo', Y: 'lean', Z: 'team', W: 'max' }, 'h5-r1': { X: 'lean', Y: 'team', Z: 'max', W: 'solo' } }
   const jobs = ['h4-r1', 'h5-r1'].flatMap(pair => [1, 2].map(judge => ({ pair, judge, labels: LABELS4, swap: mirrorSwap(judge, LABELS4) })))

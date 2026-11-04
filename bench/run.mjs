@@ -384,8 +384,8 @@ export const spawnOptions = (cwd, env) => ({ cwd, env, windowsHide: true, stdio:
 
 // Where a stage's output goes; a single-stage run (stage null) writes raw.json and stderr.txt.
 const rawFile = stage => (stage === null ? 'raw.json' : `raw-s${stage}.json`)
-const errFile = stage => (stage === null ? 'stderr.txt' : `stderr-s${stage}.txt`)
-const promptFile = (task, stage) => (stage === 2 ? `${task}-s2.md` : `${task}.md`)
+const stderrFile = stage => (stage === null ? 'stderr.txt' : `stderr-s${stage}.txt`)
+export const promptFile = (task, stage) => (stage === 2 ? `${task}-s2.md` : `${task}.md`)
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
 // Resolves once the output files are flushed, so the caller can read them. At timeoutMs it kills the child.
@@ -399,7 +399,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
     const child = spawn(binary, args, spawnOptions(dir, env))
     activeChild = { child, kill }
     const outFile = createWriteStream(join(outDir, rawFile(stage)))
-    const errorFile = createWriteStream(join(outDir, errFile(stage)))
+    const errorFile = createWriteStream(join(outDir, stderrFile(stage)))
     child.stdout.pipe(outFile)
     child.stderr.pipe(errorFile)
     let timedOut = false

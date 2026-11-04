@@ -345,6 +345,35 @@ test('hiddenTests marks a set killed at its limit as incomplete, so its zero fai
   assert.equal(r.parts.s2.tests, 0)
 })
 
+test('hiddenTests counts a test past its timeout as a failure, though the summary calls it cancelled, and only top-level lines', t => {
+  const bench = fakeSets(t)
+  const writeSet = (set, lines) => writeFileSync(join(bench, 'hidden', 'h7', `${set}.test.mjs`), ["import { test } from 'node:test'", ...lines].join('\n'))
+  writeSet('reg', ["test('passes', () => {})", "test('too slow', { timeout: 50 }, () => new Promise(resolve => setTimeout(resolve, 500)))"])
+  writeSet('s1', ["test('parent', async t => { await t.test('child', () => { throw new Error('no') }) })"])
+  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench }))
+  assert.deepEqual(r.parts.reg, { tests: 2, pass: 1, fail: 1 })
+  assert.equal(r.parts.s1.fail, 1, 'a subtest\'s line is indented: only its parent counts')
+  assert.equal(r.fail, 2)
+  assert.deepEqual(r.incomplete, [])
+  assert.equal(r.rate, r.pass / r.tests, 'a complete run keeps its pass rate')
+})
+
+test('a set cut at its limit keeps the failures it already wrote, and the tests it never reached cannot raise the rate', t => {
+  const bench = fakeSets(t)
+  writeFileSync(join(bench, 'hidden', 'h7', 's2.test.mjs'), [
+    "import { test } from 'node:test'",
+    "test('fails first', () => { throw new Error('no') })",
+    "test('fails second', () => { throw new Error('no') })",
+    "test('hangs', () => new Promise(resolve => setTimeout(resolve, 8000)))",
+  ].join('\n'))
+  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench, timeoutMs: 5000 }))
+  assert.ok(r.incomplete.includes('s2'), JSON.stringify(r.incomplete))
+  // At least: on Linux and macOS the killed runner may also report the hanging test.
+  assert.ok(r.parts.s2.fail >= 2, JSON.stringify(r.parts))
+  assert.equal(r.fail, r.parts.s2.fail, 'the other sets pass')
+  assert.equal(r.rate, 0, 'passing sets beside a cut one are not a full pass rate')
+})
+
 test('stageChange counts the files and lines stage 2 changed, by kind, leaving out .team and files that are not code', t => {
   const dir = mkdtempSync(join(tmpdir(), 'score-change-'))
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 3 }))

@@ -26,7 +26,8 @@ after(async () => {
   for (const s of running) await stopServer(s)
   rmSync(ROOT, RM)
 })
-// A hung test fails alone instead of running the whole file into the scorer's limit.
+// A hung test fails alone instead of running the whole file into the scorer's limit. Node's summary calls it cancelled;
+// the scorer counts its `not ok` line as a failure.
 export const it = (name, fn, timeout = 60_000) => test(name, { timeout }, fn)
 export const tryJson = text => {
   try {

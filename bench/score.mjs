@@ -215,21 +215,31 @@ export function hiddenEnv(dir, env = process.env) {
 
 const HIDDEN_LIMIT_MS = 300_000
 
+// Top-level results that failed. The summary's `# fail` misses some: a test past its `timeout` is `# cancelled` there,
+// and a set killed at the limit writes no summary. A subtest's line is indented.
+const notOkCount = stdout => (stdout.match(/^not ok /gm) ?? []).length
+
 function runHiddenFile(file, env, timeoutMs) {
   const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', file], { env, encoding: 'utf8', timeout: timeoutMs, windowsHide: true })
-  return { counts: parseTap(r.stdout ?? ''), cut: Boolean(r.error), tap: `${r.stdout ?? ''}\n${r.stderr ?? ''}` }
+  const stdout = r.stdout ?? ''
+  return { counts: parseTap(stdout), notOk: notOkCount(stdout), cut: Boolean(r.error), tap: `${stdout}\n${r.stderr ?? ''}` }
 }
 
 // A two-stage task's sets: s1 on the copy made after stage 1, s2 and reg on the final code. S1_DIR lets s2 and reg start
-// the stage-1 code too, to write the data they then migrate. The primary measure is fail, summed over the sets; a set
-// killed at the limit is named in incomplete, so its zero failures cannot read as a pass.
+// the stage-1 code too, to write the data they then migrate. The primary measure is fail, summed over the sets. A set
+// killed at the limit is named in incomplete, and the rate is then 0, as a single-stage run killed at its limit gets:
+// the tests it never reached would otherwise drop out of the rate and raise it.
 function hiddenSets(task, dir, s1Dir, bench, timeoutMs) {
-  const runs = HIDDEN_SETS.map(set => [set, runHiddenFile(join(bench, 'hidden', task, `${set}.test.mjs`), { ...hiddenEnv(set === 's1' ? s1Dir : dir), S1_DIR: s1Dir }, timeoutMs)])
+  const runs = HIDDEN_SETS.map(set => {
+    const { counts, notOk, cut, tap } = runHiddenFile(join(bench, 'hidden', task, `${set}.test.mjs`), { ...hiddenEnv(set === 's1' ? s1Dir : dir), S1_DIR: s1Dir }, timeoutMs)
+    return [set, { counts: { ...counts, fail: notOk }, cut, tap }]
+  })
   const sum = key => runs.reduce((total, [, { counts }]) => total + counts[key], 0)
+  const incomplete = runs.filter(([, { counts, cut }]) => cut || counts.tests === 0).map(([set]) => set)
   return {
-    tests: sum('tests'), pass: sum('pass'), fail: sum('fail'), rate: sum('tests') ? sum('pass') / sum('tests') : 0,
+    tests: sum('tests'), pass: sum('pass'), fail: sum('fail'), rate: incomplete.length ? 0 : sum('pass') / sum('tests'),
     parts: Object.fromEntries(runs.map(([set, { counts }]) => [set, counts])),
-    incomplete: runs.filter(([, { counts, cut }]) => cut || counts.tests === 0).map(([set]) => set),
+    incomplete,
     tap: runs.map(([set, { tap }]) => `# set ${set}\n${tap}`).join('\n'),
   }
 }

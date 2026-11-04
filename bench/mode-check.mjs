@@ -103,7 +103,7 @@ function mainWrites(roles, runDir) {
 }
 
 // h4 and h7, every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
-function h4Rules(roles, woken, runDir) {
+function multiAreaRules(roles, woken, runDir) {
   const byMain = new Set(woken.filter(w => w.caller === 'main').map(w => w.section))
   const missing = ['backend', 'frontend'].filter(head => !byMain.has(head)).map(head => `main did not wake ${head}`)
   const docs = woken.some(w => w.section === 'docs') ? [] : ['docs not woken']
@@ -178,7 +178,7 @@ export function checkRun({ cond, task, roles, runDir, record }) {
   const broken = [
     ...recordRules(mode, record),
     ...modeFileRules(mode, runDir),
-    ...(MULTI_AREA_TASKS.includes(task) ? h4Rules(roles, woken, runDir) : []),
+    ...(MULTI_AREA_TASKS.includes(task) ? multiAreaRules(roles, woken, runDir) : []),
     ...reviewerRules(roles, mode),
     ...gateRules(roles, mode),
     ...sectionRules(mode, task, woken),
