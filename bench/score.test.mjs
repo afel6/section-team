@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentModelSplit, collectRoles, hiddenEnv, hiddenTests, ownTests, parseTranscript, scoreLine, splitCoverage, summaryRow } from './score.mjs'
+import { agentModelSplit, codeStats, collectRoles, collectRolesFrom, costOf, hiddenEnv, hiddenTests, isTestPath, ownTests, parseTranscript, runSession, scoreLine, seedDirFor, sessionTexts, splitCoverage, summaryRow, transcriptDir } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
@@ -127,11 +127,158 @@ test("ownTests runs the solution's npm test without the maintainer's keys and to
   assert.equal(r.passed, true, `npm test exit code ${r.exitCode}`)
 })
 
-test('a run that ended in an API error is flagged on the score line and in summary.json', () => {
-  const transcript = { costUSD: 1.4, isError: true, subtype: 'success', tokens: {}, turns: 3, agentSpawns: 0, agentTypes: {}, agentModels: {}, modelUsage: {} }
-  const metrics = { id: 'h1-team-ho-r1', task: 'h1', cond: 'team-ho', rep: 1, timedOut: false, wallMs: 60_000, transcript, split: null, splitCoverage: null, hidden: { tests: 23, pass: 0, fail: 23, rate: 0 }, own: { passed: false }, code: {}, team: {} }
-  assert.match(scoreLine(metrics), /API ERROR/)
-  assert.doesNotMatch(scoreLine({ ...metrics, transcript: { ...transcript, isError: false } }), /ERROR/)
-  assert.equal(summaryRow(metrics).isError, true)
-  assert.equal(summaryRow({ ...metrics, transcript: { ...transcript, isError: null } }).isError, false)
+const apiErrorTranscript = { costUSD: 1.4, isError: true, subtype: 'success', tokens: {}, turns: 3, agentSpawns: 0, agentTypes: {}, agentModels: {}, modelUsage: {} }
+const runMetrics = { id: 'h1-team-ho-r1', task: 'h1', cond: 'team-ho', rep: 1, timedOut: false, wallMs: 60_000, transcript: apiErrorTranscript, cost: { costUSD: 1.4, costComputed: false }, split: null, splitCoverage: null, hidden: { tests: 23, pass: 0, fail: 23, rate: 0 }, own: { passed: false }, code: {}, team: {} }
+
+// Under the mode-round rules an API failure never gets a run.json: an is_error run that has one is a counted 'error' end.
+test('the score line shows how the run ended; summary.json keeps isError', () => {
+  assert.match(scoreLine({ ...runMetrics, end: 'error' }), /timedOut=false {2}end=error$/)
+  assert.match(scoreLine({ ...runMetrics, end: 'ok', transcript: { ...apiErrorTranscript, isError: false } }), /end=ok$/)
+  assert.match(scoreLine(runMetrics), /end=\?$/, 'a held-out run.json has no end')
+  assert.doesNotMatch(scoreLine({ ...runMetrics, end: 'error' }), /API|ERROR/)
+  assert.equal(summaryRow(runMetrics).isError, true)
+  assert.equal(summaryRow({ ...runMetrics, transcript: { ...apiErrorTranscript, isError: null } }).isError, false)
+})
+
+test('a computed cost reaches the summary row and the score line, marked', () => {
+  const timedOut = { ...runMetrics, timedOut: true, transcript: { ...apiErrorTranscript, costUSD: null, isError: null }, cost: { costUSD: 0.5, costComputed: true } }
+  assert.deepEqual([summaryRow(timedOut).costUSD, summaryRow(timedOut).costComputed], [0.5, true])
+  assert.deepEqual([summaryRow(runMetrics).costUSD, summaryRow(runMetrics).costComputed], [1.4, false])
+  assert.match(scoreLine(timedOut), /\$0\.50 computed /)
+  assert.match(scoreLine(runMetrics), /\$1\.40 {2}/)
+  assert.match(scoreLine({ ...timedOut, cost: { costUSD: NaN, costComputed: true } }), /\$\? computed /)
+})
+
+const jsonl = (...rows) => rows.map(r => JSON.stringify(r)).join('\n') + '\n'
+const oneLine = pattern => err => pattern.test(err.message) && !/[\r\n]/.test(err.message)
+
+test('costOf falls back to transcripts and marks it', () => {
+  const texts = [jsonl(say('a', 'claude-opus-5-5', { input_tokens: 1_000_000 }))]
+  assert.deepEqual(costOf({ transcript: { costUSD: 1.5 }, evidenceTexts: texts }), { costUSD: 1.5, costComputed: false })
+  assert.deepEqual(costOf({ transcript: { costUSD: 0 }, evidenceTexts: texts }), { costUSD: 0, costComputed: false })
+  assert.deepEqual(costOf({ transcript: { costUSD: null }, evidenceTexts: texts }), { costUSD: 4, costComputed: true })
+  const none = costOf({ transcript: { costUSD: null }, evidenceTexts: [] })
+  assert.ok(Number.isNaN(none.costUSD), 'no transcripts at all is an unknown cost, not $0')
+  assert.equal(none.costComputed, true)
+})
+
+test('parseTranscript reads a stream-json raw.json, one cut off before its result, and an older array raw.json', () => {
+  const init = { type: 'system', subtype: 'init', session_id: 'sess-init' }
+  const spawn = { type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'section-team:backend' } }] } }
+  const result = { type: 'result', subtype: 'success', total_cost_usd: 2.5, num_turns: 4, session_id: 'sess-1', modelUsage: { 'claude-opus-5-5': { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4, costUSD: 2.5 } } }
+  const stream = parseTranscript(jsonl(init, spawn, result))
+  assert.equal(stream.found, true)
+  assert.equal(stream.costUSD, 2.5)
+  assert.equal(stream.sessionId, 'sess-1')
+  assert.deepEqual(stream.agentTypes, { 'section-team:backend': 1 })
+  assert.equal(stream.tokens.total, 10)
+  const cut = parseTranscript(jsonl(init, spawn) + '{"type":"assistant","mess')
+  assert.deepEqual([cut.found, cut.costUSD, cut.sessionId, cut.agentSpawns], [false, null, 'sess-init', 1])
+  assert.deepEqual(parseTranscript(JSON.stringify([init, spawn, result])), stream)
+})
+
+// Six held-out team runs have 3–4 result lines: the last one is the session's true end (classifyEnd reads it too).
+test('parseTranscript scores the last of several result lines', () => {
+  const result = (turns, ms, text) => ({ type: 'result', subtype: 'success', num_turns: turns, duration_ms: ms, result: text, session_id: 'sess-1', total_cost_usd: 1 })
+  const rows = [result(3, 1000, 'first stop'), { type: 'user' }, result(7, 5000, 'second stop'), result(9, 8000, 'session end')]
+  for (const raw of [jsonl(...rows), JSON.stringify(rows)]) {
+    const t = parseTranscript(raw)
+    assert.deepEqual([t.turns, t.durationMs, t.finalText], [9, 8000, 'session end'])
+  }
+})
+
+test('codeStats leaves out unchanged seed files', t => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-code-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const put = (dir, rel, text) => { mkdirSync(join(dir, rel, '..'), { recursive: true }); writeFileSync(join(dir, rel), text) }
+  const seed = join(root, 'seed')
+  const run = join(root, 'run')
+  for (const dir of [seed, run]) {
+    put(dir, 'src/app.mjs', 'a\nb\nc')
+    put(dir, 'src/same-size.mjs', 'abc')
+    put(dir, 'test/app.test.mjs', 'x\ny')
+    put(dir, 'README.md', 'r')
+  }
+  put(run, 'src/same-size.mjs', 'abd')
+  put(run, 'test/app.test.mjs', 'x\ny\nz')
+  put(run, 'test/new.test.mjs', 'n')
+  put(run, 'src/lib.mjs', 'l\nm')
+  put(run, 'notes.md', 'd\ne')
+  assert.deepEqual(codeStats(run, seed), { files: 2, lines: 3, testFiles: 2, testLines: 4, docsLines: 2 })
+  assert.deepEqual(codeStats(run), { files: 3, lines: 6, testFiles: 2, testLines: 4, docsLines: 3 })
+})
+
+test('transcriptDir prefers the run evidence copy, and seedDirFor is null without a seed', t => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-dirs-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const out = join(root, 'results', 'h5-solo-mo-r1')
+  mkdirSync(out, { recursive: true })
+  assert.equal(transcriptDir(out, 'C:/bench-runs/h5-1', join(root, 'home')), join(root, 'home', '.claude', 'projects', 'C--bench-runs-h5-1'))
+  mkdirSync(join(out, 'evidence'))
+  assert.equal(transcriptDir(out, 'C:/bench-runs/h5-1', join(root, 'home')), join(out, 'evidence'))
+  mkdirSync(join(root, 'seeds', 'h5'), { recursive: true })
+  assert.equal(seedDirFor('h5', join(root, 'seeds')), join(root, 'seeds', 'h5'))
+  assert.equal(seedDirFor('h4', join(root, 'seeds')), null)
+})
+
+test('isTestPath keeps the inline rule: a test folder or a .test.js/.mjs/.cjs name', () => {
+  for (const rel of ['test/a.mjs', 'src/tests/b.js', '__tests__/c.cjs', 'd.test.mjs', 'src/e.test.js']) assert.equal(isTestPath(rel), true, rel)
+  for (const rel of ['src/a.mjs', 'testing/a.mjs', 'latest/a.mjs', 'a.test.ts', 'test.mjs']) assert.equal(isTestPath(rel), false, rel)
+})
+
+test('runSession prefers session.json', t => {
+  const out = mkdtempSync(join(tmpdir(), 'bench-session-'))
+  t.after(() => rmSync(out, { recursive: true, force: true }))
+  assert.equal(runSession(out), null)
+  writeFileSync(join(out, 'raw.json'), jsonl({ type: 'system', subtype: 'init', session_id: 'sess-raw' }))
+  assert.equal(runSession(out), 'sess-raw')
+  writeFileSync(join(out, 'session.json'), JSON.stringify({ sessionId: 'sess-json', attempt: 2 }))
+  assert.equal(runSession(out), 'sess-json')
+  // Node's JSON.parse message quotes the bad text, newlines included: the error must still be one line.
+  writeFileSync(join(out, 'session.json'), '{"sessionId":\n  oops\n}')
+  assert.throws(() => runSession(out), oneLine(/session\.json is not valid JSON$/))
+  for (const record of [{ attempt: 1 }, { sessionId: '../x' }, { sessionId: '' }]) {
+    writeFileSync(join(out, 'session.json'), JSON.stringify(record))
+    assert.throws(() => runSession(out), oneLine(/session\.json has no plain sessionId$/), JSON.stringify(record))
+  }
+})
+
+test("runSession refuses a raw.json session id that is not plain, since it becomes part of a path", t => {
+  const out = mkdtempSync(join(tmpdir(), 'bench-session-raw-'))
+  t.after(() => rmSync(out, { recursive: true, force: true }))
+  for (const id of ['../../evil', 'a/b', 'x\ny']) {
+    writeFileSync(join(out, 'raw.json'), jsonl({ type: 'system', subtype: 'init', session_id: id }))
+    assert.throws(() => runSession(out), oneLine(/raw\.json has no plain session id$/), JSON.stringify(id))
+  }
+  writeFileSync(join(out, 'raw.json'), jsonl({ type: 'user' }))
+  assert.equal(runSession(out), null, 'a raw.json without any session id still gives null')
+})
+
+test('collectRolesFrom and sessionTexts read an evidence folder', t => {
+  const evidence = mkdtempSync(join(tmpdir(), 'bench-evidence-'))
+  t.after(() => rmSync(evidence, { recursive: true, force: true }))
+  const subs = join(evidence, 'sess1', 'subagents')
+  mkdirSync(subs, { recursive: true })
+  const main = jsonl(say('m1', 'claude-opus-5-5', { input_tokens: 1 }))
+  const sub = jsonl(say('c1', 'claude-sonnet-5-5', { input_tokens: 3 }))
+  writeFileSync(join(evidence, 'sess1.jsonl'), main)
+  writeFileSync(join(subs, 'agent-c.jsonl'), sub)
+  writeFileSync(join(subs, 'agent-c.meta.json'), JSON.stringify({ agentType: 'section-team:coder' }))
+  assert.deepEqual(agentModelSplit(collectRolesFrom(evidence, 'sess1')), { main: { opus: 1 }, 'section-team:coder': { sonnet: 3 } })
+  assert.deepEqual(sessionTexts(evidence, 'sess1'), [main, sub])
+  assert.equal(collectRolesFrom(evidence, 'other'), null)
+  assert.deepEqual(sessionTexts(evidence, 'other'), [])
+  assert.deepEqual(sessionTexts(evidence, null), [])
+})
+
+test('collectRolesFrom and sessionTexts refuse a session id that is not plain in one line, since it becomes part of a path', t => {
+  const evidence = mkdtempSync(join(tmpdir(), 'bench-evidence-bad-'))
+  t.after(() => rmSync(evidence, { recursive: true, force: true }))
+  writeFileSync(join(evidence, 'sess1.jsonl'), jsonl({ type: 'user' }))
+  for (const id of ['../sess1', 'a/b', 'x\ny', 'C:', '..', 42]) {
+    assert.throws(() => collectRolesFrom(evidence, id), oneLine(/session id is not plain/), JSON.stringify(id))
+    assert.throws(() => sessionTexts(evidence, id), oneLine(/session id is not plain/), JSON.stringify(id))
+  }
+  assert.equal(collectRolesFrom(evidence, undefined), null, 'no id is still no transcript')
+  assert.equal(collectRolesFrom(evidence, ''), null)
 })

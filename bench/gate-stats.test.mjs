@@ -1,21 +1,62 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { failingTests, formatTable, gateMisses, gateRow, gateSequences, gateStats, judgeCodeQuality, parseGrade, summarize } from './gate-stats.mjs'
+import { failingTests, formatTable, gateMisses, gateRow, gateSequences, gateStats, judgeCodeQuality, meetsMark, modeOfCond, parseGrade, summarize } from './gate-stats.mjs'
 
 const grade = (overall, verdict) => `## GRADE\nOverall: ${overall}/10\nVerdict: ${verdict}\nstructure: 8 — ok\nFixes:\n- none\n`
-const pass = { overall: 9, verdict: 'pass' }
-const fail = { overall: 6, verdict: 'fail' }
+const pass = { overall: 9, verdict: 'pass', items: { structure: 8 } }
+const fail = { overall: 6, verdict: 'fail', items: { structure: 8 } }
 const text = body => ({ type: 'assistant', message: { content: [{ type: 'text', text: body }] } })
 const toolUse = () => ({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: {} }] } })
 const reviewer = (agentId, parentId, start, ...messages) => ({ role: 'section-team:reviewer', agentId, parentId, start, messages })
 
 test('parseGrade reads Overall and Verdict from a GRADE block at the end of a reviewer answer', () => {
-  assert.deepEqual(parseGrade(`Looked at score.mjs.\n\n${grade(7, 'fail')}`), { overall: 7, verdict: 'fail' })
-  assert.deepEqual(parseGrade(`Done.\r\n\r\n${grade(8.5, 'pass').replace(/\n/g, '\r\n')}`), { overall: 8.5, verdict: 'pass' })
+  assert.deepEqual(parseGrade(`Looked at score.mjs.\n\n${grade(7, 'fail')}`), { overall: 7, verdict: 'fail', items: { structure: 8 } })
+  assert.deepEqual(parseGrade(`Done.\r\n\r\n${grade(8.5, 'pass').replace(/\n/g, '\r\n')}`), { overall: 8.5, verdict: 'pass', items: { structure: 8 } })
+})
+
+// The reviewer's real GRADE format (agents/reviewer.md); it writes `tests: n/a` when another section writes the tests.
+const realGrade = [
+  '## GRADE', 'Overall: 8.5/10', 'Verdict: pass',
+  'structure: 9 — clear modules', '**naming:** 8 — ok', 'duplication: 9 — none', '  size: 7.5 — one long function',
+  'errors: 8 — explicit', 'tests: n/a — the testing section writes the tests', 'security: 9 — no secrets', 'leftovers: 10 — none',
+  'Fixes:', '- size: split parseGrade', '',
+].join('\n')
+
+test('parseGrade reads the items and leaves tests: n/a out', () => {
+  const items = { structure: 9, naming: 8, duplication: 9, size: 7.5, errors: 8, security: 9, leftovers: 10 }
+  assert.deepEqual(parseGrade(realGrade), { overall: 8.5, verdict: 'pass', items })
+  const earlier = '## GRADE\nOverall: 5/10\nVerdict: fail\ntests: 3 — thin\nsize: 2 — huge\n'
+  assert.deepEqual(parseGrade(`${earlier}\nAfter the fixes:\n${realGrade.replace(/\n/g, '\r\n')}`).items, items, 'only the last block counts')
+  assert.deepEqual(parseGrade('## GRADE\nOverall: 9/10\nVerdict: pass\n'), { overall: 9, verdict: 'pass', items: {} })
+  assert.deepEqual(parseGrade('## GRADE\nOverall: 9/10\nVerdict: pass\nstyle: 2 — not an item\n').items, {})
+})
+
+test('meetsMark: Lean 8; Balanced 8 with items ≥ 6; Max 9 with items ≥ 7; tests n/a ignored; an unreadable grade fails', () => {
+  const g = (overall, items = {}) => ({ overall, verdict: 'pass', items })
+  assert.equal(meetsMark(g(8, { size: 1 }), 'lean'), true, 'Lean has no item floor')
+  assert.equal(meetsMark(g(7.9), 'lean'), false)
+  assert.equal(meetsMark(g(8, { size: 6, naming: 10 }), 'balanced'), true)
+  assert.equal(meetsMark(g(8, { size: 5.9, naming: 10 }), 'balanced'), false)
+  assert.equal(meetsMark(g(7.9, { size: 9 }), 'balanced'), false)
+  assert.equal(meetsMark(g(9, { size: 7 }), 'max'), true)
+  assert.equal(meetsMark(g(9, { size: 6.9 }), 'max'), false)
+  assert.equal(meetsMark(g(8.9, { size: 10 }), 'max'), false)
+  const failVerdict = (overall, items) => ({ overall, verdict: 'fail', items })
+  assert.equal(meetsMark(failVerdict(8, { size: 5 }), 'lean'), true, "the mode's mark decides, not the reviewer's verdict")
+  assert.equal(meetsMark(failVerdict(8, { size: 6 }), 'balanced'), true)
+  assert.equal(meetsMark(failVerdict(9, { size: 7 }), 'max'), true)
+  const testsNa = parseGrade('## GRADE\nOverall: 9/10\nVerdict: pass\nstructure: 7 — ok\ntests: n/a — testing writes them\n')
+  assert.equal(meetsMark(testsNa, 'max'), true, 'tests: n/a is no item, so it is no low item')
+  for (const mode of ['lean', 'balanced', 'max']) {
+    assert.equal(meetsMark(null, mode), false, mode)
+    assert.equal(meetsMark(parseGrade('## GRADE\nOverall: 10/10\nstruct'), mode), false, `${mode}: a cut-off GRADE`)
+  }
+  assert.throws(() => meetsMark(g(10), 'solo'), /unknown mode/)
+  assert.throws(() => meetsMark(g(10), 'constructor'), /unknown mode/)
 })
 
 test('parseGrade uses the last GRADE block when there are two', () => {
@@ -81,26 +122,27 @@ test('gateMisses returns the failing tests only when every caller ended on a pas
 
 test('gate stats for a run with no transcript (roles === null) is a no-data row and does not throw', () => {
   const reports = ['Status: partial\n', 'Status: ungraded — the reviewer never answered\n']
-  const row = gateRow({ id: 'h2-team-ho-r1', roles: null, tap: 'not ok 1 - x\n', reports, codeQuality: null })
+  const row = gateRow({ id: 'h2-team-ho-r1', mode: 'balanced', roles: null, tap: 'not ok 1 - x\n', reports, codeQuality: null })
   assert.equal(row.noData, true)
+  assert.equal(row.mode, 'balanced')
   assert.equal(row.partial, 1)
   assert.equal(row.ungradedReports, 1)
-  assert.match(formatTable([row]), /\| h2-team-ho-r1 \| no data \| – \| – \| – \| 1\/0\/1 \|/)
+  assert.match(formatTable([row]), /\| h2-team-ho-r1 \| balanced \| no data \| – \| – \| – \| – \| – \| 1\/0\/1 \| – \| – \|$/m)
 })
 
 test('gateRow puts the summary, sequences, final grades, partial/blocked/ungraded counts and gate misses on one row', () => {
   const roles = [{ role: 'main', messages: [] }, reviewer('r1', 'p1', 't1', text(grade(6, 'fail'))), reviewer('r2', 'p1', 't2', text(grade(9, 'pass')))]
   const reports = ['## REPORT · backend\nStatus: done\nQuality: 9/10\n', '## REPORT · testing\nStatus: blocked — no API\n', '## REPORT · docs\nStatus: partial\n', '## REPORT · security\nStatus: ungraded\nQuality: n/a\n']
-  const row = gateRow({ id: 'h1-team-ho-r1', roles, tap: 'not ok 1 - a | b\n', reports, codeQuality: 7.25 })
+  const row = gateRow({ id: 'h1-team-ho-r1', mode: 'balanced', roles, tap: 'not ok 1 - a | b\n', reports, codeQuality: 7.25 })
   assert.deepEqual(row, {
-    id: 'h1-team-ho-r1', partial: 1, blocked: 1, ungradedReports: 1, judgeCodeQuality: 7.25, noData: false,
+    id: 'h1-team-ho-r1', mode: 'balanced', partial: 1, blocked: 1, ungradedReports: 1, judgeCodeQuality: 7.25, noData: false,
     calls: 2, graded: 2, passes: 1, fails: 1, ungraded: 0, callers: 1, firstTryPasses: 0, fixRounds: 1,
-    sequences: { p1: [fail, pass] }, finalGrades: { p1: pass }, gateMisses: ['a | b'],
+    sequences: { p1: [fail, pass] }, finalGrades: { p1: pass }, firstTryMeetsMark: 0, finalMeetsMark: { p1: true }, gateMisses: ['a | b'],
   })
-  assert.equal(gateRow({ id: 'x', roles, tap: null, reports: [], codeQuality: null }).gateMisses, null, 'no hidden.tap is unknown, not zero misses')
+  assert.equal(gateRow({ id: 'x', mode: 'balanced', roles, tap: null, reports: [], codeQuality: null }).gateMisses, null, 'no hidden.tap is unknown, not zero misses')
   const table = formatTable([row]).split('\n')
-  assert.equal(table[0], '| id | calls | first-try passes/callers | fix rounds | final grades | partial/blocked/ungraded | gate misses | judge code quality |')
-  assert.equal(table[2], '| h1-team-ho-r1 | 2 | 0/1 | 1 | 9 pass | 1/1/1 | a \\| b | 7.25 |')
+  assert.equal(table[0], '| id | mode | calls | first-try passes/callers | first-try at mark/callers | fails then re-called | final grades | finals at mark/callers | partial/blocked/ungraded | gate misses | judge code quality |')
+  assert.equal(table[2], '| h1-team-ho-r1 | balanced | 2 | 0/1 | 0/1 | 1 | 9 pass | 1/1 | 1/1/1 | a \\| b | 7.25 |')
 })
 
 test('judgeCodeQuality means each run\'s codeQuality over its judges through the blind key', () => {
@@ -160,11 +202,147 @@ test('gateStats reads every team run of the round; a timed-out or unfinished run
   }
 })
 
-test('gateStats names the file when a run.json is not valid', () => {
+// One unreadable run must not stop the table: it is a no-data row naming why, as in mode-check. A bug still stops it.
+test('a run whose run.json or session.json is broken is a no-data row with its reason; the other runs still count', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-bad-'))
+  try {
+    const { results, home } = fakeRound(root)
+    write(join(results, 'h4-team-ho-r1', 'run.json'), '{"id": ')
+    write(join(results, 'h5-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h5-team-ho-r1', dir: join(root, 'runs', 'h5') }))
+    write(join(results, 'h5-team-ho-r1', 'session.json'), '{"sessionId": "../x"}')
+    const rows = gateStats({ results, round: 'ho', home })
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]))
+    assert.equal(byId['h1-team-ho-r1'].noData, false)
+    assert.equal(byId['h4-team-ho-r1'].noData, true)
+    assert.match(byId['h4-team-ho-r1'].reason, /h4-team-ho-r1[\\/]run\.json: not valid JSON/)
+    assert.match(byId['h5-team-ho-r1'].reason, /session\.json has no plain sessionId$/)
+    assert.match(formatTable([byId['h4-team-ho-r1']]), /\| h4-team-ho-r1 \| balanced \| no data \(.*run\.json: not valid JSON.*\) \| – \|/)
+    write(join(results, 'h4-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h4-team-ho-r1', dir: 42 }))
+    assert.match(gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1').reason, /run\.json: no run dir$/)
+    // Node 26 quotes the bad text, newlines included: the reason and the table row stay one line.
+    write(join(results, 'h4-team-ho-r1', 'run.json'), '{\n  "id": oops\n}')
+    const multi = gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1')
+    assert.match(multi.reason, /run\.json: not valid JSON \(.*oops.*\)$/)
+    assert.doesNotMatch(multi.reason, /[\r\n]/)
+    assert.equal(formatTable([multi]).split('\n').length, 3, 'header, rule and one row')
+    // A file-system error whose message names no file (reading a folder) still says which run's files failed.
+    rmSync(join(results, 'h4-team-ho-r1', 'run.json'))
+    mkdirSync(join(results, 'h4-team-ho-r1', 'run.json'))
+    const folder = gateStats({ results, round: 'ho', home }).find(r => r.id === 'h4-team-ho-r1')
+    assert.match(folder.reason, /^a file in .*h4-team-ho-r1 \(run\.json, session evidence, hidden\.tap\) or the run's \.team\/reports: EISDIR/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// Only file failures become rows: a bug in a reader (a TypeError, or an error no reader throws) stops gate-stats.
+test('gateStats lets an error that is not a file failure stop it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-bug-'))
+  try {
+    const { results, home } = fakeRound(root)
+    assert.throws(() => gateStats({ results, round: 'ho', home, read: () => { throw new TypeError('bug') } }), { name: 'TypeError', message: 'bug' })
+    assert.throws(() => gateStats({ results, round: 'ho', home, read: () => { throw new Error('no reader says this') } }), { message: 'no reader says this' })
+    assert.equal(gateStats({ results, round: 'ho', home, read: () => { throw new Error('x/run.json: no run dir') } })[0].reason, 'x/run.json: no run dir')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('held-out runs without evidence still read from ~/.claude/projects', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-ho-'))
+  try {
+    const { results, home } = fakeRound(root)
+    const [h1] = gateStats({ results, round: 'ho', home })
+    assert.equal(existsSync(join(results, 'h1-team-ho-r1', 'evidence')), false)
+    assert.deepEqual([h1.id, h1.mode, h1.noData, h1.calls, h1.firstTryMeetsMark, h1.finalMeetsMark], ['h1-team-ho-r1', 'balanced', false, 1, 1, { main: true }])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// results/<id>/ as run.mjs leaves it in round mo: run.json, session.json, and evidence/<sid>.jsonl + <sid>/subagents/.
+function evidenceRun(results, root, id, sid, reviews, extra = {}) {
+  write(join(results, id, 'run.json'), JSON.stringify({ id, dir: join(root, 'runs', id).replaceAll('\\', '/'), timedOut: false, ...extra }))
+  write(join(results, id, 'session.json'), JSON.stringify({ sessionId: sid, attempt: 1 }))
+  write(join(results, id, 'raw.json'), jsonl({ type: 'system', subtype: 'init', session_id: 'not-the-session' }))
+  const evidence = join(results, id, 'evidence')
+  write(join(evidence, `${sid}.jsonl`), jsonl({ type: 'user', timestamp: 't0' }))
+  reviews.forEach(({ parent, start, messages }, i) => {
+    write(join(evidence, sid, 'subagents', `agent-r${i}.jsonl`), jsonl({ type: 'user', timestamp: start }, ...messages))
+    write(join(evidence, sid, 'subagents', `agent-r${i}.meta.json`), JSON.stringify({ agentType: 'section-team:reviewer', ...(parent ? { parentAgentId: parent } : {}) }))
+  })
+}
+const review = (start, body, parent = null) => ({ parent, start, messages: [text(body)] })
+const itemGrade = (overall, items, verdict = 'pass') => `## GRADE\nOverall: ${overall}/10\nVerdict: ${verdict}\n${Object.entries(items).map(([k, v]) => `${k}: ${v} — why`).join('\n')}\n`
+
+test('gateStats counts lean and max runs from evidence and leaves solo out', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-ev-'))
+  try {
+    const results = join(root, 'results')
+    evidenceRun(results, root, 'h4-lean-mo-r1', 's-lean', [review('2026-11-02T10:00:00Z', itemGrade(8, { structure: 5 }, 'fail'))])
+    evidenceRun(results, root, 'h4-max-mo-r1', 's-max', [
+      review('2026-11-02T10:05:00Z', itemGrade(9.5, { structure: 9, tests: 8 })),
+      review('2026-11-02T10:00:00Z', itemGrade(9, { structure: 9, tests: 6 })),
+    ])
+    evidenceRun(results, root, 'h4-team-mo-r1', 's-team', [
+      review('2026-11-02T10:00:00Z', itemGrade(8, { size: 5 })),
+      review('2026-11-02T10:01:00Z', itemGrade(9, { size: 6 }), 'b1'),
+    ])
+    for (const id of ['h4-solo-mo-r1', 'h4-lean-ho-r1', 'h4-max-mo-r1-old']) evidenceRun(results, root, id, 's-x', [review('t', itemGrade(10, {}))])
+    const rows = gateStats({ results, round: 'mo', home: join(root, 'empty-home') })
+    assert.deepEqual(rows.map(r => [r.id, r.mode, r.noData, r.firstTryPasses, r.firstTryMeetsMark, r.finalMeetsMark]), [
+      ['h4-lean-mo-r1', 'lean', false, 0, 1, { main: true }],
+      ['h4-max-mo-r1', 'max', false, 1, 0, { main: true }],
+      ['h4-team-mo-r1', 'balanced', false, 2, 1, { main: false, b1: true }],
+    ])
+    assert.deepEqual(rows[1].sequences.main.map(g => g.items), [{ structure: 9, tests: 6 }, { structure: 9, tests: 8 }], 'every graded item is kept, in start order')
+    assert.deepEqual(['lean', 'team', 'max', 'solo', 'balanced', 'constructor', undefined].map(modeOfCond), ['lean', 'balanced', 'max', null, null, null, null])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a timed-out run with evidence but no result is a row, not a throw', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-timeout-'))
+  try {
+    const results = join(root, 'results')
+    evidenceRun(results, root, 'h5-max-mo-r1', 's9', [{ parent: null, start: '2026-11-02T10:00:00Z', messages: [text('Reading the diff.'), toolUse()] }], { timedOut: true, end: 'timeout' })
+    write(join(results, 'h5-max-mo-r1', 'raw.json'), `${JSON.stringify({ type: 'system', subtype: 'init', session_id: 's9' })}\n{"type":"assist`)
+    const check = () => {
+      const [row] = gateStats({ results, round: 'mo', home: root })
+      assert.deepEqual([row.mode, row.noData, row.calls, row.ungraded, row.firstTryMeetsMark, row.finalMeetsMark, row.gateMisses], ['max', false, 1, 1, 0, { main: false }, null])
+      assert.match(formatTable([row]), /\| h5-max-mo-r1 \| max \| 1 \| 0\/1 \| 0\/1 \| 0 \| no grade \| 0\/1 \|/)
+    }
+    check()
+    rmSync(join(results, 'h5-max-mo-r1', 'session.json'))
+    check() // a run from before session.json: the id comes from raw.json's init line
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a session.json whose id is not plain gives a no-data row naming the file in one line', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-sid-'))
+  try {
+    const results = join(root, 'results')
+    evidenceRun(results, root, 'h6-lean-mo-r1', 's1', [])
+    write(join(results, 'h6-lean-mo-r1', 'session.json'), JSON.stringify({ sessionId: '../../outside' }))
+    const [row] = gateStats({ results, round: 'mo', home: root })
+    assert.equal(row.noData, true)
+    assert.match(row.reason, /h6-lean-mo-r1[\\/]session\.json has no plain sessionId$/)
+    assert.doesNotMatch(row.reason, /[\r\n]/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a run.json that is not valid gives a no-data row naming the file', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-gate-bad-'))
   try {
     write(join(root, 'h1-team-ho-r1', 'run.json'), '{ not json')
-    assert.throws(() => gateStats({ results: root, round: 'ho', home: root }), /h1-team-ho-r1[\\/]run\.json/)
+    const [row] = gateStats({ results: root, round: 'ho', home: root })
+    assert.deepEqual([row.id, row.noData], ['h1-team-ho-r1', true])
+    assert.match(row.reason, /h1-team-ho-r1[\\/]run\.json/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

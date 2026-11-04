@@ -1,0 +1,18 @@
+{
+  "lean-mo": {
+    "first": 5,
+    "last": 5
+  },
+  "max-mo": {
+    "first": 4,
+    "last": 4
+  },
+  "solo-mo": {
+    "first": 4,
+    "last": 4
+  },
+  "team-mo": {
+    "first": 5,
+    "last": 5
+  }
+}

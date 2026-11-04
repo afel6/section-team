@@ -1,0 +1,497 @@
+[
+  {
+    "pair": "h1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "ini2json.mjs:60 uses typeof result[name] !== 'object' to detect top-level key conflicts; BigInt safe integer boundary check at ini2json.mjs:40 is exact. Test suite passed all 22 tests covering spec requirements."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:51 tracks top-level keys via an explicit Set; ini2json.mjs:83 precisely handles lone CR vs CRLF line endings. Comprehensive test suite with 146 tests covering exhaustive edge cases."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "h3-r3",
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "cron.mjs:51 allows dayOfWeek 7/s via Math.max(n, field.stepMax) despite spec stating n/s uses 0-6. Passing all 23 test cases with clear and concise code."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:49 enforces that n/s uses 0-6 for dayOfWeek; cron.mjs:120-124 implements smart skipping in advance() across months, days, and hours. Outstanding test suite with 114 tests across 9 suites."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "h2-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "lib/validate.mjs:32 correctly checks Number.isSafeInteger to reject floats; lib/paginate.mjs:4 fixes off-by-one error; routes.mjs:26 implements CSV generation directly inside handler. All 35 tests pass."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "Both bugs cleanly resolved. Extracted CSV logic into modular lib/csv.mjs with dedicated unit tests in test/csv.test.mjs. Extended server.mjs:51 to cleanly distinguish between json body and raw text. 39 passing tests."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "h2-r3",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "Fixed qty parsing with Number.isSafeInteger in lib/validate.mjs:33 and off-by-one in lib/paginate.mjs:5. Modularized CSV serialization in lib/csv.mjs:10 with dedicated unit tests in test/csv.test.mjs. All 39 tests pass."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Both bugs correctly resolved with clean fixes in lib/validate.mjs:33 and lib/paginate.mjs:5. Implemented CSV export inline in lib/routes.mjs:26. Test suite passes with 35 tests."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-04",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:23 accurately splits lines and handles CRLF vs lone CR; ini2json.mjs:92 tracks sections with an explicit Set; exports clean testable functions. Exceptional test suite with 147 tests across 11 suites."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "ini2json.mjs:86 handles lone CR; ini2json.mjs:93 mutates error message on catch. Test suite covers basic spec scenarios with 18 passing tests."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-05"
+  },
+  {
+    "pair": "h3-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "cron.mjs:89 uses Date.UTC which maps years 0-99 to 1900-1999; cron.mjs:49 allows dayOfWeek 7/s. Passes its 15 unit tests."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:52 correctly rejects dayOfWeek 7/s; cron.mjs:105 avoids Date.UTC 0-99 year mapping issue; cron.mjs:125-128 implements month/day/hour skipping. 93 comprehensive tests."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-06"
+  },
+  {
+    "pair": "h2-r1",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "lib/validate.mjs:33 fixes quantity truncation; lib/paginate.mjs:5 fixes slice off-by-one; cleanly isolates CSV generation in lib/csv.mjs:10. Test suite has 39 tests with dedicated validation tests."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Clean modular implementation of CSV formatting in lib/csv.mjs:9. server.mjs:57 cleanly defaults content-type header. All 37 tests pass."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-07",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:49 rejects dayOfWeek 7/s conforming to spec that n/s uses 0-6; cron.mjs:120-124 implements intelligent candidate time advance skips for performance. 114 tests across 9 suites."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "cron.mjs:51 allows dayOfWeek 7/s; cron.mjs:118 finds next matches via day-by-day linear loop. 23 tests passing."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-08"
+  },
+  {
+    "pair": "h3-r1",
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "cron.mjs:58 permits 7/s for dayOfWeek via Math.max; cron.mjs:108 uses daily stepping. 18 tests pass cleanly."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:52 rejects dayOfWeek 7/s as required; cron.mjs:137 skips entire non-matching months via startOfNextMonth. Excellent 99 tests across 12 test suites."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-09",
+    "swapped": true
+  },
+  {
+    "pair": "h2-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Both bugs cleanly fixed; CSV generation properly separated in lib/csv.mjs:9. 37 tests passing."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "lib/validate.mjs:33 fixes quantity truncation using Number.isSafeInteger; lib/paginate.mjs:5 fixes pagination end offset. Thorough test suite with 39 tests including explicit validation edge cases."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-10"
+  },
+  {
+    "pair": "h2-r2",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "lib/validate.mjs:32 fixes quantity parsing with Number.isSafeInteger; lib/paginate.mjs:5 fixes page slicing; lib/csv.mjs:10 provides clean CSV generation. 38 tests passing."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "lib/validate.mjs:32 validates whole number bounds; lib/csv.mjs:10 cleanly formatted. 43 tests passing, including tests verifying export.csv ignores pagination and properly handles non-ASCII characters."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-11",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r2",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:51 tracks top-level keys via an explicit Set; ini2json.mjs:83 precisely handles lone CR vs CRLF line endings. Comprehensive test suite with 146 tests covering exhaustive edge cases."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "ini2json.mjs:60 uses typeof result[name] !== 'object' to detect top-level key conflicts; BigInt safe integer boundary check at ini2json.mjs:40 is exact. Test suite passed all 22 tests covering spec requirements."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-12",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r3",
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "ini2json.mjs:86 handles lone CR; ini2json.mjs:93 mutates error message on catch. Test suite covers basic spec scenarios with 18 passing tests."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:23 accurately splits lines and handles CRLF vs lone CR; ini2json.mjs:92 tracks sections with an explicit Set; exports clean testable functions. Exceptional test suite with 147 tests across 11 suites."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-13",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:52 rejects dayOfWeek 7/s; cron.mjs:137 skips non-matching months efficiently using startOfNextMonth. Excellent 99 tests across 12 test suites."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "cron.mjs:58 allows 7/s for dayOfWeek via Math.max; cron.mjs:108 finds next matches via day-by-day iteration. 18 passing tests."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-14"
+  },
+  {
+    "pair": "h1-r1",
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Separates CLI and parser into ini.mjs and ini2json.mjs; uses split(/\\r?\\n/) at ini.mjs:54. Passes all 17 tests."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:54 accurately strips \\r only before \\n; ini2json.mjs:48 uses BigInt bounds check; comprehensive test suite with 108 tests across 10 suites."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-15",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r2",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "cron.mjs:52 rejects dayOfWeek 7/s per specification; cron.mjs:105 avoids Date.UTC 0-99 year mapping issue; cron.mjs:125-128 implements month/day/hour skipping. 93 comprehensive tests."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "cron.mjs:89 uses Date.UTC which maps years 0-99 to 1900-1999; cron.mjs:49 allows dayOfWeek 7/s. Passes its 15 unit tests."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-16",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "ini2json.mjs:54 accurately strips \\r only when directly preceding \\n; ini2json.mjs:48 uses BigInt bounds check; comprehensive test suite with 108 tests across 10 suites."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Separates CLI and parser into ini.mjs and ini2json.mjs; uses split(/\\r?\\n/) at ini.mjs:54. Passes all 17 tests."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-17"
+  },
+  {
+    "pair": "h2-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "lib/validate.mjs:32 validates whole number bounds with Number.isSafeInteger; lib/csv.mjs:10 formats RFC 4180 CSV with CRLF. 43 tests passing including tests for unpaged export and non-ASCII character handling."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "lib/validate.mjs:32 fixes quantity parsing with Number.isSafeInteger; lib/paginate.mjs:5 fixes page slicing; lib/csv.mjs:10 provides clean CSV generation. 38 tests passing."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-18"
+  }
+]

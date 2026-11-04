@@ -1,9 +1,20 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { execFileSync } from 'node:child_process'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
+
+// Children run with CLAUDE_* stripped, so their agent memory is always ~/.claude/agent-memory, whatever the parent's
+// CLAUDE_CONFIG_DIR says: MEMORY_ROOT must follow the child, not the parent.
+test('MEMORY_ROOT is ~/.claude/agent-memory even when CLAUDE_CONFIG_DIR is set', () => {
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: join(tmpdir(), 'other-config') }
+  delete env.NODE_TEST_CONTEXT
+  const script = "import('./section-memory.mjs').then(m => process.stdout.write(m.MEMORY_ROOT))"
+  const root = execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: import.meta.dirname, env, encoding: 'utf8' })
+  assert.equal(root, join(homedir(), '.claude', 'agent-memory'))
+})
 
 // A fake home with the user's own section memory, another agent's memory, and a results folder.
 function sandbox(t) {

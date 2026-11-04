@@ -1,0 +1,8 @@
+{ "round": "mo", "statDecimals": 2, "hiddenDecimals": 4, "minGroups": 6, "confirmShare": 0.75,
+  "comparisons": [
+    { "name": "lean", "mode": "lean-mo", "vs": "solo-mo", "minGap": 0.30, "usage": { "tasks": ["h5", "h6"], "maxRatio": 1.50, "reportVs": { "task": "h4", "setup": "team-mo" } } },
+    { "name": "balanced", "mode": "team-mo", "vs": "solo-mo", "minGap": 0.50 },
+    { "name": "max", "mode": "max-mo", "vs": "team-mo", "minGap": 0.30, "ceiling": { "setup": "team-mo", "above": 8.60 } } ],
+  "outside": [
+    { "name": "Codex", "heldOut": "hocx", "round": "mocx", "set": "C:/Users/Asus/codex-judge-mo" },
+    { "name": "Antigravity", "heldOut": "hoag2", "round": "moag", "set": "C:/Users/Asus/ag-judge-mo" } ] }

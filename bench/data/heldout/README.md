@@ -7,9 +7,15 @@ The data behind [docs/benchmark-heldout-2026-11.md](../../../docs/benchmark-held
 | `summary.json` | One row per run: cost, tokens, wall time, agents spawned, hidden-test and own-test results, code size, `isError`. |
 | `judge-ho.json` | Every blind judge's scores (1–10 on correctness, code quality, tests, robustness/security, docs/usability and overall), ranking and notes; two judges per pair. Rows with `swapped: true` come from the second judge, who saw the two solutions under swapped labels; its scores and ranking are already mapped back to the real labels, but its notes name the folders it saw. |
 | `blind-key-ho.json` | Which setup was X and which Y in each pair. |
-| `gate-stats-ho.json` | Per team run: every reviewer-gate call's grade, first-try passes, fix rounds, partial/blocked REPORTs, hidden tests that failed after a passing gate, and the judges' code-quality score. |
+| `judge-hoag.json` | Antigravity's one-session held-out verdicts (2026-11-01), imported as `hoag`; context only. |
+| `blind-key-hoag.json` | Which setup each of Antigravity's labels was. |
+| `judge-prompt-ho.md` | The held-out judge prompt, byte for byte c5ba259's `bench/judge-prompt.md`; `external-judge.mjs rebuild-heldout` reads it in place to write each case's `JUDGE.md`. |
+| `transcripts/<id>/<n>.jsonl` | For `h1-team-ho-r1` and `h3-solo-ho-r1`: the assistant lines of the session transcript (`0.jsonl`) and of each subagent transcript, reduced to `{ type, message: { id, model, usage } }`. `bench/transcript-cost.test.mjs` checks the computed cost against these runs' `costUSD`. |
+| `gate-stats-ho.json` | Per team run: every reviewer-gate call's grade, first-try passes, fails then re-called (field `fixRounds`; not a fix-round count), partial/blocked REPORTs, hidden tests that failed after a passing gate, and the judges' code-quality score. |
 
 Setup names: `solo-ho` is plain Claude Code (plugin off), `team-ho` is section-team `v0.1.1`.
+
+Re-scoring these runs with the current `bench/score.mjs` reads each run's last result line (the session's true end). For the six runs with several result lines (`h1-team-ho-r2`, `h2-team-ho-r1`, `h2-team-ho-r2`, `h3-team-ho-r1`, `h3-team-ho-r2`, `h3-team-ho-r3`), the re-scored `turns` therefore differs from the committed `summary.json` (wall time is the harness's own clock and does not change); costs and hidden-test results are unchanged.
 
 ## Recompute
 

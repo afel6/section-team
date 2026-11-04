@@ -263,6 +263,12 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   assert.ok(testing.includes('let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade.'), 'testing final review takes the mode gate fix rounds')
 })
 
+test('testing names near-miss copies in .team/near-miss and restores the original even on a failed run', () => {
+  const testing = agentFile('testing')
+  for (const s of ['.team/near-miss/<n>-<original file name>', 'near-miss: <the one bug>', 'also when a test run fails']) assert.ok(testing.includes(s), s)
+  for (const id of BUILDER_IDS.filter(id => id !== 'testing')) assert.ok(!agentFile(id).includes('.team/near-miss'), `${id} must not get the near-miss rule`)
+})
+
 test('scout is a cheap read-only helper, not a section', () => {
   const text = agentFile('scout')
   const fm = front(text)

@@ -1,4 +1,5 @@
-// Scores every finished benchmark run: cost/tokens/time from the transcript, hidden-test pass rate,
+// Scores every finished benchmark run: cost/tokens/time from the transcript (cost computed from the session's
+// transcripts when the CLI wrote none, as on a timeout), hidden-test pass rate,
 // the project's own `npm test`, code size, agent/model use. Writes results/<id>/metrics.json and results/summary.json.
 // Usage: node bench/score.mjs
 import { spawnSync } from 'node:child_process'
@@ -8,18 +9,24 @@ import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { RESULTS } from './run.mjs'
+import { initOf, outputMessages, resultOf } from './clean-run.mjs'
+import { projectDirFor } from './run-attempts.mjs'
+import { RESULTS, SEEDS } from './run.mjs'
+import { transcriptCost } from './transcript-cost.mjs'
 
 const BENCH = fileURLToPath(new URL('.', import.meta.url))
 const CODE_EXT = new Set(['.mjs', '.js', '.cjs', '.html', '.css'])
 const SKIP_DIRS = new Set(['node_modules', '.git', '.team', '.claude', '.superpowers'])
 
+// raw.json: stream-json lines (new runs, possibly cut off before the result by a timeout) or one JSON array
+// (older runs). With several result lines, the last is the session's true end and is scored (as classifyEnd reads it);
+// without any, the session id comes from the init line.
 export function parseTranscript(raw) {
-  const arr = (() => { try { const d = JSON.parse(raw); return Array.isArray(d) ? d : [d] } catch { return [] } })()
-  const result = arr.find(m => m.type === 'result') ?? {}
+  const arr = outputMessages(raw)
+  const result = resultOf(arr) ?? {}
   const agents = []
   for (const m of arr) {
-    if (m.type !== 'assistant' || !Array.isArray(m.message?.content)) continue
+    if (m?.type !== 'assistant' || !Array.isArray(m.message?.content)) continue
     for (const part of m.message.content) {
       if (part.type === 'tool_use' && (part.name === 'Agent' || part.name === 'Task')) {
         agents.push({ type: part.input?.subagent_type ?? 'general-purpose', model: part.input?.model ?? null, nested: Boolean(m.parent_tool_use_id) })
@@ -45,7 +52,7 @@ export function parseTranscript(raw) {
     agentSpawns: agents.length,
     agentTypes: count(agents.map(a => a.type)),
     agentModels: count(agents.map(a => a.model ?? 'inherit')),
-    sessionId: result.session_id ?? null,
+    sessionId: result.session_id ?? initOf(arr)?.session_id ?? null,
     finalText: String(result.result ?? '').slice(-1500),
   }
 }
@@ -97,21 +104,83 @@ function subagentRole(subagents, name) {
   }
 }
 
-// Reads a run's session transcript and every subagent transcript (background heads and their depth-2 helpers are only here, not in raw.json):
-// ~/.claude/projects/<run dir with every non-alphanumeric as '-'>/<session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType).
+// The same rule as copyEvidence's: the id becomes a file name, so it holds letters, digits and dashes only.
+const isPlainSessionId = id => typeof id === 'string' && /^[A-Za-z0-9-]+$/.test(id)
+
+// A session's files in a project folder (~/.claude/projects/<slug>/ or a run's evidence/ copy):
+// <session id>.jsonl and <session id>/subagents/agent-*.jsonl (+ .meta.json with agentType); null without the session file.
+// The id becomes part of a path, so an id that is not plain throws one line here, for every caller.
+function sessionFiles(projectDir, sessionId) {
+  if (!sessionId) return null
+  if (!isPlainSessionId(sessionId)) throw new Error(`${projectDir}: session id is not plain (letters, digits and dashes only)`)
+  const sessionFile = join(projectDir, `${sessionId}.jsonl`)
+  if (!existsSync(sessionFile)) return null
+  const subagents = join(projectDir, sessionId, 'subagents')
+  const names = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
+  return { sessionFile, subagents, names }
+}
+
+// Reads a run's session transcript and every subagent transcript (background heads and their depth-2 helpers are only here, not in raw.json).
 // Returns [{ role, messages }] with the session as 'main', or null when the session file is missing.
 // Each subagent entry also has agentId (from agent-<id>.jsonl), parentId (meta.parentAgentId, null at depth 1) and start (first message's timestamp or null).
-export function collectRoles(runDir, sessionId, home = homedir()) {
-  const project = join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
-  const sessionFile = join(project, `${sessionId}.jsonl`)
-  if (!sessionId || !existsSync(sessionFile)) return null
-  const subagents = join(project, sessionId, 'subagents')
-  const files = existsSync(subagents) ? readdirSync(subagents).filter(name => name.endsWith('.jsonl')) : []
+export function collectRolesFrom(projectDir, sessionId) {
+  const files = sessionFiles(projectDir, sessionId)
+  if (!files) return null
   return [
-    { role: 'main', messages: readJsonl(sessionFile) },
-    ...files.map(name => subagentRole(subagents, name)),
+    { role: 'main', messages: readJsonl(files.sessionFile) },
+    ...files.names.map(name => subagentRole(files.subagents, name)),
   ]
 }
+
+export const collectRoles = (runDir, sessionId, home = homedir()) => collectRolesFrom(projectDirFor(runDir, home), sessionId)
+
+// The same transcripts as text, session first, for transcriptCost; [] when the session file is missing.
+export function sessionTexts(projectDir, sessionId) {
+  const files = sessionFiles(projectDir, sessionId)
+  if (!files) return []
+  return [files.sessionFile, ...files.names.map(name => join(files.subagents, name))].map(path => readFileSync(path, 'utf8'))
+}
+
+// A run's cost: total_cost_usd when the CLI wrote one, else computed from its transcripts and marked (a lower bound).
+// No transcripts at all leaves it unknown (NaN, written as null), never $0.
+export function costOf({ transcript, evidenceTexts }) {
+  if (typeof transcript?.costUSD === 'number') return { costUSD: transcript.costUSD, costComputed: false }
+  return { costUSD: evidenceTexts?.length ? transcriptCost(evidenceTexts).costUSD : NaN, costComputed: true }
+}
+
+// The run's session id: session.json's (written before every attempt), else raw.json's (runs made before session.json); null without either.
+// The id becomes part of a path, so an id that is not plain throws, as does a session.json that does not parse. Each error is one fixed line.
+export function runSession(outDir) {
+  const sessionPath = join(outDir, 'session.json')
+  if (existsSync(sessionPath)) {
+    const text = readFileSync(sessionPath, 'utf8')
+    let record
+    try { record = JSON.parse(text) } catch { throw new Error(`${sessionPath} is not valid JSON`) }
+    if (!isPlainSessionId(record?.sessionId)) throw new Error(`${sessionPath} has no plain sessionId`)
+    return record.sessionId
+  }
+  const rawPath = join(outDir, 'raw.json')
+  const sessionId = existsSync(rawPath) ? parseTranscript(readFileSync(rawPath, 'utf8')).sessionId : null
+  if (sessionId !== null && !isPlainSessionId(sessionId)) throw new Error(`${rawPath} has no plain session id`)
+  return sessionId
+}
+
+// The failures a corrupt or unreadable evidence file causes, which mode-check and gate-stats turn into a run's row: a
+// file-system error, or one of the readers' one-line errors (runSession, collectRolesFrom, mode-record.mjs readRecord,
+// mode-check's run.json reader; `known` adds a caller's own). Anything else is a bug.
+const FILE_CODES = new Set(['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY'])
+const READER_ERRORS = [/ is not valid JSON$/, / has no plain sessionId$/, / has no plain session id$/, /: session id is not plain /, /^mode record is not valid$/, /^no usable session id /]
+export const isFileFailure = (err, known = []) => FILE_CODES.has(err?.code)
+  || (err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && [...READER_ERRORS, ...known].some(re => re.test(err.message)))
+
+// Where a run's transcripts are: its evidence/ copy when it has one, else Claude Code's project folder for the run.
+export const transcriptDir = (outDir, runDir, home = homedir()) => {
+  const evidence = join(outDir, 'evidence')
+  return existsSync(evidence) ? evidence : projectDirFor(runDir, home)
+}
+
+// The task's seed folder (h5 has one), or null.
+export const seedDirFor = (task, seeds = SEEDS) => (existsSync(join(seeds, task)) ? join(seeds, task) : null)
 
 function count(list) {
   return list.reduce((acc, k) => ({ ...acc, [k]: (acc[k] ?? 0) + 1 }), {})
@@ -154,7 +223,18 @@ export function ownTests(dir, env = process.env) {
   return { hasScript: true, passed: r.status === 0, exitCode: r.status, pass: counts.pass || specPass, fail: counts.fail || specFail }
 }
 
-function codeStats(dir) {
+// rel uses '/' separators, relative to the solution folder.
+export const isTestPath = rel => /(^|\/)(test|tests|__tests__)\//.test(rel) || /\.test\.[cm]?js$/.test(rel)
+
+export const sameAsSeed = (seedDir, rel, path) => {
+  if (!seedDir) return false
+  const seedFile = join(seedDir, rel)
+  return existsSync(seedFile) && statSync(seedFile).isFile() && readFileSync(seedFile).equals(readFileSync(path))
+}
+
+// Lines of code, tests and docs in a solution. With seedDir, a file byte-identical to the seed's same path is the
+// seed's work, not the solution's, and is left out.
+export function codeStats(dir, seedDir = null) {
   const stats = { files: 0, lines: 0, testFiles: 0, testLines: 0, docsLines: 0 }
   const walk = d => {
     for (const name of readdirSync(d)) {
@@ -162,11 +242,11 @@ function codeStats(dir) {
       const p = join(d, name)
       if (statSync(p).isDirectory()) { walk(p); continue }
       const rel = relative(dir, p).replace(/\\/g, '/')
-      const lines = () => readFileSync(p, 'utf8').split('\n').length
-      if (/\.md$/i.test(name)) { stats.docsLines += lines(); continue }
-      if (!CODE_EXT.has(extname(name))) continue
-      const isTest = /(^|\/)(test|tests|__tests__)\//.test(rel) || /\.test\.[cm]?js$/.test(name)
-      if (isTest) { stats.testFiles++; stats.testLines += lines() } else { stats.files++; stats.lines += lines() }
+      const kind = /\.md$/i.test(name) ? 'docs' : CODE_EXT.has(extname(name)) ? (isTestPath(rel) ? 'test' : 'code') : null
+      if (!kind || sameAsSeed(seedDir, rel, p)) continue
+      const lines = readFileSync(p, 'utf8').split('\n').length
+      if (kind === 'docs') stats.docsLines += lines
+      else if (kind === 'test') { stats.testFiles++; stats.testLines += lines } else { stats.files++; stats.lines += lines }
     }
   }
   if (existsSync(dir)) walk(dir)
@@ -182,19 +262,30 @@ function teamStats(dir) {
   return { reports: names.length - summaries, sections, summaries }
 }
 
+// One run's metrics. Transcripts come from the run's evidence/ copy when it has one (Claude Code's project folder otherwise),
+// the session id from session.json, and code size leaves out files unchanged from the task's seed.
+function scoreRun(id) {
+  const outDir = join(RESULTS, id)
+  const run = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+  const transcript = parseTranscript(readFileSync(join(outDir, 'raw.json'), 'utf8'))
+  const sessionId = runSession(outDir)
+  const transcripts = transcriptDir(outDir, run.dir)
+  const roles = collectRolesFrom(transcripts, sessionId)
+  const split = roles && agentModelSplit(roles)
+  const hidden = hiddenTests(run.task, run.dir)
+  writeFileSync(join(outDir, 'hidden.tap'), hidden.tap)
+  return {
+    ...run, transcript, cost: costOf({ transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split, splitCoverage: splitCoverage(split, transcript.modelUsage),
+    hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own: ownTests(run.dir),
+    code: codeStats(run.dir, seedDirFor(run.task)), team: teamStats(run.dir),
+  }
+}
+
 function main() {
   const rows = []
   for (const id of readdirSync(RESULTS)) {
-    const runPath = join(RESULTS, id, 'run.json')
-    if (!existsSync(runPath)) continue
-    const run = JSON.parse(readFileSync(runPath, 'utf8'))
-    const transcript = parseTranscript(readFileSync(join(RESULTS, id, 'raw.json'), 'utf8'))
-    const hidden = hiddenTests(run.task, run.dir)
-    writeFileSync(join(RESULTS, id, 'hidden.tap'), hidden.tap)
-    const own = ownTests(run.dir)
-    const roles = collectRoles(run.dir, transcript.sessionId)
-    const split = roles && agentModelSplit(roles)
-    const metrics = { ...run, transcript, split, splitCoverage: splitCoverage(split, transcript.modelUsage), hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate }, own, code: codeStats(run.dir), team: teamStats(run.dir) }
+    if (!existsSync(join(RESULTS, id, 'run.json'))) continue
+    const metrics = scoreRun(id)
     writeFileSync(join(RESULTS, id, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
     rows.push(metrics)
     console.log(scoreLine(metrics))
@@ -202,16 +293,16 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
-// A run whose CLI ended on an API error (usage limit, overload) still has a result, with is_error set: the line
-// says so, because such a run is rerun like a crash, not kept as a result.
-export function scoreLine({ id, hidden, own, transcript, wallMs, timedOut }) {
-  const error = transcript.isError ? '  API ERROR' : ''
-  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  $${(transcript.costUSD ?? 0).toFixed(2)}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}${error}`
+// The line ends with how the run ended (run.json's end; '?' for held-out runs, which have none). A cost computed from
+// transcripts is marked.
+export function scoreLine({ id, hidden, own, transcript, cost, wallMs, timedOut, end }) {
+  const usd = `$${Number.isFinite(cost.costUSD) ? cost.costUSD.toFixed(2) : '?'}${cost.costComputed ? ' computed' : ''}`
+  return `${id.padEnd(16)} hidden ${hidden.pass}/${hidden.tests}  own ${own.passed ? 'ok ' : 'FAIL'}  ${usd}  ${Math.round(wallMs / 1000)}s  agents ${transcript.agentSpawns}  timedOut=${timedOut}  end=${end ?? '?'}`
 }
 
 export const summaryRow = r => ({
   id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, isError: r.transcript.isError === true, wallMs: r.wallMs,
-  costUSD: r.transcript.costUSD, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
+  costUSD: r.cost.costUSD, costComputed: r.cost.costComputed, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
   agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
   hidden: r.hidden, own: r.own, code: r.code, team: r.team,
 })

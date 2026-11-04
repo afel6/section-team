@@ -1,0 +1,2599 @@
+[
+  {
+    "id": "h4-lean-mo-r1",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 4,
+    "graded": 4,
+    "passes": 4,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 3,
+    "fixRounds": 0,
+    "sequences": {
+      "aedd75c0171df8d4e": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 8,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a95e03794a88e64d0": [
+        {
+          "overall": 8.5,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a55bcad763c6ec4a1": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "aedd75c0171df8d4e": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 8,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "a95e03794a88e64d0": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a55bcad763c6ec4a1": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 8,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 3,
+    "finalMeetsMark": {
+      "aedd75c0171df8d4e": true,
+      "a95e03794a88e64d0": true,
+      "a55bcad763c6ec4a1": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-lean-mo-r2",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "a11266b633fc55e9a": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 8,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "abfdc756a37ec69e1": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 9,
+            "size": 7,
+            "errors": 8,
+            "tests": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a11266b633fc55e9a": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 8,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "abfdc756a37ec69e1": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 9,
+          "size": 7,
+          "errors": 8,
+          "tests": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "a11266b633fc55e9a": true,
+      "abfdc756a37ec69e1": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-lean-mo-r3",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 3,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 3,
+    "fixRounds": 0,
+    "sequences": {
+      "adfee76d18692509c": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 8
+          }
+        }
+      ],
+      "aed7bb3dcaa469cbf": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 9,
+            "size": 8,
+            "errors": 9,
+            "tests": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a6b04b7063a4724de": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 9,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "adfee76d18692509c": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 8
+        }
+      },
+      "aed7bb3dcaa469cbf": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 9,
+          "size": 8,
+          "errors": 9,
+          "tests": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a6b04b7063a4724de": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 9,
+          "errors": 9,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 3,
+    "finalMeetsMark": {
+      "adfee76d18692509c": true,
+      "aed7bb3dcaa469cbf": true,
+      "a6b04b7063a4724de": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-max-mo-r1",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 5,
+    "graded": 5,
+    "passes": 3,
+    "fails": 2,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 1,
+    "fixRounds": 2,
+    "sequences": {
+      "a1924daacda0a8847": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "a92ce805b33e418ff": [
+        {
+          "overall": 8,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 8,
+            "size": 7,
+            "errors": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "ae751b712081045d1": [
+        {
+          "overall": 8,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 6,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a1924daacda0a8847": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "a92ce805b33e418ff": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "ae751b712081045d1": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "a1924daacda0a8847": true,
+      "a92ce805b33e418ff": true,
+      "ae751b712081045d1": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-max-mo-r2",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 5,
+    "graded": 5,
+    "passes": 4,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 2,
+    "fixRounds": 1,
+    "sequences": {
+      "ae4d518f26278ed84": [
+        {
+          "overall": 9.1,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "a36085e454f13bf41": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "acaab2010772178da": [
+        {
+          "overall": 8.1,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 5,
+            "size": 9,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 8
+          }
+        },
+        {
+          "overall": 9.3,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "ae4d518f26278ed84": {
+        "overall": 9.1,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "a36085e454f13bf41": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "acaab2010772178da": {
+        "overall": 9.3,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "ae4d518f26278ed84": true,
+      "a36085e454f13bf41": true,
+      "acaab2010772178da": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-max-mo-r3",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 5,
+    "graded": 5,
+    "passes": 4,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 2,
+    "fixRounds": 1,
+    "sequences": {
+      "a2fd22a45816f6a52": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a21956fd1c3379af6": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a17b26727349b6f85": [
+        {
+          "overall": 8,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 6,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 9,
+            "size": 9,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a2fd22a45816f6a52": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "a21956fd1c3379af6": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a17b26727349b6f85": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "a2fd22a45816f6a52": true,
+      "a21956fd1c3379af6": true,
+      "a17b26727349b6f85": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-team-mo-r1",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 5,
+    "graded": 5,
+    "passes": 3,
+    "fails": 2,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 1,
+    "fixRounds": 2,
+    "sequences": {
+      "abf32bc4755c692af": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "a6a3f1ff959f9aa82": [
+        {
+          "overall": 7,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 9,
+            "size": 7,
+            "errors": 7,
+            "security": 9,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 9,
+            "errors": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "ad372831f3f9a7dfa": [
+        {
+          "overall": 7,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 6,
+            "size": 9,
+            "errors": 7,
+            "tests": 6,
+            "security": 10,
+            "leftovers": 8
+          }
+        },
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 7,
+            "size": 8,
+            "errors": 7,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 8
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "abf32bc4755c692af": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "a6a3f1ff959f9aa82": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 9,
+          "errors": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "ad372831f3f9a7dfa": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 7,
+          "size": 8,
+          "errors": 7,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 8
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "abf32bc4755c692af": true,
+      "a6a3f1ff959f9aa82": true,
+      "ad372831f3f9a7dfa": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-team-mo-r2",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 3,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 3,
+    "fixRounds": 0,
+    "sequences": {
+      "af25524e38a1d0005": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a823c97e14b1c32eb": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 8,
+            "size": 7,
+            "errors": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "ac1d559a72b5310db": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 6,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "af25524e38a1d0005": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "a823c97e14b1c32eb": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 8,
+          "size": 7,
+          "errors": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "ac1d559a72b5310db": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 7,
+          "duplication": 6,
+          "size": 9,
+          "errors": 7,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 3,
+    "finalMeetsMark": {
+      "af25524e38a1d0005": true,
+      "a823c97e14b1c32eb": true,
+      "ac1d559a72b5310db": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h4-team-mo-r3",
+    "mode": "balanced",
+    "partial": 1,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 3,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 3,
+    "firstTryPasses": 3,
+    "fixRounds": 0,
+    "sequences": {
+      "a5302ad6dce053933": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "acdcb513068583e50": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a7c0ab45042c0cf78": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 6,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a5302ad6dce053933": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "acdcb513068583e50": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 9,
+          "errors": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a7c0ab45042c0cf78": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 6,
+          "size": 9,
+          "errors": 7,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 3,
+    "finalMeetsMark": {
+      "a5302ad6dce053933": true,
+      "acdcb513068583e50": true,
+      "a7c0ab45042c0cf78": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-lean-mo-r1",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-lean-mo-r2",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-lean-mo-r3",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 7,
+          "tests": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-max-mo-r1",
+    "mode": "max",
+    "partial": 1,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "addcae2333cb93cff": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "addcae2333cb93cff": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "main": true,
+      "addcae2333cb93cff": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-max-mo-r2",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "ab02b535adb35a086": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 8,
+            "errors": 10,
+            "tests": 10,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "ab02b535adb35a086": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 8,
+          "errors": 10,
+          "tests": 10,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "ab02b535adb35a086": true,
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-max-mo-r3",
+    "mode": "max",
+    "partial": 1,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "ad5c6fd20310bd1e5": [
+        {
+          "overall": 8.4,
+          "verdict": "fail",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 10,
+            "errors": 8,
+            "tests": 7,
+            "security": 10,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "ad5c6fd20310bd1e5": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true,
+      "ad5c6fd20310bd1e5": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-team-mo-r1",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "main": [
+        {
+          "overall": 7,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 8,
+            "size": 7,
+            "errors": 8,
+            "tests": 2,
+            "security": 9,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a42946a9eaf2793e4": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 7,
+            "size": 7,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a42946a9eaf2793e4": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 7,
+          "size": 7,
+          "errors": 8,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true,
+      "a42946a9eaf2793e4": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-team-mo-r2",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 7,
+            "size": 7,
+            "errors": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a64caaa1da76bc507": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 7,
+            "size": 9,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 7,
+          "size": 7,
+          "errors": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      },
+      "a64caaa1da76bc507": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 7,
+          "duplication": 7,
+          "size": 9,
+          "errors": 9,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "main": true,
+      "a64caaa1da76bc507": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h5-team-mo-r3",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "main": [
+        {
+          "overall": 7,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 8,
+            "size": 8,
+            "errors": 8,
+            "tests": 2,
+            "security": 9,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "a14e04c6c55b23ce1": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 7,
+            "size": 9,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "a14e04c6c55b23ce1": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 7,
+          "duplication": 7,
+          "size": 9,
+          "errors": 8,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true,
+      "a14e04c6c55b23ce1": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-lean-mo-r1",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 8,
+            "tests": 8,
+            "security": 9,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 8,
+          "tests": 8,
+          "security": 9,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-lean-mo-r2",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 7,
+            "tests": 8,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 7,
+          "tests": 8,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-lean-mo-r3",
+    "mode": "lean",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 1,
+    "graded": 1,
+    "passes": 1,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 1,
+    "firstTryPasses": 1,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 9,
+            "duplication": 8,
+            "size": 9,
+            "errors": 8,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 9,
+          "duplication": 8,
+          "size": 9,
+          "errors": 8,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-max-mo-r1",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 9,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "ab62065d904dc583f": [
+        {
+          "overall": 8,
+          "verdict": "fail",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 9,
+            "size": 9,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 7,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "ab62065d904dc583f": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 7,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "ab62065d904dc583f": true,
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-max-mo-r2",
+    "mode": "max",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 3,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "ad8d7b360d73887f1": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 7,
+            "size": 9,
+            "errors": 8,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 8,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 9,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "ad8d7b360d73887f1": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 8,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 9,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "ad8d7b360d73887f1": true,
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-max-mo-r3",
+    "mode": "max",
+    "partial": 1,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 3,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "a558a11c1fa2f903b": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 7,
+            "size": 9,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 7,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "main": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a558a11c1fa2f903b": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 7,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "a558a11c1fa2f903b": true,
+      "main": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-team-mo-r1",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8,
+    "noData": false,
+    "calls": 3,
+    "graded": 3,
+    "passes": 2,
+    "fails": 1,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 1,
+    "fixRounds": 1,
+    "sequences": {
+      "main": [
+        {
+          "overall": 6.9,
+          "verdict": "fail",
+          "items": {
+            "structure": 8,
+            "naming": 7,
+            "duplication": 7,
+            "size": 9,
+            "errors": 5,
+            "tests": 1,
+            "security": 9,
+            "leftovers": 9
+          }
+        },
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 8,
+            "size": 10,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ],
+      "aa6bc92a2ecc4277b": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 8,
+            "size": 10,
+            "errors": 8,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 8,
+          "size": 10,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 10
+        }
+      },
+      "aa6bc92a2ecc4277b": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 8,
+          "size": 10,
+          "errors": 8,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 1,
+    "finalMeetsMark": {
+      "main": true,
+      "aa6bc92a2ecc4277b": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-team-mo-r2",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "main": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 7,
+            "security": 9,
+            "leftovers": 9
+          }
+        }
+      ],
+      "ad6cfc7f89126bba2": [
+        {
+          "overall": 9,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 8,
+            "duplication": 8,
+            "size": 9,
+            "errors": 9,
+            "tests": 9,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "main": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 8,
+          "size": 9,
+          "errors": 7,
+          "security": 9,
+          "leftovers": 9
+        }
+      },
+      "ad6cfc7f89126bba2": {
+        "overall": 9,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 8,
+          "duplication": 8,
+          "size": 9,
+          "errors": 9,
+          "tests": 9,
+          "security": 10,
+          "leftovers": 9
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "main": true,
+      "ad6cfc7f89126bba2": true
+    },
+    "gateMisses": []
+  },
+  {
+    "id": "h6-team-mo-r3",
+    "mode": "balanced",
+    "partial": 0,
+    "blocked": 0,
+    "ungradedReports": 0,
+    "judgeCodeQuality": 8.5,
+    "noData": false,
+    "calls": 2,
+    "graded": 2,
+    "passes": 2,
+    "fails": 0,
+    "ungraded": 0,
+    "callers": 2,
+    "firstTryPasses": 2,
+    "fixRounds": 0,
+    "sequences": {
+      "a24a24bd7745a45af": [
+        {
+          "overall": 8,
+          "verdict": "pass",
+          "items": {
+            "structure": 8,
+            "naming": 8,
+            "duplication": 7,
+            "size": 9,
+            "errors": 9,
+            "tests": 8,
+            "security": 10,
+            "leftovers": 9
+          }
+        }
+      ],
+      "main": [
+        {
+          "overall": 9.3,
+          "verdict": "pass",
+          "items": {
+            "structure": 9,
+            "naming": 9,
+            "duplication": 9,
+            "size": 10,
+            "errors": 8,
+            "security": 10,
+            "leftovers": 10
+          }
+        }
+      ]
+    },
+    "finalGrades": {
+      "a24a24bd7745a45af": {
+        "overall": 8,
+        "verdict": "pass",
+        "items": {
+          "structure": 8,
+          "naming": 8,
+          "duplication": 7,
+          "size": 9,
+          "errors": 9,
+          "tests": 8,
+          "security": 10,
+          "leftovers": 9
+        }
+      },
+      "main": {
+        "overall": 9.3,
+        "verdict": "pass",
+        "items": {
+          "structure": 9,
+          "naming": 9,
+          "duplication": 9,
+          "size": 10,
+          "errors": 8,
+          "security": 10,
+          "leftovers": 10
+        }
+      }
+    },
+    "firstTryMeetsMark": 2,
+    "finalMeetsMark": {
+      "a24a24bd7745a45af": true,
+      "main": true
+    },
+    "gateMisses": []
+  }
+]

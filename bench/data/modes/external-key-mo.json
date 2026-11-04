@@ -1,0 +1,200 @@
+[
+  {
+    "case": "case-01",
+    "pair": "h6-r2",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-02",
+    "pair": "h6-r1",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-03",
+    "pair": "h6-r3",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-04",
+    "pair": "h6-r2",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-05",
+    "pair": "h5-r2",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-06",
+    "pair": "h4-r3",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-07",
+    "pair": "h4-r3",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-08",
+    "pair": "h4-r1",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-09",
+    "pair": "h5-r3",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-10",
+    "pair": "h4-r1",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-11",
+    "pair": "h4-r2",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-12",
+    "pair": "h6-r3",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-13",
+    "pair": "h4-r2",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-14",
+    "pair": "h6-r1",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-15",
+    "pair": "h5-r1",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-16",
+    "pair": "h5-r1",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-17",
+    "pair": "h5-r3",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-18",
+    "pair": "h5-r2",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  }
+]
