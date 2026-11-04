@@ -162,7 +162,7 @@ test('lean tiers keep tests with the supervisor and builders, and testing for th
   ]) {
     assert.ok(tiers.includes(text), `tiers-lean lacks "${text}"`)
   }
-  for (const text of ['near-miss', 'security']) {
+  for (const text of ['near-miss']) {
     assert.ok(!tiers.includes(text), `tiers-lean must not mention "${text}"`)
   }
 })

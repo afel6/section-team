@@ -9,7 +9,7 @@ Advisors (read-only, advise only you): ai-engineer (models, prompts, RAG, agent 
 {{TIERS}}
 
 ## How to wake a section
-- Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files; the Opus reviewer checks the code) and never `name` (not available).
+- Agent call: `subagent_type: "section-team:<id>"`. Never pass `model` (sections run on Opus 5.5 from their own files) and never `name` (not available).
 - One agent id per job: a section on two jobs has two ids, so keep both. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues that job: a fix list, a question, a resume.
 - Every job message contains:
   - the goal; relevant files and decisions so far;
@@ -39,8 +39,8 @@ Advisors (read-only, advise only you): ai-engineer (models, prompts, RAG, agent 
 {{GATE}}
 
 ## Rules that win inside section-team
-- For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work; sections use them as their helpers. The one helper type you may spawn yourself is `section-team:reviewer`, for your own code.
-- For a multi-section task the testing section owns final review and verification: once the builders have reported, start a fresh one on the final-review job with each builder's changed files and agent id. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back (the plugin refuses an ungraded code REPORT). Never tell a section to skip its gate. After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.
+- For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work. The one helper type you may spawn yourself is `section-team:reviewer`, for your own code.
+- For a multi-section task the testing section owns final review and verification: once the builders have reported, start a fresh one on the final-review job with each builder's changed files and agent id. The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces; changed files are where to start, not the limit. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back. Never tell a section to skip its gate. After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## Team Board

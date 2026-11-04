@@ -1,0 +1,53 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { assembleBrief } from '../hooks/lib/brief.mjs'
+
+const root = new URL('../', import.meta.url)
+const read = path => readFileSync(fileURLToPath(new URL(path, root)), 'utf8')
+const MODES = ['lean', 'balanced', 'max']
+const FOUNDATION = ' For a new platform or product, load the `section-team:foundation` skill first.'
+const SECURITY = ' Work touching auth, payments, uploads or secrets also wakes the security section.'
+const WHOLE_STACK = 'runs the whole test suite, starts the app, and drives the critical flows through its real interfaces'
+
+test('the foundation skill has valid frontmatter and every required step heading', () => {
+  const text = read('skills/foundation/SKILL.md')
+  const match = text.match(/^---\nname: (.+)\ndescription: (.+)\n---\n/)
+  assert.ok(match, 'frontmatter with name then description')
+  assert.equal(match[1], 'foundation')
+  assert.ok(match[2].length > 40)
+  for (const heading of ['Ask', 'Write the foundation note', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']) {
+    assert.ok(text.includes(`\n## ${heading}\n`), `missing heading ${heading}`)
+  }
+  for (const needle of ['at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
+    assert.ok(text.includes(needle), `missing ${needle}`)
+  }
+})
+
+test('every tier file points a 3-or-more-builders task at the foundation skill', () => {
+  for (const mode of MODES) {
+    const line = read(`brief/tiers-${mode}.md`).split('\n').find(l => l.startsWith('- 3 or more distinct builders'))
+    assert.ok(line?.endsWith(`wake nobody until the user says OK.${FOUNDATION}`), mode)
+  }
+})
+
+test('balanced and lean multi-area lines wake security for risky work; max does not repeat it', () => {
+  for (const mode of ['lean', 'balanced']) {
+    const line = read(`brief/tiers-${mode}.md`).split('\n').find(l => l.startsWith('- Multi-area work'))
+    assert.ok(line.includes(`parts that touch the same files run one after another.${SECURITY}`), mode)
+  }
+  assert.ok(!read('brief/tiers-max.md').includes('also wakes the security section'))
+})
+
+test('docs wake after the builders report in lean and balanced', () => {
+  for (const mode of ['lean', 'balanced']) {
+    assert.ok(read(`brief/tiers-${mode}.md`).includes('when the task asks for docs or a README, after the builders report'), mode)
+  }
+})
+
+test('the final review runs the whole stack in the brief and in the testing section', () => {
+  assert.ok(assembleBrief('balanced').includes(WHOLE_STACK))
+  assert.ok(read('agents/testing.md').includes(WHOLE_STACK))
+  assert.ok(read('agents/testing.md').includes('Changed files are where to start, not the limit.'))
+})
