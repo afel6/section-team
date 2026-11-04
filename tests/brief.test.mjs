@@ -152,6 +152,17 @@ test('max tiers add probing, near-miss copies, security and docs always', () => 
   assert.ok(!tiers.includes('Wake nobody'), 'tiers-max must not tell the supervisor to wake nobody')
 })
 
+test('every mode counts only builders toward the plan rule, and balanced and lean run security before the one cross-review', () => {
+  for (const mode of MODES) {
+    const plan = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- 3 or more distinct builders'))
+    assert.ok(plan.includes('(testing, docs, the security pass and advisors not counted)'), mode)
+  }
+  for (const mode of ['lean', 'balanced']) {
+    const multi = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- Multi-area work'))
+    assert.ok(multi.endsWith(' Run it before the final review; it is the one cross-review you ask for.'), mode)
+  }
+})
+
 test('lean tiers keep tests with the supervisor and builders, and testing for the final check only', () => {
   const tiers = part('tiers-lean')
   for (const text of [
@@ -162,9 +173,7 @@ test('lean tiers keep tests with the supervisor and builders, and testing for th
   ]) {
     assert.ok(tiers.includes(text), `tiers-lean lacks "${text}"`)
   }
-  for (const text of ['near-miss']) {
-    assert.ok(!tiers.includes(text), `tiers-lean must not mention "${text}"`)
-  }
+  assert.ok(!tiers.includes('near-miss'), 'tiers-lean must not mention "near-miss"')
 })
 
 // Lean and Max differ from Balanced only in the mode table's rules, so Balanced's other tier rules must stay in both.
@@ -173,8 +182,7 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
   const advisor = balanced.find(line => line.startsWith('- An AI or data decision'))
   const plan = balanced.find(line => line.startsWith('- 3 or more distinct builders'))
   assert.ok(advisor !== undefined && plan !== undefined, 'tiers-balanced lacks the advisor or the plan rule')
-  const maxPlan = plan.replace('docs and advisors', 'docs, the security pass and advisors')
-  assert.notEqual(maxPlan, plan, 'the plan rule in tiers-balanced no longer says "docs and advisors"')
+  assert.ok(plan.includes('(testing, docs, the security pass and advisors not counted)'), 'the plan rule must exclude testing, docs, the security pass and advisors')
   const shared = [
     'one kind of work (a CLI, an API, a library, a page, a schema)',
     'up to about 600 lines of new code',
@@ -192,7 +200,7 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
       phrases: ['add the docs section when the task asks for docs or a README'],
     },
     max: {
-      wholeLines: [advisor, maxPlan],
+      wholeLines: [advisor, plan],
       phrases: [
         'about 50 lines of new code or less',
         'build it and its tests yourself',

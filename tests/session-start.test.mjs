@@ -81,7 +81,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
 
 test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
   const brief = assembleBrief('balanced')
-  assert.ok(brief.includes('testing, docs and advisors not counted'))
+  assert.ok(brief.includes('testing, docs, the security pass and advisors not counted'))
 })
 
 test('the injected brief hands per-job skills, uses notes, gates its own code and describes the board commands', () => {
@@ -476,3 +476,13 @@ for (const mode of MODES) {
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }
+
+test('the context tells the supervisor to read .team/notes/plan.md first, only when it exists', () => {
+  const dir = repo()
+  assert.ok(!buildContext(dir, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const context = buildContext(dir, tempHome(), {})
+  assert.ok(context.includes('`.team/notes/plan.md` exists: read it first, before new team work.'))
+  assert.ok(context.indexOf('plan.md') < context.indexOf('## Mode'))
+})

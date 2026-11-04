@@ -21,7 +21,7 @@ Write `.team/notes/foundation.md`, under 150 lines, with:
 - deploy and migration rules;
 - commit policy.
 
-Add a line for it to `.team/notes/INDEX.md`.
+Add a line for it, and one for `.team/notes/plan.md` once you keep it, to `.team/notes/INDEX.md`.
 
 ## Get the OK
 Show the note to the user and wake nobody until they say OK. Ask here whether sections may commit after each job, because the user's rules may forbid commits otherwise.

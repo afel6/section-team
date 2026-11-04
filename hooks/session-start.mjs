@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { relative, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { assembleBrief } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, readMode } from './lib/mode.mjs'
 import { modeRecordDir, recordMode } from './lib/mode-record.mjs'
@@ -26,6 +27,8 @@ function skillSetting(autoInstallSkills, env) {
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
 const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode's gate before you call that work done."
 
+const PLAN_LINE = '`.team/notes/plan.md` exists: read it first, before new team work.'
+
 function modeSection(mode, skills, problem) {
   return [
     '## Mode',
@@ -37,12 +40,13 @@ function modeSection(mode, skills, problem) {
 }
 
 // The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, then the Mode section.
-export function composeContext({ mode, autoInstallSkills, problem }, env, summary) {
+export function composeContext({ mode, autoInstallSkills, problem }, env, summary, hasPlan = false) {
   const skills = skillSetting(autoInstallSkills, env)
   return [
     assembleBrief(mode),
     skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
     summary ? `Last team summary for this project: ${summary}. Read it before new team work.` : null,
+    hasPlan ? PLAN_LINE : null,
     modeSection(mode, skills, problem),
   ].filter(part => part !== null).join('\n\n')
 }
@@ -79,8 +83,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   ]
   const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
   const summary = attempt('summary lookup', () => summaryPath(root))
-  const warnings = [setting.problem, ...stepWarnings, summary.warning].filter(warning => warning !== null)
-  return { context: composeContext(setting, env, summary.value), warnings }
+  const plan = attempt('plan lookup', () => existsSync(join(root, '.team', 'notes', 'plan.md')))
+  const warnings = [setting.problem, ...stepWarnings, summary.warning, plan.warning].filter(warning => warning !== null)
+  return { context: composeContext(setting, env, summary.value, plan.value === true), warnings }
 }
 
 export function buildContext(cwd, home = homedir(), env = process.env, sessionId) {

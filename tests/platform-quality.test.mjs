@@ -9,7 +9,7 @@ const read = path => readFileSync(fileURLToPath(new URL(path, root)), 'utf8')
 const MODES = ['lean', 'balanced', 'max']
 const FOUNDATION = ' For a new platform or product, load the `section-team:foundation` skill first.'
 const SECURITY = ' Work touching auth, payments, uploads or secrets also wakes the security section.'
-const WHOLE_STACK = 'runs the whole test suite, starts the app, and drives the critical flows through its real interfaces'
+const WHOLE_STACK = 'runs the whole test suite, starts the app, and drives the critical flows through its real interfaces, reporting the commands and results'
 
 test('the foundation skill has valid frontmatter and every required step heading', () => {
   const text = read('skills/foundation/SKILL.md')
@@ -17,10 +17,10 @@ test('the foundation skill has valid frontmatter and every required step heading
   assert.ok(match, 'frontmatter with name then description')
   assert.equal(match[1], 'foundation')
   assert.ok(match[2].length > 40)
-  for (const heading of ['Ask', 'Write the foundation note', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']) {
-    assert.ok(text.includes(`\n## ${heading}\n`), `missing heading ${heading}`)
-  }
-  for (const needle of ['at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
+  const headings = ['Ask', 'Write the foundation note', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
+  assert.deepEqual([...text.matchAll(/^## (.+)$/gm)].map(m => m[1]), headings, 'headings missing or out of order')
+  const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts', 'auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
+  for (const needle of [...noteContents, 'wake nobody until they say OK', 'frozen', 'whole-stack verification', 'at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
     assert.ok(text.includes(needle), `missing ${needle}`)
   }
 })
