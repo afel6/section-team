@@ -132,7 +132,8 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
+    'A pass ends the gate: apply its quick fixes if you like, then rerun the tests, but do not grade again after a pass. Any other code edit needs a new grade.',
+    'Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -144,8 +145,11 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     for (const sentence of sentences) assert.ok(text.includes(sentence), `${id} lacks: ${sentence}`)
     assert.ok(text.includes('\n7. Write notes for anything other sections depend on'), `${id}: step 7 is no longer the notes step the plan step points to`)
     assert.ok(!text.includes("Once your helpers' code is in"), `${id} still gates only the helpers' code`)
+    assert.ok(!text.includes('A later job that changes code gets its own grade.'), `${id} keeps the old after-a-pass line`)
+    assert.ok(text.indexOf('Before your first grade') < text.indexOf("send your changed files to Agent `section-team:reviewer`"), `${id} walks its code after the grade`)
   }
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes('Before your first grade'), `${id} has no gate to run`)
 })
 
 test('house rules carry the friendly-errors rule; the reviewer fails a user-triggerable stack trace; testing probes I/O and startup failures', () => {

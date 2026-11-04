@@ -488,6 +488,66 @@ test('a SendMessage to a reviewer, or to a head under the limit, is allowed', ()
   assert.equal(decide(sendMessageTo('section-team:backend', UNDER_LIMIT)), null)
 })
 
+// The grade check: a section's REPORT against the reviewer's answer in its own transcript.
+const reviewerCall = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_r', name: 'Agent', input: { subagent_type: 'section-team:reviewer', prompt: 'grade it' } }] } }
+const readCall = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_x', name: 'Read', input: { file_path: 'a.mjs' } }] } }
+const resultOf = text => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_r', content: [{ type: 'text', text }] }] } })
+const gradeSaid = n => `  ## GRADE\n  Overall: ${n}/10\n  Verdict: pass\n`
+const REVIEW_FORMS = {
+  tool_result: n => [reviewerCall, resultOf(`${gradeSaid(n)}agentId: ar1 (use SendMessage)`)],
+  attachment: n => [reviewerCall, resultOf('The report was delivered as a message.\nagentId: ar1 (use SendMessage)'), { type: 'attachment', attachment: { type: 'queued_command', prompt: `<agent-message from="ar1">\n${gradeSaid(n)}</agent-message>` } }],
+}
+const gradedHandback = (entries, report, agent_type = 'section-team:backend') => {
+  const dir = tempDir()
+  const subagents = join(dir, 'sid-1', 'subagents')
+  mkdirSync(subagents, { recursive: true })
+  writeFileSync(join(subagents, 'agent-s1.jsonl'), `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`)
+  return { ...handbackIn(projectWith(null), report), agent_type, agent_id: 's1', session_id: 'sid-1', transcript_path: join(dir, 'sid-1.jsonl') }
+}
+
+for (const [form, said] of Object.entries(REVIEW_FORMS)) {
+  test(`the handback gate checks the REPORT's grade against a reviewer answer in a ${form}`, () => {
+    assert.equal(decide(gradedHandback(said(9), DONE_AT('9/10 (reviewer, 0 fix rounds)')), {}, tempDir()), null)
+    assert.equal(decide(gradedHandback(said(9), DONE_AT('8.5/10 (reviewer, 0 fix rounds)')), {}, tempDir()), null)
+    assert.equal(decide(gradedHandback(said(8), DONE_AT('9/10 (reviewer, 0 fix rounds)')), {}, tempDir()), "section-team: your REPORT says 9/10, but the reviewer said 8/10. Report the reviewer's grade.")
+  })
+}
+
+test('a graded REPORT with no reviewer call in the transcript is refused', () => {
+  assert.equal(decide(gradedHandback([readCall], DONE_AT('9/10 (reviewer)')), {}, tempDir()), 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.')
+})
+
+test('the existing gate checks come first, so a low or missing grade keeps its own refusal', () => {
+  assert.match(decide(gradedHandback([readCall], DONE_AT('7/10 (reviewer)')), {}, tempDir()), /under the pass mark/)
+  assert.match(decide(gradedHandback([readCall], UNGRADED_DONE), {}, tempDir()), /no reviewer grade/)
+})
+
+test('partial, blocked, ungraded, docs-only and advisor handbacks are not checked against the transcript', () => {
+  const lying = '9/10 (reviewer, 0 fix rounds)'
+  for (const entries of [[readCall], REVIEW_FORMS.tool_result(5), REVIEW_FORMS.attachment(5)]) {
+    for (const status of ['partial', 'blocked', 'ungraded — no Agent tool']) assert.equal(decide(gradedHandback(entries, REPORT_WITH(status, 'src/api.mjs', lying)), {}, tempDir()), null, status)
+    assert.equal(decide(gradedHandback(entries, REPORT_WITH('done', 'README.md', lying)), {}, tempDir()), null, 'docs only')
+    assert.equal(decide(gradedHandback(entries, DONE_AT(lying), 'section-team:ai-engineer'), {}, tempDir()), null, 'advisor')
+  }
+})
+
+test('a graded handback whose transcript cannot be found allows', () => {
+  const e = gradedHandback([readCall], DONE_AT('9/10 (reviewer)'))
+  assert.equal(decide({ ...e, agent_id: undefined }, {}, tempDir()), null)
+  assert.equal(decide({ ...e, agent_id: 'nobody' }, {}, tempDir()), null)
+})
+
+test('the spawned hook denies a grade above the reviewer and stays silent on an honest one', () => {
+  const refused = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(8), DONE_AT('9/10 (reviewer)'))))
+  assert.equal(refused.status, 0)
+  const out = JSON.parse(refused.stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /your REPORT says 9\/10, but the reviewer said 8\/10/)
+  const honest = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(9), DONE_AT('9/10 (reviewer)'))))
+  assert.equal(honest.status, 0)
+  assert.equal(honest.stdout, '')
+})
+
 test('the spawned hook denies an oversized resume and stays silent otherwise', () => {
   const refused = spawnHook(JSON.stringify(sendMessageTo('section-team:backend', OVER_LIMIT)))
   assert.equal(refused.status, 0)

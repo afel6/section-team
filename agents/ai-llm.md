@@ -29,12 +29,13 @@ The supervisor sends you jobs. For each job:
    - Helpers never spawn agents.
 5. Keep for yourself: design decisions, tricky bugs, integration and the final check.
 6. Quality gate (skip it when the job changed no code, for example docs only or config values):
+   - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.
    - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.
    - Pass: overall at least 8 and no item under 6.
    - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.
    - If the job states a mode gate, it replaces the numbers here and the reviewer's model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.
    - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.
-   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.
+   - A pass ends the gate: apply its quick fixes if you like, then rerun the tests, but do not grade again after a pass. Any other code edit needs a new grade.
    - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.
    - If it still fails, finish with `Status: partial` and the grade; never call it done.
    - Put the overall grade and the number of fix rounds on the REPORT's Quality line.

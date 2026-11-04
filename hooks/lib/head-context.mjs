@@ -32,11 +32,10 @@ function contextTokens(file) {
 
 const isPathPart = part => typeof part === 'string' && PATH_PART.test(part)
 
-// The target's transcript path without its extension, or null when the event lacks a usable part.
-function targetBase(e) {
-  const to = e?.tool_input?.to
-  if (typeof e?.transcript_path !== 'string' || !isPathPart(e.session_id) || !isPathPart(to)) return null
-  return join(dirname(e.transcript_path), e.session_id, 'subagents', `agent-${to}`)
+// A subagent's transcript path without its extension, or null when the event lacks a usable part.
+export function subagentBase(e, id) {
+  if (typeof e?.transcript_path !== 'string' || !isPathPart(e.session_id) || !isPathPart(id)) return null
+  return join(dirname(e.transcript_path), e.session_id, 'subagents', `agent-${id}`)
 }
 
 function builderId(metaFile) {
@@ -47,7 +46,7 @@ function builderId(metaFile) {
 // The refusal for a SendMessage that would resume an oversized builder head, else null.
 // Hooks fail open, so any read failure here (no such target, bad JSON) denies nothing: real work must never be blocked by a guard that cannot see.
 export function headContextRule(e) {
-  const base = targetBase(e)
+  const base = subagentBase(e, e?.tool_input?.to)
   if (base === null) return null
   try {
     const id = builderId(`${base}.meta.json`)

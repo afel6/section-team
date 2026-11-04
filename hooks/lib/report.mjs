@@ -49,7 +49,7 @@ export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
 const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
-const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
+export const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
 
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
 export function needsGate(report) {

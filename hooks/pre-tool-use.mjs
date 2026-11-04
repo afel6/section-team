@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import nodePath from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { gradeRule } from './lib/grade.mjs'
 import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
 import { readRecord } from './lib/mode-record.mjs'
@@ -54,7 +55,8 @@ function projectGate(e, env, home) {
   return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 
-// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the mode's pass mark, is refused.
+// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
+// or claims a grade its own transcript does not back is refused.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
@@ -62,7 +64,8 @@ function handbackGate(id, e, env, home) {
   const report = parseReport(block)
   const gate = projectGate(e, env, home)
   if (needsGate(report)) return gateReasons(gate).ungraded
-  return failsGate(report, gate.passOverall) ? gateReasons(gate).failing : null
+  if (failsGate(report, gate.passOverall)) return gateReasons(gate).failing
+  return claimsDoneWithCode(report) ? gradeRule(e, report.quality) : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
