@@ -1,0 +1,497 @@
+[
+  {
+    "pair": "h1-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "A/ini2json.mjs:17 validates quoted escapes; :35 converts integers precisely; :45 uses null-prototype objects for special names; :85 handles decoding and file errors clearly. A/test/ini2json.test.mjs:25 checks exact output, and :126 checks error precedence. Coverage gaps include secondary BOMs, Unicode whitespace and cannot-read errors (:45, :146). A/README.md:5 and :43 document usage and exit codes. Ran node --test: blocked by sandbox spawn EPERM; disabling isolation encountered fixture-creation EPERM. An in-memory filesystem/CLI adapter passed all 22 original test cases. All 5,829 independent in-memory reference probes matched. Direct CLI checks confirmed usage, missing-file, directory and parse-error messages with exits 2, 1, 1 and 3. No functional defect confirmed."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "B/ini2json.mjs:21 validates quoting; :48 and :57 separate header and entry parsing with correct error precedence; :70 and :78 safely support prototype-related names; :80 preserves lone carriage returns; :110 handles UTF-8 decoding. B/test/ini2json.test.mjs:35 asserts exact output/status, :91 thoroughly tests encoding, and :208 tests error precedence. B/README.md:5 and :32 explain usage and format. Minor usability gap: README.md:3 and package.json:5 omit a minimum Node version. Ran node --test: blocked by sandbox spawn EPERM; disabling isolation encountered fixture-creation EPERM. An in-memory filesystem/CLI adapter passed 145 original test cases, with one platform-specific permission test skipped. All 5,829 independent in-memory reference probes matched. Direct CLI error checks confirmed required messages and exit codes. No functional defect confirmed; broader tests earn first place."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "h3-r3",
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "A/cron.mjs:65 normalizes sorted, unique arrays; A/cron.mjs:99 correctly implements UTC day matching and the exact-* OR rule. A/cron.mjs:51 incorrectly accepts weekday 7/s: inline probes of '* * * * 7/1', '7/2', and '7/999' returned [0] instead of SyntaxError, although n/s is restricted to 0-6. A/cron.mjs:110 overflows the five-year cutoff near Date's maximum: next('* * * * *', new Date(8640000000000000 - 60000)) throws No match despite an available valid next minute. A/cron.test.mjs:131 and :145 cover meaningful day-rule behavior, but miss these defects. Ran node --test (blocked by sandbox spawn EPERM), then node --test --test-isolation=none: 23/23 passed. Scratch-cwd inline probes passed 500 valid parser oracle cases, 70 brute-force scheduling comparisons, 28 argument-type checks, three timezone checks, and a 1000-result yearly schedule; 3/34 malformed-expression checks failed on 7/s. A/README.md:8, :40, :42, and :54 provide clear usage, grammar, day rules, and errors."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/cron.mjs:49 correctly enforces the weekday n/s bound; B/cron.mjs:83 avoids duplicate parsing, and :117 advances through UTC calendar fields clearly. B/cron.mjs:104 correctly applies the OR day rule. B/cron.mjs:129 overflows the five-year cutoff near Date's maximum: next('* * * * *', new Date(8640000000000000 - 60000)) throws No match despite an available valid next minute. B/test/cron.test.mjs:138, :311, :375, and :395 cover weekday steps, early years, century leap gaps, and sparse schedules, but omit that overflow. Ran node --test (blocked by sandbox spawn EPERM), then node --test --test-isolation=none: 113/114 passed; the sole failure at B/test/cron.test.mjs:295 was sandbox-blocked subprocess creation, not an assertion failure. Equivalent inline checks passed under all three TZ settings. Scratch-cwd inline probes also passed 500 valid parser oracle cases, 70 brute-force scheduling comparisons, 34 malformed-expression checks, 28 argument-type checks, and a 1000-result yearly schedule. B/README.md:8, :38, :40, and :56 clearly explain usage, grammar, day rules, and errors."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "h2-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No functional regression identified. A/lib/validate.mjs:33 rejects fractional, coercible and unsafe quantities; A/lib/paginate.mjs:5 fixes the page boundary. A/lib/routes.mjs:20 correctly escapes CSV, :25 sorts every item without mutating state, and :81 gives export routing precedence. A/server.mjs:57 sends the exact MIME value and correct byte length. Coverage gaps: A/test/api.test.mjs:169 exports only three items, so cannot catch accidental pagination; :170 and :172 combine quoting triggers instead of testing them independently. A/README.md:41 and :47 explain validation and CSV, although the safe-integer maximum is undocumented. Ran node --test: blocked by spawn EPERM. With --test-isolation=none, filesystem-dependent tests hit mkdtemp EPERM; the pagination and validation suites passed 12/12. Independent scratch-based probes passed 320 checks using actual handlers and HTTP request listeners with store reads supplied in memory."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No functional regression identified. B/lib/validate.mjs:33 fixes quantity validation; B/lib/paginate.mjs:5 fixes pagination. B/lib/csv.mjs:3 and :10 implement every escaping trigger and final CRLF. B/lib/routes.mjs:20 exports all items in order; B/server.mjs:58 preserves the exact MIME value and correct byte length. Strong coverage includes rejected-request state preservation at B/test/api.test.mjs:154, a 30-item export at :176, individual escaping triggers at :191, and focused serializer tests at B/test/csv.test.mjs:5. B/README.md:41 and :47 document the behavior, with only the safe-integer maximum omitted. Ran node --test: blocked by spawn EPERM. With --test-isolation=none, filesystem-dependent tests hit mkdtemp EPERM; CSV, pagination and validation suites passed 15/15. Independent scratch-based probes passed 320 checks using actual handlers and HTTP request listeners with store reads supplied in memory. Broader regression coverage gives B the lead."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "h2-r3",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No introduced defects found. A/lib/validate.mjs:33 rejects fractional, coerced and unsafe quantities; A/lib/paginate.mjs:5 fixes the shared pagination boundary. A/lib/csv.mjs:7 implements correct escaping, A/lib/routes.mjs:20 exports all items in SKU order, and A/server.mjs:56 sends CSV verbatim with the exact content type. A/test/api.test.mjs:176 checks export beyond the default page size; A/test/csv.test.mjs:11 covers escaping separately. A/README.md:47 documents the export contract. Full node --test execution was blocked by sandbox spawn EPERM; --test-isolation=none reached API/store tests but temporary-directory creation was denied. All 15 filesystem-independent unit tests passed. In-memory probes run from scratch passed 761-item CSV export, 19 invalid quantity cases, both collection routes at five page sizes, and response formatting without network or writes."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "No introduced implementation defects found. B/lib/validate.mjs:33 fixes quantity validation, B/lib/paginate.mjs:5 fixes pagination, and B/lib/routes.mjs:18 correctly escapes CSV fields. B/lib/routes.mjs:25 sorts every item without mutating state; B/server.mjs:56 preserves CSV bytes and the exact content type. B/README.md:47 clearly documents the feature. Coverage limitation: B/test/api.test.mjs:169 exports only three items, so it would miss accidental pagination of the export. Full node --test execution was blocked by sandbox spawn EPERM; --test-isolation=none reached API/store tests but temporary-directory creation was denied. All 12 filesystem-independent unit tests passed. The same in-memory probes passed 761-item CSV export, 19 invalid quantity cases, both collection routes at five page sizes, and response formatting without network or writes."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-04",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r3",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No confirmed correctness defect. A/ini2json.mjs:57 implements required validation precedence; A/ini2json.mjs:69 safely handles special property names; A/ini2json.mjs:115 correctly decodes UTF-8. Comprehensive boundary and error tests at A/test/ini2json.test.mjs:62 and A/test/ini2json.test.mjs:193 distinguish A. Minor documentation defect: A/README.md:38 shows one backslash for the two-backslash escape. Standard node --test execution was blocked by sandbox spawn EPERM; disabling isolation encountered fixture-creation EPERM. With virtual filesystem and CLI execution, all 147 supplied tests passed. Independent in-memory probes matched the specification oracle on 58,216 cases. Direct CLI error/exit checks and syntax checks passed."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No confirmed correctness defect. B/ini2json.mjs:14 correctly decodes UTF-8; B/ini2json.mjs:61 safely merges sections; B/ini2json.mjs:74 preserves validation precedence; B/ini2json.mjs:86 correctly handles CRLF. B/README.md:36 clearly documents the grammar. Tests are useful but omit section-name length boundaries, exact special section names, and malformed quoted values on duplicate keys (B/test/ini2json.test.mjs:79, B/test/ini2json.test.mjs:97, B/test/ini2json.test.mjs:119). Fixtures created at B/test/ini2json.test.mjs:10 lack cleanup. Standard test execution encountered sandbox spawn/fixture EPERM. With virtual filesystem and CLI execution, all 18 supplied tests passed. Independent in-memory probes matched the specification oracle on 58,216 cases. Direct CLI error/exit checks and syntax checks passed."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-05"
+  },
+  {
+    "pair": "h3-r2",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "A/cron.mjs:58 and A/cron.mjs:76 provide a compact parser with sorted unique values and correct exact-star DOM/DOW OR semantics; A/README.md:5 supplies usable examples and API/error documentation. Confirmed defects: A/cron.mjs:89 uses Date.UTC, so next('* * * * *', new Date('0099-01-01T00:00:00Z')) incorrectly throws RangeError. A/cron.mjs:114 and A/cron.mjs:117 calculate the horizon after rounding forward: from 2099-02-28T23:59Z, '0 0 29 2 *' incorrectly returns 2104-02-29, beyond five years. A/cron.mjs:117 also overflows the horizon for valid dates such as +275759-01-01, rejecting an available next minute. A/cron.mjs:49 accepts DOW 7/2 despite the specified 0-6 step domain, and A/cron.mjs:66 accepts tab/newline separators despite spaces-only syntax. A/README.md:22 omits the DOW step exception. Ran node cron.test.mjs in A: all 15 tests passed; A/cron.test.mjs:112 tests impossible dates but misses these horizon/year boundaries. node --test was blocked by sandbox spawn EPERM, an environmental limitation. Inline probes run from scratch confirmed the defects; 1,000 generated parser cases, 80 scheduler comparisons against an independent reference, and 29 error checks otherwise passed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/cron.mjs:20 provides clear parsing helpers with strict validation and normalized arrays; B/cron.mjs:91 implements the exact-star DOM/DOW rule correctly. B/cron.mjs:104 avoids JavaScript's year-0-99 remapping, and B/cron.mjs:125 skips unmatched months/days/hours efficiently. B/README.md:20 and B/README.md:38 thoroughly document grammar, UTC API behavior and errors. Confirmed defect: B/cron.mjs:111 and B/cron.mjs:120 allow the five-year horizon to overflow to NaN; B/cron.mjs:122 then skips the search. next('* * * * *', new Date('+275759-01-01T00:00:00Z')) throws RangeError instead of returning the available next minute. Ran node cron.test.mjs in B: all 93 tests passed. B/cron.test.mjs:171 and B/cron.test.mjs:370 cover malformed syntax and five-year/leap-century boundaries well, but omit maximum-Date overflow. node --test was blocked by sandbox spawn EPERM, an environmental limitation. Inline probes from scratch confirmed the overflow defect and correct early-year, DOW-step and five-year-boundary handling; 1,000 generated parser cases, 80 scheduler comparisons against an independent reference, and 29 error checks passed."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-06"
+  },
+  {
+    "pair": "h2-r1",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No confirmed introduced defects. A/lib/validate.mjs:33 rejects fractional, coerced and unsafe quantities; A/lib/paginate.mjs:5 fixes page sizes. A/lib/routes.mjs:19 exports all items in SKU order without mutating state, and A/lib/csv.mjs:10 plus A/server.mjs:56 preserve CSV escaping, final CRLF and exact text/csv responses. A/README.md:41 and A/README.md:47 document the changes clearly. Regression tests cover rejected reservations without mutation, 25-item paging and populated/empty exports (A/test/api.test.mjs:154, A/test/api.test.mjs:163, A/test/api.test.mjs:172, A/test/api.test.mjs:188); A/test/paginate.test.mjs:19 additionally checks per_page=1, giving A a slight coverage edge. Ran git diff --no-index -- SEED A and npm test: the latter was blocked by sandbox spawn EPERM. Reran node --test --test-isolation=none \"test/*.test.mjs\": 16 passed, 23 API/store tests blocked by read-only fixture creation (mkdtemp EPERM), so the complete original suite remains unverified. Read-only probes from scratch passed 368 assertions for validation, page boundaries, reservations, complete sorted/escaped CSV and synthetic HTTP responses, including Unicode byte lengths. Sandbox failures were not counted as solution defects."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No confirmed introduced defects. B/lib/validate.mjs:33 strictly validates positive safe integers; B/lib/paginate.mjs:5 fixes both list routes. B/lib/routes.mjs:21 exports every item in SKU order, B/lib/csv.mjs:9 correctly escapes fields and terminates records with CRLF, and B/server.mjs:56 sends raw CSV with exact text/csv and correct byte lengths. B/README.md:41 and B/README.md:47 clearly document validation and export behavior. B/test/api.test.mjs:72, B/test/api.test.mjs:80 and B/test/api.test.mjs:88 cover the reported bugs and multiline CSV; B/test/csv.test.mjs:10 covers every required quoting character. Minor coverage gap versus A: B/test/paginate.test.mjs:18 does not check per_page=1. Ran git diff --no-index -- SEED B and npm --prefix B test: tests were blocked by sandbox spawn EPERM. Reran node --test --test-isolation=none \"test/*.test.mjs\": 14 passed, 23 API/store tests blocked by read-only fixture creation (mkdtemp EPERM); a separate pure-unit run passed 14/14. The complete original suite remains unverified. Shared read-only probes from scratch passed 368 assertions, including validation, page boundaries, reservations, complete sorted/escaped CSV, exact response headers and Unicode byte lengths. Sandbox failures were not counted as solution defects."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-07",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r3",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "A/cron.mjs:39 correctly distinguishes weekday step bounds from range endpoints; A/cron.mjs:101 implements the exact-star day rule; A/cron.mjs:117 efficiently skips calendar units. A/README.md:8 and A/README.md:56 provide clear usage and errors. Ran node --test, which was blocked by sandbox spawn EPERM, then node test/cron.test.mjs: 113/114 tests passed. The remaining timezone test at A/test/cron.test.mjs:287 was blocked by subprocess EPERM; equivalent in-process timezone probes passed. In-memory probes from scratch passed 11,734 checks, including numeric ranges with four step sizes and 80 schedules compared against minute-by-minute enumeration. Confirmed defect at A/cron.mjs:128: the five-year deadline overflows near Date's upper limit. next('* * * * *', new Date('+275758-01-01T00:00:00.000Z')) incorrectly throws No match despite a valid next-minute match. Tests omit this boundary."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "B/cron.mjs:65 produces sorted unique values; B/cron.mjs:99 correctly implements calendar/day matching; B/cron.mjs:131 validates ordinary arguments. B/README.md:40 explains Sunday ranges and B/README.md:58 clarifies successive search windows. Ran node --test, which was blocked by sandbox spawn EPERM, then node cron.test.mjs: all 23 tests passed. In-memory probes from scratch passed 11,734 checks, including numeric ranges with four step sizes, 80 schedules compared against minute-by-minute enumeration, and timezone checks. Confirmed defect at B/cron.mjs:51: Math.max permits weekday 7/1 and 7/2, returning [0] instead of SyntaxError despite the specified 0-6 bound for n/s; B/cron.test.mjs:34 omits this boundary. B/cron.mjs:108 and B/cron.mjs:117 also overflow the five-year deadline: an every-minute schedule from +275758-01-01 incorrectly throws No match despite an immediate valid match. Tests omit this Date-limit boundary."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-08"
+  },
+  {
+    "pair": "h3-r1",
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear field metadata, sorted deduplicated parsing, and correct exact-star day rules (A/cron.mjs:12, A/cron.mjs:66, A/cron.mjs:88). README documents usage, grammar, and errors (A/README.md:8, A/README.md:20, A/README.md:49). Defects: A/cron.mjs:58 accepts '0 0 * * 7/1' as Sunday despite the specified 0-6 stepped domain. A/cron.mjs:105 overflows the five-year deadline near Date's maximum: next('* * * * *', new Date('+275759-01-01T00:00:00Z')) incorrectly throws RangeError. npm --prefix A test encountered sandbox spawn EPERM; from scratch, node --test --test-isolation=none ../A/cron.test.mjs passed all 18 tests. Independent scratch probes passed 23,026 field-expansion checks and all 2,000 calendar-reference comparisons, including historical years. Existing tests cover substantial behavior but miss the defects above (A/cron.test.mjs:31, A/cron.test.mjs:136). Ranked first for broader correctness across valid dates."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Readable parsing helpers, correct day-rule handling, and efficient month/day skipping (B/cron.mjs:24, B/cron.mjs:95, B/cron.mjs:132). Broad validation/calendar tests and comprehensive usage/error documentation (B/test/parse.test.mjs:177, B/test/next.test.mjs:96, B/README.md:7, B/README.md:48). Defects: B/cron.mjs:114 uses Date.UTC, which remaps years 0-99; next('0 0 1 3 *', new Date('0001-01-01T00:00:00Z')) incorrectly throws RangeError instead of returning March 1. B/cron.mjs:151 also overflows the search deadline near Date's maximum, rejecting an available next minute. npm --prefix B test encountered sandbox spawn EPERM. With --test-isolation=none, 98 tests passed; the remaining timezone test was blocked by its subprocess call (B/test/next.test.mjs:186). Excluding that test produced exit 0, and its equivalent UTC assertion passed separately. Independent scratch probes passed 23,026 field-expansion checks; 350 of 2,000 calendar comparisons failed, all from the historical-year defect."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-09",
+    "swapped": true
+  },
+  {
+    "pair": "h2-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No introduced defect found against SEED. A/lib/validate.mjs:33 rejects fractional, coerced and unsafe quantities; A/lib/paginate.mjs:5 fixes pagination. A/lib/routes.mjs:21 exports all items sorted without mutation; A/lib/csv.mjs:9 supplies correct escaping and CRLF; A/server.mjs:57 sends exact text/csv. Regression tests cover both bugs and export (A/test/api.test.mjs:72,80,88); README documents the contract (A/README.md:41,47). Ran npm --prefix A test: sandbox spawn EPERM. Retried the full suite with --test-isolation=none: 14 passed, 23 blocked by temporary-directory EPERM. Focused CSV, pagination and validation suites passed 14/14. In-memory probes from scratch passed 230 checks, including HTTP callbacks with mocked loading; full integration and persistence execution remains unverified."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No introduced defect found against SEED. B/lib/validate.mjs:33 and B/lib/paginate.mjs:5 correctly fix both bugs. B/lib/routes.mjs:20 exports every item sorted; B/lib/csv.mjs:10 provides correct escaping and CRLF; B/server.mjs:60 sends exact text/csv. README clearly documents quantities and export (B/README.md:41,47). Narrow ranking advantage: reversed inventory export test (B/test/api.test.mjs:172), per_page=1 coverage (B/test/paginate.test.mjs:22), and punctuation coverage (B/test/csv.test.mjs:13). Ran npm --prefix B test: sandbox spawn EPERM. Retried the full suite with --test-isolation=none: 16 passed, 23 blocked by temporary-directory EPERM. Focused CSV, pagination and validation suites passed 16/16. In-memory probes from scratch passed 230 checks, including HTTP callbacks with mocked loading; full integration and persistence execution remains unverified."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-10"
+  },
+  {
+    "pair": "h2-r2",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No functional defects found in the changes against SEED. Safe integer validation fixes quantity truncation (A/lib/validate.mjs:33); pagination uses the correct exclusive endpoint (A/lib/paginate.mjs:5). Export sorts all items without mutating state (A/lib/routes.mjs:18), escapes fields and terminates rows correctly (A/lib/csv.mjs:7, A/lib/csv.mjs:10), and preserves exact content type and byte length (A/server.mjs:57). Tests cover the reported bugs and CSV formatting, but the export cases use only small datasets (A/test/api.test.mjs:78, A/test/api.test.mjs:89), leaving full-export and Unicode HTTP coverage weaker than B. README documents CSV precisely (A/README.md:47), but omits the safe integer ceiling (A/README.md:41). Ran the own suite: default isolation was blocked by spawn EPERM; without isolation, 15 passed and 23 were blocked by mkdtemp EPERM at unchanged A/test/helpers.mjs:8. The pure test subset passed 15/15. Independent in-memory HTTP probes from scratch passed quantity rejection, 125-item pagination/export, all escaping triggers, ignored export paging, and UTF-8 byte length without filesystem writes."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 10,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No functional defects found in the changes against SEED. Minimal shared fixes correctly reject fractional/coerced/unsafe quantities (B/lib/validate.mjs:33) and repair pagination (B/lib/paginate.mjs:5). Export sorts every item (B/lib/routes.mjs:19), precedes the generic SKU route (B/lib/routes.mjs:74), correctly escapes CSV and appends CRLF (B/lib/csv.mjs:7, B/lib/csv.mjs:11), and sends exact content type with UTF-8 byte length (B/server.mjs:57). Stronger regression coverage includes both fractional POST paths (B/test/api.test.mjs:154), export beyond one page (B/test/api.test.mjs:191), Unicode and ignored paging (B/test/api.test.mjs:206), and numeric boundaries (B/test/validate.test.mjs:56). README clearly specifies CSV (B/README.md:47); minor omission: the safe integer ceiling is undocumented (B/README.md:41). Ran npm --prefix B test: blocked by spawn EPERM. Without isolation, 17 passed and 26 were blocked by mkdtemp EPERM at unchanged B/test/helpers.mjs:8; the pure subset passed 17/17. Independent in-memory HTTP probes from scratch passed the same quantity, pagination, CSV, and header checks as A. B ranks first for broader regression coverage."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-11",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r2",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "A/ini2json.mjs:78 uses null-prototype objects, A/ini2json.mjs:83 preserves lone carriage returns, and A/ini2json.mjs:62 implements the required validation precedence. No functional defect found in 4,403 independent in-memory parsing probes. A/test/ini2json.test.mjs:91 provides particularly strong encoding and line-ending coverage; A/test/ini2json.test.mjs:208 checks error precedence. Ran node --test ../A/test/ini2json.test.mjs: sandbox EPERM blocked execution; disabling test isolation then encountered forbidden temporary-file creation. An instrumented in-memory replay passed 145 tests, with one permission test skipped. Syntax checks and native CLI error checks passed. Minor usability omission: A/package.json:5 and A/README.md:3 specify no minimum Node version."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/ini2json.mjs:45 safely handles prototype-related names, B/ini2json.mjs:18 validates quoted strings clearly, and B/ini2json.mjs:38 preserves integer precision. No functional defect found in 4,403 independent in-memory parsing probes. B/README.md:5 documents usage and B/package.json:10 declares the runtime requirement. B/test/ini2json.test.mjs:45 covers basic encoding, but the suite omits second-BOM rejection, non-space/tab whitespace boundaries, and lone-CR-at-EOF cases covered by A. Ran node --test ../B/test/ini2json.test.mjs: sandbox EPERM blocked execution; disabling isolation encountered forbidden temporary-file creation. An instrumented in-memory replay passed all 22 tests, exercising 43 CLI invocations. Syntax checks and native CLI error checks passed."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-12",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r3",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No functional defects found. A/ini2json.mjs:74 validates quoted values before duplicates; :81 safely preserves special property names; :86 correctly handles lone CR characters. A/README.md:8 and :42 clearly document usage and escapes. Coverage gaps: A/test/ini2json.test.mjs:115 exercises fewer error-precedence combinations, and :137 omits generic read errors. Standard node --test was blocked by sandbox EPERM; --test-isolation=none was blocked creating temporary files. An in-memory harness executing the supplied test definitions passed 18/18, with virtual filesystem and CLI calls. Another 6,923 generated and targeted in-memory conformance checks found zero mismatches. Direct CLI checks confirmed usage exit 2 and expected missing-file/directory diagnostics."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No functional defects found. B/ini2json.mjs:12 provides structured errors, :69 safely preserves special property names, and :105 exposes a testable main function. Strong behavioral coverage includes encoding at B/test/ini2json.test.mjs:62, error precedence at :145, numeric boundaries at :174, and exact output streams at :33. Minor documentation defect: B/README.md:38 shows one backslash where the supported escaped backslash requires two. Standard node --test was blocked by sandbox EPERM; --test-isolation=none was blocked creating temporary files. An in-memory harness executing the supplied test definitions passed 147/147, with virtual filesystem and CLI calls. Another 6,923 generated and targeted in-memory conformance checks found zero mismatches. Direct CLI checks confirmed usage exit 2 and expected missing-file/directory diagnostics."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-13",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "A/cron.mjs:95 correctly implements the exact-star day rule; A/cron.mjs:132 skips excluded dates efficiently. A/README.md:7 and A/package.json:5 provide clear usage and module/test setup. A/test/parse.test.mjs:25 and A/test/next.test.mjs:55 provide broader coverage than B, supporting first place. Standard node --test was blocked by sandbox EPERM; --test-isolation=none ran 98 passing tests plus one environmentally blocked timezone subprocess (A/test/next.test.mjs:186); excluding that test passed 98/98, and independent timezone checks passed. Stdin probes run from scratch passed 1200 parsing, 240 scheduling, 27 invalid-expression and 23 argument-validation cases. Defects reproduced: A/cron.mjs:114 remaps years 0-99 through Date.UTC, so next('0 0 1 2 *', new Date('0001-01-01T00:00:00Z')) wrongly throws instead of returning February 1. A/cron.mjs:151 overflows the search limit near the maximum Date, rejecting an available next-minute match. A/cron.mjs:38 rejects month/day names as steps, contrary to the literal 'wherever a number may' requirement; A/test/parse.test.mjs:152 incorrectly enshrines that restriction."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "B/cron.mjs:26 and B/cron.mjs:88 provide compact shared parsing and correct UTC day matching; early-year scheduling works. B/README.md:7 and B/package.json:5 supply usable examples and module/test setup. Standard node --test was blocked by sandbox EPERM; node --test --test-isolation=none B/cron.test.mjs passed all 18 tests. B/cron.test.mjs:46 and B/cron.test.mjs:136 cover malformed input and impossible schedules, but omit A's century, repeated search-window and timezone checks. Stdin probes run from scratch passed 1200 parsing, 240 scheduling, 27 invalid-expression and 23 argument-validation cases. Defects reproduced: B/cron.mjs:105 overflows the five-year horizon near the maximum Date, making next('* * * * *', new Date(8640000000000000-120000)) wrongly throw despite an available next-minute match. B/cron.mjs:20 rejects named steps such as '0 0 * */FEB *', contrary to the literal name-substitution requirement. B/cron.mjs:58 also accepts DOW 7/2 as Sunday despite the specified 0-6 n/s domain; this interpretation issue carries only a small penalty."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-14"
+  },
+  {
+    "pair": "h1-r1",
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "No functional defect found. Correct section merging, ordering, prototype-safe keys, and error precedence (A/ini.mjs:51, A/ini.mjs:59, A/ini.mjs:74); correct UTF-8 decoding and output (A/ini2json.mjs:37). Core tests are useful, but encoding and name-boundary coverage is narrower than B's (A/test/ini2json.test.mjs:48, A/test/ini2json.test.mjs:86), and temporary directories lack cleanup (A/test/ini2json.test.mjs:14). README provides usage but incorrectly spells the backslash escape (A/README.md:40). Ran node --test: sandbox spawn EPERM; retried with --test-isolation=none: sandbox mkdtemp EPERM. Native suite status remains unverified. All 120 read-only parser probes and 21 CLI-path probes with in-memory file-read stubs passed."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No functional defect found. Clear helpers correctly implement quotes, integer bounds, lone-CR preservation, section merging, and validation precedence (B/ini2json.mjs:26, B/ini2json.mjs:43, B/ini2json.mjs:54, B/ini2json.mjs:59, B/ini2json.mjs:70). Null-prototype dictionaries safely handle special names (B/ini2json.mjs:64, B/ini2json.mjs:88). Extensive CLI tests check exact streams/exits and subtle encoding cases (B/test/ini2json.test.mjs:30, B/test/ini2json.test.mjs:62); generic read-error coverage is explicitly omitted (B/test/ini2json.test.mjs:209). README clearly documents usage, bounds, and errors (B/README.md:7, B/README.md:42, B/README.md:49). Ran node --test: sandbox spawn EPERM; --test-isolation=none then hit sandbox mkdtemp EPERM. Native suite status remains unverified. All 120 parser probes and 21 CLI-path probes with in-memory file-read stubs passed."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-15",
+    "swapped": true
+  },
+  {
+    "pair": "h3-r2",
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Clear field-driven parsing, sorted deduplication and Sunday normalization (A/cron.mjs:20, A/cron.mjs:66); correct exact-* day restrictions and OR rule (A/cron.mjs:91); efficient UTC search also handles years 0-99 correctly (A/cron.mjs:104). Defect: the five-year deadline overflows near Date's maximum (A/cron.mjs:111, A/cron.mjs:120): next('* * * * *', new Date('+275760-09-12T23:58:00Z')) throws No match although 23:59 is valid. Broad behavioral tests cover syntax, arguments, day rules and leap/search boundaries (A/cron.test.mjs:21, A/cron.test.mjs:219, A/cron.test.mjs:370). npm test hit sandbox worker-spawn EPERM; the same suite via node --test --test-isolation=none cron.test.mjs passed 93/93 tests. Scratch stdin probes passed 17,626 independently expected valid field expansions and 100 ordinary schedules against a minute-scan oracle. README explains usage, grammar, API and errors thoroughly (A/README.md:5, A/README.md:30, A/README.md:38)."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Compact parsing and normalization (B/cron.mjs:19, B/cron.mjs:58), correct exact-* day OR semantics (B/cron.mjs:69, B/cron.mjs:76), and efficient day-based scheduling (B/cron.mjs:87). Date.UTC remaps years 0-99 (B/cron.mjs:89): next('* * * * *', new Date('0042-01-01T00:00:00Z')) incorrectly throws No match. Computing the deadline from the rounded cursor (B/cron.mjs:114, B/cron.mjs:117) returns 2104-02-29 for from=2099-02-28T23:59:30Z, 30 seconds beyond five calendar years. Deadline overflow also rejects a valid next minute near Date's maximum (B/cron.mjs:117). Parsing accepts tab/newline separators beyond the specified spaces (B/cron.mjs:66); 7/2 yields Sunday despite the n/s 0-6 restriction (B/cron.mjs:49). npm test hit sandbox worker-spawn EPERM; node --test --test-isolation=none cron.test.mjs passed 15/15 tests. Scratch stdin probes passed 17,626 independently expected valid field expansions and 108 ordinary schedules against a minute-scan oracle, but reproduced the boundary defects missing from its tests (B/cron.test.mjs:62, B/cron.test.mjs:112). Useful README examples/API/errors (B/README.md:5, B/README.md:27); syntax omits the special day-of-week step maximum (B/README.md:21)."
+    },
+    "ranking": [
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-16",
+    "swapped": true
+  },
+  {
+    "pair": "h1-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "A/ini2json.mjs:59 and :87 safely handle special keys, section merging and conflicts; :43, :54 and :115 correctly implement integer bounds, line endings and UTF-8 decoding. No functional defect found. A/test/ini2json.test.mjs:18 checks exact CLI output and status across 108 tests; :209 explicitly omits cannot-read coverage. A/README.md:5 and :45 clearly document usage and exact errors. Ran node --test test/ini2json.test.mjs, then --test-isolation=none with TEMP/TMP in scratch: sandbox EPERM blocked worker spawning and fixture creation respectively, so the original suite could not execute. Independent offline stdin probes from scratch passed 9,402 parser checks and 29 CLI module checks using virtual file reads and captured streams/exit codes."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "B/ini.mjs:32 and :50 correctly implement value typing, section ordering, special keys and validation precedence; B/ini2json.mjs:21 correctly classifies read errors. No functional defect found. B/test/ini2json.test.mjs:28 provides 17 useful grouped tests, with less CLI coverage than A; :14 creates temporary fixtures without cleanup. B/README.md:5 explains usage, but :40 displays the backslash escape as one backslash instead of two, and :43 provides less complete error documentation. Ran npm --prefix B test, then node --test --test-isolation=none with TEMP/TMP in scratch: sandbox EPERM blocked worker spawning and fixture creation respectively, so the original suite could not execute. Independent offline stdin probes from scratch passed 9,402 parser checks and 29 CLI module checks using virtual file reads and captured streams/exit codes."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-17"
+  },
+  {
+    "pair": "h2-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No functional defects found. A/lib/validate.mjs:33 rejects fractional, coerced and unsafe quantities; A/lib/paginate.mjs:5 fixes page sizes. A/lib/routes.mjs:18 exports all items sorted without mutation; A/lib/csv.mjs:3 and A/server.mjs:56 provide correct escaping, CRLF, exact text/csv and byte lengths. A/test/api.test.mjs:154, :191 and :206 add broader regressions than B, including item creation, unpaged export and Unicode. Minor gap: A/README.md:41 omits the safe-integer maximum. Ran npm --prefix A test: spawn EPERM. With --test-isolation=none, 17 tests passed and 26 were blocked by fixture mkdtemp EPERM; the pure-unit subset passed 17/17. From scratch, 324 route assertions and 48 request-listener assertions passed, using memory-only fixtures without sockets or disk writes. Full integration suite remains unverified due sandbox restrictions."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No functional defects found. B/lib/validate.mjs:33 and B/lib/paginate.mjs:5 correctly fix both bugs; B/lib/routes.mjs:17 and :73 implement sorted, unpaged export with correct route precedence. B/lib/csv.mjs:3 and B/server.mjs:56 satisfy quoting, CRLF and exact content type. B/test/api.test.mjs:63 and :71 cover the reported regressions, but its export tests at :78 and :89 never exceed one page, leaving weaker coverage than A. Minor gap: B/README.md:41 omits the safe-integer maximum. Ran npm --prefix B test: spawn EPERM. With --test-isolation=none, 15 tests passed and 23 were blocked by fixture mkdtemp EPERM; the pure-unit subset passed 15/15. From scratch, the same 324 route and 48 request-listener assertions passed. Full integration suite remains unverified due sandbox restrictions."
+    },
+    "ranking": [
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-18"
+  }
+]
