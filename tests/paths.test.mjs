@@ -40,6 +40,7 @@ test('repo: root is the checkout and exclude is added once', () => {
 })
 
 const MEM = '**/.claude/agent-memory-local/'
+const NEAR_MISS = '.team/near-miss/'
 const excludeText = dir => readFileSync(excludeFile(dir), 'utf8')
 const setExclude = (dir, text) => writeFileSync(excludeFile(dir), text)
 const keepInGit = dir => {
@@ -62,14 +63,29 @@ test('fresh repo: both lines are appended once, after the untouched original tex
   assert.equal(excludeText(dir), before + sepOf(before) + '.team/\n' + MEM + '\n')
 })
 
-test('keep-in-git marker: only the memory line is added, .team/ is not', () => {
+test('keep-in-git marker: the near-miss and memory lines are added, .team/ is not', () => {
   const dir = repo()
   keepInGit(dir)
   const before = excludeText(dir)
   assert.equal(ensureExcluded(dir, dir), true)
   const after = excludeText(dir)
-  assert.equal(after, before + sepOf(before) + MEM + '\n')
+  assert.equal(after, before + sepOf(before) + NEAR_MISS + '\n' + MEM + '\n')
   assert.ok(!trimmedLines(after).includes('.team/'))
+})
+
+test('a plain repo adds no near-miss line, because .team/ already covers it', () => {
+  const dir = repo()
+  assert.equal(ensureExcluded(dir, dir), true)
+  assert.ok(!trimmedLines(excludeText(dir)).includes(NEAR_MISS))
+})
+
+test('keep-in-git marker: a near-miss line without the slash counts as present', () => {
+  const dir = repo()
+  keepInGit(dir)
+  const text = `${excludeText(dir)}.team/near-miss\n`
+  setExclude(dir, text)
+  assert.equal(ensureExcluded(dir, dir), true)
+  assert.equal(excludeText(dir), text + MEM + '\n')
 })
 
 test('a second run adds nothing, with or without the keep-in-git marker', () => {
@@ -93,8 +109,8 @@ test("Claude Code's own memory line (no trailing slash) counts as present", () =
   const kept = repo()
   keepInGit(kept)
   const keptText = withBlock(kept)
-  assert.equal(ensureExcluded(kept, kept), false)
-  assert.equal(excludeText(kept), keptText)
+  assert.equal(ensureExcluded(kept, kept), true)
+  assert.equal(excludeText(kept), keptText + NEAR_MISS + '\n')
   const plain = repo()
   const plainText = withBlock(plain)
   assert.equal(ensureExcluded(plain, plain), true)
@@ -146,7 +162,7 @@ test('git honours the memory line at the root and in a sub folder', () => {
   }
 })
 
-test('keep-in-git repo: memory is ignored by git, .team/ is not', () => {
+test('keep-in-git repo: memory and near-miss copies are ignored by git, the rest of .team/ is not', () => {
   const dir = repo()
   keepInGit(dir)
   assert.equal(ensureExcluded(dir, dir), true)
@@ -156,6 +172,8 @@ test('keep-in-git repo: memory is ignored by git, .team/ is not', () => {
   }
   makeFile(dir, '.team/notes/INDEX.md')
   assert.equal(ignoredStatus(dir, '.team/notes/INDEX.md'), 1)
+  makeFile(dir, '.team/near-miss/copy.mjs')
+  assert.equal(ignoredStatus(dir, '.team/near-miss/copy.mjs'), 0, 'near-miss copies must never reach git')
 })
 
 test('worktree: root and exclude point at the main checkout', () => {

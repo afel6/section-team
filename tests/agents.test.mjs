@@ -108,7 +108,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.',
+    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -180,6 +180,7 @@ test('S2 direct: builders message a sibling by agent id and keep the supervisor 
     assert.ok(text.includes('SendMessage its agent id (the job lists the ids of awake sections)'), `${id} direct message`)
     assert.ok(text.includes('SendMessage the supervisor (`main`)'), `${id} main fallback`)
     assert.ok(text.includes('finish with `Status: blocked`'), `${id} blocked fallback`)
+    assert.ok(text.includes('Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'), `${id} waiting is blocked`)
   }
 })
 

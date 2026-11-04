@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { saveFromEvent, finalAgentText, skipNotice } from '../hooks/subagent-stop.mjs'
+import { saveFromEvent, finalAgentText, skipNotice, pluginVersion } from '../hooks/subagent-stop.mjs'
+import { parseReport } from '../hooks/lib/report.mjs'
 
 // The tests pick the project through each event's cwd or an explicit env; this also keeps spawned hooks off the session's project.
 delete process.env.CLAUDE_PROJECT_DIR
@@ -18,12 +19,14 @@ const tempDir = () => {
 }
 const NOW = new Date(2026, 9, 12, 14, 32, 5)
 const REPORT = '## REPORT · backend · 2026-10-12 14:32\nStatus: done\nJob: login api\n'
+const VERSION = JSON.parse(readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8')).version
+const stamped = (text, mode = 'balanced') => `${text}Plugin:       section-team ${VERSION}, mode ${mode}\n`
 
 test('saves the REPORT of a team section', () => {
   const dir = tempDir()
   const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: `notes\n${REPORT}` }, NOW)
   assert.ok(file.endsWith(join('.team', 'reports', '2026-10-12', '143205-backend.md')))
-  assert.equal(readFileSync(file, 'utf8'), REPORT)
+  assert.equal(readFileSync(file, 'utf8'), stamped(REPORT))
 })
 
 test('ignores non-team agents, empty types and messages without a REPORT', () => {
@@ -50,7 +53,7 @@ test('reads the SubagentHandback message from the transcript (no last_assistant_
   assert.equal(finalAgentText(join(dir, 'missing.jsonl')), '')
   assert.equal(finalAgentText(undefined), '')
   const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW)
-  assert.equal(readFileSync(file, 'utf8'), REPORT)
+  assert.equal(readFileSync(file, 'utf8'), stamped(REPORT))
 })
 
 test('without a handback, the last assistant text is used', () => {
@@ -132,7 +135,7 @@ test('hook feedback after a handback does not stop the scan (the report is still
   )
   assert.equal(finalAgentText(transcript), `notes\n${REPORT}`)
   const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, agent_transcript_path: transcript }, NOW)
-  assert.equal(readFileSync(file, 'utf8'), REPORT)
+  assert.equal(readFileSync(file, 'utf8'), stamped(REPORT))
 })
 
 test('skill loads and system reminders mid-job are not job starts', () => {
@@ -244,10 +247,10 @@ test('every section REPORT is saved, graded or not: the gate runs at handback, n
 const UNGRADED_STATUS = '## REPORT · backend · 2026-10-12 14:32\nStatus: ungraded\nJob: login api\nChanged: src/api.mjs\nProblems: no Agent tool, so the reviewer gate could not run\n'
 const runHook = event => spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:backend', ...event }), encoding: 'utf8' })
 
-test('a REPORT with Status: ungraded is saved as is, by the function and by the hook', () => {
+test('a REPORT with Status: ungraded is saved, by the function and by the hook', () => {
   const dir = tempDir()
   const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: `notes\n${UNGRADED_STATUS}` }, NOW)
-  assert.equal(readFileSync(file, 'utf8'), UNGRADED_STATUS)
+  assert.equal(readFileSync(file, 'utf8'), stamped(UNGRADED_STATUS))
   const dir2 = tempDir()
   const run = runHook({ cwd: dir2, last_assistant_message: UNGRADED_STATUS })
   assert.equal(run.status, 0)
@@ -256,7 +259,7 @@ test('a REPORT with Status: ungraded is saved as is, by the function and by the 
   assert.equal(days.length, 1)
   const files = readdirSync(join(dir2, '.team', 'reports', days[0]))
   assert.equal(files.length, 1)
-  assert.equal(readFileSync(join(dir2, '.team', 'reports', days[0], files[0]), 'utf8'), UNGRADED_STATUS)
+  assert.equal(readFileSync(join(dir2, '.team', 'reports', days[0], files[0]), 'utf8'), stamped(UNGRADED_STATUS))
 })
 
 test('a save that fails (the reports path is a file) prints one systemMessage line instead of failing silently', () => {
@@ -322,4 +325,44 @@ test('with CLAUDE_PROJECT_DIR set, a section event without a cwd is not skipped:
   assert.equal(run.stderr, '')
   assert.equal(run.stdout, '')
   assert.equal(readdirSync(join(project, '.team', 'reports')).length, 1)
+})
+
+const saveInMode = modeFileText => {
+  const dir = tempDir()
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), modeFileText)
+  return readFileSync(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT }, NOW), 'utf8')
+}
+
+test('a saved REPORT names the mode of its project', () => {
+  assert.equal(saveInMode('{"mode": "lean"}'), stamped(REPORT, 'lean'))
+  assert.equal(saveInMode('{"mode": "max"}'), stamped(REPORT, 'max'))
+  assert.equal(saveInMode('{"mode": "lean", "autoInstallSkills": "yes"}'), stamped(REPORT, 'lean'))
+})
+
+test('a broken mode file still saves the REPORT, with the mode unknown', () => {
+  assert.equal(saveInMode('{ not json'), stamped(REPORT, 'unknown'))
+  assert.equal(saveInMode('{"mode": "turbo"}'), stamped(REPORT, 'unknown'))
+})
+
+test('a REPORT with no final line end keeps the stamp on its own line', () => {
+  const dir = tempDir()
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT.trimEnd() }, NOW)
+  assert.equal(readFileSync(file, 'utf8'), stamped(REPORT))
+})
+
+test('the stamp changes nothing a saved REPORT is parsed into', () => {
+  assert.deepEqual(parseReport(stamped(REPORT)), parseReport(REPORT))
+})
+
+test('the plugin version is unknown when its file is missing, broken or names none', () => {
+  const dir = tempDir()
+  const broken = join(dir, 'plugin.json')
+  const empty = join(dir, 'empty.json')
+  writeFileSync(broken, '{ not json')
+  writeFileSync(empty, '{}')
+  assert.equal(pluginVersion(join(dir, 'missing.json')), 'unknown')
+  assert.equal(pluginVersion(broken), 'unknown')
+  assert.equal(pluginVersion(empty), 'unknown')
+  assert.equal(pluginVersion(), VERSION)
 })

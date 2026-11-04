@@ -26,14 +26,12 @@ test('modes, the default and the picker labels are exact', () => {
   assert.deepEqual(MODES, ['lean', 'balanced', 'max'])
   assert.equal(DEFAULT_MODE, 'balanced')
   assert.deepEqual(MODE_LABELS, {
-    lean: 'Lean · ~1.3× usage (target)',
-    balanced: 'Balanced · ~2.2× usage (measured 2026-10)',
-    max: 'Max · ~3–4× usage (target)',
+    lean: 'Lean · ~1.4–2.6× usage (measured 2026-11)',
+    balanced: 'Balanced · ~4.3–5.2× usage (measured 2026-11)',
+    max: 'Max · ~7.5–9.7× usage (measured 2026-11)',
   })
-  // Code points checked apart from the literals: a middle dot, a multiplication sign and an en dash.
-  assert.deepEqual(nonAscii(MODE_LABELS.lean), [0xb7, 0xd7])
-  assert.deepEqual(nonAscii(MODE_LABELS.balanced), [0xb7, 0xd7])
-  assert.deepEqual(nonAscii(MODE_LABELS.max), [0xb7, 0x2013, 0xd7])
+  // Code points checked apart from the literals: a middle dot, an en dash and a multiplication sign.
+  for (const mode of MODES) assert.deepEqual(nonAscii(MODE_LABELS[mode]), [0xb7, 0x2013, 0xd7])
 })
 
 test('gate values per mode are exact', () => {

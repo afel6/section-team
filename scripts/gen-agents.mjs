@@ -6,7 +6,7 @@ import { readExtra } from './assign-skill.mjs'
 // All heads run on Opus: benchmark rounds 4–6 showed Sonnet builder heads land at solo quality even with the Opus gate.
 export const MODEL = { builder: 'claude-opus-5-5', advisor: 'claude-opus-5-5' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
-export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section.'
+export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
@@ -140,7 +140,7 @@ const QUALITY_GATE = [
   // Lean and Max job messages state their own gate (brief/gate-lean.md, gate-max.md); Balanced jobs use the defaults above.
   '   - If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-  '   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass.',
+  '   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
   '   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
   '   - Put the overall grade and the number of fix rounds on the REPORT\'s Quality line.',

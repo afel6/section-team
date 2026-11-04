@@ -11,11 +11,11 @@ export const GATES = Object.freeze({
   max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 3, reviewerModel: null, nearMiss: true }),
 })
 
-// The picker label for each mode.
+// The picker label for each mode: usage against plain Claude Code in the 2026-11 mode round, single-area tasks to all tasks.
 export const MODE_LABELS = Object.freeze({
-  lean: 'Lean · ~1.3× usage (target)',
-  balanced: 'Balanced · ~2.2× usage (measured 2026-10)',
-  max: 'Max · ~3–4× usage (target)',
+  lean: 'Lean · ~1.4–2.6× usage (measured 2026-11)',
+  balanced: 'Balanced · ~4.3–5.2× usage (measured 2026-11)',
+  max: 'Max · ~7.5–9.7× usage (measured 2026-11)',
 })
 
 // Where a project keeps its mode, relative to the project root.
