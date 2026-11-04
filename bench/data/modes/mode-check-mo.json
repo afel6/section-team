@@ -1,0 +1,264 @@
+{
+  "h4-lean-mo-r1": {
+    "cond": "lean-mo",
+    "task": "h4",
+    "faithful": false,
+    "broken": [
+      "gate of a95e03794a88e64d0 graded again after a pass"
+    ],
+    "tier": "multi"
+  },
+  "h4-lean-mo-r2": {
+    "cond": "lean-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h4-lean-mo-r3": {
+    "cond": "lean-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h4-max-mo-r1": {
+    "cond": "max-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h4-max-mo-r2": {
+    "cond": "max-mo",
+    "task": "h4",
+    "faithful": false,
+    "broken": [
+      "gate of acaab2010772178da graded again after a pass"
+    ],
+    "tier": "multi"
+  },
+  "h4-max-mo-r3": {
+    "cond": "max-mo",
+    "task": "h4",
+    "faithful": false,
+    "broken": [
+      "gate of a17b26727349b6f85 graded again after a pass"
+    ],
+    "tier": "multi"
+  },
+  "h4-solo-mo-r1": {
+    "cond": "solo-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h4-solo-mo-r2": {
+    "cond": "solo-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h4-solo-mo-r3": {
+    "cond": "solo-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h4-team-mo-r1": {
+    "cond": "team-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h4-team-mo-r2": {
+    "cond": "team-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h4-team-mo-r3": {
+    "cond": "team-mo",
+    "task": "h4",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi"
+  },
+  "h5-lean-mo-r1": {
+    "cond": "lean-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h5-lean-mo-r2": {
+    "cond": "lean-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h5-lean-mo-r3": {
+    "cond": "lean-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h5-max-mo-r1": {
+    "cond": "max-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h5-max-mo-r2": {
+    "cond": "max-mo",
+    "task": "h5",
+    "faithful": false,
+    "broken": [
+      "near-miss copy outside .team/: .claude/agent-memory-local/section-team-testing/near-miss-via-loader-hook.md"
+    ],
+    "tier": "single"
+  },
+  "h5-max-mo-r3": {
+    "cond": "max-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h5-solo-mo-r1": {
+    "cond": "solo-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h5-solo-mo-r2": {
+    "cond": "solo-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h5-solo-mo-r3": {
+    "cond": "solo-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h5-team-mo-r1": {
+    "cond": "team-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h5-team-mo-r2": {
+    "cond": "team-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h5-team-mo-r3": {
+    "cond": "team-mo",
+    "task": "h5",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h6-lean-mo-r1": {
+    "cond": "lean-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h6-lean-mo-r2": {
+    "cond": "lean-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h6-lean-mo-r3": {
+    "cond": "lean-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "small"
+  },
+  "h6-max-mo-r1": {
+    "cond": "max-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h6-max-mo-r2": {
+    "cond": "max-mo",
+    "task": "h6",
+    "faithful": false,
+    "broken": [
+      "gate of ad8d7b360d73887f1 graded again after a pass"
+    ],
+    "tier": "single"
+  },
+  "h6-max-mo-r3": {
+    "cond": "max-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h6-solo-mo-r1": {
+    "cond": "solo-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h6-solo-mo-r2": {
+    "cond": "solo-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h6-solo-mo-r3": {
+    "cond": "solo-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": null
+  },
+  "h6-team-mo-r1": {
+    "cond": "team-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h6-team-mo-r2": {
+    "cond": "team-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  },
+  "h6-team-mo-r3": {
+    "cond": "team-mo",
+    "task": "h6",
+    "faithful": true,
+    "broken": [],
+    "tier": "single"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "h4-r1": {
+    "X": "lean-mo",
+    "Y": "team-mo",
+    "Z": "max-mo",
+    "W": "solo-mo"
+  },
+  "h4-r2": {
+    "X": "team-mo",
+    "Y": "max-mo",
+    "Z": "solo-mo",
+    "W": "lean-mo"
+  },
+  "h4-r3": {
+    "X": "max-mo",
+    "Y": "solo-mo",
+    "Z": "lean-mo",
+    "W": "team-mo"
+  },
+  "h5-r1": {
+    "X": "team-mo",
+    "Y": "max-mo",
+    "Z": "solo-mo",
+    "W": "lean-mo"
+  },
+  "h5-r2": {
+    "X": "max-mo",
+    "Y": "solo-mo",
+    "Z": "lean-mo",
+    "W": "team-mo"
+  },
+  "h5-r3": {
+    "X": "solo-mo",
+    "Y": "lean-mo",
+    "Z": "team-mo",
+    "W": "max-mo"
+  },
+  "h6-r1": {
+    "X": "max-mo",
+    "Y": "solo-mo",
+    "Z": "lean-mo",
+    "W": "team-mo"
+  },
+  "h6-r2": {
+    "X": "solo-mo",
+    "Y": "lean-mo",
+    "Z": "team-mo",
+    "W": "max-mo"
+  },
+  "h6-r3": {
+    "X": "lean-mo",
+    "Y": "team-mo",
+    "Z": "max-mo",
+    "W": "solo-mo"
+  }
+}

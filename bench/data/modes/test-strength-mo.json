@@ -1,0 +1,1255 @@
+{
+  "h5-lean-mo-r1": {
+    "task": "h5",
+    "cond": "lean-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-lean-mo-r2": {
+    "task": "h5",
+    "cond": "lean-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-lean-mo-r3": {
+    "task": "h5",
+    "cond": "lean-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-max-mo-r1": {
+    "task": "h5",
+    "cond": "max-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import-apply.test.mjs",
+      "test/import-helpers.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import-apply.test.mjs",
+      "test/import-helpers.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-max-mo-r2": {
+    "task": "h5",
+    "cond": "max-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import-body.test.mjs",
+      "test/import-fixtures.mjs",
+      "test/import-rules.test.mjs",
+      "test/import-success.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import-body.test.mjs",
+      "test/import-fixtures.mjs",
+      "test/import-rules.test.mjs",
+      "test/import-success.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-max-mo-r3": {
+    "task": "h5",
+    "cond": "max-mo",
+    "files": [
+      "test/fixes.test.mjs",
+      "test/import-checks.test.mjs",
+      "test/import-dedupe.test.mjs",
+      "test/import-fixtures.mjs",
+      "test/import-rules.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/fixes.test.mjs",
+      "test/import-checks.test.mjs",
+      "test/import-dedupe.test.mjs",
+      "test/import-fixtures.mjs",
+      "test/import-rules.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-solo-mo-r1": {
+    "task": "h5",
+    "cond": "solo-mo",
+    "files": [
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-solo-mo-r2": {
+    "task": "h5",
+    "cond": "solo-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-solo-mo-r3": {
+    "task": "h5",
+    "cond": "solo-mo",
+    "files": [
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-team-mo-r1": {
+    "task": "h5",
+    "cond": "team-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-team-mo-r2": {
+    "task": "h5",
+    "cond": "team-mo",
+    "files": [
+      "test/amounts.test.mjs",
+      "test/import-checks.test.mjs",
+      "test/import-success.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/amounts.test.mjs",
+      "test/import-checks.test.mjs",
+      "test/import-success.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h5-team-mo-r3": {
+    "task": "h5",
+    "cond": "team-mo",
+    "files": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/import.test.mjs",
+      "test/ledger.test.mjs",
+      "test/validate.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arrayentry",
+        "caught": true
+      },
+      {
+        "name": "balancesonly",
+        "caught": true
+      },
+      {
+        "name": "expenseonly",
+        "caught": true
+      },
+      {
+        "name": "nullflag",
+        "caught": true
+      },
+      {
+        "name": "preincrement",
+        "caught": true
+      },
+      {
+        "name": "skipcount",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h6-lean-mo-r1": {
+    "task": "h6",
+    "cond": "lean-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 8,
+    "total": 8,
+    "share": 1,
+    "reason": null
+  },
+  "h6-lean-mo-r2": {
+    "task": "h6",
+    "cond": "lean-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 8,
+    "total": 8,
+    "share": 1,
+    "reason": null
+  },
+  "h6-lean-mo-r3": {
+    "task": "h6",
+    "cond": "lean-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 8,
+    "total": 8,
+    "share": 1,
+    "reason": null
+  },
+  "h6-max-mo-r1": {
+    "task": "h6",
+    "cond": "max-mo",
+    "files": [
+      "test/cli-basic.test.mjs",
+      "test/cli-input.test.mjs",
+      "test/cli-order.test.mjs",
+      "test/helpers/assert-patch-error.mjs",
+      "test/helpers/cli-runner.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/patch-purity.test.mjs",
+      "test/patch-test-op.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli-input.test.mjs",
+      "test/cli-order.test.mjs",
+      "test/helpers/assert-patch-error.mjs",
+      "test/helpers/cli-runner.mjs",
+      "test/patch-ops.test.mjs",
+      "test/patch-purity.test.mjs",
+      "test/patch-test-op.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": false
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": false
+      }
+    ],
+    "caught": 6,
+    "total": 8,
+    "share": 0.75,
+    "reason": null
+  },
+  "h6-max-mo-r2": {
+    "task": "h6",
+    "cond": "max-mo",
+    "files": [
+      "test/apply-failures.test.mjs",
+      "test/cli-input.test.mjs",
+      "test/cli-output.test.mjs",
+      "test/form.test.mjs",
+      "test/helpers.mjs",
+      "test/ops.test.mjs",
+      "test/pointer.test.mjs",
+      "test/pretty-json.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/apply-failures.test.mjs",
+      "test/cli-input.test.mjs",
+      "test/form.test.mjs",
+      "test/helpers.mjs",
+      "test/ops.test.mjs",
+      "test/pointer.test.mjs",
+      "test/pretty-json.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": false
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 7,
+    "total": 8,
+    "share": 0.875,
+    "reason": null
+  },
+  "h6-max-mo-r3": {
+    "task": "h6",
+    "cond": "max-mo",
+    "files": [
+      "test/cli-errors.test.mjs",
+      "test/cli-helpers.mjs",
+      "test/cli-io.test.mjs",
+      "test/helpers.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-integrity.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli-helpers.mjs",
+      "test/helpers.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-integrity.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": false
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": false
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 8,
+    "share": 0.75,
+    "reason": null
+  },
+  "h6-solo-mo-r1": {
+    "task": "h6",
+    "cond": "solo-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": false
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": false
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 8,
+    "share": 0.75,
+    "reason": null
+  },
+  "h6-solo-mo-r2": {
+    "task": "h6",
+    "cond": "solo-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": false
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": false
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 8,
+    "share": 0.75,
+    "reason": null
+  },
+  "h6-solo-mo-r3": {
+    "task": "h6",
+    "cond": "solo-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/jsonpatch.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 8,
+    "total": 8,
+    "share": 1,
+    "reason": null
+  },
+  "h6-team-mo-r1": {
+    "task": "h6",
+    "cond": "team-mo",
+    "files": [
+      "test/cli-helpers.mjs",
+      "test/cli-input.test.mjs",
+      "test/cli.test.mjs",
+      "test/helpers.mjs",
+      "test/patch-copies.test.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli-helpers.mjs",
+      "test/cli.test.mjs",
+      "test/helpers.mjs",
+      "test/patch-copies.test.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": false
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": false
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 8,
+    "share": 0.75,
+    "reason": null
+  },
+  "h6-team-mo-r2": {
+    "task": "h6",
+    "cond": "team-mo",
+    "files": [
+      "test/cli.test.mjs",
+      "test/helpers.mjs",
+      "test/jsonpatch.test.mjs",
+      "test/pointer-form.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/helpers.mjs",
+      "test/jsonpatch.test.mjs",
+      "test/pointer-form.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": true
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 8,
+    "total": 8,
+    "share": 1,
+    "reason": null
+  },
+  "h6-team-mo-r3": {
+    "task": "h6",
+    "cond": "team-mo",
+    "files": [
+      "test/cli-output.test.mjs",
+      "test/cli-read.test.mjs",
+      "test/cli.test.mjs",
+      "test/helpers/cli-runner.mjs",
+      "test/helpers/patch-assert.mjs",
+      "test/patch-copy.test.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/helpers/cli-runner.mjs",
+      "test/helpers/patch-assert.mjs",
+      "test/patch-copy.test.mjs",
+      "test/patch-form.test.mjs",
+      "test/patch-ops.test.mjs",
+      "test/pointer.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "dash-index",
+        "caught": true
+      },
+      {
+        "name": "depth-limit",
+        "caught": true
+      },
+      {
+        "name": "inherited-member",
+        "caught": true
+      },
+      {
+        "name": "insert-end",
+        "caught": true
+      },
+      {
+        "name": "move-prefix",
+        "caught": true
+      },
+      {
+        "name": "negative-zero",
+        "caught": true
+      },
+      {
+        "name": "size-limit",
+        "caught": false
+      },
+      {
+        "name": "sparse-patch",
+        "caught": true
+      }
+    ],
+    "caught": 7,
+    "total": 8,
+    "share": 0.875,
+    "reason": null
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "lean": {
+    "headline": {
+      "mode": "lean-mo",
+      "vs": "solo-mo",
+      "n": 9,
+      "groups": [
+        "h4-r1",
+        "h4-r2",
+        "h4-r3",
+        "h5-r1",
+        "h5-r2",
+        "h5-r3",
+        "h6-r1",
+        "h6-r2",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r1": 1.5999999999999996,
+        "h4-r2": 1.200000000000001,
+        "h4-r3": 1.9000000000000004,
+        "h5-r1": 0.7999999999999989,
+        "h5-r2": 0.6000000000000014,
+        "h5-r3": 0.3999999999999986,
+        "h6-r1": 0.5999999999999988,
+        "h6-r2": -0.20000000000000018,
+        "h6-r3": 0.1999999999999993
+      },
+      "gap": 0.7888888888888886,
+      "sd": 0.6716480559869964,
+      "lo": 0.27261541652021737,
+      "hi": 1.30516236125756,
+      "includesZero": false,
+      "testsGap": 1.6666666666666667,
+      "testsSd": 0.7071067811865476,
+      "testsLo": 1.1231372541946072,
+      "testsHi": 2.2101960791387265,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "usage": {
+        "modeCost": 1.15869755,
+        "vsCost": 0.8136302333333334,
+        "ratio": 1.42,
+        "maxRatio": 1.5,
+        "ok": true,
+        "reading": "usage 1.42× solo-mo (at most 1.50×)  h4 vs team-mo 0.65×",
+        "reportVs": {
+          "task": "h4",
+          "setup": "team-mo",
+          "ratio": 0.65
+        },
+        "computedCosts": []
+      },
+      "status": "met",
+      "label": "met, outside-confirmed",
+      "outside": {
+        "Codex": {
+          "status": "usable",
+          "passedHeldOut": true,
+          "counts": true,
+          "gap": 0.4333333333333333,
+          "n": 9,
+          "agree": 8,
+          "needed": 7,
+          "gapsSameSign": true,
+          "confirmed": true
+        },
+        "Antigravity": {
+          "status": "not used",
+          "passedHeldOut": false,
+          "counts": false
+        }
+      },
+      "rankWins": {
+        "for": 8,
+        "against": 1,
+        "split": 0,
+        "marked": [],
+        "p": 0.0390625,
+        "judgments": {
+          "for": 16,
+          "against": 2
+        }
+      },
+      "sizeEffect": {
+        "agree": 8,
+        "n": 9
+      }
+    },
+    "sensitivity": {
+      "mode": "lean-mo",
+      "vs": "solo-mo",
+      "n": 8,
+      "groups": [
+        "h4-r2",
+        "h4-r3",
+        "h5-r1",
+        "h5-r2",
+        "h5-r3",
+        "h6-r1",
+        "h6-r2",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r2": 1.200000000000001,
+        "h4-r3": 1.9000000000000004,
+        "h5-r1": 0.7999999999999989,
+        "h5-r2": 0.6000000000000014,
+        "h5-r3": 0.3999999999999986,
+        "h6-r1": 0.5999999999999988,
+        "h6-r2": -0.20000000000000018,
+        "h6-r3": 0.1999999999999993
+      },
+      "gap": 0.6874999999999998,
+      "sd": 0.6401729676981285,
+      "lo": 0.15221696040535793,
+      "hi": 1.2227830395946415,
+      "includesZero": false,
+      "testsGap": 1.625,
+      "testsSd": 0.7440238091428449,
+      "testsLo": 1.0028816879431788,
+      "testsHi": 2.247118312056821,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "usage": {
+        "modeCost": 1.15869755,
+        "vsCost": 0.8136302333333334,
+        "ratio": 1.42,
+        "maxRatio": 1.5,
+        "ok": true,
+        "reading": "usage 1.42× solo-mo (at most 1.50×)  h4 vs team-mo 0.65×",
+        "reportVs": {
+          "task": "h4",
+          "setup": "team-mo",
+          "ratio": 0.65
+        },
+        "computedCosts": []
+      },
+      "status": "met"
+    }
+  },
+  "balanced": {
+    "headline": {
+      "mode": "team-mo",
+      "vs": "solo-mo",
+      "n": 9,
+      "groups": [
+        "h4-r1",
+        "h4-r2",
+        "h4-r3",
+        "h5-r1",
+        "h5-r2",
+        "h5-r3",
+        "h6-r1",
+        "h6-r2",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r1": 2.1999999999999993,
+        "h4-r2": 1.5,
+        "h4-r3": 2.4000000000000004,
+        "h5-r1": 1.0000000000000018,
+        "h5-r2": 0.8000000000000007,
+        "h5-r3": 0.6999999999999993,
+        "h6-r1": 1.3999999999999986,
+        "h6-r2": 0.6000000000000005,
+        "h6-r3": 2
+      },
+      "gap": 1.4000000000000001,
+      "sd": 0.6763874629234339,
+      "lo": 0.8800835034995206,
+      "hi": 1.9199164965004796,
+      "includesZero": false,
+      "testsGap": 3.0555555555555554,
+      "testsSd": 0.7682953714410738,
+      "testsLo": 2.4649925133745167,
+      "testsHi": 3.646118597736594,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "status": "met",
+      "label": "met, outside-confirmed",
+      "outside": {
+        "Codex": {
+          "status": "usable",
+          "passedHeldOut": true,
+          "counts": true,
+          "gap": 0.6222222222222222,
+          "n": 9,
+          "agree": 8,
+          "needed": 7,
+          "gapsSameSign": true,
+          "confirmed": true
+        },
+        "Antigravity": {
+          "status": "not used",
+          "passedHeldOut": false,
+          "counts": false
+        }
+      },
+      "rankWins": {
+        "for": 8,
+        "against": 0,
+        "split": 1,
+        "marked": [],
+        "p": 0.0078125,
+        "judgments": {
+          "for": 17,
+          "against": 1
+        }
+      },
+      "sizeEffect": {
+        "agree": 9,
+        "n": 9
+      }
+    },
+    "sensitivity": {
+      "mode": "team-mo",
+      "vs": "solo-mo",
+      "n": 9,
+      "groups": [
+        "h4-r1",
+        "h4-r2",
+        "h4-r3",
+        "h5-r1",
+        "h5-r2",
+        "h5-r3",
+        "h6-r1",
+        "h6-r2",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r1": 2.1999999999999993,
+        "h4-r2": 1.5,
+        "h4-r3": 2.4000000000000004,
+        "h5-r1": 1.0000000000000018,
+        "h5-r2": 0.8000000000000007,
+        "h5-r3": 0.6999999999999993,
+        "h6-r1": 1.3999999999999986,
+        "h6-r2": 0.6000000000000005,
+        "h6-r3": 2
+      },
+      "gap": 1.4000000000000001,
+      "sd": 0.6763874629234339,
+      "lo": 0.8800835034995206,
+      "hi": 1.9199164965004796,
+      "includesZero": false,
+      "testsGap": 3.0555555555555554,
+      "testsSd": 0.7682953714410738,
+      "testsLo": 2.4649925133745167,
+      "testsHi": 3.646118597736594,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "status": "met"
+    }
+  },
+  "max": {
+    "headline": {
+      "mode": "max-mo",
+      "vs": "team-mo",
+      "n": 9,
+      "groups": [
+        "h4-r1",
+        "h4-r2",
+        "h4-r3",
+        "h5-r1",
+        "h5-r2",
+        "h5-r3",
+        "h6-r1",
+        "h6-r2",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r1": 0.09999999999999964,
+        "h4-r2": 0.3000000000000007,
+        "h4-r3": 0.3999999999999986,
+        "h5-r1": 0.1999999999999993,
+        "h5-r2": 0.09999999999999964,
+        "h5-r3": 0.1999999999999993,
+        "h6-r1": 0.6000000000000014,
+        "h6-r2": 0.6000000000000014,
+        "h6-r3": 0.09999999999999787
+      },
+      "gap": 0.28888888888888864,
+      "sd": 0.2027587510099415,
+      "lo": 0.13303499561258028,
+      "hi": 0.444742782165197,
+      "includesZero": false,
+      "testsGap": 0.6111111111111112,
+      "testsSd": 0.4166666666666667,
+      "testsLo": 0.29083333333333333,
+      "testsHi": 0.931388888888889,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "ceiling": {
+        "setup": "team-mo",
+        "above": 8.6,
+        "mean": 8.766666666666667,
+        "runs": 9,
+        "hit": true
+      },
+      "status": "not measurable (scale ceiling)",
+      "label": "not measurable (scale ceiling)",
+      "outside": {
+        "Codex": {
+          "status": "usable",
+          "passedHeldOut": true,
+          "counts": true,
+          "gap": 0.09999999999999955,
+          "n": 9,
+          "agree": 5,
+          "needed": 7,
+          "gapsSameSign": true,
+          "confirmed": false
+        },
+        "Antigravity": {
+          "status": "not used",
+          "passedHeldOut": false,
+          "counts": false
+        }
+      },
+      "rankWins": {
+        "for": 7,
+        "against": 0,
+        "split": 2,
+        "marked": [],
+        "p": 0.015625,
+        "judgments": {
+          "for": 16,
+          "against": 2
+        }
+      },
+      "sizeEffect": {
+        "agree": 9,
+        "n": 9
+      }
+    },
+    "sensitivity": {
+      "mode": "max-mo",
+      "vs": "team-mo",
+      "n": 5,
+      "groups": [
+        "h4-r1",
+        "h5-r1",
+        "h5-r3",
+        "h6-r1",
+        "h6-r3"
+      ],
+      "groupGaps": {
+        "h4-r1": 0.09999999999999964,
+        "h5-r1": 0.1999999999999993,
+        "h5-r3": 0.1999999999999993,
+        "h6-r1": 0.6000000000000014,
+        "h6-r3": 0.09999999999999787
+      },
+      "gap": 0.2399999999999995,
+      "sd": 0.2073644135332783,
+      "lo": -0.017435649434962563,
+      "hi": 0.49743564943496155,
+      "includesZero": true,
+      "testsGap": 0.7,
+      "testsSd": 0.4472135954999579,
+      "testsLo": 0.14480000000000004,
+      "testsHi": 1.2551999999999999,
+      "hidden": {
+        "mode": 1,
+        "vs": 1
+      },
+      "hiddenOk": true,
+      "ceiling": {
+        "setup": "team-mo",
+        "above": 8.6,
+        "mean": 8.766666666666667,
+        "runs": 9,
+        "hit": true
+      },
+      "status": "not measurable (scale ceiling)"
+    }
+  },
+  "outside": {
+    "judges": [
+      {
+        "name": "Codex",
+        "passedHeldOut": true,
+        "status": "usable",
+        "usableCases": 18,
+        "total": 18,
+        "check": {
+          "gap": 0.5,
+          "same": 8,
+          "pairs": 9,
+          "passed": true
+        }
+      },
+      {
+        "name": "Antigravity",
+        "passedHeldOut": false,
+        "status": "not used",
+        "usableCases": 0,
+        "total": null,
+        "check": null
+      }
+    ],
+    "sizeEffectHeldOut": {
+      "agree": 8,
+      "pairs": 9
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "lean-mo": {
+    "hits": {
+      "section": 1,
+      "REPORT": 1
+    },
+    "extraPaths": [],
+    "testLines": 8056
+  },
+  "max-mo": {
+    "hits": {},
+    "extraPaths": [],
+    "testLines": 16725
+  },
+  "solo-mo": {
+    "hits": {},
+    "extraPaths": [
+      "h4-r1/W/.gitignore",
+      "h4-r3/Y/.gitignore"
+    ],
+    "testLines": 3293
+  },
+  "team-mo": {
+    "hits": {
+      ".team": 1
+    },
+    "extraPaths": [],
+    "testLines": 13605
+  }
+}

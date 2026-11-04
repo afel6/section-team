@@ -1,0 +1,857 @@
+[
+  {
+    "pair": "h4-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Strengths: a compact, readable server.mjs (325 lines). serialize() at server.mjs:129-134 orders creates and deletes; the rule checks run before the queue and the overlap check inside it (server.mjs:142-182). save() (server.mjs:136-140) updates memory only after writeFile succeeds. readBody (server.mjs:93-118) counts every byte while keeping at most 10001. Ran: npm test gave 20/20 passing. My probe passed 102/102 (concurrency, save failure, restart, routing, all rules). Defects: parseStore (server.mjs:49-65) does not check the top-level keys, so a data file {\"nextId\":1,\"bookings\":[],\"junk\":1} is accepted and the server starts listening, though it is not the layout this server writes (X, Y and Z exit 1). It also allows overlapping stored bookings. Tests are thin: 20 coarse tests bundle many assertions, with few edge cases on the page side (app.test.mjs is 5 tests). README is only 44 lines and short on error and exit details. The app.js `.apply` spread is old-style."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: after the body is read, request handling is fully synchronous, including fs.writeFileSync at server.mjs:96-98. That makes requests effectively one at a time with no queue, and createStore.commit (server.mjs:258-267) saves before swapping state. Routes are a table at server.mjs:124-129 with a small route() at server.mjs:108-122. The data-file check (server.mjs:62-76) rejects extra keys, duplicate ids and overlaps. main (server.mjs:278-304) sets exitCode instead of calling exit abruptly, and gives a fixed PORT message to keep stderr to one line. Ran: npm test gave 132/132 passing (server, page, final). My probe passed 102/102. README is about 180 lines. Weaknesses: the synchronous write blocks the event loop during saves; readBody (server.mjs:218-227) never settles if the client aborts mid-body (no close handler, so the request is silently dropped); sendStatic re-reads the files on every request."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: server.mjs:137-146 saves atomically (write a temp file, rename it over, clean up on error), and commit (server.mjs:243-247) changes memory only after the save. server.mjs:318-335 sends every request through one global queue, so concurrency is trivially correct. server.mjs:360-363 has a clientError handler; server.mjs:301-305 logs unexpected errors to stderr on one line; server.mjs:106-116 checks the data file strictly. MSG constants are at server.mjs:25-39. Ran: npm test gave 288/288 passing across 7 well-named files (static page, page behaviour, booking rules, routes, persistence, startup). My probe passed 102/102. README is about 210 lines and thorough. Weaknesses: the temp file `<file>.<pid>.tmp` is an extra write next to the data file, and rename replaces symlinks; the global queue also serialises GETs and static files behind slow saves."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: server.mjs:206-226 holds the store in a repository whose commit saves first and only then swaps the state (frozen), and which runs creates and deletes one at a time, so a failed save keeps the next id. server.mjs:95-107 checks the data file strictly (exact keys, ids below nextId, unique ids, no overlaps); line 103 also requires nextId+1 to stay a safe integer, so a saved file always reloads. server.mjs:309-331 routes cleanly, with the /api/bookings/ prefix handled before the static files. server.mjs:357-358 lets the stderr write finish before exiting. app.js:33-52 has one request() returning ok, error or none, matching the spec's reply model. Ran: npm test gave 607/607 passing (fake-DOM page tests, startup, persistence, body and field rules). My probe passed 102/102, and it rejected the data file with an extra key. README is about 205 lines, detailed. Minor: fieldError (server.mjs:70-78) uses ROOMS.includes without a typeof check (harmless); there is no clientError handler; about 400 lines with some ceremony (Object.freeze everywhere)."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X",
+      "W"
+    ],
+    "judge": 1,
+    "costUSD": 2.1518808
+  },
+  {
+    "pair": "h4-r1",
+    "W": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 6,
+      "overall": 6,
+      "notes": "Own tests: 20/20 pass; broad but shallow (few rule edge cases). Data-file check too loose, server.mjs:49-65: a file with an extra top-level key ({\"nextId\":1,\"bookings\":[],\"x\":1}) or with overlapping bookings started normally instead of printing 'cannot read data file' and exiting 1 (confirmed by probe). server.mjs:285 echoes the raw PORT value, so a PORT containing a newline breaks the one-line rule. Otherwise passed the API/routing/concurrency/persistence/failed-save probes; serialized commit in server.mjs:128-140. README (44 lines) is brief but usable."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Own tests: 132/132 pass (server, page app with overlapping list fetches, final checks). Passed every black-box probe. server.mjs:96-98 synchronous writeFileSync makes concurrency trivially correct but blocks the event loop during saves; route table at server.mjs:108-129 is tidy; exits cleanly via process.exitCode (server.mjs:283). server.mjs:226 body reader ignores aborted requests without settling them (harmless in probes). Fixed PORT error text avoids multi-line stderr. Good README with examples."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Own tests: 288/288 pass (routes, rules, persistence, startup, static page checks, fake-DOM page behaviour). Passed every black-box probe, same set as W. server.mjs:137-146 saves via temp file + rename, so a failed save never corrupts the old file; server.mjs:318-335 handles all requests one at a time (simple and correct, but slow saves hold up reads); server.mjs:360 handles clientError; HttpError makes the flow clean. Strict data-file check (server.mjs:106-116). Thorough README with status codes and data format. Slightly behind W on test depth."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Own tests: 607/607 pass, including fake-DOM page tests (stale list fetches, cancel/submit), concurrency and persistence. Passed every black-box probe: startup errors (bad PORT, PORT checked before the data file, empty / extra-key / overlapping / directory data file, port in use), rules 1-10 in order, BOM, invalid UTF-8, chunked 413, 415/413 on a 300KB body, byte-exact routing via raw sockets, 30 concurrent overlapping POSTs -> exactly 1 x 201 and 29 x 409, unique ids, restart keeps bookings and next id, failed save -> 500 with nothing changed and no folder created. server.mjs:206-226 queue that commits only after a successful save; server.mjs:95-107 strict data-file check (even keeps nextId+1 safe). Minor: server.mjs:349 logs 'server error: ECONNRESET' on every aborted client. README covers env vars, startup, API and data file in detail."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X",
+      "W"
+    ],
+    "judge": 2,
+    "costUSD": 1.8149110000000004,
+    "swapped": true
+  },
+  {
+    "pair": "h4-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 142/142 pass. Probe (startup, concurrency, 413/415, routing, persistence, save failure): all pass. Strengths: one validator for both POST bodies and the data file, which is checked strictly (key set, ids below nextId, no overlaps) at server.mjs:58-84; mutations run one at a time and the store changes only after the write succeeds (server.mjs:180-193); a single HttpError path maps errors to replies (server.mjs:267-278). public/app.js:47-70 re-enables the button through an onSettle callback the moment the request settles, which matches the spec closely; stale list replies are dropped by a counter (app.js:135-141). Defects: a request with `Expect: foo` gets Node's 417 and a CONNECT request is dropped with no reply (the server never handles checkExpectation or connect); on 500 it does not log the cause anywhere (server.mjs:276). README (146 lines) is thorough: env vars, startup errors, rules, examples."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test: 306/306 pass across 7 test files plus a fake DOM. Probe: all pass. Strengths: error messages kept in one MSG table (server.mjs:22-36); rules 1-3 and 4-9 split into pure functions (server.mjs:73-83, 189-199); mutations serialized (server.mjs:208-218); the cause of a 500 goes to stderr, never stdout (server.mjs:301); the most complete README (218 lines, every route and the exit codes). The fail() helper exits only after the stderr write has flushed (server.mjs:100-102). Defects: same as W for `Expect: foo` (417) and CONNECT (dropped); validateFields destructures with inherited lookups (server.mjs:74), harmless for JSON.parse output; the client fills rooms with append rather than replaceChildren (public/app.js:124), fine on the first load."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 489/489 pass across 10 test files with HTML-tree and fake-DOM helpers. Probe: all pass, and it was the only one that answered `Expect: foo` with a normal 200 (server.mjs:365) and CONNECT on a known path with 405 (server.mjs:267-276, 366). Strengths: an aborted request body is rejected rather than processed (server.mjs:153-155); every request goes through one queue (server.mjs:300-308, 333) so all orderings are consistent; a store abstraction with commit-after-write (server.mjs:310-319); a separate bind-error handler is swapped for a logging one after listen (server.mjs:367-371). Client app.js mirrors the spec closely. Defects: sortBookings builds key arrays on every comparison (server.mjs:167-175), more convoluted than needed; GETs wait behind slow writes in the shared queue; README (112 lines) is shorter than W's or X's but covers usage, env vars, data file, API and rules."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 5,
+      "overall": 7,
+      "notes": "Ran npm test: 20/20 pass; there are few, broad tests (startup, routing, rules, concurrency, persistence, save failure, plus a small DOM test). Probe: all core checks pass (concurrency 1x201/9x409, unique ids, 413/415, BOM, routing, restart, 500 on save failure with no folder created). Defects: the whole server is top-level script state (server.mjs:112-134, 141), less modular and harder to test; readBody resolves on 'close' (server.mjs:189), so a body cut off by a client abort is still processed; `Expect: foo` gets 417 and CONNECT gets no reply; on a 200 list reply with a malformed body the client renders 'No bookings.' instead of an error (public/app.js:79); var-style client code. README is minimal (41 lines): usage, env vars, an API table and a curl example, with no listing of the validation rules or the error messages."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 1,
+    "costUSD": 1.7353656
+  },
+  {
+    "pair": "h4-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Passed every probe and the page harness. Strengths: an HttpError class makes routing linear (server.mjs:19-24, 233-278); the body is buffered only for POST /api/bookings but always drained (server.mjs:101-112, 239-240); immutable frozen state (server.mjs:83, 201-202); the save error maps to 500 without changing state (server.mjs:186-193); app.js re-enables Book/Cancel exactly at settle via a callback (public/app.js:50-73). Weaknesses: parseStore only checks the key count, not the key names (server.mjs:77; still rejects bad files via later checks); the 409 lookup sorts to find the earliest overlap (server.mjs:197-199), fine but less direct; readBody has no abort handling (server.mjs:101-112). Tests: 142 tests in 2 large files (server.test.mjs 715 lines, app.test.mjs 616 lines) with a fake DOM; all pass. README (146 lines) is clear on env vars, startup errors, data file and API."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Passed every probe and the page harness. Strengths: very readable, pure validators shared between requests and the data file (server.mjs:43-90, 111-129); commit-then-swap inside the serialize queue (server.mjs:208-218, 233-252); one try/catch turns any failure into 500 and logs only a code to stderr (server.mjs:294-304); fail() exits after the stderr write flushes (server.mjs:100-102). app.js is clean (public/app.js:24-37 request wrapper, 88-109 sequence guard). Weaknesses: readBody has no close/aborted handling (server.mjs:165-180); it relies on Node emitting an error on abort, which it does (ECONNRESET seen on stderr). Tests: 306 tests over 6 files plus support helpers, covering HTML structure, page booking flows and server rules; all pass. README (218 lines) is the most detailed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Passed every probe and the page harness. Strengths: clean main()/store/handlers split (server.mjs:202-244, 310-319); the whole route runs inside a queue so state is read fresh, which makes concurrency trivially correct (server.mjs:321-339); aborted bodies are rejected and the socket destroyed (server.mjs:153-155); CONNECT gets a 405/404 on the raw socket (server.mjs:267-276); checkExpectation routing avoids Node's automatic 417 (server.mjs:365); a missing Content-Type is checked via typeof (server.mjs:160); data-file validation is thorough (server.mjs:88-107). Concise causes go to stderr only, never stdout. Weaknesses: every request is serialised, GETs included (minor throughput cost); the sortBookings key-array comparator is over-clever (server.mjs:167-175). Tests: 489 tests in 10 well-organised files with fake-DOM and HTML-tree helpers covering page structure, stale fetches and persistence; all pass. README (112 lines) covers env vars, data-file layout, API and errors."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 6,
+      "overall": 7,
+      "notes": "Fully correct in all my probes (startup, ~130 API cases, 20-way concurrency, persistence/restart, save-failure rollback for POST and DELETE, fake-DOM page harness). Strengths: compact, readable server.mjs; validation reused for data-file checks (server.mjs:82-108); state committed only after save (server.mjs:226-233, 243-250); a single queue serialises mutations (server.mjs:141-146); readBody counts every byte but keeps at most 10001 and resolves on close too (server.mjs:170-196); the page script is minimal and correct, with a list sequence guard (public/app.js:73-91). Weaknesses: tests are thin, 20 tests in 2 files; W/test/server.test.mjs:168 only regex-checks the page, with no label/form/element structure tests; booking-rule tables are small (server.test.mjs:180-223). README (README.md, 41 lines) is minimal and omits the error messages and data-file layout. app.js:58 uses spread with replaceChildren (fine). npm test: 20/20 pass."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 2,
+    "costUSD": 2.4836715999999996,
+    "swapped": true
+  },
+  {
+    "pair": "h4-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: atomic temp-file+rename save with temp cleanup (W/server.mjs:136-146); promise-chain lock serialises mutations, and state is committed only after a successful save, so a failed save changes nothing, next id included (server.mjs:201-210); strict data-file layout validation including id<nextId, duplicate ids and overlaps (server.mjs:91-121); exact byte-for-byte routing (server.mjs:265-292); page script ignores stale list fetches with a ticket counter and treats unreadable bodies as no reply (public/app.js:35-51, 82-99). Ran: npm test 322/322 pass; my probes 18/18 startup, 74/74 API (apart from the fetch-normalisation artifact; raw socket gives 404 for /api/./rooms), 12/12 persistence (500 on missing folder, next id preserved, no tmp leftovers), 21/22 fake-DOM page checks (the one miss was a bug in my probe). Weaknesses: no handling of CONNECT (connection dropped) or requests without a Host header (Node default 400); the temp file needs create permission in the data folder (server.mjs:138). README is very complete (273 lines: env vars, exit codes, API)."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: a repository with a serialised mutate queue that commits only after writeFile succeeds (X/server.mjs:153-170); clear route table with 404 before 405 (server.mjs:263-288); goes beyond the spec by answering CONNECT on the raw socket (server.mjs:312-322), handling Expect via checkExpectation and accepting requests without a Host header (requireHostHeader:false, server.mjs:349-350), so every method gets 404/405 JSON as the task wants; the error reply itself is guarded against throwing (server.mjs:301-309); page script uses a finally-based onSettle so Book and Cancel re-enable before anything else (public/app.js:24-40). Ran: npm test 414/414 pass (the largest suite, split by concern, with a fake DOM); my probes 18/18 startup, 74/74 API (the only solution where CONNECT returns 405 and a missing Host returns 200), 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weakness: saves use a plain writeFile, not atomic, so a crash mid-write could corrupt the data file (server.mjs:161). Good README."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 6,
+      "tests": 5,
+      "robustnessSecurity": 7,
+      "docsUsability": 6,
+      "overall": 7,
+      "notes": "Strengths: compact and correct; synchronous validation plus writeFileSync makes requests serialise naturally (Y/server.mjs:261-264, 302-343); strict data-file layout check (server.mjs:206-229); page script handles stale fetches and the no-reply cases correctly (script at server.mjs:128-144). Ran: npm test 10/10 pass; my probes 18/18 startup, 74/74 API (no-Host/CONNECT not handled, like W and Z), 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weaknesses: the whole HTML page and app.js live as template strings inside server.mjs (server.mjs:8-183), which is hard to maintain and lint; only 10 coarse tests; non-atomic save (server.mjs:262); the listen error handler would exit on any later server 'error' (server.mjs:409); loadRooms throws an unhandled error if rooms is not an array (server.mjs:82). Minimal 34-line README, though accurate."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: fully synchronous handling once the body is read, so concurrency is trivially correct (Z/server.mjs:291-303); atomic sync temp+rename save with cleanup (server.mjs:140-154); strict layout validation, and the data file is decoded with a fatal TextDecoder keeping the BOM (server.mjs:122-138); specific listen error lines (server.mjs:156-163). Ran: npm test 216/216 pass; my probes 18/18 startup, 74/74 API, 12/12 persistence, 21/22 page checks (the one miss was my probe's fault). Weaknesses: synchronous readFileSync for the page on every request blocks the event loop (server.mjs:177-181); a successful list reply missing 'bookings' silently renders 'No bookings.' instead of an error (public/app.js:105); exceptions in .then handlers go unhandled (public/app.js:51-63); no CONNECT or no-Host handling; fewer tests than W and X. README is clear (177 lines)."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 2.4025703999999997
+  },
+  {
+    "pair": "h4-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: atomic temp-file + rename save with cleanup (server.mjs:136-146); a serialized lock around the overlap check and commit (server.mjs:201-257), so a failed save leaves the state and next id unchanged; ownField avoids reading inherited properties (server.mjs:54-56); explicit comment explaining the ASCII-only case folding (server.mjs:181); data file validated, including ids below nextId and no overlaps (server.mjs:91-121). My 109-check script passed every functional check: concurrency, byte limits, BOM, invalid UTF-8, restart persistence, 500 on save failure, no folders created. Client public/app.js:35-51 cleanly separates 'reached' from 'ok' and shape-checks replies. npm test: 322/322 pass across 10 test files, including fake-DOM client tests. Very thorough 273-line README. Defects: same as W, CONNECT gets no reply, a missing Host gets Node's 400, and Expect: foo gets 417; the 'error' handler exits even on errors after listening (server.mjs:340); index.html carries a large inline style block (fine, but noise)."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: the most complete handling of the spec's edge cases: CONNECT is answered on the raw socket (server.mjs:312-322), HTTP/1.1 requests without Host are accepted (server.mjs:349), and odd Expect headers go through the normal handler (server.mjs:350). My 109-check script showed only the 3 errors in my own script (fetch normalising dot-segments, and two miscounted ids), and Y alone passed the CONNECT, no-Host and Expect: foo probes. Clean repository with a serialized mutate queue; the state is committed only after the write succeeds (server.mjs:153-170); frozen state; MSG table (server.mjs:21-35); route table with the 404/405 split (server.mjs:263-288); replyWithError guards against throwing during the reply (server.mjs:301-309). Client: the send() finally hook re-enables buttons before the outcome is used (public/app.js:24-41), and replies are shape-checked. npm test: 414/414 across 11 well-organised files (startup, request-body, routing, page-script-api, ...). Detailed 211-line README. Defects: writeFile in place, not atomic (server.mjs:161); a crash mid-write could truncate the data file."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 6,
+      "docsUsability": 5,
+      "overall": 6,
+      "notes": "Strengths: a single file with the page and script embedded as strings (server.mjs:8-183); correct validation and error order (server.mjs:302-343); the 409 picks the earliest overlap by sorting (server.mjs:333-338); data-file layout validated (server.mjs:206-229). Passed all functional checks in my 109-check script, including the concurrency check (handling after the body is read is synchronous) and 500 with nothing changed on save failure. Defects: non-atomic writeFileSync straight onto the data file (server.mjs:261-264), so a partial write could truncate it; the client's success handlers don't check the reply shape, so a malformed 200 body throws an unhandled rejection (server.mjs:82, 139); 'error' handler after listen still exits the process (server.mjs:409); CONNECT gets no reply, a missing Host gets Node's 400, Expect: foo gets 417. Tests: only 10 tests (test/server.test.mjs, test/app.test.mjs), all pass, but coarse. README is 34 lines: usage and API table, little else."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: compact synchronous design that makes concurrent requests serial by construction (server.mjs:2-3, 291-303); atomic save via temp file + rename with cleanup (server.mjs:140-154), so a failed save changes nothing and uses up no id; strict data-file layout check (server.mjs:78-104), with the file decoded as fatal UTF-8 (server.mjs:132); ASCII-only case folding of the media type (server.mjs:204-208); byte-exact routing (server.mjs:248-273). My 109-check script passed every functional check (startup errors, all 10 booking rules, BOM, invalid UTF-8, 10000 vs 10001 bytes, 20 concurrent overlapping POSTs giving one 201, restart persistence, 500 on save failure). Client public/app.js:33-45 treats a JSON parse failure as no reply, and the newest list fetch wins (app.js:94-110). npm test: 216/216 pass, including fake-DOM client tests. Defects: CONNECT gets no reply at all, an HTTP/1.1 request without Host gets Node's 400 instead of the API's reply, and Expect: foo gets a bare 417 (raw-socket probes); synchronous fs calls block the event loop during saves."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 3.981225200000001,
+    "swapped": true
+  },
+  {
+    "pair": "h5-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Fixes: validate.mjs:64 Math.round (4.35 -> 435), ledger.mjs:12-13 remainder cents to first people (balances 6.66/-3.33/-3.33). lib/import.mjs: RuleError + check() wrapper (15-30), Object.hasOwn flags (60-64), entries counted for duplicate after field checks (94-99), all-skipped / dry_run write nothing (134). My HTTP probes (rule order, null split/dry_run, duplicate vs already-recorded examples, dry-run ids, 413, >50 entries, __proto__ key, identical payments) all gave correct replies. npm test: 65/65 pass; import.test.mjs has 20 HTTP tests, covering restart persistence and ids across groups. test/api.test.mjs:70-86 checks over HTTP that records already in the data file (434 cents) are left as saved. README has a full Importing section and qualifies 'Unknown fields are ignored'; small inaccuracy: it says unknown-field order is 'the order the body lists them' instead of Object.keys."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs works but assigns ids inside sortEntries (84-95), mixing checking with numbering; uses `flag in body` (38) instead of Object.hasOwn; `changed` guard avoids empty writes (123). All probes gave correct replies. npm test: 69/69; import.test.mjs has 24 tests, including 413 counted in bytes even for an unknown group, compares import against the POST routes and stored records, letter case of payer, limit values, and the task's example cases (396); validate.test.mjs:45 checks rounding. README section is complete, mentions Object.keys order, and the table row is right."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs is the cleanest: parseBody/parseEntry/sortEntries/addEntries are separate (115-131), named message constants (9-10), hasOwn flags (33-37), and an explicit 'no state when all skipped' (149). All probes gave correct replies. npm test: 70/70; import tests are split into import.test.mjs (19) and import-apply.test.mjs (8) with a shared helper; they cover exactly 10 KB vs over, 1 and 50 entries, false flags treated like absent ones, and that balances add up to 0. README Importing section is complete and accurate (Object.keys order, null handling)."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 8,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Same fixes (validate.mjs:64, ledger.mjs:12-13). lib/import.mjs throws plain string literals as control flow (36, 46-49, 63) and catches with a typeof check (78), which is fragile and non-idiomatic; otherwise its logic matches the others, and all probes gave correct replies. npm test: 51/51; only 9 import tests, none for 413 or a non-object body on this route, and api.test.mjs is unchanged, so the two reported bugs are tested only at the unit level (ledger.test.mjs:12-26, validate.test.mjs:45) and not over HTTP; no test that saved records are left as they are. README row and section are present but leave out the Object.keys ordering for unknown fields and 'even when itself duplicate/already-recorded'."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 1,
+    "costUSD": 0.8564158000000001
+  },
+  {
+    "pair": "h5-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same bug fixes. lib/import.mjs: a RuleError class with a .rule field (:15-20). :51 adds an Object.hasOwn check on split that changes nothing (parsed JSON cannot hold undefined). :94-99 uses a chain of `key !== null &&` conditions, which reads a little awkwardly but is correct. :134 skips the write when nothing was accepted, and parsed entries are flattened with `{type, ...fields}` (:113). Tests: npm test gives 65/65. test/import.test.mjs has 20 tests: ids per kind and across groups, 413 and 400, the body check order, every rule, a rejected import saving nothing, both spec examples, all-skipped writes nothing, dry run, dry-run next ids, and persistence across a restart (:256). test/api.test.mjs adds a no-migration test that checks the data file is unchanged. The README is the most detailed and closely mirrors the spec; its table row lists 201, (200 with dry_run), 400, 404, 413 and 422."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same bug fixes. lib/import.mjs:37-40 checks the flags with `flag in body`; that is safe because the unknown-field check at :31-32 runs first. lib/import.mjs:67-97 assigns ids inside sortEntries, which mixes sorting entries with building records (slightly less clean than X), but the logic is right: duplicate before already-recorded, and seen.add for every valid expense. :123-124 skips the write when nothing changed. Tests: npm test gives 69/69. test/import.test.mjs (447 lines) checks the data file against the POST routes (:66), persistence across a restart (:86), that a rejected import uses up no ids (:152), dry-run next ids (:185), 413 counted in bytes (:214), case-sensitive payers (:377), and both spec examples (:396). test/api.test.mjs adds a no-migration test for stored 434-cent records and a 4.35 round-trip test. The README is complete and clear."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same bug fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). Clean lib/import.mjs: a RuleError class (:18), check() turns a ValidationError into the rule name (:23-30), and sortEntries (:79-112) is kept separate from addEntries (:115-131). The comment at :81 explains why skipped entries still count for duplicates. :149 spreads state only when something was accepted, so an all-skipped import writes nothing; a dry run returns early at :147. Tests: npm test gives 70/70, the most thorough suite. Split into test/import.test.mjs (validation: the 413 boundary at exactly 10 KB, a non-object body before the group lookup, Object.keys order, 1 and 50 entries accepted, each rule order) and test/import-apply.test.mjs (ids, matching the POST routes and the data file, member order of balances, dry-run next ids, dry-run errors), with shared helpers in a non-.test file so the glob does not pick it up. test/api.test.mjs:56-77 adds HTTP regressions for 4.35, 0.29, 1.15 and PATCH. The README Importing section is precise and mentions the Object.keys order."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes as the others: lib/validate.mjs:64 (Math.round) and lib/ledger.mjs:12-13 (leftover cents to the first people). lib/import.mjs:15-29: the body checks run in the spec's order, with Object.hasOwn for the flags. lib/import.mjs:84-89: duplicate is checked before already-recorded, and seen.add runs for every expense that passes the field checks, so it matches both spec examples. lib/import.mjs:130: an import where everything is skipped, or a dry run, returns no state, so nothing is written. Weaknesses: lib/import.mjs:36,46-63 throw bare strings as rule names and the catch at :78 tells them apart with typeof, which is not idiomatic; lib/import.mjs:86 marks a skip by mutating the parsed result (result.skipped). Tests: npm test gives 51/51. test/import.test.mjs has 9 compact but dense tests covering ids per kind with skips (:37), dry run vs real (:50), all-skipped writes nothing (:59), 400 order including null flags and 413 (:82), and every rule (:104). It has the fewest import tests, no restart/persistence test, and does not check that a dry run leaves the next ids unchanged. Added ledger/validate regression tests for 4.35 and the 10.00 split. The README row and the Importing section are complete, and the 'Unknown fields' sentence is limited to the other routes."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "W",
+      "Z"
+    ],
+    "judge": 2,
+    "costUSD": 1.674716,
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round instead of Math.trunc (4.35 bug); lib/ledger.mjs:12-13 gives leftover cents to the first people, so balances sum to 0. Import lib/import.mjs: unknown body field found via Object.keys (:34); entries 1-50 (:37); flags rejected unless boolean when the key is present, null included (:40-44); strict type check (:52); unknown-field (:53); each parser wrapped so its error becomes the rule name (:23-30, :57-68); a remembered expense counts for duplicate even if it is a duplicate or skipped, and duplicate comes before already-recorded (:93-105); ids per kind (:114-117); no write on a dry run or when all entries are skipped (:135). Ran npm test: 87/87 pass. Most thorough suite: test/amounts.test.mjs (4.35, cent distribution, balances sum to 0), test/import-checks.test.mjs (413 and non-object body before the 404, every rule, duplicate subtleties, deleted or other-group expenses), test/import-success.test.mjs (restart survival, no tmp file left, dry-run ids, identical payments). README adds the table row, a full Import section, and limits 'Unknown fields are ignored' to the other routes. Could not run ad-hoc HTTP probes: scratch was not writable."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes as the others (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:12-34 is a clear table of [field, rule, parser] per entry type, with a comment explaining why the type check is strict (:59); checkEntry returns rule objects instead of throwing (:57-74); duplicate before already-recorded, and keys remembered for all field-valid expenses (:93-101); dry run and all-skipped imports return no state (:126-128). Ran npm test: 82/82 pass. Tests are split across import-body, import-rules and import-success, with a shared fixtures file; they cover exactly 10 KB being accepted, 50 entries, check precedence, a rejected import using no ids, and restart survival after real and dry runs. README has the table row, an Importing paragraph, and the narrowed unknown-fields sentence. Very close to W; slightly fewer edge tests."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is correct: type checked with typeof plus Object.hasOwn (:49), the same rule-mapping wrapper (:20-28), duplicate before already-recorded (:87-93). Flags use `name in body` (:38), which is fine for objects from JSON.parse. Readability suffers at :92, a dense nested ternary used as a return value. Ran npm test: 52/52 pass, the smallest suite (test/import.test.mjs, 9 tests, 188 lines), though it does cover check order, every rule, dedupe semantics, skipped ids, all-skipped writing nothing, and dry-run ids. README has the table row and an Importing section, but the unknown-field rule doesn't list which fields each type takes."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs pulls the entry sorting into its own function sortEntries (:79-108), names MIN_ENTRIES and MAX_ENTRIES constants, and uses parseFlag with Object.hasOwn (:35-39); logic is the same as W's and correct, including no write on a dry run or when all entries are skipped (:138-140). Ran npm test: 62/62 pass. test/import.test.mjs (20 tests) covers check order, 50 entries, 413 and non-object bodies, every rule, 4.35 kept to the cent, duplicate before already-recorded with and without skip, dry-run ids, and another group being untouched; no restart-survival test. README's Import section follows the spec closely, and the unknown-fields sentence is narrowed."
+    },
+    "ranking": [
+      "W",
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 0.9918748000000001
+  },
+  {
+    "pair": "h5-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round; lib/ledger.mjs:12 leftover computed as cents - share*n (same effect). lib/import.mjs:33-46 parseImportBody uses hasOwn; :52 strict type; :93-106 duplicate/recorded logic same as W; :135 no write on dry run or all skipped. README adds a separate '## Import' section (placed after Rules) plus the table row and the unknown-fields wording. Tests: npm test 87/87 pass, the most of the four: test/amounts.test.mjs (4.35, leftover order, sum to zero, PATCH), import-checks (413/400 before 404, deleted expense not recorded, other groups), import-success (no tmp file left, 50 entries, identical payments). No defects found."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:12-34 ENTRY_TYPES table of [field, rule, parser] keeps rule order declarative; :59-61 comment explains the strict type check (avoids the 'toString'/array-key trap); :93-101 a single rule variable gives clear duplicate > already-recorded > skip logic; :125-128 no write on dry run or all skipped. README section is complete and the table row lists every status. Tests: npm test 82/82 pass, split into import-body/rules/success plus shared fixtures; cover the exact 10 KB boundary, 404 before body checks, rejected import burns no ids, restart after real vs dry run. No defects found."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:37-41 flag uses `in` (works for JSON.parse output, slightly less precise than hasOwn); :49 bad-type via typeof+Object.hasOwn(ENTRY_FIELDS); :92 packs the skip/problem branch into one dense ternary push-return line; :122 no write for dry run or all skipped. README complete, though a bit terser. Tests: npm test 52/52 pass; only 9 import tests, but dense: X/test/import.test.mjs:57-100 one big rules table, :118 duplicate vs already-recorded with and without skip, :147 all-skipped writes nothing, :177 restart persistence. Thinnest suite of the four."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round (4.35 bug), lib/ledger.mjs:12-13 leftover cents to first people. lib/import.mjs:35-39 parseFlag uses Object.hasOwn so null -> 400; :43 unknown field in Object.keys order; :57 strict type compare (rejects 'toString'/['expense']); :94-103 seen-set updated before the duplicate check, so earlier duplicate/recorded entries count; duplicate comes before already-recorded; :138-140 dry-run and all-skipped replies carry no state, so nothing is written. README adds the table row, an Importing section with all rules, and limits 'Unknown fields are ignored' to other routes. Tests: npm test 62/62 pass; test/import.test.mjs has 20 cases covering order of 400s, rules, duplicates across groups, skip ids, dry-run next ids, one write. No defects found."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 1.1654773999999999,
+    "swapped": true
+  },
+  {
+    "pair": "h5-r3",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13 gives the left-over cents to the first people. lib/import.mjs is clean and readable: parseBody (50-58) with parseFlag using Object.hasOwn (43-47) so null gets the 400; parseEntry (62-80) maps ValidationError to rule names through check() (29-36); review (83-114) adds every valid expense key to `seen` before the skip/duplicate decision (100-101), so an earlier duplicate or skipped entry still counts; per-kind ids (126-129); no state on dry run or when everything is skipped (147). Small nit: missing space in `isObject =v` (18). Tests: 137 pass (npm test). Separate suites cover body checks (import-checks.test.mjs: __proto__ field, key order, 50 entries, 413 before the 404 check), every rule and its order (import-rules.test.mjs), many duplicate/recorded cases including PATCH and DELETE (import-dedupe.test.mjs), the reported bugs over HTTP plus a test that an old 434-cent record stays as it is (fixes.test.mjs:22-116), and dry run across a restart (import.test.mjs:188). README: table row lists 413 'too large' and 422; full rules section; unknown-fields sentence limited to the other routes; Layout updated. Probes could not be run (sandbox blocked writing to scratch and inline scripts); edge cases checked by reading the code."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is correct: entryType (33-39), parseExpenseEntry passes split only when its key is present (46), duplicate/recorded/skip logic inside importEntries (85-107) adds the key to `seen` before the checks (94-95); no write on dry run or when everything is skipped (134). The main handler is long, with the classifying loop inline, so it is a bit less modular than the others. Tests: 49 pass, only 8 import tests (test/import.test.mjs:18-182). They do cover body-check order, a rule list, the skip example, all-skipped, dry run and id numbering, but the bug fixes are tested only at unit level (validate.test.mjs:43, ledger.test.mjs:12-17), with no HTTP test for 4.35 or 10/3, and edge cases are thin (no 50-entry boundary, no PATCH/DELETE effect on already-recorded). README covers every rule and both flags; the table row lists 413 but its rule list does not say that an earlier duplicate still counts for `duplicate`."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13 using cents % n). lib/import.mjs reuses parseExpense from expenses.mjs (80), as the task suggested. But it checks fields first (entryProblem, 33-50) and then parses them again (78, 80), with a separate isMember for payments (30, 40-41), so the logic is duplicated. The comment on the typeof guard for an array `type` (35-36) shows careful thought. Duplicate/skip handling in planImport (71-90) is correct. Tests: 60 pass; 16 import tests (test/import.test.mjs) cover the 404-before-body order, 400 order, 50 entries, 413, null fields counting as given, own keys only, an earlier bad entry not counting for duplicate, PATCH/DELETE effects, all-skipped, dry run, and a restart with 4.35; there is also an HTTP test for the fixes (api.test.mjs:74). README is the most precise, including 'An earlier entry counts for duplicate even when it is itself...' and the balances map shape."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs is well split into small parts: parseImportBody (33-46), checkEntry (50-68), brokenRule (75-81), classifyEntries (84-105), numberEntries (108-116); the all-skipped/dry-run guard is at 139. Clear and easy to read. Tests: 76 pass; 37 import tests (test/import.test.mjs) include body size limits at exactly 10240/10241 bytes, bytes vs characters, 413 and 400 before the group check, rule order, case and whitespace in duplicates, another group / deleted / patched expenses, skip not hiding other problems, all-skipped writing nothing, a restart, and dry-run ids. There is no explicit test that an old 434-cent record stays as it is. README: the rule list for unknown-field does not say which fields each type takes, and says 'trimmed and in lower case' without naming trim()/toLowerCase(); otherwise complete; the unknown-fields sentence is reworded correctly (README:74); Layout entry added."
+    },
+    "ranking": [
+      "W",
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "costUSD": 1.2942574
+  },
+  {
+    "pair": "h5-r3",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Same fixes. lib/import.mjs:62-80 parseEntry and lib/import.mjs:83-114 review are well split; lib/import.mjs:100 duplicate/already-recorded decided in one place and the key is added to `seen` regardless. Minor style nits: lib/import.mjs:18 `isObject =v` formatting, and the NOT_SHOWN placeholder constant (lib/import.mjs:16) for messages that are never shown. Ran: npm test 137/137 across fixes/import-checks/import-dedupe/import-rules/import tests with shared fixtures (test/import-fixtures.mjs); HTTP probe all passed; mutation test killed 18/18. Tests also cover legacy 434-cent records left untouched (test/fixes.test.mjs:109) and a GET not rewriting the file (test/fixes.test.mjs:98). README complete, including Object.keys order and the null rule."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes. lib/import.mjs:33-54 compact helpers (entryType, parseExpenseEntry, parsePaymentEntry); lib/import.mjs:46 explicit hasOwn for split. importEntries (lib/import.mjs:75-135) does classification and numbering inline in one 60-line function — readable but less factored. Ran: npm test 49/49; HTTP probe all passed; mutation test 15/18 — survived: entries keeping unknown keys (tests only use other-type fields as unknown, test/import.test.mjs:72-73), reversed `skipped` order (only single-index skips tested), and an all-skipped import that still saves (test at test/import.test.mjs:135 compares contents). Smallest suite (182 lines) but dense table-style cases. README complete."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Same fixes (lib/validate.mjs:64, lib/ledger.mjs:12-13). lib/import.mjs:80 reuses parseExpense from expenses.mjs (good reuse), but lib/import.mjs:33-50 first runs the checks in entryProblem and then parses again (lib/import.mjs:78,80), and lib/import.mjs:40-41 re-implements the payment member checks inline instead of parseMember, so validation is duplicated. lib/import.mjs:36 typeof + hasOwn guards type lookup. Ran: npm test 60/60; HTTP probe all passed; mutation test 17/18 — missed the all-skipped-still-saves mutant because test/import.test.mjs:248 compares file text, which is identical after a no-op save. README section is clear and complete (explicitly notes dup-of-dup counting)."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13 spreads remainder cents. lib/import.mjs:33-46 parseImportBody checks in spec order with Object.hasOwn so null flags fail; lib/import.mjs:50-68 checkEntry wraps the existing parsers via parseAs (lib/import.mjs:23); lib/import.mjs:75-81 brokenRule adds every field-valid expense to `seen` so duplicate-of-duplicate/skipped works; lib/import.mjs:108-116 numbers each kind separately; lib/import.mjs:139 no state on dry run or all-skipped. Clean, small functions. Ran: npm test 76/76 pass; my HTTP probe (~45 checks: rule order, null split/flags, __proto__, spec dup examples, ids, dry run, all-skipped no write via mtime) all passed; mutation test killed 18/18 including the all-skipped-write mutant (test/import.test.mjs:348 checks mtime). README adds table row, full Importing section, scoped unknown-fields sentence, layout entry. No defects found."
+    },
+    "ranking": [
+      "W",
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "costUSD": 2.4408605999999997,
+    "swapped": true
+  },
+  {
+    "pair": "h6-r1",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 243/243 pass across 6 well-split test files (pointer, form, ops, copies, cli, cli-input). Ran a 94-case library probe: 93 pass; the only miss is jsonpatch.mjs:187, which reads patch[i] without Object.hasOwn, so a hole picks up a value planted on Array.prototype (an unlikely case). CLI probes were all correct, including stdin being a directory -> 'Error: stdin: cannot read' exit 1 (jsonpatch-cli.mjs:61-65 / readFd at :23), counting actual bytes read at :41 (/dev/zero -> too large), and BOM handled by TextDecoder (:104). Form checks are clean (jsonpatch.mjs:58-77); setMember uses defineProperty so __proto__ is safe (:29). Iterative depth check (cli:85). Minor: busy-wait sleep on EAGAIN (cli:19-21) is a bit hacky; deepCopy/deepEqual are recursive (fine at the 1000-level limit). README is clear."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 10,
+      "notes": "Ran npm test: 388 tests, 386 pass and 2 skipped (mode-000 permission tests skip as root). Passed all 94 library probes, including the polluted-prototype hole case thanks to Object.hasOwn(patch, i) at jsonpatch.mjs:203. A small Document class (jsonpatch.mjs:114-166) keeps add/remove/replace clear; remove returns the removed value for move (:147-154); move with from===path still checks that from exists (:183-186). CLI: the stream read is capped (jsonpatch-cli.mjs:16-30); the text-scan depth check (:61-80) is correct for valid JSON; stdin directory -> 'cannot read' exit 1. All CLI probes (usage, ENOENT/ENOTDIR, dir, BOM, UTF-8, depth 1000/1001, size boundary, order of inputs) were correct. Tests are thorough and grouped by area (purity, order, test-op, input)."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran npm test: 15/15 pass, but these are coarse multi-assert tests (test/jsonpatch.test.mjs 10, test/cli.test.mjs 5), so they give weaker coverage. Library: 93/94 probes pass; the hole case fails at jsonpatch.mjs:207 (patch[i] with no hasOwn check). Iterative deepCopy/deepEqual (jsonpatch.mjs:43-104) are robust for deep values, and JSON.parse RangeError maps to 'too deep' (jsonpatch-cli.mjs:110-113). Defect: readStdin (cli:58-73) uses process.stdin, which turns an EISDIR read into empty input, so `node jsonpatch-cli.mjs p.json < dir` prints 'Error: stdin: invalid JSON' with exit 3 instead of 'cannot read' with exit 1 (seen in my probe). Code is more verbose: PatchError is thrown deep inside walk() (:120-130) and there are parallel path/pathString fields (:187). README is fine."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 37/37 pass (28 library, 9 CLI). Library: 93/94 probes pass; the hole case fails at jsonpatch.mjs:187. Clean structure: checkForm returns a normalised op (:135-151), step/resolve/locate helpers (:73-118), sameTokens check for move (:169). CLI file reading is capped and correct (jsonpatch-cli.mjs:29-58), with an iterative depth check that exits early (:85-97). Defect: readStdinLimited (cli:60-83) treats EISDIR on stdin as an empty stream, so `< dir` gives 'invalid JSON' exit 3 instead of 'cannot read' exit 1 (seen in my probe); the try/catch around `process.stdin` at :65-70 does nothing useful. Uses prototype-assigned name (jsonpatch.mjs:9), which is fine. README is good, with RFC links."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 1.3486466
+  },
+  {
+    "pair": "h6-r1",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Library is correct on all probes, with a tidy structure: checkForm (jsonpatch.mjs:58), resolve with OperationFailure (jsonpatch.mjs:89-107), applyOne (jsonpatch.mjs:150). The CLI is fully synchronous and reads at most MAX+1 bytes (jsonpatch-cli.mjs:23-44). It correctly gives 'cannot read' for stdin from a directory and passed every CLI probe, including a stdin pipe delayed over 1.2 s. Handling EAGAIN on fd 0 by sleeping with Atomics.wait and polling (jsonpatch-cli.mjs:18-35) works but is hacky. Recursive copy overflows only beyond the limit. Strong suite: 243 tests, all passed, with separate copies/form/ops/cli-input files and helpers. README is clear and explains <name>."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Library is correct on all probes. A clean Document class with an internal OpFailure that is turned into PatchError with the right index (jsonpatch.mjs:94-217). Reads holes as undefined even if Array.prototype has index properties (jsonpatch.mjs:203). Equal pointer strings imply equal tokens, as the comment notes (jsonpatch.mjs:182). The CLI reads files and stdin through one capped stream reader (jsonpatch-cli.mjs:17-58). It correctly reports 'cannot read' for stdin from a directory, handles directories opened read-only through EISDIR (jsonpatch-cli.mjs:54), and passed all 35 CLI probes. Recursive clone overflows only beyond the spec's limit. Most thorough suite: 388 tests (386 passed, 2 skipped under root), split by area (patch-purity, patch-form, cli-order, cli-input). README has an exit table with examples; claims Node >=21 (package.json engines)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 5,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Library is correct on every probe. Only solution with non-recursive deepCopy and deepEqual (jsonpatch.mjs:43,83); it survived a 9000-deep document where the others overflowed the stack. Pointer check by one regex (jsonpatch.mjs:11). The integer status codes NOT_FOUND/BAD_INDEX (jsonpatch.mjs:106-117), the separate fromString/pathString fields and the repeated new PatchError strings make the code wordier than needed. The CLI handles ENOENT/ENOTDIR/directories/limits correctly, and its text-based depth scan copes with escapes (jsonpatch-cli.mjs:78). Defect: stdin from a directory prints 'invalid JSON' instead of 'cannot read' (jsonpatch-cli.mjs:64-72, for-await swallows the EISDIR). Thinnest suite: 15 tests (test/jsonpatch.test.mjs, test/cli.test.mjs), all passed, but each covers many rules lightly. README is fine."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Library is compact and correct: own-member lookup with defineProperty in setMember (jsonpatch.mjs:36), all form checks before any apply (jsonpatch.mjs:183-195), copies at every insert (jsonpatch.mjs:156,164,174), move checks from exists before the same-path no-op (jsonpatch.mjs:168-169). Passed all ~100 library probes and all 35 CLI probes (ENOENT/ENOTDIR/EISDIR, /dev/zero too large, /proc/self/mem cannot read, 1048576 vs 1048577 bytes with BOM, invalid UTF-8, depth 1000/1001, read order, exit 4). Defect: stdin redirected from a directory prints 'invalid JSON' instead of 'cannot read', because the stream error from process.stdin (jsonpatch-cli.mjs:71-81) never fires. Recursive clone/equal (jsonpatch.mjs:40,56) overflows only far beyond the 1000-level limit. Own suite passed 37/37 and covers the main rules plus CLI order and size limits (test/cli.test.mjs:72,96), but is lighter than Y's or Z's. README has a clear exit-code table."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 2.322639400000001,
+    "swapped": true
+  },
+  {
+    "pair": "h6-r2",
+    "W": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Library is fully iterative: deepCopy at jsonpatch.mjs:44 and deepEqual at jsonpatch.mjs:67. setMember uses defineProperty (jsonpatch.mjs:35), so __proto__ is stored as an ordinary member. Error reasons are mapped cleanly in childKey (jsonpatch.mjs:92). Passed all 87 of my library probes. CLI reads files in 64K chunks and counts bytes actually read (jsonpatch-cli.mjs:41-48). It checks for a directory both before and after open (jsonpatch-cli.mjs:34,38) and checks depth iteratively (jsonpatch-cli.mjs:78). It falls back to an iterative stringifier when JSON.stringify overflows (jsonpatch-cli.mjs:143-150), so a ~16k-deep result printed correctly. A top-level catch (jsonpatch-cli.mjs:188) keeps stderr to one line even on unexpected failures. Passed every CLI probe: ENOTDIR, /dev/zero too large, /proc/self/mem cannot read, BOM counted in size, patch checked before doc. Own tests: 521 passed, 2 skipped (root), spread across 6 well-organised files. README has a clear table of exit codes and messages. Minor: the async read code is a bit more involved than needed."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Library is iterative throughout (clone at jsonpatch.mjs:51, equal at jsonpatch.mjs:85) and passed all 87 probes. It sets name on the prototype (jsonpatch.mjs:9), which works but is a slightly odd choice. CLI always uses its own iterative stringifier (jsonpatch-cli.mjs:116), so a ~16k-deep result printed correctly. Read limits and error mapping are correct (jsonpatch-cli.mjs:17-58), and all CLI probes passed. Weakness: errors that are not CliError are rethrown uncaught (jsonpatch-cli.mjs:179). With a gigantic output this gave a raw 'Invalid string length' stack trace on stderr. Own tests: 16 passed. They are dense and include a byte-for-byte check against JSON.stringify output and a deep-result test (test/cli.test.mjs:82), but are fewer and coarser than the others. README is good, though its exit-code table is out of order and does not list the exact messages."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Clean, compact library with iterative clone and equal (jsonpatch.mjs:49,77). Looks up holes explicitly (jsonpatch.mjs:216). Passed all 87 probes. CLI reads at most MAX_BYTES+1 into a single buffer (jsonpatch-cli.mjs:42-49) and passed every read, decode, depth and order probe. Defect: it writes JSON.stringify directly with no guard (jsonpatch-cli.mjs:122). A ~16k-deep result, built from a 998-deep input with copy operations, crashed with an uncaught RangeError stack trace, breaking the one-line-stderr rule. The closeSync in finally (jsonpatch-cli.mjs:55) could also throw. Own tests: 36 passed, 1 skipped. They cover the main CLI paths, including the BOM size edge and the patch-before-doc order, but are lighter than W's or Z's. README is clear and has a table of exit codes and messages."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Library is correct on all 87 probes. However, jsonEqual is recursive (jsonpatch.mjs:59-69): a 100k-deep test value threw a RangeError out of applyPatch, which should throw nothing but PatchError. That depth is beyond the 1000-level guarantee. deepCopy uses defineProperty on sparse pre-sized arrays (jsonpatch.mjs:34,49), which works but is unusual. CLI checks depth by scanning the text with string-aware bracket counting (jsonpatch-cli.mjs:79-98); it was correct on brackets inside strings and on deep objects. readStdin guards against settling twice (jsonpatch-cli.mjs:52-76). A deep result gives a clean one-line 'Error: result too deep to print' with exit 1 (jsonpatch-cli.mjs:134-139): not a crash, but not output either. Own tests: 314 passed, 1 skipped, across 3 thorough files. README is clear and has an exit-code table."
+    },
+    "ranking": [
+      "W",
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "costUSD": 1.5556687999999999
+  },
+  {
+    "pair": "h6-r2",
+    "W": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Library behaves identically to the others on ~80 probes (pointer parsing, form-rule order, proto names, bad index, -0, member order, move/copy, no mutation). jsonpatch.mjs:44 iterative deepCopy and :67 iterative deepEqual. CLI: jsonpatch-cli.mjs:143-150 falls back to iterative stringifyDeep when JSON.stringify hits a RangeError, so an ~8000-deep result (127MB) printed correctly with exit 0. jsonpatch-cli.mjs:184 handles EPIPE; :188-192 catch-all gives a clean 'Error: unexpected failure' line instead of a stack trace (seen on an absurd 500MB+ output case). Read errors, BOM, UTF-8, 1MB limit (file/stdin/dev/zero), depth 1000/1001 all correct. Minor: jsonpatch.mjs:217 hole read via patch[i] picks up a polluted Array.prototype (only X avoids this). Tests: 523 tests (521 pass, 2 root-skipped) across 7 well-organised files. README is thorough."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 5,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Library is correct on all probes; iterative clone and equal (jsonpatch.mjs:51, :85). PatchError name is defined on the prototype (jsonpatch.mjs:9), which is unusual but err.name is still correct. CLI always uses its own iterative stringify (jsonpatch-cli.mjs:116) and printed the ~8000-deep result correctly; an absurd case crashed with a RangeError string-length stack trace. All read, decode and depth error cases are correct. jsonpatch.mjs:242 is open to a polluted Array.prototype hole. Tests: only 16 tests (all pass), though dense with asserts; much thinner coverage than W and Z, with no permission or /dev/zero tests. README is adequate."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "Library is correct on all probes, and is the only one that treats a hole as undefined even when Array.prototype is polluted (jsonpatch.mjs:216 Object.hasOwn check). Iterative clone and equal. CLI read handling is correct (jsonpatch-cli.mjs:31-57 reads at most MAX+1 bytes; directory and ENOTDIR handled). Defect: jsonpatch-cli.mjs:122 calls JSON.stringify directly, and an ~8000-deep result crashed with an uncaught RangeError stack trace on stderr (exit 1), breaking the one-line-error contract; :128 rethrows any non-CliError. Tests: 37 (36 pass, 1 root-skipped), moderate coverage. README is clear."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Compact, very readable library (jsonpatch.mjs:82 checkNames, :158 checkForm); passed every library probe the same as the others. jsonDepth (jsonpatch-cli.mjs:79) scans the already-parsed text and handles escapes and strings with brackets correctly. Defect: jsonpatch-cli.mjs:134-139 cannot print very deep results; an ~8000-deep result gives 'Error: result too deep to print' exit 1 (not in the spec), where Y and Z print it. jsonEqual is recursive (jsonpatch.mjs:59) but bounded by the value's depth of at most 1000, so it is fine. jsonpatch.mjs:204 patch[i] is open to a polluted Array.prototype. Tests: 315 (314 pass, 1 root-skipped), thorough CLI and form tests. Good README."
+    },
+    "ranking": [
+      "W",
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "costUSD": 1.5729763999999997,
+    "swapped": true
+  },
+  {
+    "pair": "h6-r3",
+    "W": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 4,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Library (jsonpatch.mjs) is correct and clean: iterative deepCopy/jsonEqual (jsonpatch.mjs:50,82), defineMember avoids the __proto__ setter (:39), and the reason is passed through a fail callback. It passed all ~90 of my library probes. CLI defects: jsonpatch-cli.mjs:148 calls native JSON.stringify, so a patch-built result about 4000 levels deep gives 'Error: Maximum call stack size exceeded' and exit 1 instead of output. A directory on stdin is reported as 'stdin: invalid JSON' (exit 3) rather than 'cannot read', because readStdin (:68) never fstat's fd 0. On the plus side, unexpected errors still come out as one line. Tests: only 17 node:test cases (17/17 pass). They are dense but thin on CLI read errors, depth and size limits. README is clear and has examples."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Library is correct and readable: tryParsePointer returns null on invalid input (jsonpatch.mjs:22), missReason centralises the reasons (:98), and clone/deepEqual are iterative. It passed all my library probes. CLI: native JSON.stringify at jsonpatch-cli.mjs:121 throws RangeError on deep results, and the catch at :129 rethrows non-CliErrors, so the process crashes with a multi-line stack trace. That breaks the one-line stderr rule. A directory on stdin gives 'invalid JSON' instead of 'cannot read' (readStdinBytes :59). BOM handling is explicit (:89). Tests: 42 pass and cover the main ops and several CLI errors, but nothing on deep output or reading stdin. README is fine."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 9,
+      "notes": "Library is correct, with a StepError/PatchError split (jsonpatch.mjs:84,206). It passed all my probes. CLI: checks fstat(0) for a directory on stdin (jsonpatch-cli.mjs:66), so it reports 'stdin: cannot read'. Its iterative chunked pretty-printer (prettyChunks :112) honours drain, so 4000-deep and even ~1 GB outputs print correctly; output matched JSON.stringify(...,null,2) byte for byte. EPIPE gives a single error line (:198), and unexpected errors are one line (:207). The pretty-printer adds some complexity. Tests: 253 pass, split by area, and include a ~7000-deep output case and directory/mode-000 reads. README is the shortest but covers usage and all error codes."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Library is correct and compact, with a shared arrayIndex helper (jsonpatch.mjs:82) and a samePath shortcut (:166). It passed all my probes. CLI: rejects a directory on stdin (jsonpatch-cli.mjs:80), and its iterative stringify (:122) prints deep results; output matched JSON.stringify exactly at 2000-4000 depth. For outputs past V8's maximum string length (~1 GB) it builds one string and prints 'Error: unexpected failure' (:177), a generic message, where Y streams. A generic async collect() covers both files and stdin (:28), which is neat. Tests: 575 (574 pass, 1 skipped as root) and very thorough, including a repeated-copy deep-output test. README is clear."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X",
+      "W"
+    ],
+    "judge": 1,
+    "costUSD": 1.8505488
+  },
+  {
+    "pair": "h6-r3",
+    "W": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Lib is correct on all probes; applyPatch puts the whole op switch inline (jsonpatch.mjs:195-249), which is a bit long but readable. CLI: careful read path at jsonpatch-cli.mjs:16-66 (EISDIR, EAGAIN, bytes-read limit); uses process.exit only after the write callback (jsonpatch-cli.mjs:135). Defects: native JSON.stringify at jsonpatch-cli.mjs:153 fails on an 8000-deep result (one line 'Error: Maximum call stack size exceeded', exit 1, instead of the output). Stdin that is a directory gives 'invalid JSON' rather than 'cannot read'. Only 17 tests (17/17 pass), though dense, with good assertions on form rules, input integrity and deep docs. README is clear."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Lib is correct on all probes; the fail-callback design (jsonpatch.mjs:107-124, 225-230) is clean, and tryParsePointer at jsonpatch.mjs:22 is shared with the form check. CLI matched every spec case I tried, and strips the BOM explicitly at jsonpatch-cli.mjs:91-94. Defects: jsonpatch-cli.mjs:121 uses native JSON.stringify, and jsonpatch-cli.mjs:130 rethrows non-CliErrors, so an 8000-deep result built by copy ops crashed with a raw RangeError stack trace on stderr. Stdin that is a directory gives 'invalid JSON' instead of 'cannot read' (readStdinBytes at jsonpatch-cli.mjs:60, no fstat check). 42/42 tests pass, and they cover the single-BOM rule, a BOM counting toward too large, exact output format and step order. README is good."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Lib passed every probe; clean step/follow/addAt helpers at jsonpatch.mjs:85-145, and the same-path move is checked after following from at jsonpatch.mjs:189-190. CLI: read limits at jsonpatch-cli.mjs:44-51; stdin directory -> 'cannot read' at jsonpatch-cli.mjs:63-72 (verified). The chunked iterative pretty-printer with drain handling at jsonpatch-cli.mjs:111-157,193 printed the 8000-deep result correctly and matched JSON.stringify exactly. Minor: on EPIPE (| head) it prints 'Error: stdout: cannot write' (jsonpatch-cli.mjs:201). All CLI probes correct. 253/253 tests pass, well organized with helpers. README is good."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Lib jsonpatch.mjs passed all ~70 edge-case probes. A form check at jsonpatch.mjs:153-176 returns the parsed op. Iterative deepCopy/jsonEqual at jsonpatch.mjs:39,56. defineProperty at jsonpatch.mjs:29 keeps __proto__ an ordinary member. CLI: bytes counted as read at jsonpatch-cli.mjs:28-37; is-a-directory handled on open failure and via fstat at jsonpatch-cli.mjs:61-66; stdin directory reported as 'cannot read' at jsonpatch-cli.mjs:80 (verified). Non-recursive stringify at jsonpatch-cli.mjs:122 printed an 8000-deep result (128 MB) correctly and matched JSON.stringify byte-for-byte on varied samples. EPIPE is quiet at jsonpatch-cli.mjs:171. All ~30 CLI probes were correct (BOM, double BOM, UTF-8, depth 1000/1001, 1 MiB boundary incl. BOM, step order). Own suite: 575 tests, 574 pass, 0 fail, 1 not run; very thorough, split by area. README is clear."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X",
+      "W"
+    ],
+    "judge": 2,
+    "costUSD": 1.7675873999999998,
+    "swapped": true
+  }
+]
