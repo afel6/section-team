@@ -1,8 +1,25 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
+import { readMode } from './lib/mode.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team subagent-stop'
+const PLUGIN_FILE = new URL('../.claude-plugin/plugin.json', import.meta.url)
+
+// The plugin's version, or 'unknown': the stamp is a label, so a file it cannot read must not cost the REPORT.
+export function pluginVersion(file = PLUGIN_FILE) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')).version ?? 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+// A saved REPORT ends with what produced it, so a later audit can tell. parseReport ignores the field.
+function stamped(block, root) {
+  const setting = readMode(root)
+  return `${block}Plugin:       section-team ${pluginVersion()}, mode ${setting.modeUsable ? setting.mode : 'unknown'}\n`
+}
 
 // A job starts at a coordinator message (even though the harness flags it isMeta) or at a real user row.
 // Harness rows (isMeta: skill loads, hook feedback, system reminders) and tool results arrive mid-job and never start one.
@@ -38,7 +55,9 @@ export function saveFromEvent(e, now = new Date(), env = process.env) {
   const dir = projectDirOf(e, env)
   if (!id || dir === null) return null
   const block = extractReport(e.last_assistant_message || finalAgentText(e.agent_transcript_path))
-  return block ? writeReport(projectRoot(dir), id, block, now) : null
+  if (!block) return null
+  const root = projectRoot(dir)
+  return writeReport(root, id, stamped(block, root), now)
 }
 
 // The line the hook shows when it cannot do its job, or null: input that is not JSON, or a section event with no usable project dir.

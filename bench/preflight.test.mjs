@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
@@ -12,7 +12,7 @@ import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProble
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {
-  const root = mkdtempSync(join(tmpdir(), 'bench-preflight-'))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'bench-preflight-')))
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3 }))
   return root
 }

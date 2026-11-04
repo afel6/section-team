@@ -24,15 +24,17 @@ export function excludeFile(cwd) {
 // The memory pattern starts with **/ because a pattern with a slash in the middle only matches at the repo root, and sessions start in subfolders too.
 const TEAM_FORMS = ['.team/']
 const MEMORY_FORMS = ['**/.claude/agent-memory-local/', '**/.claude/agent-memory-local']
+const NEAR_MISS_FORMS = ['.team/near-miss/', '.team/near-miss']
 
-// Appends the missing lines (.team/ unless .team/keep-in-git exists, and the section memory folders always) in one write,
-// in the file's own line ending; existing lines are never rewritten. True when something was added; false outside git.
+// Appends the missing lines in one write, in the file's own line ending; existing lines are never rewritten: .team/, or only
+// .team/near-miss/ when .team/keep-in-git exists (those copies are broken on purpose), and always the section memory folders.
+// True when something was added; false outside git.
 export function ensureExcluded(cwd, root) {
   const file = excludeFile(cwd)
   if (!file) return false
   const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
   const present = new Set(current.split(/\r?\n/).map(line => line.trim()))
-  const wanted = existsSync(join(root, '.team', 'keep-in-git')) ? [MEMORY_FORMS] : [TEAM_FORMS, MEMORY_FORMS]
+  const wanted = [existsSync(join(root, '.team', 'keep-in-git')) ? NEAR_MISS_FORMS : TEAM_FORMS, MEMORY_FORMS]
   const missing = wanted.filter(forms => !forms.some(form => present.has(form))).map(([line]) => line)
   if (missing.length === 0) return false
   const eol = current.includes('\r\n') ? '\r\n' : '\n'

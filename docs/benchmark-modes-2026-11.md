@@ -151,7 +151,9 @@ Every run of a setup and task chose the same tier. The runs that were not faithf
 | h6-max-mo-r2 | a gate graded again after a pass |
 | h5-max-mo-r2 | a file outside `.team/` has `near-miss` in its path: `.claude/agent-memory-local/section-team-testing/near-miss-via-loader-hook.md` |
 
-The h5 file is an 11-line section memory note about how to run near-miss copies, not a copy of broken code. The rule matches on the path, so the run stays not faithful. No near-miss copy of code was left in a project: mode-check found none, and every hidden test passed. The re-grading is a real miss of the plugin's "a pass ends the gate" rule, in 4 of 27 team-setup runs and mostly in Max.
+The h5 file is an 11-line section memory note about how to run near-miss copies, not a copy of broken code. The rule matches on the path, so the run stays not faithful. No near-miss copy of code was left in a project: mode-check found none, and every hidden test passed. The re-grading broke the wording of the plugin's "a pass ends the gate" rule, in 4 of 27 team-setup runs and mostly in Max.
+
+**Correction, 2026-11-04.** This page first called the re-grading a real miss. A later trace of the four callers' transcripts does not support that: in all four, code or tests changed between the pass and the next grade. In `h4-lean-mo-r1` and `h6-max-mo-r2` the section got a new job from the supervisor and changed code for it. In `h4-max-mo-r2` the testing section edited tests after the pass and got another message before it graded again. In `h4-max-mo-r3` it edited tests and its near-miss script within the same job. So the rule's wording was too blunt: v0.2.2 says a later job that changes code gets its own grade. The fidelity table above is unchanged, because it applies the rule as it was frozen.
 
 ## Gate stats
 
