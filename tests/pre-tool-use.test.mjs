@@ -1,7 +1,7 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, posix, resolve, win32 } from 'node:path'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -455,4 +455,48 @@ test('the spawned hook gates on the session record when the project mode file is
   const out = JSON.parse(run.stdout)
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
   assert.ok(has(out.hookSpecificOutput.permissionDecisionReason, '(9/10)'), out.hookSpecificOutput.permissionDecisionReason)
+})
+
+// The resume guard: a supervisor's SendMessage has no agent_type, so decide must check it first.
+const OVER_LIMIT = JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 1, cache_read_input_tokens: 450000, cache_creation_input_tokens: 0 } } })
+const UNDER_LIMIT = JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 5000 } } })
+const sendMessageTo = (agentType, jsonl) => {
+  const dir = tempDir()
+  const subagents = join(dir, 'sid-1', 'subagents')
+  mkdirSync(subagents, { recursive: true })
+  writeFileSync(join(subagents, 'agent-a1.jsonl'), `${jsonl}\n`)
+  writeFileSync(join(subagents, 'agent-a1.meta.json'), JSON.stringify({ agentType }))
+  return { tool_name: 'SendMessage', tool_input: { to: 'a1', message: 'next job' }, session_id: 'sid-1', transcript_path: join(dir, 'sid-1.jsonl') }
+}
+
+test('hooks.json runs the guard on SendMessage and keeps the tools it already matched', () => {
+  const [entry] = JSON.parse(readFileSync(fileURLToPath(new URL('../hooks/hooks.json', import.meta.url)), 'utf8')).hooks.PreToolUse
+  const matcher = new RegExp(`^(${entry.matcher})$`)
+  for (const tool of ['SendMessage', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'SubagentHandback']) assert.match(tool, matcher)
+})
+
+test('a SendMessage to an oversized builder head is refused from the supervisor and from a section', () => {
+  const e = sendMessageTo('section-team:backend', OVER_LIMIT)
+  assert.match(decide(e), /the backend section is at 450K tokens/)
+  assert.match(decide({ ...e, agent_type: 'section-team:frontend' }), /the backend section is at 450K tokens/)
+})
+
+test('a SendMessage to a reviewer, or to a head under the limit, is allowed', () => {
+  const reviewer = sendMessageTo('section-team:reviewer', OVER_LIMIT)
+  assert.equal(decide(reviewer), null)
+  assert.equal(decide({ ...reviewer, agent_type: 'section-team:ai-engineer' }), null)
+  assert.equal(decide(sendMessageTo('section-team:backend', UNDER_LIMIT)), null)
+})
+
+test('the spawned hook denies an oversized resume and stays silent otherwise', () => {
+  const refused = spawnHook(JSON.stringify(sendMessageTo('section-team:backend', OVER_LIMIT)))
+  assert.equal(refused.status, 0)
+  const out = JSON.parse(refused.stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /the backend section is at 450K tokens/)
+  for (const input of [sendMessageTo('section-team:backend', '{not json'), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
+    const allowed = spawnHook(JSON.stringify(input))
+    assert.equal(allowed.status, 0)
+    assert.equal(allowed.stdout, '')
+  }
 })

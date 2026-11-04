@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import nodePath from 'node:path'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
 import { readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
@@ -89,6 +90,8 @@ function advisorRule(id, e, env) {
 
 // home is where the session mode records live; tests pass a temp folder.
 export function decide(e, env = process.env, home = homedir()) {
+  // Before the agent_type test: a supervisor's call has no agent_type.
+  if (e?.tool_name === 'SendMessage') return headContextRule(e)
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null

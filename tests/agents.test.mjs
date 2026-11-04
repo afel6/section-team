@@ -3,12 +3,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ROSTER, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
+import { ROSTER, RELAY, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
 const AGENTS = new URL('../agents/', import.meta.url)
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
+const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
 const front = text => Object.fromEntries(text.split('---')[1].trim().split('\n').filter(l => /^\w/.test(l)).map(l => [l.split(':')[0], l.slice(l.indexOf(':') + 1).trim()]))
 
 test('roster matches the section ids', () => {
@@ -30,17 +31,42 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
   }
 })
 
-test('advisors cannot use shell tools; builders have no tools allowlist', () => {
-  for (const s of ROSTER) {
-    const fm = front(render(s))
-    const id = s.id
-    if (ADVISOR_IDS.includes(id)) {
-      assert.ok(fm.tools, `${id} needs a tools allowlist`)
-      for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!fm.tools.includes(banned), `${id} has ${banned}`)
-    } else {
-      assert.equal(fm.tools, undefined, `${id} should inherit tools`)
-    }
+test('advisors cannot use shell tools, and their allowlist is unchanged', () => {
+  for (const id of ADVISOR_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit', id)
+    for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!tools.includes(banned), `${id} has ${banned}`)
   }
+})
+
+const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
+
+test('every builder has the base tool list, and only four have browser entries', () => {
+  for (const id of BUILDER_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS, id)
+  }
+})
+
+test('helpers keep their tools', () => {
+  assert.equal(front(agentFile('scout')).tools, 'Read, Grep, Glob, Skill')
+  assert.equal(front(agentFile('coder')).tools, 'Read, Write, Edit, Bash, PowerShell, Grep, Glob, Skill')
+  assert.equal(front(agentFile('reviewer')).tools, 'Read, Grep, Glob, Bash')
+})
+
+const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+
+test('builders and the coder keep tool output short; advisors, scout and reviewer do not carry the line', () => {
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(SHORT_OUTPUT), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes(SHORT_OUTPUT), id)
+})
+
+test('sections message a sibling only while it works, and ask main once it has handed back', () => {
+  const sentence = 'Message a sibling only while it is working; if it has handed back, ask `main`.'
+  assert.ok(RELAY.includes(sentence))
+  for (const s of ROSTER) assert.ok(agentFile(s.id).includes(sentence), s.id)
 })
 
 test('committed files match the generator', () => {
@@ -75,8 +101,6 @@ test('testing owns the final review; other builders keep the separate-review lin
   assert.ok(frontend.includes("do not review other sections' work; you still run your own reviewer gate before you finish"), 'frontend.md lost the review-split line')
   assert.ok(!frontend.includes('skip a separate full review pass'), 'frontend.md still has the ambiguous skip line')
 })
-
-const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
 
 test('every section head skips the global CLAUDE.md, carries the house rules and knows the scout; builders also know the coder', () => {
   for (const s of ROSTER) {

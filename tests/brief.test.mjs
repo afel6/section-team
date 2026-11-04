@@ -52,11 +52,22 @@ test('balanced brief matches its fixture, character for character', () => {
 test('every mode gives a new job a fresh section and keeps SendMessage for the same job', () => {
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.includes("- Keep each job's agent id. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues the same job: a fix list, a question, a resume."), mode)
+    assert.ok(brief.includes('- One agent id per job: a section on two jobs has two ids, so keep both. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues that job: a fix list, a question, a resume.'), mode)
+    assert.ok(!brief.includes("Keep each job's agent id"), mode)
     assert.ok(brief.includes('start a fresh one on the final-review job'), mode)
     assert.ok(brief.includes('(wake it if it has no id)'), mode)
     assert.ok(!brief.includes('Wake each section once per session'), mode)
     assert.ok(!brief.includes('so it keeps its context'), mode)
+  }
+})
+
+test('every mode drops the advisor aside and the new skills section, and keeps add-skill for a suggested skill', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(!brief.includes('ai-engineer advises on AI decisions'), mode)
+    assert.ok(!brief.includes('## New skills'), mode)
+    assert.ok(!brief.includes('When the user pastes a GitHub link'), mode)
+    assert.ok(brief.includes('with the `section-team:add-skill` skill'), mode)
   }
 })
 

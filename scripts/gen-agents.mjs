@@ -6,10 +6,15 @@ import { readExtra } from './assign-skill.mjs'
 // All heads run on Opus: benchmark rounds 4–6 showed Sonnet builder heads land at solo quality even with the Opus gate.
 export const MODEL = { builder: 'claude-opus-5-5', advisor: 'claude-opus-5-5' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
-export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
+export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). Message a sibling only while it is working; if it has handed back, ask `main`. When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
+// Tool schemas are re-sent on every turn of a head, so a builder lists only the tools it uses instead of inheriting them all.
+const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
+const builderTools = id => (BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS)
 
 export const ROSTER = [
   { id: 'frontend', kind: 'builder', color: 'blue', description: 'Frontend section head: UI pages, components, styling, client state. Use for any user-facing screen work.', role: 'You own everything the user sees in a browser: pages, components, styling, client-side state and accessibility of the UI you build.', skills: ['frontend-design:frontend-design', 'modern-web-guidance:modern-web-guidance'], core: ['frontend-design:frontend-design'], goto: ['react-review'], helpers: ['react-reviewer', 'typescript-reviewer', 'a11y-architect'] },
@@ -28,6 +33,8 @@ export const ROSTER = [
 
 const PROJECT_RULES = 'Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'
 const HOUSE_RULES = "House rules (the user's standards): return new objects instead of mutating; small focused files (200–400 lines typical, 800 max) and functions (under 50 lines); validate input at boundaries; handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace); no hardcoded secrets; no console.log in shipped code; write tests first for new behaviour and aim for 80% coverage; conventional commit messages if you commit."
+// Builders and the coder only: Bash output is 27% of head context.
+const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
 
 // The reviewer's clean-code rubric. Later tasks import RUBRIC_ITEMS and PASS_RULE.
 export const RUBRIC_ITEMS = ['structure', 'naming', 'duplication', 'size', 'errors', 'tests', 'security', 'leftovers']
@@ -54,7 +61,7 @@ export const HELPER_AGENTS = [
   {
     id: 'coder', model: 'sonnet', color: 'green', tools: 'Read, Write, Edit, Bash, PowerShell, Grep, Glob, Skill',
     description: 'Routine-coding helper for section heads: writes or edits code and tests exactly as specified by the head, runs them, and reports. Does not make design decisions.',
-    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', PROJECT_RULES, HOUSE_RULES, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
+    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', PROJECT_RULES, HOUSE_RULES, SHORT_OUTPUT, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
   },
   {
     id: 'reviewer', model: 'opus', color: 'red', tools: 'Read, Grep, Glob, Bash',
@@ -173,7 +180,7 @@ const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
 export function render(s, extra = {}) {
   const isAdvisor = s.kind === 'advisor'
   const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL[s.kind]}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: local']
-  if (isAdvisor) lines.push(`tools: ${ADVISOR_TOOLS}`)
+  lines.push(`tools: ${isAdvisor ? ADVISOR_TOOLS : builderTools(s.id)}`)
   if (s.core.length > 0) lines.push('skills:', ...s.core.map(k => `  - ${k}`))
   lines.push('---')
   const goTo = [...new Set([...s.skills.filter(k => !s.core.includes(k)), ...s.goto, ...(extra[s.id] ?? [])])] // everything but the core skill is a go-to mention: preloads cost context
@@ -194,6 +201,7 @@ export function render(s, extra = {}) {
     '',
     PROJECT_RULES,
     HOUSE_RULES,
+    ...(isAdvisor ? [] : [SHORT_OUTPUT]),
     '',
     'The supervisor sends you jobs. For each job:',
     ...numbered(steps),
