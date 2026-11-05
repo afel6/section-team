@@ -7,11 +7,24 @@ import { HEAD_CONTEXT_LIMIT } from '../hooks/lib/head-context.mjs'
 
 const CLAIM_WORDS = /\b(sav(?:e|es|ed|ing|ings)|cheaper|cuts? cost|half|better code|higher quality|better quality|improv(?:es|ed)|reduces|lower cost|costs? less|much less|fewer tokens)\b|\d\s*%/i
 
+const DISCLAIMED = /not (been |yet )?measured|unmeasured/i
+
+// Sentences that make a saving or quality claim without saying it is unmeasured.
+const claimSentences = text => text.split(/(?<=[.!?])\s+|\n/).filter(s => CLAIM_WORDS.test(s) && !DISCLAIMED.test(s))
+
 const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
+
+test('the claim check catches claim words and accepts a disclaimed sentence', () => {
+  for (const claim of ['It will save money.', 'Tokens were saved.', 'Quality improved.', 'It reduces the bill.', 'You get lower cost.', 'You get better quality.', 'It uses much less.']) {
+    assert.equal(claimSentences(claim).length, 1, `not caught: ${claim}`)
+  }
+  assert.deepEqual(claimSentences('Any saving in real use has not been measured.'), [])
+  assert.deepEqual(claimSentences('Saving is unmeasured.'), [])
+})
 
 test('the README states the cost ranges from the mode labels, the round 17 label and no single stale cost multiple', () => {
   const readme = read('README.md')
-  assert.ok(!/3\.6\s*(times|×)/.test(readme), 'no stale 3.6 multiple')
+  assert.ok(!/(?<![\d.])3\.6\s*(times|×|x)/i.test(readme), 'no stale 3.6 multiple')
   const range = mode => MODE_LABELS[mode].match(/([\d.]+)–([\d.]+)×/).slice(1).join(' to ')
   const needles = ['about 2.2 to 5.2 times', `about ${range('lean')} times in Lean`, `about ${range('max')} times in Max`, 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only']
   for (const needle of needles) {
@@ -20,29 +33,34 @@ test('the README states the cost ranges from the mode labels, the round 17 label
   assert.ok(!readme.includes('cleaner, better-tested and more robust'))
 })
 
+test('the README says the docs section and final review apply in every mode', () => {
+  assert.ok(read('README.md').includes('In every mode the docs section comes after the builders report, and the final review starts the app and drives the critical flows'))
+})
+
 test('the README describes the foundation skill, fresh sections and the guard, and what is not measured', () => {
   const readme = read('README.md')
-  for (const needle of ['section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', 'builder heads have no project MCP servers', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', 'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'the security pass', 'any saving in real use', 'In Balanced and Lean, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan', '0.2.3']) {
+  for (const needle of ['section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', 'builder heads have no project MCP servers', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', 'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'testing, docs, the security pass and advisors not counted', 'any saving in real use', '24.7K', 'where the difference is large', 'they use a CLI, or ask the supervisor', "Max's security pass is unchanged", 'In Balanced and Lean, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan', '0.2.3']) {
     assert.ok(readme.includes(needle), `README missing ${needle}`)
   }
+  assert.ok(!readme.includes('nor its figures') && !readme.includes('the saving in real use'), 'stale unmeasured wording is gone')
   assert.ok(!readme.includes('any work needing 3 or more builders'), 'the foundation skill no longer covers any 3-builder work')
   assert.ok(readme.includes('## Platform readiness'), 'Platform readiness heading missing')
   const claims = readme.split('## Platform readiness')[1].split('**What is measured')[0]
-  assert.ok(!CLAIM_WORDS.test(claims), 'no saving or quality claim before the runs')
+  assert.deepEqual(claimSentences(claims), [], 'no saving or quality claim before the runs')
 })
 
 test('the README says the guard refuses only finished heads, and what each caller is told', () => {
   const guard = read('README.md').split('**Context guard.**')[1].split('\n')[0]
-  assert.ok(!guard.includes('Any message'), 'a working head still takes messages')
-  for (const needle of ['refuses only a section that has finished', 'has finished', 'still working takes messages', 'fresh section', 'ask `main`']) {
+  assert.ok(!guard.includes('Any message') && !guard.includes('not to each other'), 'a working head still takes messages')
+  for (const needle of ['refuses only a section that has finished', 'still working takes messages', 'is sent to the supervisor (`main`), which starts a fresh one', 'ask `main`']) {
     assert.ok(guard.includes(needle), `guard line missing ${needle}`)
   }
 })
 
-test('CONTRIBUTING lists the foundation skill and the new hook helpers', () => {
+test('CONTRIBUTING makes no claim, explains --plugin-ref and lists the foundation skill and the new hook helpers', () => {
   const text = read('CONTRIBUTING.md')
-  assert.ok(!CLAIM_WORDS.test(text), 'no saving or quality claim in CONTRIBUTING')
-  for (const needle of ['--plugin-ref', 'expected version comes from the plugin under test', 'skills/foundation/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs']) {
+  assert.deepEqual(claimSentences(text), [], 'no saving or quality claim in CONTRIBUTING')
+  for (const needle of ['--plugin-ref', 'names the ref the `--plugin` worktree must be at', 'v<SECTION_TEAM_VERSION>', 'leave the flag out or pass the same ref', 'expected version comes from the plugin under test', 'skills/foundation/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs']) {
     assert.ok(text.includes(needle), `CONTRIBUTING missing ${needle}`)
   }
 })

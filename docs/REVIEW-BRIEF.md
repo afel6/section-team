@@ -35,7 +35,7 @@ You ──► SUPERVISOR (your normal session; brief injected by SessionStart ho
           ├─ small task → does it itself
           ├─ AI/data decision → asks an advisor (read-only) first
           ├─ 3+ builder sections → shows a plan, waits for OK
-          └─ wakes sections: Agent(subagent_type "section-team:<id>") → keeps id ↔ agentId map
+          └─ wakes sections: Agent(subagent_type "section-team:<id>") → keeps one agentId per job (a section on two jobs has two)
                 section head (Opus 5.5, own context, own memory folder)
                   ├─ helpers on haiku / sonnet / opus / fable (explicit per call)
                   └─ needs another section → SendMessage main → supervisor relays
@@ -86,17 +86,17 @@ You ◄── combined summary (also saved)
 ## 7. Known limitations (honest)
 
 - **Relay mechanism not yet observed live.** In `-p`, the supervisor passed the API contract between sections itself; no section sent `SendMessage main`.
-- **Reuse capture** (a section resumed saves the second report) is covered by unit tests on realistic transcript shapes, not by a live run. Since 0.2.3 the supervisor starts a fresh Agent call for each new job, so a resume only continues the same job (a fix list, a question).
+- **Reuse capture** (a second report from the same job, after a message to a section that already reported) is covered by unit tests on realistic transcript shapes, not by a live run. Since 0.2.3 the supervisor is told to start a fresh Agent call for each new job (a brief rule not run live), so a resume only continues the same job (a fix list, a question).
 - **Status parsing** is heuristic (the `done|partial|blocked` regex has no word boundaries).
 - **Per-call overhead:** each Write/Edit/Bash/Agent call in any session spawns Node for the guard (~150 ms). The board polls once a second in every session, and a pass-through hook runs on every model step to count tokens.
 - **Usage numbers** are counted inside the session from model-step usage; they are not reconciled with the account's billing view, and the counting maps are not pruned during very long sessions.
-- **Agent-id map lost** after `/clear` or compaction: the supervisor starts fresh sections for later jobs, as it does for every new job since 0.2.3, and points them at the notes, the reports and the changed files (long-term memory survives).
+- **Agent-id map lost** after `/clear` or compaction: the supervisor is told to start fresh sections for later jobs, as it is for every new job since 0.2.3, and to point them at the notes, the reports and the changed files (long-term memory survives). The limitation: the section's in-session context is lost, and a job in progress cannot be continued by message.
 - **Model cost:** all 12 heads are pinned to Opus 5.5 (user choice).
 - Deferred minor items and every controller ruling are listed in `docs/build-ledger.md` (lines marked `minor (deferred)` and `Ruling`).
 
 ## 8. Expected outcomes vs a single session (author's assessment, unmeasured)
 
-- **Tokens:** expected to cost **more** in total for multi-area work, not less. Each woken section is a fresh Opus context that re-reads the code and reloads the user's large global instructions; job messages, reports and relays add overhead. Rough expectation: 1.5–4× a single session for the same multi-area task. Places where it might use fewer tokens (none measured here):
+- **Tokens:** expected to cost **more** in total for multi-area work, not less. Each woken section is a fresh Opus context that re-reads the code and reloads the user's large global instructions; job messages, reports and relays add overhead. Old estimate (before measurement): 1.5–4× a single session for the same multi-area task. The mode round measured 4.5 (Lean), 7.0 (Balanced) and 13.4 (Max) times plain Claude Code on the multi-area task. Places where it might use fewer tokens (none measured here):
   - the supervisor's own context stays small (only REPORTs come back), so long sessions hit compaction less;
   - small tasks skip the team entirely;
   - routine helper work runs on Haiku/Sonnet.
