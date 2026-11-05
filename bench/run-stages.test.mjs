@@ -8,7 +8,7 @@ import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { PLUGIN_KEY } from './clean-run.mjs'
 import { fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import { BatchStop, exitCodeOf } from './run-attempts.mjs'
-import { HIDDEN_SETS, TIMEOUT_MIN, builderArgs, freshRepo, isTwoStage, runOne, tagStage, taskProblems } from './run.mjs'
+import { HIDDEN_SETS, TIMEOUT_MIN, builderArgs, freshRepo, isTwoStage, parseArgs, runOne, tagStage, taskProblems } from './run.mjs'
 
 test('h7 has a time limit per stage, and only h7 is a two-stage task', () => {
   assert.equal(TIMEOUT_MIN.h7, 120)
@@ -242,4 +242,66 @@ test('a two-stage run whose init disagrees with the plugin\'s manifest gets no s
   await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /section-team version 0\.2\.2, expected 0\.2\.3/.test(err.reason))
   assert.equal(calls.length, 1)
   assert.ok(!existsSync(join(outDir, 'run.json')))
+})
+
+// A solo attempt of p1 (three stages) into a temp root, with prompts for each stage in a temp bench folder.
+function p1Attempt(t, stages, upTo) {
+  const base = soloAttempt(t)
+  const calls = []
+  const bench = join(base.root, 'bench')
+  mkdirSync(join(bench, 'tasks'), { recursive: true })
+  for (const name of ['p1', 'p1-s2', 'p1-s3']) writeFileSync(join(bench, 'tasks', `${name}.md`), `prompt ${name}\n`)
+  const run = { id: 'p1-solo-mo-r1', task: 'p1', cond: 'solo-mo', base: 'solo', rep: 1 }
+  const spawn = stagedClaude({ home: base.home, calls, init: base.init, stages })
+  return { ...base, run, calls, outDir: join(base.root, 'results', run.id), ctx: { ...base.ctx, upTo }, deps: { ...base.deps, bench, spawn } }
+}
+
+test('a 3-stage run writes every stage\'s files, copies stages 1 and 2, tags all three and resumes in one session', async t => {
+  const { outDir, ctx, run, calls, deps } = p1Attempt(t, [{ files: { 'a.mjs': 'one\n' } }, { files: { 'a.mjs': 'two\n' } }, { files: { 'a.mjs': 'three\n' } }])
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(calls.length, 3)
+  const { sessionId } = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  assert.ok(calls[0].args.includes('--session-id'))
+  for (const call of calls.slice(1)) assert.equal(call.args[call.args.indexOf('--resume') + 1], sessionId)
+  assert.deepEqual(calls.map(c => c.args[1].split('\n').at(-2)), ['prompt p1', 'prompt p1-s2', 'prompt p1-s3'])
+  for (const k of [1, 2, 3]) {
+    assert.ok(existsSync(join(outDir, `raw-s${k}.json`)) && existsSync(join(outDir, `stderr-s${k}.txt`)), `stage ${k}`)
+    assert.equal(git(deps.dir, 'show', `stage-${k}:a.mjs`), ['one', 'two', 'three'][k - 1])
+  }
+  assert.equal(readFileSync(join(`${deps.dir}-s1`, 'a.mjs'), 'utf8'), 'one\n')
+  assert.equal(readFileSync(join(`${deps.dir}-s2`, 'a.mjs'), 'utf8'), 'two\n')
+  assert.ok(!existsSync(`${deps.dir}-s3`))
+  const record = readRecord(outDir)
+  assert.deepEqual(record.stages.map(s => [s.stage, s.end]), [[1, 'ok'], [2, 'ok'], [3, 'ok']])
+  assert.equal(record.wallMs, record.stages.reduce((sum, s) => sum + s.wallMs, 0))
+  assert.equal(record.end, 'ok')
+})
+
+test('a stage 2 that times out starts no stage 3 and records two stages', async t => {
+  const { outDir, ctx, run, calls, deps } = p1Attempt(t, [{}, { hang: true }])
+  await runOne(run, outDir, ctx, { ...deps, timeoutMs: 100 })
+  assert.equal(calls.length, 2)
+  assert.ok(!existsSync(join(outDir, 'raw-s3.json')))
+  const record = readRecord(outDir)
+  assert.deepEqual(record.stages.map(s => [s.stage, s.end]), [[1, 'ok'], [2, 'timeout']])
+  assert.equal(record.end, 'timeout')
+  assert.ok(existsSync(`${deps.dir}-s1`) && !existsSync(`${deps.dir}-s2`), 'no copy of a stage that did not end ok')
+})
+
+test('upTo 1 on p1 runs stage 1 only', async t => {
+  const { outDir, ctx, run, calls, deps } = p1Attempt(t, [{}], 1)
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(calls.length, 1)
+  assert.deepEqual(readRecord(outDir).stages.map(s => s.stage), [1])
+})
+
+test('parseArgs reads --stages and refuses one a task cannot run', () => {
+  assert.equal(parseArgs(['--tasks=p1']).stages, null)
+  assert.equal(parseArgs(['--tasks=p1', '--stages=1']).stages, 1)
+  assert.equal(parseArgs(['--tasks=p1', '--stages=3']).stages, 3)
+  for (const bad of ['--stages=4', '--stages=0', '--stages=', '--stages=x', '--stages=1.5']) {
+    assert.throws(() => parseArgs(['--tasks=p1', bad]), RangeError, bad)
+  }
+  assert.throws(() => parseArgs(['--tasks=h4', '--stages=']), RangeError)
+  assert.throws(() => parseArgs(['--tasks=h4', '--stages=2']), RangeError)
 })

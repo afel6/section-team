@@ -1,8 +1,9 @@
 // Runs the section-team benchmark: each task × condition × repetition as a fresh headless session of the CLI the
 // preflight pinned, in an empty git repo, with the clean run of clean-run.mjs (model, effort, settings, environment).
 // Saves claude's stream-json output (raw.json) per run. Resumable: finished runs are skipped.
-// A two-stage task (TWO_STAGE_TASKS) gets its second prompt by --resume in the same session once stage 1 ended ok: the run
-// keeps raw-s1.json and raw-s2.json, tags the folder stage-1 and stage-2, and copies it to <folder>-s1 after stage 1.
+// A staged task (stages.mjs) gets each later prompt by --resume in the same session once the stage before ended ok: the run
+// keeps raw-s<k>.json, tags the folder stage-<k>, and copies it to <folder>-s<k> after each stage but the last.
+// --stages=<n> stops a staged task after stage n.
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs start with empty section memory because every agent since 0.2.0 has `memory: local`: a run's notes stay in its own
 // folder, and nothing touches the user's. Older plugin versions are refused (pluginVersionOf).
@@ -36,7 +37,7 @@ import {
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
-import { hiddenSetsOf, isStaged, stageCountOf, stagePromptFile } from './stages.mjs'
+import { hiddenSetsOf, isStaged, stageCopyOf, stageCountOf, stagePromptFile } from './stages.mjs'
 import { MEMORY_BACKUP, MEMORY_ROOT, renameRetry, required, restoreMessage, restoreSectionMemory, sameVolume } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -89,6 +90,16 @@ export const NAME = /^[A-Za-z0-9]+$/
 // Run ids (task-cond-tag-rN) name results folders too: letters, digits and dashes only.
 const RUN_ID = /^[A-Za-z0-9-]+$/
 
+// --stages=<n>: stop after stage n, a whole number up to the most stages a named task has; null when absent (all stages).
+function stagesOf(value, tasks) {
+  if (value === undefined) return null
+  const most = Math.max(...tasks.map(stageCountOf))
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > most) {
+    throw new RangeError(`--stages takes a whole number from 1 to ${most} (the most stages of ${tasks.join(', ')}), got "${value}"`)
+  }
+  return Number(value)
+}
+
 export function parseArgs(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
   const reps = opt('reps') ?? '2'
@@ -109,6 +120,7 @@ export function parseArgs(argv) {
     sync: opt('sync') ?? '',
     noSync: argv.includes('--no-sync'),
     redactEmail: argv.includes('--redact-email'),
+    stages: stagesOf(opt('stages'), opt('tasks')?.split(',') ?? TASKS),
   }
   // An empty round or tag means none; an empty task (--tasks=h1,) or rerun id is an error.
   const named = [['round', args.round], ['tag', args.tag]].filter(([, value]) => value !== '')
@@ -427,15 +439,15 @@ export const spawnOptions = (cwd, env) => ({ cwd, env, windowsHide: true, stdio:
 // Where a stage's output goes; a single-stage run (stage null) writes raw.json and stderr.txt.
 const rawFile = stage => (stage === null ? 'raw.json' : `raw-s${stage}.json`)
 const stderrFile = stage => (stage === null ? 'stderr.txt' : `stderr-s${stage}.txt`)
-export const promptFile = (task, stage) => (stage === 2 ? `${task}-s2.md` : `${task}.md`)
+export const promptFile = (task, stage) => (stage > 1 ? `${task}-s${stage}.md` : `${task}.md`)
 
 // Starts the pinned binary (ctx.pin.binary), never `claude` from PATH, so the user's own CLI can keep updating.
 // Resolves once the output files are flushed, so the caller can read them. At timeoutMs it kills the child.
-function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage = null }) {
+function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage = null, bench = BENCH }) {
   const base = baseOf(run)
-  const prompt = PREFIX + readFileSync(join(BENCH, 'tasks', promptFile(run.task, stage)), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
+  const prompt = PREFIX + readFileSync(join(bench, 'tasks', promptFile(run.task, stage)), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const { binary } = ctx.pin
-  const args = builderArgs(base, prompt, { sessionId, resume: stage === 2, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
+  const args = builderArgs(base, prompt, { sessionId, resume: stage > 1, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
   return new Promise((resolve, reject) => {
     const started = Date.now()
     const child = spawn(binary, args, spawnOptions(dir, env))
@@ -497,17 +509,15 @@ function tagOrSay(dir, tag) {
   }
 }
 
-// Where the copy of a run's folder after stage 1 goes: beside it, so the code runs from the same kind of place.
-const stageCopyOf = dir => `${dir}-s1`
 const readMessages = (outDir, stage) => outputMessages(readFileSync(join(outDir, rawFile(stage)), 'utf8'))
 
-// The folder as stage 1 left it, for the s1 set. A failed copy stops the run before stage 2 is paid for: a harness error,
-// said in one line naming the run and the step, and listed in attempts.json.
-function copyStageOne({ run, dir, outDir, sessionId, attempt }) {
+// The folder as stage k left it, for the hidden sets that run on it. A failed copy stops the run before the next stage is
+// paid for: a harness error, said in one line naming the run and the step, and listed in attempts.json.
+function copyStage({ run, dir, outDir, sessionId, attempt }, stage) {
   try {
-    cpSync(dir, stageCopyOf(dir), { recursive: true })
+    cpSync(dir, stageCopyOf(dir, stage), { recursive: true })
   } catch (err) {
-    const reason = `could not copy ${dir} after stage 1 (${err.code ?? firstLine(err.message)})`
+    const reason = `could not copy ${dir} after stage ${stage} (${err.code ?? firstLine(err.message)})`
     recordAttempt(outDir, { kind: 'stage-copy-failed', attempt, sessionId, at: new Date().toISOString(), reason })
     throw new Error(`${run.id}: ${reason}`, { cause: err })
   }
@@ -519,36 +529,43 @@ async function singleStage(claude, outDir) {
   return { info, messages: readMessages(outDir, null), extraReasons: [] }
 }
 
-// Both stages of a two-stage task. Stage 2 starts only after a stage 1 that ended ok with a good init: anything else is
-// scored as it ended, and a void or stopped run spends no more. What finishAttempt judges is the last stage that ran
-// (stage 1's result must not stand in for a stage 2 that wrote none). The hidden sets s2 and reg then fail for a run
-// that never reached stage 2.
-async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) {
-  const first = await claude(1)
-  const firstMessages = readMessages(outDir, 1)
-  const firstEnd = classifyEnd({ messages: firstMessages, timedOut: first.timedOut, exitCode: first.exitCode })
-  const stageOne = { stage: 1, ...first, end: firstEnd }
-  const good = firstEnd === 'ok' && runInitProblems(firstMessages, run, ctx).length === 0
-  if (!good) return { info: { ...first, stages: [stageOne], snapshot: null }, messages: firstMessages, extraReasons: [] }
-  tagOrSay(dir, 'stage-1')
-  copyStageOne({ run, dir, outDir, sessionId, attempt })
-  const second = await claude(2)
-  tagOrSay(dir, 'stage-2')
-  const messages = readMessages(outDir, 2)
-  const stageTwo = { stage: 2, ...second, end: classifyEnd({ messages, timedOut: second.timedOut, exitCode: second.exitCode }) }
-  const resumedAs = initOf(messages)?.session_id
-  return {
-    info: { ...second, wallMs: first.wallMs + second.wallMs, startedAt: first.startedAt, stages: [stageOne, stageTwo], snapshot: stageCopyOf(dir) },
-    messages,
-    extraReasons: resumedAs === undefined || resumedAs === sessionId ? [] : [`stage 2 ran as session ${resumedAs}, not ${sessionId}`],
+// The stages of a staged task, up to upTo (null: all). The next stage starts only after one that ended ok with a good init:
+// anything else is scored as it ended, and a void or stopped run spends no more. What finishAttempt judges is the last
+// stage that ran (an earlier result must not stand in for a stage that wrote none). The hidden sets of the stages that
+// never ran then fail.
+async function stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, upTo = null }) {
+  const count = stageCountOf(run.task)
+  const last = Math.min(upTo ?? count, count)
+  const stages = []
+  const extraReasons = []
+  let info
+  let messages
+  let snapshot = null
+  for (let stage = 1; stage <= last; stage++) {
+    info = await claude(stage)
+    messages = readMessages(outDir, stage)
+    const end = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
+    stages.push({ stage, ...info, end })
+    const resumedAs = initOf(messages)?.session_id
+    if (stage > 1 && resumedAs !== undefined && resumedAs !== sessionId) extraReasons.push(`stage ${stage} ran as session ${resumedAs}, not ${sessionId}`)
+    const good = end === 'ok' && runInitProblems(messages, run, ctx).length === 0
+    if (stage === 1 && !good) break
+    tagOrSay(dir, `stage-${stage}`)
+    if (!good) break
+    if (stage < count) {
+      copyStage({ run, dir, outDir, sessionId, attempt }, stage)
+      if (stage === 1) snapshot = stageCopyOf(dir, 1)
+    }
   }
+  const sum = key => stages.reduce((total, s) => total + s[key], 0)
+  return { info: { ...info, wallMs: sum('wallMs'), startedAt: stages[0].startedAt, stages, snapshot }, messages, extraReasons }
 }
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
 // ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root } = deps
+  const { spawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root, bench } = deps
   required({ outDir, home, dir, root, spawn })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
@@ -557,13 +574,16 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   // The earlier attempt's solution folder is kept beside the new one (a harness-bug rerun replaces a counted run).
   // Renamed before session.json is written, so a failed rename leaves outDir as it was and a resume reuses the number.
   if (existsSync(dir)) renameRetry(dir, `${dir}-attempt-${attempt - 1}`)
-  if (existsSync(stageCopyOf(dir))) renameRetry(stageCopyOf(dir), `${stageCopyOf(dir)}-attempt-${attempt - 1}`)
+  for (let stage = 1; stage < stageCountOf(run.task); stage++) {
+    const copy = stageCopyOf(dir, stage)
+    if (existsSync(copy)) renameRetry(copy, `${copy}-attempt-${attempt - 1}`)
+  }
   writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
   prepareRun(run, { dir, root })
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
-  const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage })
-  const { info, messages, extraReasons } = isTwoStage(run.task) ? await twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) : await singleStage(claude, outDir)
+  const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage, bench })
+  const { info, messages, extraReasons } = isStaged(run.task) ? await stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, upTo: ctx.upTo }) : await singleStage(claude, outDir)
   const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const bestEffort = ended === 'api-limit' || ended === 'api-other'
   let copied
@@ -619,7 +639,7 @@ export function stopRunOnExit({ stop = stopActiveChild } = {}) {
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, round, conds, tasks, reps, filters, plugin, pluginRef, rerun, reason, sync, noSync, redactEmail } = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, plugin, pluginRef, rerun, reason, sync, noSync, redactEmail, stages } = parseArgs(argv)
   requireFlags(argv, ['tasks', 'reps'])
   checkRoundTag({ round, tag })
   const syncBranch = syncBranchOf({ sync, noSync })
@@ -629,7 +649,7 @@ async function main() {
   const problems = taskProblems(tasks)
   if (problems.length) throw new Error(`cannot run these tasks: ${problems.join('; ')}`)
   const pin = readPin(RESULTS, tag)
-  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, ...batchPlugin(plugin, pin, pluginRef) }
+  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, upTo: stages, ...batchPlugin(plugin, pin, pluginRef) }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
