@@ -23,6 +23,14 @@ const sectionFolders = dir => existsSync(dir)
   ? readdirSync(dir, { withFileTypes: true }).filter(e => (e.isDirectory() || e.isSymbolicLink()) && SECTION.test(e.name)).map(e => e.name).sort()
   : []
 
+// What moves, deletes or pushes real data names its target, with no default: a caller that forgets throws here
+// instead of reaching the user's folders. A test once lost the user's notes through a default (no-real-data.test.mjs).
+export function required(named) {
+  for (const [name, value] of Object.entries(named)) {
+    if (value === undefined || value === null) throw new TypeError(`${name} is required`)
+  }
+}
+
 const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 
 // Windows briefly locks a folder after a process exits (antivirus, the indexer): retry before giving up.
@@ -75,7 +83,8 @@ function writeManifest(backup, manifest) {
 
 // Moves the user's section folders into backup and returns their names. Refuses while an earlier backup exists.
 // If a move fails, the folders already moved are put back before the error is thrown.
-export function backupSectionMemory({ root = MEMORY_ROOT, backup = MEMORY_BACKUP, pid = process.pid, rename = renameSync } = {}) {
+export function backupSectionMemory({ root, backup, pid = process.pid, rename = renameSync } = {}) {
+  required({ root, backup })
   mkdirSync(dirname(backup), { recursive: true })
   try {
     mkdirSync(backup)
@@ -99,7 +108,8 @@ export function backupSectionMemory({ root = MEMORY_ROOT, backup = MEMORY_BACKUP
 }
 
 // Files the notes a team run wrote under <into>/section-memory/ (-2, -3 … on a rerun), so the next team run starts empty.
-export function stashRunMemory({ root = MEMORY_ROOT, into, rename = renameSync }) {
+export function stashRunMemory({ root, into, rename = renameSync }) {
+  required({ root, into })
   const names = sectionFolders(root)
   if (names.length === 0) return []
   let target = join(into, 'section-memory')
@@ -111,7 +121,8 @@ export function stashRunMemory({ root = MEMORY_ROOT, into, rename = renameSync }
 // that is not the user's (a run note, or a run's folder of the same name as one still in the backup) is filed
 // under leftovers first. Safe to run again after it stopped half way. Refuses while the round that made the
 // backup is still running, unless force.
-export function restoreSectionMemory({ root = MEMORY_ROOT, backup = MEMORY_BACKUP, leftovers, force = false, alive = isAlive, rename = renameSync }) {
+export function restoreSectionMemory({ root, backup, leftovers, force = false, alive = isAlive, rename = renameSync }) {
+  required({ root, backup, leftovers })
   if (!existsSync(backup)) throw new Error(`no backup at ${backup}: nothing to restore`)
   const manifest = readManifest(backup)
   if (!force && manifest.pid && manifest.pid !== process.pid && alive(manifest.pid)) {

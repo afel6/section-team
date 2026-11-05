@@ -35,7 +35,7 @@ import {
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
-import { MEMORY_ROOT, backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
+import { MEMORY_BACKUP, MEMORY_ROOT, backupSectionMemory, renameRetry, required, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const REPO = dirname(BENCH)
@@ -291,7 +291,8 @@ const GIT_IDENTITY = ['-c', 'user.email=bench@local', '-c', 'user.name=bench']
 
 // Wipes dir (it must sit inside root, never root itself) and makes a git repo with an 'init' commit;
 // with a seed folder, copies it in and commits it as 'seed', so a run's own changes are a diff from that commit.
-export function freshRepo(dir, { seed = null, root = RUNS } = {}) {
+export function freshRepo(dir, { seed = null, root } = {}) {
+  required({ root })
   const rel = relative(resolve(root), resolve(dir))
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`refusing to touch ${dir}: not inside ${root}`)
   rmSync(dir, { recursive: true, force: true })
@@ -327,7 +328,8 @@ export const runFolder = run => `${RUNS}/${run.task}-${createHash('sha256').upda
 export const modeFileFor = base => (base === 'lean' || base === 'max' ? `${serializeMode(null, base)}\n` : null)
 
 // A fresh run folder (see freshRepo) with the setup's mode file, left uncommitted as when a user picks a mode.
-export function prepareRun(run, { dir = runFolder(run), root = RUNS, seeds = SEEDS } = {}) {
+export function prepareRun(run, { dir, root, seeds = SEEDS } = {}) {
+  required({ dir, root })
   const seed = join(seeds, run.task)
   freshRepo(dir, { seed: existsSync(seed) ? seed : null, root })
   const modeFile = modeFileFor(baseOf(run))
@@ -531,9 +533,10 @@ async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) 
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
 // ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
-// spawn, the kill and the time limit, the home folder and the run folder.
+// spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home = homedir(), dir = runFolder(run), root = RUNS, stash = stashRunMemory } = deps
+  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root, stash } = deps
+  required({ home, dir, root, stash })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -574,10 +577,14 @@ export function checkVolumes({ root = MEMORY_ROOT, others = [homedir(), RESULTS]
   }
 }
 
+// The real folders. Only main reaches these; everything exported takes its folders from its caller.
+const REAL_MEMORY = { root: MEMORY_ROOT, backup: MEMORY_BACKUP }
+const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS, stash: args => stashRunMemory({ ...args, root: MEMORY_ROOT }) })
+
 function restoreMemory({ force = false } = {}) {
   checkVolumes()
   const leftovers = join(RESULTS, `section-memory-leftover-${Date.now()}`)
-  console.log(restoreMessage(restoreSectionMemory({ leftovers, force }), leftovers))
+  console.log(restoreMessage(restoreSectionMemory({ ...REAL_MEMORY, leftovers, force }), leftovers))
 }
 
 const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
@@ -585,7 +592,8 @@ const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
 // Moves the user's section memory aside for the round (see section-memory.mjs) and returns the function that
 // moves it back. Ctrl+C, a closed console, a kill or a crash skip `finally`; they all end in process exit, whose
 // handler stops the run in progress and then puts the memory back. It runs at most once.
-export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSectionMemory, restore = restoreMemory, stop = stopActiveChild } = {}) {
+export function isolateSectionMemory({ volumes = checkVolumes, backup, restore, stop = stopActiveChild } = {}) {
+  required({ backup, restore })
   volumes()
   console.log(`section memory moved aside: ${backup().join(' ') || '(none)'}`)
   let released = false
@@ -628,7 +636,8 @@ async function main() {
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
   const publish = syncBranch === null ? null : await publisher({ runs, tag, options: { branch: syncBranch, redactEmail } })
-  await runAll(todo, { runOne: watchUserLists(withPublish((r, o) => runOne(r, o, ctx), publish)) })
+  const isolate = () => isolateSectionMemory({ backup: () => backupSectionMemory(REAL_MEMORY), restore: restoreMemory })
+  await runAll(todo, { isolate, runOne: watchUserLists(withPublish((r, o) => runOne(r, o, ctx, realRunDeps(r)), publish)) })
   console.log('all runs finished')
 }
 
@@ -652,9 +661,10 @@ export function publishAtStart({ runs, results = RESULTS, tag, options, log = co
 // cloud-sync.mjs imports this module, so it is loaded only when a batch syncs.
 async function publisher({ runs, tag, options }) {
   const sync = await import('./cloud-sync.mjs')
-  publishAtStart({ runs, tag, options }, sync)
+  const real = { ...sync.REAL_SYNC, ...options }
+  publishAtStart({ runs, tag, options: real }, sync)
   return (run, outDir) => {
-    const { pushed } = sync.publishRun({ id: run.id, outDir, runDir: runFolder(run) }, options)
+    const { pushed } = sync.publishRun({ id: run.id, outDir, runDir: runFolder(run) }, real)
     if (pushed) console.log(`${new Date().toISOString()} pushed ${run.id} to ${options.branch}`)
   }
 }
@@ -662,8 +672,9 @@ async function publisher({ runs, tag, options }) {
 // Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
 // run other than solo is left, and moved back even when a run throws. runOne is required: main binds it to the
 // batch's ctx, and a default without ctx could only crash mid-batch.
-export async function runAll(todo, { runOne: one, isolate = isolateSectionMemory } = {}) {
+export async function runAll(todo, { runOne: one, isolate } = {}) {
   if (typeof one !== 'function') throw new TypeError('runAll needs a runOne bound to the batch context')
+  required({ isolate })
   const release = todo.some(run => baseOf(run) !== 'solo') ? isolate() : () => {}
   try {
     for (const run of todo) await one(run, join(RESULTS, run.id))

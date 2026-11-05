@@ -20,7 +20,7 @@ import { basename, dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { ROUND_CLI_VERSION, VERSION_PATTERN, claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, pluginVersionOf, resultOf, sha256Of } from './clean-run.mjs'
-import { publishItems, syncReady } from './cloud-sync.mjs'
+import { REAL_SYNC, publishItems, syncReady } from './cloud-sync.mjs'
 import {
   DEFAULT_PLUGIN_REF, NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder, syncBranchOf,
 } from './run.mjs'
@@ -211,7 +211,7 @@ export function preflight({ round, plugin, pluginRef = '', home = homedir(), res
 }
 
 // The written pin goes to the sync branch at once; false without a branch.
-export function publishPin({ file, round, branch, redactEmail = false }, { publish = publishItems } = {}) {
+export function publishPin({ file, round, branch, redactEmail = false }, { publish }) {
   if (branch === null) return false
   publish({ items: [{ from: file, to: `results/${basename(file)}` }], message: `chore(results): pin round ${round}` }, { branch, redactEmail })
   return true
@@ -222,13 +222,14 @@ function main() {
   // Before any paid call: off Windows the pin must reach the results branch, so the email variable and the remote are
   // checked first.
   const branch = syncBranchOf({ sync, noSync })
-  if (branch !== null) syncReady({ branch, redactEmail })
+  if (branch !== null) syncReady({ ...REAL_SYNC, branch, redactEmail })
   const { problems, pin, file } = preflight({ round, plugin, pluginRef })
   for (const line of problems) console.error(`preflight: ${line}`)
   if (problems.length > 0) process.exitCode = 1
   else {
     console.log(`preflight ok: claude ${pin.version} pinned at ${pin.binary}; the round's reference is in ${file}`)
-    if (publishPin({ file, round, branch, redactEmail })) console.log(`preflight: the pin is pushed to ${branch}`)
+    const publish = (what, options) => publishItems(what, { ...REAL_SYNC, ...options })
+    if (publishPin({ file, round, branch, redactEmail }, { publish })) console.log(`preflight: the pin is pushed to ${branch}`)
   }
 }
 

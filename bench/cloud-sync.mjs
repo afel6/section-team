@@ -26,6 +26,7 @@ import {
   scanOutgoing, tryGit, withoutEmail,
 } from './cloud-git.mjs'
 import { NAME, RESULTS, RUNS } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 export const RESULTS_BRANCH = 'bench/mode-round-cloud-results'
 export const CASES_BRANCH = 'bench/mode-round-cloud-cases'
@@ -44,13 +45,18 @@ const NOT_PUSHED = new Set(['.git', 'node_modules'])
 const KEY_FILE = /blind-key|external-key/i
 
 // The worktree a branch syncs through, outside the repo and the run folders.
-export const syncDirFor = (branch, root = SYNC_ROOT) => join(root, branch.replaceAll('/', '-'))
+export const syncDirFor = (branch, root) => join(root, branch.replaceAll('/', '-'))
 
 const filesUnder = dir => readdirSync(dir, { recursive: true, withFileTypes: true })
   .filter(e => e.isFile() || e.isSymbolicLink()).map(e => relative(dir, join(e.parentPath, e.name)).replaceAll('\\', '/')).sort()
 
-const contextOf = ({ repo = REPO, syncRoot = SYNC_ROOT, env = process.env, branch = RESULTS_BRANCH, wait, push, redactEmail = false, maxFileBytes = MAX_FILE_BYTES } = {}) =>
-  ({ repo, syncRoot, env, branch: checkBranch(branch), wait, push, redactEmail, maxFileBytes })
+// This repo and its sync folder. A push reaches the public remote, so only the real entry points pass these.
+export const REAL_SYNC = { repo: REPO, syncRoot: SYNC_ROOT }
+
+function contextOf({ repo, syncRoot, env = process.env, branch = RESULTS_BRANCH, wait, push, redactEmail = false, maxFileBytes = MAX_FILE_BYTES } = {}) {
+  required({ repo, syncRoot })
+  return { repo, syncRoot, env, branch: checkBranch(branch), wait, push, redactEmail, maxFileBytes }
+}
 
 const megabytes = bytes => (bytes / (1024 * 1024)).toFixed(1)
 
@@ -156,7 +162,8 @@ export function publishRun({ id, outDir, runDir }, options) {
 }
 
 // Everything: every results entry (the pin, judge files, keys) and every run folder.
-export function pushAll({ results = RESULTS, runs = RUNS } = {}, options) {
+export function pushAll({ results, runs } = {}, options) {
+  required({ results, runs })
   const entries = dir => (existsSync(dir) ? readdirSync(dir).sort() : [])
   const items = [
     ...entries(results).map(name => ({ from: join(results, name), to: `results/${name}` })),
@@ -234,7 +241,8 @@ function ensurePluginWorktree(pin, repo) {
 }
 
 // A fresh machine back to where the pushed data left the round. Restores into missing places only.
-export function restore({ round, results = RESULTS, runs = RUNS }, { install = npmInstall, ...options } = {}) {
+export function restore({ round, results, runs }, { install = npmInstall, ...options } = {}) {
+  required({ results, runs })
   const ctx = contextOf(options)
   const pushed = remoteHasBranch({ cwd: ctx.repo, branch: ctx.branch, wait: ctx.wait })
   const summary = pushed
@@ -307,10 +315,12 @@ export function syncOptions(argv) {
 function main(options) {
   const { command, branch } = options
   const say = value => console.log(`cloud-sync ${command}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
-  if (command === 'push') say(pushAll({}, { branch, redactEmail: options.redactEmail }))
-  else if (command === 'restore') say(restore({ round: options.round }, { branch }))
-  else if (command === 'publish') say(publishSets({ paths: options.paths, only: options.only }, { branch }))
-  else if (command === 'fetch') say(`${fetchPath({ path: options.path, out: options.out }, { branch })} file(s) written to ${options.out}`)
+  const real = { ...REAL_SYNC, branch }
+  const folders = { results: RESULTS, runs: RUNS }
+  if (command === 'push') say(pushAll(folders, { ...real, redactEmail: options.redactEmail }))
+  else if (command === 'restore') say(restore({ round: options.round, ...folders }, real))
+  else if (command === 'publish') say(publishSets({ paths: options.paths, only: options.only }, real))
+  else if (command === 'fetch') say(`${fetchPath({ path: options.path, out: options.out }, real)} file(s) written to ${options.out}`)
   else {
     const hits = scanOutgoing({ cwd: REPO, email: accountEmail(), rev: options.rev })
     if (hits.length > 0) throw new EmailFound(hits)
