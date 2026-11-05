@@ -3,7 +3,13 @@ import { firstDip } from './balance.mjs'
 import { freeHandle } from './handle.mjs'
 import { PARTS_V2 } from './schema.mjs'
 
-const PARTS_NEW = PARTS_V2.replace('CREATE TABLE parts', 'CREATE TABLE parts_new')
+// A name no table, index, trigger or view in the file has: another tool may already own parts_new.
+function freeName(db) {
+  const used = new Set(db.prepare('SELECT name FROM sqlite_master').all().map(row => row.name.toLowerCase()))
+  let name = 'parts_new'
+  for (let n = 2; used.has(name); n += 1) name = `parts_new_${n}`
+  return name
+}
 
 function checkMoves(db) {
   if (db.prepare('PRAGMA foreign_key_check').all().length > 0) throw new Error('a move points to no part')
@@ -22,16 +28,17 @@ function rebuildParts(db) {
   checkMoves(db)
   const objects = objectsOnParts(db)
   const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'parts'").get()
-  db.exec(PARTS_NEW)
+  const temp = freeName(db)
+  db.exec(PARTS_V2.replace('CREATE TABLE parts', `CREATE TABLE ${temp}`))
   const taken = new Set()
-  const insert = db.prepare('INSERT INTO parts_new (id, sku, name, handle) VALUES (?, ?, ?, ?)')
+  const insert = db.prepare(`INSERT INTO ${temp} (id, sku, name, handle) VALUES (?, ?, ?, ?)`)
   for (const part of db.prepare('SELECT * FROM parts ORDER BY id').all()) {
     const handle = freeHandle(part.name, candidate => taken.has(candidate))
     taken.add(handle)
     insert.run(part.id, part.sku, part.name, handle)
   }
   db.exec('DROP TABLE parts')
-  db.exec('ALTER TABLE parts_new RENAME TO parts')
+  db.exec(`ALTER TABLE ${temp} RENAME TO parts`)
   for (const sql of objects) db.exec(sql)
   if (sequence) {
     db.prepare("DELETE FROM sqlite_sequence WHERE name = 'parts'").run()

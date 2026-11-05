@@ -4,9 +4,10 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import vm from 'node:vm'
+import { moreCases } from './stage-one-more.mjs'
 import {
   LINE, LIST_FIRST, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, errorText, expect, fire, flush, fresh, freshDb, freePort, get, isDisabled, isEl, it, listenOn, moveOf, norm, ok, openPage, parseHtml,
-  partOf, patch, pending, portFree, post, readyWith, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tookPort, tryJson, valueIn, view, withDb, withServer, within,
+  partOf, patch, pending, portFree, post, readyWith, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tookPort, tryJson, valueIn, view, withDb, withLock, withServer, within,
 } from './lib.mjs'
 
 const E = {
@@ -38,6 +39,7 @@ export function stageOneCases({ stage }) {
   pageListCases(page)
   pageFormCases(page)
   pageDeleteCases(page)
+  moreCases({ stage, tools, page })
 }
 
 // What the cases need from the stage they run on.
@@ -741,16 +743,4 @@ function pageDeleteCases({ SAMPLE, okList, ready }) {
     await settle(take(page, 'DELETE', '/api/parts/3'), c => c.reply(204))
     assert.deepEqual({ error: errorText(page), fetches: pending(page) }, { error: '', fetches: [`GET ${LIST_FIRST}`] })
   })
-}
-
-// Holds an exclusive lock on the file for holdMs while `start` sends requests, then lets `finish` wait for their replies.
-async function withLock(file, holdMs, start, finish) {
-  const sent = await withDb(file, async db => {
-    db.exec('BEGIN EXCLUSIVE')
-    const requests = start()
-    await sleep(holdMs)
-    db.exec('COMMIT')
-    return requests
-  })
-  await finish(sent)
 }

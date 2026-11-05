@@ -383,3 +383,15 @@ export const readyWith = sample => async (parts = sample, next = null) => {
   await settle(take(page, 'GET', LIST_FIRST), c => c.reply(200, { parts, next }))
   return page
 }
+
+// Holds an exclusive lock on the file for holdMs while `start` sends requests, then lets `finish` wait for their replies.
+export async function withLock(file, holdMs, start, finish) {
+  const sent = await withDb(file, async db => {
+    db.exec('BEGIN EXCLUSIVE')
+    const requests = start()
+    await sleep(holdMs)
+    db.exec('COMMIT')
+    return requests
+  })
+  await finish(sent)
+}

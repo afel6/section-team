@@ -4,7 +4,7 @@ import { copyFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   LIST_FIRST, MOVES, PARTS_V1, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, errorText, expect, fire, flush, fresh, freshDb, get, it, moveOf, norm, ok, openPage, parseHtml, partOf, patch, pending, plantV1, post, readyWith, refused, req, runToExit,
-  same, schemaOf, setValue, settle, shared, sleep, startServer, stopServer, take, textOf, view, withDb, withServer, within, isEl,
+  same, schemaOf, setValue, settle, shared, sleep, startServer, stopServer, take, textOf, view, withDb, withServer, within, isEl, freePort,
 } from './lib.mjs'
 
 const BAD_DATE = 'as_of must be a valid YYYY-MM-DD date'
@@ -59,6 +59,16 @@ it('every reply with a part has its handle; PATCH never changes it, and no body 
     assert.equal((await partOf(s, 'B', 'Hex Bolt')).handle, 'hex-bolt-2', 'a renamed part keeps holding its handle')
     await expect('a duplicate sku is still that error', post(s, '/api/parts', { sku: 'A', name: 'Other' }), 409, err('sku already exists'))
     assert.deepEqual((await ok(get(s, '/api/parts?q=hex-bolt'), 200)).parts, [], 'q still looks at the sku and the name only')
+  })
+})
+
+it('the handle rule on characters that change under NFKD: the Kelvin sign, full-width letters, a superscript, a combining mark outside U+0300 to U+036F', async () => {
+  await withServer({}, async s => {
+    const cases = [['\u212Aelvin', 'kelvin'], ['ＡＢＣ １２', 'abc-12'], ['x²', 'x2'], ['a\u20D7b', 'a-b'], ['Ａ\u0301', 'a'], ['ǆ', 'dz'], ['℃', 'c'], ['\u200bz', 'z']]
+    for (const [i, [name, handle]] of cases.entries()) {
+      const made = await ok(post(s, '/api/parts', { sku: `N-${i}`, name }), 201)
+      same(JSON.stringify(name), { handle: made.handle }, { handle })
+    }
   })
 })
 
@@ -241,6 +251,103 @@ it('killed at any moment the file holds the old version or the new one, whole, a
   }
 }, 90_000)
 
+it('the migration is done before the server listens: when the line appears the file is version 2 with every handle given', async () => {
+  const file = plantOld()
+  const s = await boot({ PORT: String(await freePort()), DB_FILE: file })
+  try {
+    assert.match(s.out, /^listening on http:\/\/127\.0\.0\.1:\d+\n$/)
+    const seen = dump(file)
+    assert.equal(seen.version, 2)
+    assert.deepEqual(seen.parts.map(p => p.handle), OLD_PARTS.map(p => OLD_HANDLES[p.id]))
+  } finally {
+    await stopServer(s)
+  }
+})
+
+it('the migration changes no value, however odd: untrimmed, empty and long names, odd skus; tables of other tools with their own keys and triggers stay and work', async () => {
+  const parts = [
+    { id: 2, sku: 'é_ x', name: '  Padded Name  ' }, { id: 3, sku: 'S3', name: '' }, { id: 4, sku: 'S4', name: 'y'.repeat(200) }, { id: 6, sku: 'a b/c', name: 'Name' }, { id: 7, sku: 'S7', name: 'name' }, { id: 9, sku: 'S9', name: '\u00a0Tab\tName\n' },
+  ]
+  const handles = ['padded-name', 'part', 'y'.repeat(40), 'name', 'name-2', 'tab-name']
+  const file = plantV1(freshDb(), { parts, moves: [{ id: 3, part_id: 2, on_date: '2026-03-01', qty: 4, unit_cost_cents: 9, note: ' odd ' }, { id: 8, part_id: 6, on_date: '2026-03-02', qty: 1, unit_cost_cents: 0 }], seq: { parts: 12, moves: 15 } })
+  const neighbours = ['parts_new', 'parts_old', 'new_parts', 'parts_tmp', 'parts_backup', 'parts_v2', 'temp_parts', 'moves_old', 'moves_new']
+  withDb(file, db => {
+    for (const name of neighbours) db.exec(`CREATE TABLE ${name} (id INTEGER PRIMARY KEY, sku TEXT); INSERT INTO ${name} (sku) VALUES ('${name}');`)
+    db.exec(`
+      CREATE TABLE tool_log (id INTEGER PRIMARY KEY, note TEXT NOT NULL);
+      INSERT INTO tool_log (note) VALUES ('kept');
+      CREATE TABLE tool_refs (id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE, label TEXT);
+      INSERT INTO tool_refs (part_id, label) VALUES (2, 'a'), (6, 'b');
+      CREATE TRIGGER tool_move_audit AFTER INSERT ON moves BEGIN INSERT INTO tool_log (note) VALUES ('move ' || NEW.id); END;
+    `)
+  })
+  const before = dump(file)
+  await withServer({ file }, async s => {
+    await ok(get(s, '/api/parts'), 200)
+    const seen = dump(file)
+    assert.deepEqual(seen.parts.map(({ handle, ...p }) => p), before.parts, 'parts as they were')
+    assert.deepEqual(seen.moves, before.moves)
+    assert.deepEqual(seen.parts.map(p => p.handle), handles)
+    withDb(file, db => {
+      for (const name of neighbours) assert.deepEqual(db.prepare(`SELECT sku FROM ${name}`).all().map(r => r.sku), [name], name)
+      assert.deepEqual(db.prepare('SELECT note FROM tool_log').all().map(r => r.note), ['kept'], 'the migration fired no trigger')
+      assert.deepEqual(db.prepare('SELECT part_id, label FROM tool_refs ORDER BY id').all().map(r => [r.part_id, r.label]), [[2, 'a'], [6, 'b']])
+      assert.deepEqual(db.prepare('PRAGMA foreign_key_list(tool_refs)').all().map(k => [k.table, k.from, k.to, k.on_delete]), [['parts', 'part_id', 'id', 'CASCADE']])
+      assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0)
+    })
+    assert.equal((await moveOf(s, 2, '2026-03-05', 1)).id, 16)
+    await ok(del(s, '/api/parts/6'), 204)
+  })
+  withDb(file, db => {
+    assert.deepEqual(db.prepare('SELECT note FROM tool_log ORDER BY id').all().map(r => r.note), ['kept', 'move 16'], 'the trigger works')
+    assert.deepEqual(db.prepare('SELECT label FROM tool_refs').all().map(r => r.label), ['a'], 'the other tool\'s key still cascades')
+  })
+})
+
+it('a version 1 database: balances are summed by date, then id, per part; zero is fine; only a real dip is refused', async () => {
+  const last = OLD_PARTS.at(-1).id
+  const extra = rows => ({ parts: OLD_PARTS, moves: [...OLD_MOVES, ...rows.map((m, i) => ({ id: 20 + i, part_id: last, unit_cost_cents: 1, ...m }))], seq: OLD_SEQ })
+  const cases = [
+    ['out before in on the same date, by id', [{ on_date: '2026-05-01', qty: -1 }, { on_date: '2026-05-01', qty: 1 }], false],
+    ['in before out on the same date, by id', [{ on_date: '2026-05-01', qty: 1 }, { on_date: '2026-05-01', qty: -1 }], true],
+    ['an earlier date with a higher id comes first and dips', [{ on_date: '2026-05-05', qty: 5 }, { on_date: '2026-05-01', qty: -3 }], false],
+    ['an earlier date with a higher id comes first and is fine', [{ on_date: '2026-05-05', qty: -3 }, { on_date: '2026-05-01', qty: 5 }], true],
+    ['exactly zero at the end', [{ on_date: '2026-05-01', qty: 3 }, { on_date: '2026-05-02', qty: -3 }], true],
+    ['one part short while another is rich', [{ on_date: '2026-05-01', qty: -1 }, { part_id: 11, on_date: '2026-05-01', qty: 500 }], false],
+  ]
+  for (const [label, rows, migrates] of cases) {
+    const file = plantV1(freshDb(), extra(rows))
+    const before = dump(file)
+    if (migrates) {
+      await withServer({ file }, async s => { assert.equal((await ok(get(s, `/api/parts/${last}`), 200)).handle, OLD_HANDLES[last], label) })
+      assert.equal(dump(file).version, 2, label)
+    } else {
+      same(label, refused(await runToExit({ DB_FILE: file }), migrateLine(file)), REFUSED)
+      same(`${label}: content`, dump(file), before)
+    }
+  }
+})
+
+it('a version 2 database is used as it is: a handle another tool chose stays, and nothing is checked the way a migration checks', async () => {
+  const file = plantOld()
+  await withServer({ file }, async s => { await ok(get(s, '/api/parts'), 200) })
+  withDb(file, db => {
+    db.exec('PRAGMA foreign_keys = OFF')
+    db.exec("UPDATE parts SET handle = 'Custom_Handle!' WHERE id = 1")
+    db.exec("INSERT INTO moves (part_id, on_date, qty, unit_cost_cents) VALUES (999, '2026-01-01', 1, 1), (13, '2026-01-01', -4, 1)")
+  })
+  const before = dump(file)
+  await withServer({ file }, async s => {
+    assert.equal((await ok(get(s, '/api/parts/1'), 200)).handle, 'Custom_Handle!')
+    assert.equal((await ok(get(s, '/api/parts/13'), 200)).on_hand, -4)
+    assert.equal((await partOf(s, 'NEW', 'Custom Handle')).handle, 'custom-handle')
+    assert.equal((await partOf(s, 'NEW2', 'Bolt 2')).handle, 'bolt-2-3', 'handles taken by the old parts still count')
+  })
+  const after = dump(file)
+  assert.deepEqual(after.parts.slice(0, before.parts.length), before.parts)
+  assert.deepEqual(after.moves, before.moves)
+})
+
 // --- Report ---
 it('GET /api/report: only moves on or before the date, every part, sorted by handle, with exact totals', async () => {
   await withServer({}, async s => {
@@ -285,6 +392,24 @@ it('the report\'s date rules and routes', async () => {
   await expect('another path', get(s, '/api/report/'), 404, err('not found'))
   const r = view(await get(s, '/api/report?as_of=2000-01-01'))
   same('an early date', { status: r.status, type: r.type }, { status: 200, type: answer(200, null).type })
+})
+
+it('the report holds every part, not a page of them, sorted by handle byte by byte: x-10 comes before x-2', async () => {
+  await withServer({}, async s => {
+    for (let i = 1; i <= 125; i++) await partOf(s, `P-${i}`, 'Same')
+    const want = ['same', ...Array.from({ length: 124 }, (_, i) => `same-${i + 2}`)].sort((x, y) => Buffer.compare(Buffer.from(x), Buffer.from(y)))
+    const report = await ok(get(s, '/api/report?as_of=2026-03-01'), 200)
+    assert.deepEqual(report.parts.map(p => p.handle), want)
+    assert.deepEqual(report.parts.slice(0, 3).map(p => p.handle), ['same', 'same-10', 'same-100'])
+    assert.equal(report.total_value_cents, '0')
+  })
+})
+
+it('the report\'s date: leap days, the edges, an encoded date, a trailing newline or time are as the on_date rule says; other parameters are ignored', async () => {
+  const s = await shared()
+  for (const date of ['2096-02-29', '2000-02-29', '2099-12-31', '2000-01-01']) assert.equal((await ok(get(s, `/api/report?as_of=${date}`), 200)).as_of, date, date)
+  assert.equal((await ok(get(s, '/api/report?x=1&as_of=2026%2D03%2D01&y=%'), 200)).as_of, '2026-03-01')
+  for (const q of ['2100-02-29', '2001-02-29', '2026-06-31', '2026-03-01%0A', '2026-03-01T00:00', '%2B2026-03-01', '2026-03-01%00', '20260301', '2026-03-01%20']) await expect(`as_of=${q}`, get(s, `/api/report?as_of=${q}`), 400, err(BAD_DATE))
 })
 
 // --- Page ---
@@ -379,4 +504,24 @@ it('page: report requests and list fetches are independent, in both directions',
   assert.equal(reportText(page).total, 'Total: 9', 'a list fetch started later does not cancel the report')
   await settle(take(page, 'GET', `${LIST_FIRST}&q=x`), c => c.reply(200, { parts: [], next: null }))
   assert.equal(textOf(page.el('part-list').kids[0]), 'No parts.')
+})
+
+it('page: a submit with an empty date still asks for it; the date goes through encodeURIComponent as it is', async () => {
+  for (const value of ['', ' ', "it's (a)! *~é", '2026-03-01&x=1']) {
+    const page = await ready()
+    assert.equal(await asOf(page, value), true, 'preventDefault')
+    take(page, 'GET', REPORT(value))
+  }
+})
+
+it('page: a report answered with a status other than 200 is an error, whatever its body; the report stays and the message shows', async () => {
+  const cases = [[c => c.reply(201, reportBody([ROW('new', 2, '2')], '2')), 'Request failed.'], [c => c.reply(204), 'Request failed.'], [c => c.reply(404, 'null'), 'Request failed.'], [c => c.reply(503, err('busy')), 'busy']]
+  for (const [how, message] of cases) {
+    const page = await ready()
+    await asOf(page, '2026-03-01')
+    await settle(take(page, 'GET', REPORT('2026-03-01')), c => c.reply(200, reportBody([ROW('kept', 1, '1')], '1')))
+    await asOf(page, '2026-03-02')
+    await settle(take(page, 'GET', REPORT('2026-03-02')), how)
+    assert.deepEqual({ error: errorText(page), ...reportText(page) }, { error: message, rows: [{ tag: 'li', text: 'kept 1 1', kids: 1 }], total: 'Total: 1' }, message)
+  }
 })
