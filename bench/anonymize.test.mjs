@@ -139,14 +139,12 @@ test('missingRuns names every run that was not copied, so judging never starts o
 test('the CLI names the unfinished runs and exits 1', t => {
   const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
   const bench = dirname(fileURLToPath(import.meta.url))
-  const keyPath = join(bench, 'results', 'blind-key-zzclitest.json')
-  t.after(() => {
-    rmSync(home, { recursive: true, force: true })
-    rmSync(keyPath, { force: true })
-  })
-  mkdirSync(join(bench, 'results'), { recursive: true })
+  const results = join(home, 'results')
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  mkdirSync(results)
   const args = [join(bench, 'anonymize.mjs'), '--round=zzclitest', '--conds=a,b', '--tasks=zz', '--reps=1']
-  const res = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  const res = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: results } })
   assert.equal(res.status, 1)
   assert.match(res.stderr, /not finished, so not anonymized: zz-a-r1 zz-b-r1;/)
+  assert.equal(existsSync(join(results, 'blind-key-zzclitest.json')), true, 'the key goes to the results folder the CLI was told to use')
 })

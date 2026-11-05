@@ -241,7 +241,7 @@ function ensurePluginWorktree(pin, repo) {
 }
 
 // A fresh machine back to where the pushed data left the round. Restores into missing places only.
-export function restore({ round, results, runs }, { install = npmInstall, ...options } = {}) {
+export function restore({ round, results, runs } = {}, { install = npmInstall, ...options } = {}) {
   required({ results, runs })
   const ctx = contextOf(options)
   const pushed = remoteHasBranch({ cwd: ctx.repo, branch: ctx.branch, wait: ctx.wait })

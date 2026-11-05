@@ -43,7 +43,8 @@ const REPO = dirname(BENCH)
 export const DEFAULT_PLUGIN_REF = `v${SECTION_TEAM_VERSION}`
 // Benchmark projects live outside this repo, in the user's home folder (forward slashes: run ids are joined with '/').
 export const RUNS = join(homedir(), 'bench-runs').replaceAll('\\', '/')
-export const RESULTS = join(BENCH, 'results')
+// A round's results. The command-line tests point BENCH_RESULTS at a temp folder, so they never write into the real one.
+export const RESULTS = process.env.BENCH_RESULTS || join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
@@ -234,7 +235,8 @@ function changedEntriesLine(paths) {
 // One run of the batch with the user's skills and agents checked against the batch start, before and after it: a
 // change stops the batch naming the run and the entries, before another paid run starts on a setup unlike the pin.
 // A run that stops on its own keeps its stop (and exit code); a change it made, or a failure to list, is said with log.
-export function watchUserLists(one, { home = homedir(), log = console.error } = {}) {
+export function watchUserLists(one, { home, log = console.error } = {}) {
+  required({ home })
   const start = new Set(userListing(home))
   const changeLine = (run, when) => {
     const now = new Set(userListing(home))
@@ -292,7 +294,7 @@ const GIT_IDENTITY = ['-c', 'user.email=bench@local', '-c', 'user.name=bench']
 // Wipes dir (it must sit inside root, never root itself) and makes a git repo with an 'init' commit;
 // with a seed folder, copies it in and commits it as 'seed', so a run's own changes are a diff from that commit.
 export function freshRepo(dir, { seed = null, root } = {}) {
-  required({ root })
+  required({ dir, root })
   const rel = relative(resolve(root), resolve(dir))
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`refusing to touch ${dir}: not inside ${root}`)
   rmSync(dir, { recursive: true, force: true })
@@ -536,7 +538,7 @@ async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) 
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
   const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root, stash } = deps
-  required({ home, dir, root, stash })
+  required({ outDir, home, dir, root, stash })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -570,19 +572,22 @@ const nearestExisting = path => (existsSync(path) || dirname(path) === path ? pa
 
 // Section memory moves between MEMORY_ROOT, the backup in home and RESULTS: renames need one volume. MEMORY_ROOT
 // may not exist yet (no section has saved a note), so its nearest existing parent stands in for it.
-export function checkVolumes({ root = MEMORY_ROOT, others = [homedir(), RESULTS] } = {}) {
+export function checkVolumes({ root, others } = {}) {
+  required({ root, others })
   const memory = nearestExisting(root)
   for (const dir of others) {
     if (!sameVolume(memory, nearestExisting(dir))) throw new Error(`${root} and ${dir} are on different drives, so section memory cannot be moved between them`)
   }
 }
 
-// The real folders. Only main reaches these; everything exported takes its folders from its caller.
+// The real folders. Only main and the helpers it calls reach these: what is exported takes the home, memory and results
+// folders from its caller (runFolder only names a path). The repo's own seeds and tasks stay defaults: they are only read.
 const REAL_MEMORY = { root: MEMORY_ROOT, backup: MEMORY_BACKUP }
+const REAL_VOLUMES = { root: MEMORY_ROOT, others: [homedir(), RESULTS] }
 const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS, stash: args => stashRunMemory({ ...args, root: MEMORY_ROOT }) })
 
 function restoreMemory({ force = false } = {}) {
-  checkVolumes()
+  checkVolumes(REAL_VOLUMES)
   const leftovers = join(RESULTS, `section-memory-leftover-${Date.now()}`)
   console.log(restoreMessage(restoreSectionMemory({ ...REAL_MEMORY, leftovers, force }), leftovers))
 }
@@ -592,8 +597,8 @@ const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
 // Moves the user's section memory aside for the round (see section-memory.mjs) and returns the function that
 // moves it back. Ctrl+C, a closed console, a kill or a crash skip `finally`; they all end in process exit, whose
 // handler stops the run in progress and then puts the memory back. It runs at most once.
-export function isolateSectionMemory({ volumes = checkVolumes, backup, restore, stop = stopActiveChild } = {}) {
-  required({ backup, restore })
+export function isolateSectionMemory({ volumes, backup, restore, stop = stopActiveChild } = {}) {
+  required({ volumes, backup, restore })
   volumes()
   console.log(`section memory moved aside: ${backup().join(' ') || '(none)'}`)
   let released = false
@@ -636,20 +641,22 @@ async function main() {
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
   const publish = syncBranch === null ? null : await publisher({ runs, tag, options: { branch: syncBranch, redactEmail } })
-  const isolate = () => isolateSectionMemory({ backup: () => backupSectionMemory(REAL_MEMORY), restore: restoreMemory })
-  await runAll(todo, { isolate, runOne: watchUserLists(withPublish((r, o) => runOne(r, o, ctx, realRunDeps(r)), publish)) })
+  const isolate = () => isolateSectionMemory({ volumes: () => checkVolumes(REAL_VOLUMES), backup: () => backupSectionMemory(REAL_MEMORY), restore: restoreMemory })
+  const one = watchUserLists(withPublish((r, o) => runOne(r, o, ctx, realRunDeps(r)), publish), { home: homedir() })
+  await runAll(todo, { isolate, results: RESULTS, runOne: one })
   console.log('all runs finished')
 }
 
 // Before any paid run of a syncing batch: the email variable and the remote are checked, then every run of the batch
 // that has results (a publish that failed earlier, a --rerun entry, a run a lost machine left) and the round's pin
 // are sent again; unchanged ones add no commit. A network failure stops the batch (resume); anything else exits 1.
-export function publishAtStart({ runs, results = RESULTS, tag, options, log = console.log }, sync) {
+export function publishAtStart({ runs, results, folder, tag, options, log = console.log } = {}, sync) {
+  required({ results, folder })
   try {
     sync.syncReady(options)
     sync.pushPending?.(options)
     const sent = runs.filter(run => existsSync(join(results, run.id)))
-      .filter(run => sync.publishRun({ id: run.id, outDir: join(results, run.id), runDir: runFolder(run) }, options).pushed).length
+      .filter(run => sync.publishRun({ id: run.id, outDir: join(results, run.id), runDir: folder(run) }, options).pushed).length
     const pin = join(results, `preflight-${tag}.json`)
     const pinSent = existsSync(pin) && sync.publishItems({ items: [{ from: pin, to: `results/${basename(pin)}` }], message: `chore(results): pin round ${tag}` }, options).pushed
     if (sent > 0 || pinSent) log(`pushed earlier results to ${options.branch}: ${sent} run(s)${pinSent ? ' and the pin' : ''}`)
@@ -662,7 +669,7 @@ export function publishAtStart({ runs, results = RESULTS, tag, options, log = co
 async function publisher({ runs, tag, options }) {
   const sync = await import('./cloud-sync.mjs')
   const real = { ...sync.REAL_SYNC, ...options }
-  publishAtStart({ runs, tag, options: real }, sync)
+  publishAtStart({ runs, results: RESULTS, folder: runFolder, tag, options: real }, sync)
   return (run, outDir) => {
     const { pushed } = sync.publishRun({ id: run.id, outDir, runDir: runFolder(run) }, real)
     if (pushed) console.log(`${new Date().toISOString()} pushed ${run.id} to ${options.branch}`)
@@ -672,12 +679,12 @@ async function publisher({ runs, tag, options }) {
 // Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
 // run other than solo is left, and moved back even when a run throws. runOne is required: main binds it to the
 // batch's ctx, and a default without ctx could only crash mid-batch.
-export async function runAll(todo, { runOne: one, isolate } = {}) {
+export async function runAll(todo, { runOne: one, isolate, results } = {}) {
   if (typeof one !== 'function') throw new TypeError('runAll needs a runOne bound to the batch context')
-  required({ isolate })
+  required({ isolate, results })
   const release = todo.some(run => baseOf(run) !== 'solo') ? isolate() : () => {}
   try {
-    for (const run of todo) await one(run, join(RESULTS, run.id))
+    for (const run of todo) await one(run, join(results, run.id))
   } finally {
     release()
   }

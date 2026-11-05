@@ -264,21 +264,27 @@ test('runAll moves section memory aside only when a team run is left, and always
   const team = { id: 'h1-team-ho-r1', base: 'team' }
   const solo = { id: 'h1-solo-ho-r1', base: 'solo' }
 
-  await runAll([solo], { runOne: ok, isolate })
+  await runAll([solo], { runOne: ok, isolate, results: 'results' })
   assert.deepEqual(calls, ['h1-solo-ho-r1'], 'a solo-only round leaves the memory alone')
 
   calls.length = 0
-  await runAll([team, solo], { runOne: ok, isolate })
+  await runAll([team, solo], { runOne: ok, isolate, results: 'results' })
   assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'h1-solo-ho-r1', 'back'])
 
   calls.length = 0
   const failing = async run => { calls.push(run.id); throw new Error('claude crashed') }
-  await assert.rejects(runAll([team, solo], { runOne: failing, isolate }), /claude crashed/)
+  await assert.rejects(runAll([team, solo], { runOne: failing, isolate, results: 'results' }), /claude crashed/)
   assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'back'])
 
   calls.length = 0
-  await runAll([{ id: 'h1-lean-mo-r1', base: 'lean' }, { id: 'h1-max-mo-r1', base: 'max' }], { runOne: ok, isolate })
+  await runAll([{ id: 'h1-lean-mo-r1', base: 'lean' }, { id: 'h1-max-mo-r1', base: 'max' }], { runOne: ok, isolate, results: 'results' })
   assert.deepEqual(calls, ['aside', 'h1-lean-mo-r1', 'h1-max-mo-r1', 'back'], 'lean and max runs are team runs too')
+})
+
+test('runAll gives each run a folder under the results it was given', async () => {
+  const folders = []
+  await runAll([{ id: 'h1-solo-ho-r1', base: 'solo' }], { runOne: async (run, outDir) => folders.push(outDir), isolate: () => () => {}, results: 'given' })
+  assert.deepEqual(folders, [join('given', 'h1-solo-ho-r1')])
 })
 
 test('runAll refuses to start without a runOne, before section memory moves', async () => {
@@ -496,17 +502,18 @@ test('publishAtStart checks the sync first, then publishes every run with result
     publishItems: ({ items, message }, options) => { calls.push(['items', items, message, options]); return { pushed: false } },
   }
   const options = { branch: 'bench/mode-round-cloud-results', redactEmail: true }
-  publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, sync)
+  const folder = run => join(root, 'runs', run.id)
+  publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, sync)
   assert.deepEqual(calls, [
     ['ready', options],
-    ['run', runs[1].id, join(root, runs[1].id), runFolder(runs[1]), options],
+    ['run', runs[1].id, join(root, runs[1].id), folder(runs[1]), options],
     ['items', [{ from: join(root, 'preflight-mo.json'), to: 'results/preflight-mo.json' }], 'chore(results): pin round mo', options],
   ])
   const failing = { ...sync, publishRun: () => { throw Object.assign(new Error('could not reach origin'), { name: 'PushFailed' }) } }
-  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, failing),
+  assert.throws(() => publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, failing),
     { name: 'BatchStop', message: 'batch stopped: could not reach origin; resume once the network is back' })
   const noEmail = { ...sync, syncReady: () => { throw new Error('$CLAUDE_CODE_USER_EMAIL is not set') } }
-  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
+  assert.throws(() => publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
 })
 
 test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {

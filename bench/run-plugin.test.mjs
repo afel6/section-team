@@ -3,12 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { SECTION_TEAM_VERSION } from './clean-run.mjs'
 import { tempRoot } from './run-fixtures.mjs'
-import { DEFAULT_PLUGIN_REF, RESULTS, batchPlugin, checkPluginWorktree, parseArgs, pinnedTarget, pluginCommitOf } from './run.mjs'
+import { DEFAULT_PLUGIN_REF, batchPlugin, checkPluginWorktree, parseArgs, pinnedTarget, pluginCommitOf } from './run.mjs'
 
 test('parseArgs reads --plugin-ref, empty when it is not passed, and refuses what is not a git ref', () => {
   assert.equal(parseArgs([]).pluginRef, '')
@@ -165,38 +165,37 @@ test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff fr
 function refusingCli(t) {
   const home = tempRoot(t)
   const bare = join(home, 'empty-path')
+  const results = join(home, 'results')
   mkdirSync(bare)
+  mkdirSync(results)
   mkdirSync(join(home, '.claude', 'plugins'), { recursive: true })
   writeFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), '{"plugins":{}}')
-  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot }
+  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, BENCH_RESULTS: results }
   const run = (script, ...args) => spawnSync(process.execPath, [join(import.meta.dirname, script), ...args], { cwd: home, env, encoding: 'utf8', windowsHide: true, timeout: 30_000 })
-  return { home, run }
+  return { home, results, run }
 }
 
 const uniqueRound = () => `clitest${randomBytes(4).toString('hex')}`
 
-// run.mjs reads its pin from bench/results (ignored by git): a pin under a round name nothing else uses, removed after the test.
-function tempPin(t, fields) {
+// run.mjs reads its pin from the results folder BENCH_RESULTS names: a temp one, so these tests never touch bench/results.
+function tempPin(results, fields) {
   const round = uniqueRound()
-  const file = join(RESULTS, `preflight-${round}.json`)
-  mkdirSync(RESULTS, { recursive: true })
-  writeFileSync(file, JSON.stringify(fields))
-  t.after(() => rmSync(file, { force: true }))
+  writeFileSync(join(results, `preflight-${round}.json`), JSON.stringify(fields))
   return round
 }
 
 test('preflight.mjs with a relative --plugin says the --plugin-ref it was given and exits 1, writing no pin', t => {
-  const { run } = refusingCli(t)
+  const { results, run } = refusingCli(t)
   const round = uniqueRound()
   const res = run('preflight.mjs', `--round=${round}`, '--plugin=relative/worktree', '--plugin-ref=fix/x', '--no-sync')
   assert.deepEqual([res.status, res.stdout, res.stderr], [1, '', 'preflight: --plugin= takes the absolute path of the fix/x worktree, got "relative/worktree"\n'])
-  assert.equal(existsSync(join(RESULTS, `preflight-${round}.json`)), false)
+  assert.equal(existsSync(join(results, `preflight-${round}.json`)), false)
 })
 
 test('run.mjs refuses a --plugin-ref that is not the pin\'s, and names the pin\'s ref for a relative --plugin', t => {
-  const { home, run } = refusingCli(t)
+  const { home, results, run } = refusingCli(t)
   const plugin = join(home, 'worktree')
-  const tag = tempPin(t, { binary: join(home, 'no-such-claude.exe'), sha256: 'none', pluginDir: plugin, pluginRef: 'fix/x', pluginCommit: 'c0ffee1' })
+  const tag = tempPin(results, { binary: join(home, 'no-such-claude.exe'), sha256: 'none', pluginDir: plugin, pluginRef: 'fix/x', pluginCommit: 'c0ffee1' })
   const batch = ['--conds=solo', '--tasks=easy', '--reps=1', '--no-sync']
   const other = run('run.mjs', `--tag=${tag}`, `--plugin=${plugin}`, '--plugin-ref=v9.9.9', ...batch)
   assert.deepEqual([other.status, other.stdout, other.stderr], [1, '', '--plugin-ref=v9.9.9 is not the ref the round pinned: pass --plugin-ref=fix/x or leave it out\n'])

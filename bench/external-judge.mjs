@@ -30,6 +30,7 @@ import { readBars } from './bars-common.mjs'
 import { judgeDirFor } from './anonymize.mjs'
 import { checkLeakScan, fillPrompt, parseVerdict, subfolders, taskTextOf } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const USAGE = 'usage: node bench/external-judge.mjs prepare --round=<r> --out=<d> | import --round=<r> --out=<d> --as=<n> | copy --from=<d> --to=<d> | rebuild-heldout --out=<d> | check --as=<n>'
@@ -195,7 +196,8 @@ export function externalOptions(argv) {
 }
 
 // Returns the number of cases written.
-export function prepare({ round, out, results = RESULTS, judgeDir = judgeDirFor(round), bench = BENCH, log = console.log }) {
+export function prepare({ round, out, results, judgeDir = judgeDirFor(round), bench = BENCH, log = console.log } = {}) {
+  required({ results })
   const keyPath = join(results, `external-key-${round}.json`)
   if (existsSync(keyPath)) throw new Error(`${keyPath} exists: round ${round} was already prepared; delete it to start over`)
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ${round} first`)
@@ -227,7 +229,8 @@ function refuseBeforeCheck({ round, as, results, outside }) {
 // Reads everything first, writes verdicts only when every case is usable and the order holds, and never over an
 // existing round. The usable count goes to outside-usable-<as>.json on every import, so a refused import still says
 // how far it got. outside: the bars config's outside judges (read from bench/bars-mo.json when not given).
-export function importRound({ round, out, as, results = RESULTS, outside, log = console.log }) {
+export function importRound({ round, out, as, results, outside, log = console.log } = {}) {
+  required({ results })
   const targets = [join(results, `judge-${as}.json`), join(results, `blind-key-${as}.json`)]
   const taken = targets.find(existsSync)
   if (taken) throw new Error(`${taken}: importing as round ${as} would overwrite it; pick another --as`)
@@ -318,8 +321,8 @@ export function recordCheck({ results = RESULTS, as, outside }) {
 
 function main(options) {
   const { command } = options
-  if (command === 'prepare') prepare(options)
-  else if (command === 'import') importRound(options)
+  if (command === 'prepare') prepare({ ...options, results: RESULTS })
+  else if (command === 'import') importRound({ ...options, results: RESULTS })
   else if (command === 'copy') console.log(`${copyCaseSet(options)} cases copied to ${options.to}`)
   else if (command === 'rebuild-heldout') console.log(`${rebuildHeldOut(options)} held-out cases in ${options.out}`)
   else if (command === 'check') {

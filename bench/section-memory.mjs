@@ -35,6 +35,7 @@ const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0,
 
 // Windows briefly locks a folder after a process exits (antivirus, the indexer): retry before giving up.
 export function renameRetry(from, to, { rename = renameSync, wait = sleep } = {}) {
+  required({ from, to })
   for (let attempt = 1; ; attempt++) {
     try {
       return rename(from, to)
@@ -52,7 +53,10 @@ function moveAll(names, from, to, rename) {
 }
 
 // True when both paths sit on the same volume, so a rename between them cannot fail with EXDEV.
-export const sameVolume = (a, b) => statSync(a).dev === statSync(b).dev
+export function sameVolume(a, b) {
+  required({ a, b })
+  return statSync(a).dev === statSync(b).dev
+}
 
 const isAlive = pid => {
   try {
@@ -108,7 +112,7 @@ export function backupSectionMemory({ root, backup, pid = process.pid, rename = 
 }
 
 // Files the notes a team run wrote under <into>/section-memory/ (-2, -3 … on a rerun), so the next team run starts empty.
-export function stashRunMemory({ root, into, rename = renameSync }) {
+export function stashRunMemory({ root, into, rename = renameSync } = {}) {
   required({ root, into })
   const names = sectionFolders(root)
   if (names.length === 0) return []
@@ -121,7 +125,7 @@ export function stashRunMemory({ root, into, rename = renameSync }) {
 // that is not the user's (a run note, or a run's folder of the same name as one still in the backup) is filed
 // under leftovers first. Safe to run again after it stopped half way. Refuses while the round that made the
 // backup is still running, unless force.
-export function restoreSectionMemory({ root, backup, leftovers, force = false, alive = isAlive, rename = renameSync }) {
+export function restoreSectionMemory({ root, backup, leftovers, force = false, alive = isAlive, rename = renameSync } = {}) {
   required({ root, backup, leftovers })
   if (!existsSync(backup)) throw new Error(`no backup at ${backup}: nothing to restore`)
   const manifest = readManifest(backup)

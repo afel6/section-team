@@ -24,6 +24,7 @@ import { REAL_SYNC, publishItems, syncReady } from './cloud-sync.mjs'
 import {
   DEFAULT_PLUGIN_REF, NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder, syncBranchOf,
 } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 // The mode record each setup's session leaves; solo runs with section-team off, so it leaves none.
 const RECORD = { solo: null, lean: 'lean', team: 'balanced', max: 'max' }
@@ -183,8 +184,9 @@ function versionOnPath(run) {
 
 // The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
 // Returns every problem; the pin file is written only when there are none.
-export function preflight({ round, plugin, pluginRef = '', home = homedir(), results = RESULTS }, deps = {}) {
-  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = npmClaude, platform = process.platform, readVersion = pluginVersionOf } = deps
+export function preflight({ round, plugin, pluginRef = '', home, results } = {}, deps = {}) {
+  const { git, run = spawnSync, spawn = spawnSync, folder, root, which = npmClaude, platform = process.platform, readVersion = pluginVersionOf } = deps
+  required({ home, results, folder, root })
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
   // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
   const file = join(results, `preflight-${round}.json`)
@@ -223,7 +225,7 @@ function main() {
   // checked first.
   const branch = syncBranchOf({ sync, noSync })
   if (branch !== null) syncReady({ ...REAL_SYNC, branch, redactEmail })
-  const { problems, pin, file } = preflight({ round, plugin, pluginRef })
+  const { problems, pin, file } = preflight({ round, plugin, pluginRef, home: homedir(), results: RESULTS }, { folder: runFolder, root: RUNS })
   for (const line of problems) console.error(`preflight: ${line}`)
   if (problems.length > 0) process.exitCode = 1
   else {

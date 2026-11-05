@@ -40,41 +40,81 @@ function assertRefused(t, body, missing) {
 const SECTION_MEMORY = "await import('./section-memory.mjs')"
 const RUN = "await import('./run.mjs')"
 const SYNC = "await import('./cloud-sync.mjs')"
+const PREFLIGHT = "await import('./preflight.mjs')"
+const JUDGE = "await import('./external-judge.mjs')"
 const TEAM_RUN = "{ id: 'easy-team-mo-r1', task: 'easy', cond: 'team-mo', base: 'team', rep: 1 }"
 const ROOT = "root: join(home, 'memory')"
 const BACKUP = "backup: join(home, 'backup')"
 const LEFTOVERS = "leftovers: join(home, 'leftovers')"
 
-const SECTION_MEMORY_CASES = [
-  ['stashRunMemory', 'root', `{ into: join(home, 'results') }`],
-  ['stashRunMemory', 'into', `{ ${ROOT} }`],
-  ['backupSectionMemory', 'root', `{ ${BACKUP} }`],
-  ['backupSectionMemory', 'backup', `{ ${ROOT} }`],
-  ['restoreSectionMemory', 'root', `{ ${BACKUP}, ${LEFTOVERS} }`],
-  ['restoreSectionMemory', 'backup', `{ ${ROOT}, ${LEFTOVERS} }`],
-  ['restoreSectionMemory', 'leftovers', `{ ${ROOT}, ${BACKUP} }`],
+const STUB_SYNC = '{ syncReady: () => {}, publishRun: () => ({}), publishItems: () => ({}) }'
+const PUBLISH = "runs: [], tag: 'zzguard', options: {}"
+const PF_ROUND = "round: 'zzguard', plugin: join(home, 'no-worktree')"
+const PF_RESULTS = "results: join(home, 'results')"
+const PF_FOLDER = 'folder: run => run.id'
+const PF_ROOT = "root: join(home, 'runs')"
+const OUT = "out: join(home, 'out')"
+
+// module, function, the target it names as missing, its arguments.
+const TARGET_CASES = [
+  [SECTION_MEMORY, 'stashRunMemory', 'root', `{ into: join(home, 'results') }`],
+  [SECTION_MEMORY, 'stashRunMemory', 'into', `{ ${ROOT} }`],
+  [SECTION_MEMORY, 'stashRunMemory', 'root', ''],
+  [SECTION_MEMORY, 'stashRunMemory', 'root', `{ root: null, into: join(home, 'results') }`],
+  [SECTION_MEMORY, 'backupSectionMemory', 'root', `{ ${BACKUP} }`],
+  [SECTION_MEMORY, 'backupSectionMemory', 'backup', `{ ${ROOT} }`],
+  [SECTION_MEMORY, 'backupSectionMemory', 'root', ''],
+  [SECTION_MEMORY, 'restoreSectionMemory', 'root', `{ ${BACKUP}, ${LEFTOVERS} }`],
+  [SECTION_MEMORY, 'restoreSectionMemory', 'backup', `{ ${ROOT}, ${LEFTOVERS} }`],
+  [SECTION_MEMORY, 'restoreSectionMemory', 'leftovers', `{ ${ROOT}, ${BACKUP} }`],
+  [SECTION_MEMORY, 'restoreSectionMemory', 'root', ''],
+  [SECTION_MEMORY, 'restoreSectionMemory', 'backup', `{ ${ROOT}, backup: null, ${LEFTOVERS} }`],
+  [SECTION_MEMORY, 'renameRetry', 'from', `undefined, join(home, 'to')`],
+  [SECTION_MEMORY, 'renameRetry', 'to', `join(home, 'from')`],
+  [SECTION_MEMORY, 'sameVolume', 'a', 'undefined, home'],
+  [SECTION_MEMORY, 'sameVolume', 'b', 'home'],
+  [RUN, 'freshRepo', 'dir', `undefined, { root: join(home, 'runs') }`],
+  [RUN, 'freshRepo', 'dir', `null, { root: join(home, 'runs') }`],
+  [RUN, 'checkVolumes', 'root', ''],
+  [RUN, 'checkVolumes', 'others', `{ ${ROOT} }`],
+  [RUN, 'watchUserLists', 'home', 'async () => {}'],
+  [RUN, 'isolateSectionMemory', 'volumes', '{ backup: () => [], restore: () => {}, stop: () => {} }'],
+  [RUN, 'runAll', 'results', `[${TEAM_RUN}], { runOne: async () => {}, isolate: () => () => {} }`],
+  [RUN, 'publishAtStart', 'results', ''],
+  [RUN, 'publishAtStart', 'results', `{ ${PUBLISH}, ${PF_FOLDER} }, ${STUB_SYNC}`],
+  [RUN, 'publishAtStart', 'folder', `{ ${PUBLISH}, ${PF_RESULTS} }, ${STUB_SYNC}`],
+  [SYNC, 'restore', 'results', ''],
+  [PREFLIGHT, 'preflight', 'home', ''],
+  [PREFLIGHT, 'preflight', 'home', `{ ${PF_ROUND}, ${PF_RESULTS} }, { ${PF_FOLDER}, ${PF_ROOT} }`],
+  [PREFLIGHT, 'preflight', 'results', `{ ${PF_ROUND}, home }, { ${PF_FOLDER}, ${PF_ROOT} }`],
+  [PREFLIGHT, 'preflight', 'folder', `{ ${PF_ROUND}, home, ${PF_RESULTS} }, { ${PF_ROOT} }`],
+  [PREFLIGHT, 'preflight', 'root', `{ ${PF_ROUND}, home, ${PF_RESULTS} }, { ${PF_FOLDER} }`],
+  [JUDGE, 'prepare', 'results', `{ round: 'zzguard', ${OUT} }`],
+  [JUDGE, 'importRound', 'results', `{ round: 'zzguard', ${OUT}, as: 'zzguardas' }`],
 ]
 
-for (const [name, missing, args] of SECTION_MEMORY_CASES) {
-  test(`${name} refuses to run without ${missing}`, t => {
-    assertRefused(t, `const { ${name} } = ${SECTION_MEMORY}; ${name}(${args})`, missing)
+for (const [module, name, missing, args] of TARGET_CASES) {
+  test(`${name}(${args}) says ${missing} is required`, t => {
+    assertRefused(t, `const { ${name} } = ${module}; await ${name}(${args})`, missing)
   })
 }
 
-test('backupSectionMemory with no arguments at all refuses to run', t => {
-  assertRefused(t, `const { backupSectionMemory } = ${SECTION_MEMORY}; backupSectionMemory()`, 'root')
-})
+const RUN_ONE_DEPS = "{ stash: () => [], dir: join(home, 'runs', 'one'), root: join(home, 'runs'), home, spawn: () => { throw new Error('spawned') }, kill: () => {}, timeoutMs: 1000 }"
 
 for (const missing of ['stash', 'dir', 'root', 'home']) {
   test(`runOne refuses to run without ${missing}`, t => {
     assertRefused(t, `
       const { runOne } = ${RUN}
-      const deps = { stash: () => [], dir: join(home, 'runs', 'one'), root: join(home, 'runs'), home, spawn: () => { throw new Error('spawned') }, kill: () => {}, timeoutMs: 1000 }
+      const deps = ${RUN_ONE_DEPS}
       delete deps.${missing}
       await runOne(${TEAM_RUN}, join(home, 'out'), { pluginDir: 'x' }, deps)
     `, missing)
   })
 }
+
+test('runOne refuses to run without the folder it files its results in', t => {
+  assertRefused(t, `const { runOne } = ${RUN}; await runOne(${TEAM_RUN}, undefined, { pluginDir: 'x' }, ${RUN_ONE_DEPS})`, 'outDir')
+})
 
 test('prepareRun refuses to wipe a folder it was not given', t => {
   assertRefused(t, `const { prepareRun } = ${RUN}; prepareRun(${TEAM_RUN}, { root: join(home, 'runs') })`, 'dir')
@@ -116,6 +156,17 @@ test('restore refuses to run without the results and runs it writes into', t => 
   const options = `{ repo: join(home, 'repo'), syncRoot: join(home, 'sync') }`
   assertRefused(t, `const { restore } = ${SYNC}; restore({ round: 'mo', runs: join(home, 'runs') }, ${options})`, 'results')
   assertRefused(t, `const { restore } = ${SYNC}; restore({ round: 'mo', results: join(home, 'results') }, ${options})`, 'runs')
+})
+
+test('the outside-judge command line passes the results folder it is told to use', t => {
+  const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
+  t.after(() => rmSync(home, { recursive: true, force: true, maxRetries: 3 }))
+  const results = join(home, 'results')
+  const out = `--out=${join(home, 'out')}`
+  const env = { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: results, NODE_TEST_CONTEXT: '' }
+  const cli = (...args) => spawnSync(process.execPath, [join(import.meta.dirname, 'external-judge.mjs'), ...args], { env, encoding: 'utf8' }).stderr
+  assert.match(cli('prepare', '--round=zzguard', out), /no folder .*bench-judge-zzguard: anonymize round zzguard first/)
+  assert.ok(cli('import', '--round=zzguard', out, '--as=zzguardas').includes(`missing ${join(results, 'blind-key-zzguard.json')}`))
 })
 
 test('the fake home works on this platform', t => {
