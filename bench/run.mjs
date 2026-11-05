@@ -36,6 +36,7 @@ import {
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
+import { hiddenSetsOf, isStaged, stageCountOf, stagePromptFile } from './stages.mjs'
 import { MEMORY_BACKUP, MEMORY_ROOT, renameRetry, required, restoreMessage, restoreSectionMemory, sameVolume } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
@@ -50,10 +51,10 @@ export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
 export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120 }
-// Tasks whose second prompt (tasks/<task>-s2.md) arrives after the first build. Their hidden tests are hidden/<task>/<set>.test.mjs.
-const TWO_STAGE_TASKS = ['h7']
-export const isTwoStage = task => TWO_STAGE_TASKS.includes(task)
-export const HIDDEN_SETS = ['s1', 's2', 'reg']
+// Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
+// Kept for the scorer and judge, which still ask about two-stage h7: the set names come from the registry.
+export const isTwoStage = task => stageCountOf(task) === 2
+export const HIDDEN_SETS = hiddenSetsOf('h7').map(h => h.set)
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
 export { PLUGIN_KEY } from './clean-run.mjs'
@@ -284,8 +285,9 @@ export function checkConds(conds) {
   if (other !== undefined) throw new RangeError(`a round runs solo, lean, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
 }
 
-const taskFiles = task => (isTwoStage(task)
-  ? [`tasks/${task}.md`, `tasks/${task}-s2.md`, ...HIDDEN_SETS.map(set => `hidden/${task}/${set}.test.mjs`)]
+const taskFiles = task => (isStaged(task)
+  ? [...Array.from({ length: stageCountOf(task) }, (_, i) => stagePromptFile(task, i + 1)),
+    ...hiddenSetsOf(task).map(({ set }) => `hidden/${task}/${set}.test.mjs`)]
   : [`tasks/${task}.md`, `hidden/${task}.test.mjs`])
 
 // Every task that cannot run: a missing prompt, missing hidden tests or no timeout. Empty when all are fine.
