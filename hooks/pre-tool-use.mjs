@@ -56,7 +56,7 @@ function projectGate(e, env, home) {
 }
 
 // The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
-// or claims a grade its own transcript does not back is refused.
+// claims a grade its own transcript does not back, or claims done while the reviewer scored an item under the mode's item minimum is refused.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
@@ -65,7 +65,7 @@ function handbackGate(id, e, env, home) {
   const gate = projectGate(e, env, home)
   if (needsGate(report)) return gateReasons(gate).ungraded
   if (failsGate(report, gate.passOverall)) return gateReasons(gate).failing
-  return claimsDoneWithCode(report) ? gradeRule(e, report.quality) : null
+  return claimsDoneWithCode(report) ? gradeRule(e, report.quality, gate) : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'

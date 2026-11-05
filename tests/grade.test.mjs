@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gradeRule, senderOf } from '../hooks/lib/grade.mjs'
+import { GATES } from '../hooks/lib/mode.mjs'
+import { decide } from '../hooks/pre-tool-use.mjs'
 
 const SESSION = 'sid-1'
 const SECTION = 'a1b2c3'
@@ -218,4 +220,59 @@ test('senderOf names the agent behind a queued hand-back, and nobody for anythin
   assert.equal(senderOf(`<task-notification>\n<task-id>${REVIEWER}</task-id>`), REVIEWER)
   assert.equal(senderOf(`From main: <task-id>${REVIEWER}</task-id>`), undefined)
   assert.equal(senderOf('plain job'), undefined)
+})
+
+// The mode's item minimum: a REPORT may not hand back done while the reviewer scored an item under it.
+const ITEMS = ['structure', 'naming', 'duplication', 'size', 'errors', 'tests', 'security', 'leftovers']
+const itemBlock = (scores, { overall = 8, mark = line => `  ${line}`, before = '' } = {}) =>
+  `${before}## GRADE\n  Overall: ${overall}/10\n  Verdict: fail\n${ITEMS.map(name => mark(`${name}: ${scores[name] ?? 9} — reason`)).join('\n')}\n  Fixes:\n  - fix it\n`
+const itemRule = (text, gate, quality = 8) => gradeRule(eventWith([agentCall(), toolResult(`${text}\nagentId: ${REVIEWER} (use SendMessage)`)]), quality, gate)
+const lowItem = (name, score, min) => `section-team: the reviewer scored ${name} ${score}/10, under the ${min}/10 minimum for an item. Give the fix list to a coder and grade again with a new Agent \`section-team:reviewer\` call, or hand back with \`Status: partial\` once the fix rounds are used.`
+
+test('an item under the mode minimum is refused, naming the item, its score and the minimum', () => {
+  assert.equal(itemRule(itemBlock({ security: 5 }), GATES.balanced), lowItem('security', 5, 6))
+  assert.equal(itemRule(itemBlock({ naming: 5.5 }), GATES.balanced), lowItem('naming', 5.5, 6))
+})
+
+test('an item exactly at the minimum passes, and Lean has no minimum', () => {
+  assert.equal(itemRule(itemBlock(Object.fromEntries(ITEMS.map(name => [name, 6]))), GATES.balanced), null)
+  assert.equal(itemRule(itemBlock({ security: 5 }), GATES.lean), null)
+  assert.equal(itemRule(itemBlock({ security: 5 }), undefined), null)
+})
+
+test('Max refuses an item at 6 and allows 7', () => {
+  assert.equal(itemRule(itemBlock({ errors: 6 }, { overall: 9 }), GATES.max, 9), lowItem('errors', 6, 7))
+  assert.equal(itemRule(itemBlock({ errors: 7 }, { overall: 9 }), GATES.max, 9), null)
+})
+
+test('tests: n/a is ignored, and bold or list-marked item lines are read', () => {
+  assert.equal(itemRule(itemBlock({ tests: 'n/a' }), GATES.balanced), null)
+  assert.equal(itemRule(itemBlock({ security: 5 }, { mark: line => `  - **${line.replace(':', ':**')}` }), GATES.balanced), lowItem('security', 5, 6))
+  assert.equal(itemRule(itemBlock({ security: 5 }, { mark: line => line.toUpperCase() }), GATES.balanced), lowItem('security', 5, 6))
+})
+
+test('prose above the block that looks like an item line is not a score', () => {
+  assert.equal(itemRule(itemBlock({}, { before: 'security: 3 issues found, all fixed\nnaming: 2 nits\n' }), GATES.balanced), null)
+})
+
+test('only the last answer of a resumed reviewer counts for items', () => {
+  const resume = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_s', name: 'SendMessage', input: { to: REVIEWER, message: 'again' } }] } }
+  const entries = [...inToolResult(7), resume, agentMessage(itemBlock({}))]
+  entries[1] = toolResult(`${itemBlock({ security: 5 })}\nagentId: ${REVIEWER} (use SendMessage)`)
+  assert.equal(gradeRule(eventWith(entries), 8, GATES.balanced), null)
+})
+
+test('a reviewer grade above the REPORT is still refused first, and a block with no item lines allows', () => {
+  assert.equal(itemRule(itemBlock({ security: 5 }), GATES.balanced, 9), mismatch(9, 8))
+  assert.equal(ruleFor(inToolResult(8).map(entry => entry).slice(0, 2), 8), null)
+  assert.equal(gradeRule(eventWith(inToolResult(8)), 8, GATES.max), null)
+})
+
+test('at handback, done with a low item is refused and partial with the same item is let through', () => {
+  const home = mkdtempSync(join(tmpdir(), 'ct-grade-home-'))
+  made.push(home)
+  const base = eventWith([agentCall(), toolResult(`${itemBlock({ security: 5 })}\nagentId: ${REVIEWER} (use SendMessage)`)])
+  const handback = status => ({ ...base, agent_type: 'section-team:backend', tool_name: 'SubagentHandback', tool_input: { message: `## REPORT · backend · 2026-11-05 10:00\nStatus: ${status}\nJob: api\nChanged: src/api.mjs\nQuality: 8/10 (reviewer, 2 fix rounds)\n` } })
+  assert.equal(decide(handback('done'), {}, home), lowItem('security', 5, 6))
+  assert.equal(decide(handback('partial'), {}, home), null)
 })

@@ -18,6 +18,7 @@ Write `.team/notes/foundation.md`, under 150 lines, with:
 - auth and security needs;
 - build order as vertical slices, each with a check that proves it done;
 - test plan, including the critical end-to-end flows;
+- quality targets that apply (performance, accessibility, recovery, operations), each with a number or a check;
 - deploy and migration rules;
 - commit policy.
 

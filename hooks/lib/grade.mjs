@@ -7,6 +7,10 @@ const AGENT_ID = /agentId:\s*([\w-]+)/g
 // A line of the GRADE block: the harness indents it and a model may bold it. Prose that only mentions an overall grade does not start with it.
 const OVERALL_LINE = /^[ \t*_#>-]*Overall[ \t*_]*:[ \t*_]*(\d+(?:\.\d+)?)[ \t]*\/[ \t]*10\b/gim
 
+// An item line of the GRADE block, decorated the same way; `n/a` has no digits and so is no score.
+const ITEM_LINE = /^[ \t*_#>-]*(structure|naming|duplication|size|errors|tests|security|leftovers)[ \t*_]*:[ \t*_]*(\d+(?:\.\d+)?)\b/i
+const FIXES_LINE = /^[ \t*_#>-]*Fixes[ \t*_]*:/i
+
 const lastMatch = (pattern, text) => [...text.matchAll(pattern)].at(-1)?.[1]
 // Assistant turns only: transcripts also keep copies of API requests, later in the file than the results of the calls they copy.
 const toolUsesOf = entry => (entry?.type === 'assistant' ? contentOf(entry).filter(part => part?.type === 'tool_use') : [])
@@ -33,24 +37,43 @@ function reviewerAnswers(later, callId) {
   return resumedAt < 0 ? [result, ...delivered] : delivered
 }
 
-function refusal(entries, quality) {
+// The item scores of the block after the answer's last Overall line, up to its Fixes: line. Earlier prose is not a score.
+function itemScores(answer) {
+  const last = [...answer.matchAll(OVERALL_LINE)].at(-1)
+  const block = answer.slice(last.index).split('\n').slice(1)
+  const end = block.findIndex(line => FIXES_LINE.test(line))
+  return (end < 0 ? block : block.slice(0, end)).flatMap(line => {
+    const found = ITEM_LINE.exec(line)
+    return found ? [{ name: found[1].toLowerCase(), score: Number(found[2]) }] : []
+  })
+}
+
+const lowItemReason = (item, min) => `section-team: the reviewer scored ${item.name} ${item.score}/10, under the ${min}/10 minimum for an item. Give the fix list to a coder and grade again with a new Agent \`section-team:reviewer\` call, or hand back with \`Status: partial\` once the fix rounds are used.`
+
+function refusal(entries, quality, gate) {
   const at = entries.findLastIndex(entry => toolUsesOf(entry).some(isReviewerCall))
   // A transcript with no tool call at all is a shape this code does not know, so it proves nothing.
   if (at < 0) return entries.some(entry => toolUsesOf(entry).length > 0) ? NO_REVIEWER_CALL : null
   const answers = reviewerAnswers(entries.slice(at + 1), toolUsesOf(entries[at]).findLast(isReviewerCall).id)
-  const said = answers.map(text => lastMatch(OVERALL_LINE, text)).findLast(grade => grade !== undefined)
-  return said !== undefined && quality > Number(said) ? `section-team: your REPORT says ${quality}/10, but the reviewer said ${Number(said)}/10. Report the reviewer's grade.` : null
+  const answer = answers.findLast(text => lastMatch(OVERALL_LINE, text) !== undefined)
+  if (answer === undefined) return null
+  const said = Number(lastMatch(OVERALL_LINE, answer))
+  if (quality > said) return `section-team: your REPORT says ${quality}/10, but the reviewer said ${said}/10. Report the reviewer's grade.`
+  const min = gate?.minItem ?? null
+  const low = min === null ? undefined : itemScores(answer).find(item => item.score < min)
+  return low ? lowItemReason(low, min) : null
 }
 
-// The refusal for a REPORT whose grade the section's own transcript does not back, else null. quality is the REPORT's grade.
+// The refusal for a REPORT whose grade the section's own transcript does not back, else null. quality is the REPORT's grade;
+// gate is the mode's, and its minItem is the lowest score the reviewer may have given any item.
 // Hooks fail open, so any read failure denies nothing. The whole file is read, unlike the resume guard's tail: a missing call
 // refuses here, and real reviewer calls sit up to megabytes from the end. It runs once per graded handback, not on every message.
-export function gradeRule(e, quality) {
+export function gradeRule(e, quality, gate) {
   const base = subagentBase(e, e?.agent_id)
   if (base === null) return null
   try {
     const lines = readFileSync(`${base}.jsonl`, 'utf8').split('\n').filter(line => line.trim() !== '')
-    return refusal(lines.map(line => JSON.parse(line)), quality)
+    return refusal(lines.map(line => JSON.parse(line)), quality, gate)
   } catch {
     return null
   }
