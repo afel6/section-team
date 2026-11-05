@@ -86,21 +86,21 @@ You ◄── combined summary (also saved)
 ## 7. Known limitations (honest)
 
 - **Relay mechanism not yet observed live.** In `-p`, the supervisor passed the API contract between sections itself; no section sent `SendMessage main`.
-- **Reuse capture** (a section resumed for a second job saves the second report) is covered by unit tests on realistic transcript shapes, not by a live run.
+- **Reuse capture** (a section resumed saves the second report) is covered by unit tests on realistic transcript shapes, not by a live run. Since 0.2.3 the supervisor starts a fresh Agent call for each new job, so a resume only continues the same job (a fix list, a question).
 - **Status parsing** is heuristic (the `done|partial|blocked` regex has no word boundaries).
 - **Per-call overhead:** each Write/Edit/Bash/Agent call in any session spawns Node for the guard (~150 ms). The board polls once a second in every session, and a pass-through hook runs on every model step to count tokens.
 - **Usage numbers** are counted inside the session from model-step usage; they are not reconciled with the account's billing view, and the counting maps are not pruned during very long sessions.
-- **Agent-id map lost** after `/clear` or compaction: the supervisor respawns sections and their in-session context is lost (long-term memory survives).
+- **Agent-id map lost** after `/clear` or compaction: the supervisor starts fresh sections for later jobs, as it does for every new job since 0.2.3, and points them at the notes, the reports and the changed files (long-term memory survives).
 - **Model cost:** all 12 heads are pinned to Opus 5.5 (user choice).
 - Deferred minor items and every controller ruling are listed in `docs/build-ledger.md` (lines marked `minor (deferred)` and `Ruling`).
 
 ## 8. Expected outcomes vs a single session (author's assessment, unmeasured)
 
-- **Tokens:** expected to cost **more** in total for multi-area work, not less. Each woken section is a fresh Opus context that re-reads the code and reloads the user's large global instructions; job messages, reports and relays add overhead. Rough expectation: 1.5–4× a single session for the same multi-area task. It saves tokens only in specific places:
+- **Tokens:** expected to cost **more** in total for multi-area work, not less. Each woken section is a fresh Opus context that re-reads the code and reloads the user's large global instructions; job messages, reports and relays add overhead. Rough expectation: 1.5–4× a single session for the same multi-area task. Places where it might use fewer tokens (none measured here):
   - the supervisor's own context stays small (only REPORTs come back), so long sessions hit compaction less;
   - small tasks skip the team entirely;
   - routine helper work runs on Haiku/Sonnet.
-- **Quality:** expected to be **better for medium-to-large, multi-area work**: focused contexts, specialist prompts, parallel independent parts, a dedicated testing/review gate, saved reports, and per-area memory. Expected to be **equal or worse for small or tightly coupled changes**: handoff loss, sections rediscovering the code, relay latency, and integration seams between sections.
+- **Quality:** a hypothesis, not established by this brief: **better for medium-to-large, multi-area work**: focused contexts, specialist prompts, parallel independent parts, a dedicated testing/review gate, saved reports, and per-area memory. Expected to be **equal or worse for small or tightly coupled changes**: handoff loss, sections rediscovering the code, relay latency, and integration seams between sections.
 - **How to measure:** run the same 3 tasks (one small fix, one single-area feature, one multi-area feature) once with the plugin on and once off (`"section-team@inline": false`). Compare usage, wall time, tests passing and review findings.
 
 ## 9. Suggested grading rubric
