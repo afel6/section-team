@@ -24,7 +24,7 @@ node --test bench/*.test.mjs
 - `hooks/lib/head-context.mjs` (the context guard on `SendMessage`) and `hooks/lib/grade.mjs` (the grade-versus-reviewer check at handback) hold the 0.2.3 enforcement. Both fail open.
 - `skills/add-skill/` is the procedure for reviewing and installing a skill from GitHub.
 - `skills/foundation/` is the supervisor's on-demand procedure for starting a new platform.
-- `bench/` is the benchmark harness. A benchmark round runs real paid Claude sessions, so only run it if you know the cost. `--plugin-ref=<branch, tag or commit>` on `bench/preflight.mjs` names the ref the `--plugin` worktree must be at, and the pin records it. The default is `v<SECTION_TEAM_VERSION>` from `bench/clean-run.mjs` (now v0.2.1). `bench/run.mjs` holds a batch to the pin: leave the flag out or pass the same ref. The expected version comes from the plugin under test (its own manifest), not from the harness checkout.
+- `bench/` is the benchmark harness. A benchmark round runs real paid Claude sessions, so only run it if you know the cost. `--plugin-ref=<branch, tag or commit>` on `bench/preflight.mjs` names the ref the `--plugin` worktree must be at, and the pin records it. The default is `v<SECTION_TEAM_VERSION>` from `bench/clean-run.mjs`. `bench/run.mjs` holds a batch to the pin: leave the flag out or pass the same ref. The expected version comes from the plugin under test (its own manifest), not from the harness checkout.
 
 ## Rules
 - Write the failing test first for any change in behaviour, then make it pass.
