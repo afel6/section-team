@@ -471,8 +471,8 @@ for (const mode of MODES) {
     // The longest relative path latestSummary can give: the latest time of day and the highest same-second suffix.
     const summary = '.team/reports/2026-10-12/235959-supervisor-summary-999.md'
     assert.equal(summary.length, 57)
-    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary)
-    for (const part of ['Automatic skill installs are on', summary, '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
+    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary, true)
+    for (const part of ['Automatic skill installs are on', summary, '`.team/notes/plan.md` exists', '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }

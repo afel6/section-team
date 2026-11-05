@@ -71,6 +71,14 @@ test('every mode drops the advisor aside and the new skills section, and keeps a
   }
 })
 
+test('every mode tells the supervisor to run project MCP calls for sections, under How to wake a section', () => {
+  const rule = '- Sections have no project MCP tools: when one asks, run the call yourself and reply to its agent id.'
+  for (const mode of MODES) {
+    const section = assembleBrief(mode).split('## How to wake a section\n')[1].split('\n## ')[0]
+    assert.ok(section.split('\n').includes(rule), mode)
+  }
+})
+
 test('balanced brief leaves out the job-message gate sentence that only lean and max carry', () => {
   assert.ok(!assembleBrief('balanced').includes(JOB_GATE))
 })
@@ -144,7 +152,7 @@ test('max tiers add probing, near-miss copies, security and docs always', () => 
     'the security section for a security pass',
     '(the one cross-review you ask for)',
     'near-miss copies and final verification',
-    'the docs section always',
+    'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
   ]) {
     assert.ok(tiers.includes(text), `tiers-max lacks "${text}"`)

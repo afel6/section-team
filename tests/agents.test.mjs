@@ -63,10 +63,36 @@ test('builders and the coder keep tool output short; advisors, scout and reviewe
   for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes(SHORT_OUTPUT), id)
 })
 
-test('sections message a sibling only while it works, and ask main once it has handed back', () => {
-  const sentence = 'Message a sibling only while it is working; if it has handed back, ask `main`.'
+test('sections ask a sibling only while it works, ask main once it has handed back, and never wake a section', () => {
+  const sentence = 'Ask a sibling a question only while it is working; if it has handed back, ask `main`. Never wake a section yourself.'
   assert.ok(RELAY.includes(sentence))
   for (const s of ROSTER) assert.ok(agentFile(s.id).includes(sentence), s.id)
+})
+
+test('no builder keeps the old sibling sentence, and only the security section has the review exception', () => {
+  const exception = 'you still run your own reviewer gate before you finish. The security pass the job assigns is the exception.'
+  for (const id of BUILDER_IDS) {
+    assert.ok(!agentFile(id).includes('Message a sibling only while it is working'), id)
+    assert.equal(agentFile(id).includes(exception), id === 'security', id)
+  }
+})
+
+test('testing goes through the supervisor only when a direct fix list is refused or fails', () => {
+  const testing = agentFile('testing')
+  assert.ok(testing.includes('(by agent id; if that is refused or fails, through the supervisor)'))
+  assert.ok(!testing.includes('(by agent id, else through the supervisor)'))
+})
+
+test('builders learn they have no project MCP tools, right after the short-output line; nobody else carries it', () => {
+  const line = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(`${SHORT_OUTPUT}\n${line}`), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes(line), id)
+})
+
+test('builders treat the approved foundation note as frozen; advisors write no notes', () => {
+  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(line), id)
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes(line), id)
 })
 
 test('committed files match the generator', () => {
