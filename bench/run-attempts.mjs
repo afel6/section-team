@@ -54,6 +54,8 @@ export const exitCodeOf = err => (err instanceof BatchStop || err instanceof Rou
 
 // The setup (solo, lean, team, max or forced), without the round tag.
 export const baseOf = run => run.base ?? run.cond
+// What keeps a run's init from counting, by its setup and its batch's ctx ({ pin, pluginDir, pluginVersion }).
+export const runInitProblems = (messages, run, ctx) => initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion })
 const json = value => `${JSON.stringify(value, null, 2)}\n`
 export const firstLine = text => String(text ?? '').split(/\r?\n/)[0].slice(0, 200)
 
@@ -162,7 +164,7 @@ function runRecord({ run, dir, info, sessionId, attempt, kind, result, ctx, init
 // Ends one attempt: a run.json for a counted run, otherwise void.json and/or an attempts entry and a BatchStop or RoundStop.
 // env is the child environment the attempt ran with (run.json records its names). extraReasons void it too: what only
 // the caller can see, such as a second stage that resumed as another session.
-export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin, ctx, evidenceTexts, extraReasons = [], write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
+export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, ctx, evidenceTexts, extraReasons = [], write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
   const kind = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const result = resultOf(messages)
   const entry = { attempt, sessionId, at: new Date().toISOString() }
@@ -177,7 +179,7 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
   }
   const init = initOf(messages)
-  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion }), ...effortProblems(evidenceTexts), ...extraReasons]
+  const reasons = [...runInitProblems(messages, run, ctx), ...effortProblems(evidenceTexts), ...extraReasons]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
     const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))

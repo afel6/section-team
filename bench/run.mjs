@@ -28,10 +28,10 @@ import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import {
-  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, pluginVersionOf, readPin, sha256Of,
+  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, installedPluginKeys, outputMessages, pluginVersionOf, readPin, sha256Of,
 } from './clean-run.mjs'
 import {
-  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, firstLine, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
+  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, firstLine, nextAttempt, pendingRuns, projectDirFor, recordAttempt, runInitProblems,
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
@@ -167,24 +167,24 @@ function gitLine(args) {
 }
 
 // Rounds load the plugin from a worktree at one ref, never the live checkout: --plugin= must be its absolute path, at
-// that ref's commit. Returns that commit, which every run records.
-export function pluginCommitOf(plugin, { ref = DEFAULT_PLUGIN_REF, git = gitLine } = {}) {
+// that ref's commit. Returns that commit, which every run records. name is what the messages call ref.
+export function pluginCommitOf(plugin, { ref = DEFAULT_PLUGIN_REF, name = ref, git = gitLine } = {}) {
   // Windows paths on Windows (and drive-letter paths anywhere); POSIX paths on Linux (os-paths.mjs).
-  if (!isAbsolutePath(plugin)) throw new Error(`--plugin= takes the absolute path of the ${ref} worktree, got "${plugin}"`)
+  if (!isAbsolutePath(plugin)) throw new Error(`--plugin= takes the absolute path of the ${name} worktree, got "${plugin}"`)
   const commit = git(['-C', plugin, 'rev-parse', 'HEAD'])
   const wanted = git(['rev-parse', `${ref}^{commit}`])
-  if (commit !== wanted) throw new Error(`${plugin} is at ${commit}, not at ${ref} (${wanted})`)
+  if (commit !== wanted) throw new Error(`${plugin} is at ${commit}, not at ${name} (${wanted})`)
   return commit
 }
 
 // Before each batch the worktree is clean and matches the ref, and --plugin= is its root folder, not a subfolder. The
 // worktree holds the plugin and this checkout runs the harness: with a branch ref they could otherwise be the same folder.
-export function checkPluginWorktree(plugin, { ref = DEFAULT_PLUGIN_REF, git = gitLine } = {}) {
-  if (samePath(plugin, REPO)) throw new Error(`--plugin= must be a worktree of ${ref} apart from this checkout, which runs the harness: got ${plugin}`)
+export function checkPluginWorktree(plugin, { ref = DEFAULT_PLUGIN_REF, name = ref, git = gitLine } = {}) {
+  if (samePath(plugin, REPO)) throw new Error(`--plugin= must be a worktree of ${name} apart from this checkout, which runs the harness: got ${plugin}`)
   const top = git(['-C', plugin, 'rev-parse', '--show-toplevel'])
   if (!samePath(top, plugin)) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
-  if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${ref} worktree`)
-  if (git(['-C', plugin, 'diff', '--stat', ref]) !== '') throw new Error(`${plugin} differs from ${ref}: a batch needs a clean ${ref} worktree`)
+  if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${name} worktree`)
+  if (git(['-C', plugin, 'diff', '--stat', ref]) !== '') throw new Error(`${plugin} differs from ${name}: a batch needs a clean ${name} worktree`)
 }
 
 // The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed. A copy is
@@ -200,19 +200,20 @@ export function checkPin(plugin, pin) {
   if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: ${fix}`)
 }
 
-// What a batch's worktree must match: the commit its pin recorded, so a branch that moves after the preflight stops
-// nothing; a pin from before --plugin-ref has only the default tag. A --plugin-ref that is not the pin's stops the batch.
-export function pinnedRef(pin, passed = '') {
-  const ref = pin.pluginRef ?? DEFAULT_PLUGIN_REF
-  if (passed !== '' && passed !== ref) throw new Error(`--plugin-ref=${passed} is not the ref the round pinned: pass --plugin-ref=${ref} or leave it out`)
-  return pin.pluginCommit ?? ref
+// What a batch's worktree must match: ref is the commit its pin recorded, so a branch that moves after the preflight stops
+// nothing, and name the pin's ref, which is what the user passed; a pin from before --plugin-ref has only the default tag.
+// A --plugin-ref that is not the pin's stops the batch.
+export function pinnedTarget(pin, passed = '') {
+  const name = pin.pluginRef ?? DEFAULT_PLUGIN_REF
+  if (passed !== '' && passed !== name) throw new Error(`--plugin-ref=${passed} is not the ref the round pinned: pass --plugin-ref=${name} or leave it out`)
+  return { ref: pin.pluginCommit ?? name, name }
 }
 
 // A batch's checks of the plugin under test, before any paid run, and what its runs need from them.
 export function batchPlugin(plugin, pin, passedRef, { git = gitLine, readVersion = pluginVersionOf } = {}) {
-  const ref = pinnedRef(pin, passedRef)
-  const pluginCommit = pluginCommitOf(plugin, { ref, git })
-  checkPluginWorktree(plugin, { ref, git })
+  const { ref, name } = pinnedTarget(pin, passedRef)
+  const pluginCommit = pluginCommitOf(plugin, { ref, name, git })
+  checkPluginWorktree(plugin, { ref, name: `${name} (${pluginCommit})`, git })
   checkPin(plugin, pin)
   return { pluginCommit, pluginVersion: readVersion(plugin) }
 }
@@ -457,7 +458,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
 // Missing required evidence stays an exit-1 stop (no void, no cap): the init's problems go into the message for
 // diagnosis, and attempts.json lists the attempt, so the rerun shows between batches.
 function withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) {
-  const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion })
+  const reasons = runInitProblems(messages, run, ctx)
   recordAttempt(outDir, { kind: 'evidence-missing', attempt, sessionId, at: new Date().toISOString(), path: err.path, reasons })
   return new EvidenceMissing(`${err.message}; init problems: ${reasons.join('; ') || 'none'}`, err.path)
 }
@@ -512,7 +513,7 @@ async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) 
   const firstMessages = readMessages(outDir, 1)
   const firstEnd = classifyEnd({ messages: firstMessages, timedOut: first.timedOut, exitCode: first.exitCode })
   const stageOne = { stage: 1, ...first, end: firstEnd }
-  const good = firstEnd === 'ok' && initProblems(initOf(firstMessages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion }).length === 0
+  const good = firstEnd === 'ok' && runInitProblems(firstMessages, run, ctx).length === 0
   if (!good) return { info: { ...first, stages: [stageOne], snapshot: null }, messages: firstMessages, extraReasons: [] }
   tagOrSay(dir, 'stage-1')
   copyStageOne({ run, dir, outDir, sessionId, attempt })
@@ -558,7 +559,7 @@ export async function runOne(run, outDir, ctx, deps = {}) {
     throw err instanceof EvidenceMissing ? withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
   }
   const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
-  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin: ctx.pin, ctx, evidenceTexts, extraReasons, env })
+  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, ctx, evidenceTexts, extraReasons, env })
   console.log(`${new Date().toISOString()} end   ${run.id} ${kind} exit=${info.exitCode} wall=${Math.round(info.wallMs / 1000)}s`)
 }
 

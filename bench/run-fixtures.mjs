@@ -1,4 +1,4 @@
-// What run.test.mjs and run-stages.test.mjs share: temp folders, git, and a fake of the pinned binary.
+// What run.test.mjs, run-plugin.test.mjs and run-stages.test.mjs share: temp folders, git, and a fake of the pinned binary.
 import { execFileSync } from 'node:child_process'
 import { EventEmitter, once } from 'node:events'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'

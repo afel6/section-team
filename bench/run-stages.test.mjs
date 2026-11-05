@@ -1,4 +1,4 @@
-// The harness's two-stage tasks (h7); run.test.mjs has the rest of run.mjs.
+// The harness's two-stage tasks (h7); run.test.mjs and run-plugin.test.mjs have the rest of run.mjs.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'

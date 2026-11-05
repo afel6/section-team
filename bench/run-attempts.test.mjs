@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { BENCH_MODEL, PLUGIN_KEY, childEnv, envNames } from './clean-run.mjs'
 import {
-  API_FAILURE, BatchStop, LIMIT, RoundStop, archiveAttempt, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor,
+  API_FAILURE, BatchStop, LIMIT, RoundStop, archiveAttempt, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, runInitProblems,
   recordAttempt,
 } from './run-attempts.mjs'
 
@@ -56,8 +56,16 @@ const INFO = { exitCode: 0, timedOut: false, wallMs: 61_000, startedAt: '2026-11
 
 // finishAttempt for one lean attempt into outDir, with any arguments replaced.
 const finish = (outDir, fields = {}) => finishAttempt({
-  run: LEAN, outDir, dir: RUN_DIR, sessionId: 'sid-1', attempt: 1, info: INFO, messages: [init(), result()], pin: PIN, ctx: CTX,
+  run: LEAN, outDir, dir: RUN_DIR, sessionId: 'sid-1', attempt: 1, info: INFO, messages: [init(), result()], ctx: CTX,
   evidenceTexts: MEDIUM, env: ENV, ...fields,
+})
+
+test('runInitProblems judges a run\'s init by its setup, its batch\'s pin and the plugin under test', () => {
+  assert.deepEqual(runInitProblems([init(), result()], LEAN, CTX), [])
+  assert.deepEqual(runInitProblems([init({ model: 'claude-haiku-5-5' })], LEAN, CTX), [`model claude-haiku-5-5, expected ${BENCH_MODEL}`])
+  assert.deepEqual(runInitProblems([result()], LEAN, CTX), ['no init message'])
+  assert.deepEqual(runInitProblems([init()], LEAN, { ...CTX, pluginVersion: '0.2.3' }), ['section-team version 0.2.1, expected 0.2.3'])
+  assert.deepEqual(runInitProblems([init(SOLO_LISTS)], SOLO, CTX), ['section-team loaded in solo'])
 })
 
 test('LIMIT and API_FAILURE are the frozen match rules', () => {

@@ -225,10 +225,11 @@ function ensurePinnedCli(pin, install) {
   return 'installed'
 }
 
-function ensurePluginWorktree(pluginDir, repo) {
-  if (existsSync(pluginDir)) return 'present'
-  tryGit(['fetch', '-q', 'origin', 'tag', PLUGIN_TAG], { cwd: repo })
-  git(['worktree', 'add', '-q', '--detach', pluginDir, PLUGIN_TAG], { cwd: repo })
+// The worktree at the commit the pin recorded, which is what a batch holds it to; a pin from before --plugin-ref has only the tag.
+function ensurePluginWorktree(pin, repo) {
+  if (existsSync(pin.pluginDir)) return 'present'
+  tryGit(['fetch', '-q', 'origin', ...(pin.pluginRef ? [pin.pluginRef] : ['tag', PLUGIN_TAG])], { cwd: repo })
+  git(['worktree', 'add', '-q', '--detach', pin.pluginDir, pin.pluginCommit ?? pin.pluginRef ?? PLUGIN_TAG], { cwd: repo })
   return 'added'
 }
 
@@ -241,7 +242,7 @@ export function restore({ round, results = RESULTS, runs = RUNS }, { install = n
     : { results: [], kept: [], runs: [] }
   const pin = readJsonOr(join(results, `preflight-${round}.json`), null)
   if (pin === null) return { ...summary, cli: 'no pin yet', plugin: 'no pin yet' }
-  return { ...summary, cli: ensurePinnedCli(pin, install), plugin: ensurePluginWorktree(pin.pluginDir, ctx.repo) }
+  return { ...summary, cli: ensurePinnedCli(pin, install), plugin: ensurePluginWorktree(pin, ctx.repo) }
 }
 
 // The first file of a case set that a fresh set may not hold.

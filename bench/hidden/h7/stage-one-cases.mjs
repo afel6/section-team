@@ -33,7 +33,11 @@ export function stageOneCases({ stage }) {
   routingCases()
   partsCases(tools)
   movesCases(tools)
-  pageCases(stage)
+  const page = pageTools(stage)
+  pageMarkupCases()
+  pageListCases(page)
+  pageFormCases(page)
+  pageDeleteCases(page)
 }
 
 // What the cases need from the stage they run on.
@@ -534,7 +538,8 @@ function movesCases({ plain, expectPart }) {
 }
 
 // --- Page ---
-function pageCases(stage) {
+// What the page cases need from the stage they run on.
+function pageTools(stage) {
   const LISTED = (p) => (stage === 1 ? `${p.sku} ${p.name} (${p.on_hand})` : `${p.handle}: ${p.sku} ${p.name} (${p.on_hand})`)
   const P = (id, sku, name, onHand = 0) => ({ id, sku, name, on_hand: onHand, value_cents: '0', ...(stage === 1 ? {} : { handle: `h-${id}` }) })
   const SAMPLE = [P(3, 'A-1', 'Bolt', 5), P(1, 'B-1', '<b>x</b> & co', 0)]
@@ -558,7 +563,10 @@ function pageCases(stage) {
   }
   const fill = (page, values) => Object.entries(values).forEach(([id, v]) => setValue(page.el(id), v))
   const bodyOf = call => tryJson(call.opts.body)
+  return { P, SAMPLE, rows, row, NONE, LIST, moreOff, okList, ready, search, FORM, submit, fill, bodyOf }
+}
 
+function pageMarkupCases() {
   it('GET / and GET /app.js: types, query ignored, one <title> and <h1>, one last script, no inline code', async () => {
     const s = await shared()
     const { html, js } = await assets()
@@ -592,7 +600,9 @@ function pageCases(stage) {
     const error = byId(root, 'error')
     assert.deepEqual({ tag: error?.tag, role: error?.attrs.role, kids: error?.kids.length, inForm: within(error, form) }, { tag: 'p', role: 'alert', kids: 0, inForm: false })
   })
+}
 
+function pageListCases({ P, SAMPLE, rows, row, NONE, LIST, moreOff, okList, ready, search }) {
   it('page: at load the list is requested at once and filled as plain text; no parts is one line; Load more follows next', async () => {
     const page = await openPage()
     assert.deepEqual(pending(page), [`GET ${LIST_FIRST}`], 'requested before any event')
@@ -676,7 +686,9 @@ function pageCases(stage) {
     await settle(take(page, 'GET', `${LIST_FIRST}&q=a`), okList([]))
     assert.deepEqual({ rows: rows(page), more: moreOff(page) }, { rows: NONE, more: true })
   })
+}
 
+function pageFormCases({ P, rows, row, okList, ready, FORM, submit, fill, bodyOf }) {
   it('page: adding sends the fields unchanged, Add is disabled meanwhile, and a success empties them and fetches again', async () => {
     const page = await ready()
     fill(page, FORM)
@@ -707,7 +719,9 @@ function pageCases(stage) {
     assert.equal(errorText(page), '')
     take(page, 'GET', LIST_FIRST)
   })
+}
 
+function pageDeleteCases({ SAMPLE, okList, ready }) {
   it('page: Delete disables its button and sends the part\'s id; the list comes back afterwards, except with no reply', async () => {
     const page = await ready()
     const click = async i => {

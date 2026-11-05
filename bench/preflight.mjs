@@ -184,7 +184,7 @@ function versionOnPath(run) {
 // The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
 // Returns every problem; the pin file is written only when there are none.
 export function preflight({ round, plugin, pluginRef = '', home = homedir(), results = RESULTS }, deps = {}) {
-  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = npmClaude, platform = process.platform, readPluginVersion = pluginVersionOf } = deps
+  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = npmClaude, platform = process.platform, readVersion = pluginVersionOf } = deps
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
   // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
   const file = join(results, `preflight-${round}.json`)
@@ -193,7 +193,7 @@ export function preflight({ round, plugin, pluginRef = '', home = homedir(), res
   const ref = pluginRef || DEFAULT_PLUGIN_REF
   const pluginCommit = pluginCommitOf(plugin, { ref, git })
   checkPluginWorktree(plugin, { ref, git })
-  const pluginVersion = readPluginVersion(plugin)
+  const pluginVersion = readVersion(plugin)
   const inPlace = platform !== 'win32' && !existsSync(join(home, '.local', 'share', 'claude', 'versions'))
   // In place, the round's version is fixed: PATH's claude may be another CLI. Windows reads it from PATH, as before.
   const version = inPlace ? ROUND_CLI_VERSION : versionOnPath(run)

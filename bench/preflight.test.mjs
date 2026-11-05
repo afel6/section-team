@@ -245,7 +245,7 @@ function fakeRound(t, { initFields = {}, during = {} } = {}) {
     return { status: 0, stdout: `${stdout}\n`, stderr: '' }
   }
   const runs = join(root, 'runs')
-  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs, readPluginVersion: () => '0.2.1' }
+  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs, readVersion: () => '0.2.1' }
   return { home, results: join(root, 'results'), calls, deps, binary: join(home, 'bench-runs', `claude-${VERSION}.exe`) }
 }
 
@@ -356,7 +356,7 @@ function otherVersionRound(t, { manifest, loaded }) {
   const entry = { ...SECTION_TEAM, path: plugin, version: loaded }
   const builders = Object.fromEntries(['lean', 'team', 'max'].map(setup => [setup, { plugins: [...BUILTINS, entry] }]))
   const round = fakeRound(t, { initFields: builders })
-  const { readPluginVersion, ...deps } = round.deps
+  const { readVersion, ...deps } = round.deps
   const git = args => (args.includes('--show-toplevel') ? plugin : gitAt('tagged')(args))
   return { ...round, plugin, deps: { ...deps, git } }
 }

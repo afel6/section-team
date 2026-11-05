@@ -219,6 +219,34 @@ test('restore rebuilds results, run folders with their history, the pinned CLI a
     { results: [], kept: ['h4-solo-mo-r1', 'preflight-mo.json'], runs: [], cli: 'ok', plugin: 'present' }, 'a second restore changes nothing')
 })
 
+// A round pinned on a branch: the batch holds the worktree to the pinned commit, so the tag would be refused. The clone is
+// made before the branch exists, so only the fetch of the pin's ref can bring the commit, and the branch has moved past it.
+test('restore adds the plugin worktree at the pin\'s commit, fetching the pin\'s ref', t => {
+  const m = machine(t)
+  const f = freshMachine(m)
+  const commitOnBranch = text => {
+    write(join(m.repo, 'agents', 'backend.md'), text)
+    sh(m.repo, 'add', '.')
+    commitAs(m.repo, 'bench@local', text.trim())
+    return sh(m.repo, 'rev-parse', 'HEAD')
+  }
+  sh(m.repo, 'switch', '-q', '-c', 'fix/x')
+  const pluginCommit = commitOnBranch('pinned\n')
+  commitOnBranch('later\n')
+  sh(m.repo, 'push', '-q', 'origin', 'fix/x')
+  sh(m.repo, 'switch', '-q', 'main')
+  const binary = join(m.root, 'claude.exe')
+  write(binary, 'claude bytes')
+  const pluginDir = join(m.root, 'section-team-next')
+  write(join(m.results, 'preflight-mo.json'), JSON.stringify({ binary, sha256: sha256('claude bytes'), pluginDir, pluginRef: 'fix/x', pluginCommit }))
+  pushAll({ results: m.results, runs: m.runs }, m.ctx)
+  assert.throws(() => sh(f.repo, 'cat-file', '-e', pluginCommit), 'the commit only arrives by the fetch')
+  const summary = restore({ round: 'mo', results: f.results, runs: f.runs }, { ...f.ctx, install: () => assert.fail('no install') })
+  assert.equal(summary.plugin, 'added')
+  assert.equal(sh(pluginDir, 'rev-parse', 'HEAD'), pluginCommit)
+  assert.equal(readFileSync(join(pluginDir, 'agents', 'backend.md'), 'utf8'), 'pinned\n')
+})
+
 // The user's Windows run of the restore test got '[]\r\n' for '[]\n': a checkout with core.autocrlf=true converted it.
 test('restore on a machine with core.autocrlf=true gives every file back byte for byte', t => {
   const m = machine(t)
