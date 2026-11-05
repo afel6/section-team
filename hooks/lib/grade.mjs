@@ -5,7 +5,7 @@ const REVIEWER_TYPE = 'section-team:reviewer'
 const NO_REVIEWER_CALL = 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.'
 const AGENT_ID = /agentId:\s*([\w-]+)/g
 // A line of the GRADE block: the harness indents it and a model may bold it. Prose that only mentions an overall grade does not start with it.
-const OVERALL_LINE = /^[ \t*_#>-]*Overall[ \t*_]*:[ \t*_]*(\d+(?:\.\d+)?)\s*\/\s*10\b/gim
+const OVERALL_LINE = /^[ \t*_#>-]*Overall[ \t*_]*:[ \t*_]*(\d+(?:\.\d+)?)[ \t]*\/[ \t]*10\b/gim
 
 const lastMatch = (pattern, text) => [...text.matchAll(pattern)].at(-1)?.[1]
 // Assistant turns only: transcripts also keep copies of API requests, later in the file than the results of the calls they copy.
