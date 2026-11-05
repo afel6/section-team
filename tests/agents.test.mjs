@@ -70,7 +70,7 @@ test('sections ask a sibling only while it works, ask main once it has handed ba
 })
 
 test('no builder keeps the old sibling sentence, and only the security section has the review exception', () => {
-  const exception = 'you still run your own reviewer gate before you finish. The security pass the job assigns is the exception.'
+  const exception = "do not review other sections' work. The security pass the job assigns is the exception. You still run your own reviewer gate before you finish."
   for (const id of BUILDER_IDS) {
     assert.ok(!agentFile(id).includes('Message a sibling only while it is working'), id)
     assert.equal(agentFile(id).includes(exception), id === 'security', id)
@@ -311,7 +311,7 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
   assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
-  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
+  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A failing fix list is the one message that may wake a builder. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))
   assert.ok(testing.includes('send each owning section its part of the fix list'))

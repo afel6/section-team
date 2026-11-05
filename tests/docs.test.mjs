@@ -20,9 +20,10 @@ test('the README states the cost ranges from the mode labels, the round 17 label
 
 test('the README describes the foundation skill, fresh sections and the guard, and what is not measured', () => {
   const readme = read('README.md')
-  for (const needle of ['section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'Not measured yet', 'one-off replay of private local transcripts', 'nor its figures are in this repo', 'the grade check and the two-stage harness', 'any work needing 3 or more builders', '0.2.3']) {
+  for (const needle of ['section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'Not measured yet', 'one-off replay of private local transcripts', 'nor its figures are in this repo', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan', '0.2.3']) {
     assert.ok(readme.includes(needle), `README missing ${needle}`)
   }
+  assert.ok(!readme.includes('any work needing 3 or more builders'), 'the foundation skill no longer covers any 3-builder work')
   assert.ok(readme.includes('## Platform readiness'), 'Platform readiness heading missing')
   const claims = readme.split('## Platform readiness')[1].split('**What is measured')[0]
   assert.ok(!/\b(sav(?:es|ing|ings)|cheaper|cuts? cost|half|better code|higher quality|improves|costs? less|fewer tokens)\b|\d\s*%/i.test(claims), 'no saving or quality claim before the runs')
