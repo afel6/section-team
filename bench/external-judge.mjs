@@ -271,7 +271,8 @@ export function copyCaseSet({ from, to }) {
 // A fresh copy of the held-out case set for one outside judge: the same cases, pairs and letters as
 // results/external-key-ho.json, and JUDGE.md as c5ba259 wrote it from the frozen prompt. The earlier case sets are
 // never read. Returns the number of cases written.
-export function rebuildHeldOut({ results = RESULTS, judgeDir = judgeDirFor('ho'), out, bench = BENCH }) {
+export function rebuildHeldOut({ results, judgeDir = judgeDirFor('ho'), out, bench = BENCH }) {
+  required({ results })
   const cases = readJson(join(results, 'external-key-ho.json'))
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ho first`)
   const template = relabel(readFileSync(join(bench, 'data', 'heldout', 'judge-prompt-ho.md'), 'utf8'))
@@ -285,7 +286,8 @@ const round2 = n => Math.round(n * 100) / 100
 // c5ba259's held-out rule for an imported judge: the gap is the mean over the held-out pairs of team-ho minus solo-ho
 // quality, from judgeScores on the judge's own verdicts and key alone (never summary.json); same counts the pairs where
 // pairWinners agrees with the round's Opus judges.
-export function outsideCheck({ results = RESULTS, as }) {
+export function outsideCheck({ results, as }) {
+  required({ results })
   const keyPath = join(results, `blind-key-${as}.json`)
   const rows = readJson(join(results, `judge-${as}.json`))
   const key = readJson(keyPath)
@@ -307,7 +309,8 @@ export function outsideCheck({ results = RESULTS, as }) {
 }
 
 // The held-out check is recorded once, before any mode-round verdict of the same judge is imported, and never rewritten.
-export function recordCheck({ results = RESULTS, as, outside }) {
+export function recordCheck({ results, as, outside }) {
+  required({ results })
   const path = join(results, `outside-check-ho-${as}.json`)
   if (existsSync(path)) throw new Error(`${path} exists: the held-out check is recorded once`)
   const judge = outsideJudgesOf(outside).find(entry => entry.heldOut === as)
@@ -324,9 +327,9 @@ function main(options) {
   if (command === 'prepare') prepare({ ...options, results: RESULTS })
   else if (command === 'import') importRound({ ...options, results: RESULTS })
   else if (command === 'copy') console.log(`${copyCaseSet(options)} cases copied to ${options.to}`)
-  else if (command === 'rebuild-heldout') console.log(`${rebuildHeldOut(options)} held-out cases in ${options.out}`)
+  else if (command === 'rebuild-heldout') console.log(`${rebuildHeldOut({ ...options, results: RESULTS })} held-out cases in ${options.out}`)
   else if (command === 'check') {
-    const { gap, same, pairs, passed } = recordCheck(options)
+    const { gap, same, pairs, passed } = recordCheck({ ...options, results: RESULTS })
     console.log(`Held-out check for ${options.as}: gap ${gap >= 0 ? '+' : ''}${gap.toFixed(2)}, same winner ${same} of ${pairs}: ${passed ? 'passed' : 'not passed'}.`)
   }
 }

@@ -4,10 +4,9 @@
 // results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop, failed stage copy and
 // harness-bug rerun of the run, across attempts; only the CAPPED kinds count toward the cap.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { PLUGIN_KEY, childEnv, effortProblems, envNames, initOf, initProblems, resultOf } from './clean-run.mjs'
-import { renameRetry } from './section-memory.mjs'
+import { renameRetry, required } from './section-memory.mjs'
 
 // The frozen match rules: a usage or rate limit waits for the next usage window; any other API failure is capped.
 export const LIMIT = /usage limit|rate limit|rate_limit_error|(?:hit|reached) your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)/i
@@ -59,8 +58,11 @@ export const runInitProblems = (messages, run, ctx) => initProblems(initOf(messa
 const json = value => `${JSON.stringify(value, null, 2)}\n`
 export const firstLine = text => String(text ?? '').split(/\r?\n/)[0].slice(0, 200)
 
-// Claude Code's project folder for a run folder: transcripts and auto-memory.
-export const projectDirFor = (runDir, home = homedir()) => join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+// Claude Code's project folder for a run folder: transcripts and auto-memory. archiveAttempt moves it, so home has no default.
+export function projectDirFor(runDir, home) {
+  required({ home })
+  return join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+}
 
 // The number the next attempt folder gets: one more than the attempt folders there are.
 export const nextAttempt = outDir => (existsSync(outDir) ? readdirSync(outDir).filter(name => ATTEMPT.test(name)).length : 0) + 1
@@ -124,7 +126,7 @@ export const filesAt = path => (statSync(path).isFile()
 // Copies this session's transcript, its subagent folder and its mode record into outDir/evidence/, laid out so that
 // collectRolesFrom and readRecord read the evidence folder as they read a project folder and a home. Checks before
 // copying anything, so a stop leaves no partial evidence. Returns the copied files.
-export function copyEvidence({ runDir, sessionId, outDir, base, home = homedir(), bestEffort = false }) {
+export function copyEvidence({ runDir, sessionId, outDir, base, home, bestEffort = false }) {
   if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) throw new TypeError(`copyEvidence needs a plain session id, got "${sessionId}"`)
   const project = projectDirFor(runDir, home)
   const evidence = join(outDir, 'evidence')

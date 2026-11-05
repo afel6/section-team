@@ -182,8 +182,8 @@ function versionOnPath(run) {
   return versionOf(r.stdout)
 }
 
-// The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
-// Returns every problem; the pin file is written only when there are none.
+// The whole preflight. Every caller names the run folders (deps.folder and deps.root); the other deps replace git, the
+// --version runs and the paid spawns in tests. Returns every problem; the pin file is written only when there are none.
 export function preflight({ round, plugin, pluginRef = '', home, results } = {}, deps = {}) {
   const { git, run = spawnSync, spawn = spawnSync, folder, root, which = npmClaude, platform = process.platform, readVersion = pluginVersionOf } = deps
   required({ home, results, folder, root })
@@ -213,7 +213,8 @@ export function preflight({ round, plugin, pluginRef = '', home, results } = {},
 }
 
 // The written pin goes to the sync branch at once; false without a branch.
-export function publishPin({ file, round, branch, redactEmail = false }, { publish }) {
+export function publishPin({ file, round, branch, redactEmail = false }, { publish } = {}) {
+  required({ publish })
   if (branch === null) return false
   publish({ items: [{ from: file, to: `results/${basename(file)}` }], message: `chore(results): pin round ${round}` }, { branch, redactEmail })
   return true

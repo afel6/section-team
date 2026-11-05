@@ -1,9 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { projectDirFor } from './run-attempts.mjs'
 import { agentModelSplit, codeStats, collectRoles, collectRolesFrom, costOf, hiddenEnv, hiddenTests, isTestPath, ownTests, parseTranscript, readRaw, runCost, runSession, scoreLine, scoreRun, seedDirFor, sessionTexts, splitCoverage, stageCalls, stageChange, stageTwoMetrics, summaryRow, transcriptDir } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
@@ -465,7 +466,7 @@ function scoredRun(t, id, record, files) {
   return { results, outDir }
 }
 const counts = { tests: 3, pass: 2, fail: 1, rate: 2 / 3, tap: 'the tap' }
-const scoreDeps = (results, seen) => ({ results, hidden: (task, dir, options) => { seen.push({ task, dir, options }); return { ...counts, parts: { s1: counts }, incomplete: [] } }, own: () => ({ hasScript: false, passed: false }) })
+const scoreDeps = (results, seen) => ({ results, home: join(results, 'home'), hidden: (task, dir, options) => { seen.push({ task, dir, options }); return { ...counts, parts: { s1: counts }, incomplete: [] } }, own: () => ({ hasScript: false, passed: false }) })
 
 test('scoreRun gives a two-stage run its copy for s1, its three sets, a computed cost and its stage-2 measures', t => {
   const result = JSON.stringify({ type: 'result', subtype: 'success', total_cost_usd: 99, session_id: 'sid' })
@@ -479,6 +480,16 @@ test('scoreRun gives a two-stage run its copy for s1, its three sets, a computed
   assert.deepEqual(row.stage2, { change: null, calls: { freshAgents: 0, agentTypes: {}, sendMessages: 1 } })
   assert.equal(row.splitCoverage, null, 'modelUsage covers only the last stage, so nothing can be checked against it')
   assert.equal(readFileSync(join(outDir, 'hidden.tap'), 'utf8'), 'the tap')
+})
+
+test('scoreRun reads a run with no evidence copy from the home it is given', t => {
+  const raw = JSON.stringify({ type: 'result', subtype: 'success', session_id: 'sid' })
+  const { results, outDir } = scoredRun(t, 'h4-team-mo-r1', { task: 'h4' }, { 'raw.json': raw })
+  const project = projectDirFor(join(results, 'no-such-folder'), join(results, 'home'))
+  mkdirSync(dirname(project), { recursive: true })
+  renameSync(join(outDir, 'evidence'), project)
+  const row = scoreRun('h4-team-mo-r1', { ...scoreDeps(results, []), hidden: () => counts })
+  assert.deepEqual(row.cost, { costUSD: 4, costComputed: true })
 })
 
 test('scoreRun leaves a single-stage run as it was: raw.json, the CLI\'s cost, no parts and no stage-2 measures', t => {

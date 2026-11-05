@@ -25,7 +25,7 @@ function inFakeHome(t, body) {
     if (home !== ${JSON.stringify(home)}) process.exit(${HOME_NOT_FAKED})
     ${body}
   `
-  const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_TEST_CONTEXT: '' }
+  const env = { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: join(home, 'results'), NODE_TEST_CONTEXT: '' }
   const { status, stderr } = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: import.meta.dirname, env, encoding: 'utf8' })
   return { status, stderr, noteKept: existsSync(note) }
 }
@@ -42,6 +42,8 @@ const RUN = "await import('./run.mjs')"
 const SYNC = "await import('./cloud-sync.mjs')"
 const PREFLIGHT = "await import('./preflight.mjs')"
 const JUDGE = "await import('./external-judge.mjs')"
+const ATTEMPTS = "await import('./run-attempts.mjs')"
+const SCORE = "await import('./score.mjs')"
 const TEAM_RUN = "{ id: 'easy-team-mo-r1', task: 'easy', cond: 'team-mo', base: 'team', rep: 1 }"
 const ROOT = "root: join(home, 'memory')"
 const BACKUP = "backup: join(home, 'backup')"
@@ -54,6 +56,7 @@ const PF_RESULTS = "results: join(home, 'results')"
 const PF_FOLDER = 'folder: run => run.id'
 const PF_ROOT = "root: join(home, 'runs')"
 const OUT = "out: join(home, 'out')"
+const PIN = "file: join(home, 'pin.json'), round: 'zzguard', branch: 'zzguard'"
 
 // module, function, the target it names as missing, its arguments.
 const TARGET_CASES = [
@@ -91,6 +94,16 @@ const TARGET_CASES = [
   [PREFLIGHT, 'preflight', 'root', `{ ${PF_ROUND}, home, ${PF_RESULTS} }, { ${PF_FOLDER} }`],
   [JUDGE, 'prepare', 'results', `{ round: 'zzguard', ${OUT} }`],
   [JUDGE, 'importRound', 'results', `{ round: 'zzguard', ${OUT}, as: 'zzguardas' }`],
+  [JUDGE, 'rebuildHeldOut', 'results', `{ ${OUT} }`],
+  [JUDGE, 'outsideCheck', 'results', `{ as: 'zzguardas' }`],
+  [JUDGE, 'recordCheck', 'results', `{ as: 'zzguardas' }`],
+  [PREFLIGHT, 'publishPin', 'publish', `{ ${PIN} }`],
+  [PREFLIGHT, 'publishPin', 'publish', `{ ${PIN} }, {}`],
+  [ATTEMPTS, 'projectDirFor', 'home', `'C:/runs/one'`],
+  [ATTEMPTS, 'copyEvidence', 'home', `{ runDir: 'C:/runs/one', sessionId: 'sid', outDir: join(home, 'out'), base: 'solo' }`],
+  [SCORE, 'scoreRun', 'results', `'zzguard'`],
+  [SCORE, 'scoreRun', 'results', `'zzguard', { home }`],
+  [SCORE, 'scoreRun', 'home', `'zzguard', { ${PF_RESULTS} }`],
 ]
 
 for (const [module, name, missing, args] of TARGET_CASES) {
@@ -158,15 +171,35 @@ test('restore refuses to run without the results and runs it writes into', t => 
   assertRefused(t, `const { restore } = ${SYNC}; restore({ round: 'mo', results: join(home, 'results') }, ${options})`, 'runs')
 })
 
-test('the outside-judge command line passes the results folder it is told to use', t => {
+// A temp home and results folder for a command-line run.
+function cliHome(t) {
   const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
   t.after(() => rmSync(home, { recursive: true, force: true, maxRetries: 3 }))
   const results = join(home, 'results')
+  return { home, results, env: { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: results, NODE_TEST_CONTEXT: '' } }
+}
+
+test('a results default that comes back lands in the temp home', t => {
+  const { status, stderr } = inFakeHome(t, `const { RESULTS } = ${RUN}; if (RESULTS !== join(home, 'results')) throw new Error(RESULTS)`)
+  assert.equal(status, 0, stderr)
+})
+
+test('the outside-judge command line passes the results folder it is told to use', t => {
+  const { home, results, env } = cliHome(t)
   const out = `--out=${join(home, 'out')}`
-  const env = { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: results, NODE_TEST_CONTEXT: '' }
   const cli = (...args) => spawnSync(process.execPath, [join(import.meta.dirname, 'external-judge.mjs'), ...args], { env, encoding: 'utf8' }).stderr
   assert.match(cli('prepare', '--round=zzguard', out), /no folder .*bench-judge-zzguard: anonymize round zzguard first/)
   assert.ok(cli('import', '--round=zzguard', out, '--as=zzguardas').includes(`missing ${join(results, 'blind-key-zzguard.json')}`))
+  assert.ok(cli('rebuild-heldout', out).includes(`missing ${join(results, 'external-key-ho.json')}`))
+  assert.ok(cli('check', '--as=zzguardas').includes(`missing ${join(results, 'judge-zzguardas.json')}`))
+})
+
+test('the score command line passes the results folder it is told to use, and a home', t => {
+  const { home, results, env } = cliHome(t)
+  mkdirSync(join(results, 'zz'), { recursive: true })
+  writeFileSync(join(results, 'zz', 'run.json'), JSON.stringify({ id: 'zz', task: 'h4', dir: join(home, 'runs', 'zz') }))
+  const { stderr } = spawnSync(process.execPath, [join(import.meta.dirname, 'score.mjs')], { env, encoding: 'utf8' })
+  assert.ok(stderr.includes(`missing ${join(results, 'zz', 'raw.json')}`), stderr)
 })
 
 test('the fake home works on this platform', t => {

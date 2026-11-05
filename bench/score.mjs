@@ -13,6 +13,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { initOf, outputMessages, resultOf } from './clean-run.mjs'
 import { projectDirFor } from './run-attempts.mjs'
 import { HIDDEN_SETS, RESULTS, SEEDS, isTwoStage } from './run.mjs'
+import { required } from './section-memory.mjs'
 import { transcriptCost } from './transcript-cost.mjs'
 
 const BENCH = fileURLToPath(new URL('.', import.meta.url))
@@ -335,12 +336,13 @@ function teamStats(dir) {
 
 // One run's metrics. Transcripts come from the run's evidence/ copy when it has one (Claude Code's project folder otherwise),
 // the session id from session.json, and code size leaves out files unchanged from the task's seed.
-export function scoreRun(id, { results = RESULTS, hidden: runHidden = hiddenTests, own = ownTests } = {}) {
+export function scoreRun(id, { results, home, hidden: runHidden = hiddenTests, own = ownTests } = {}) {
+  required({ results, home })
   const outDir = join(results, id)
   const run = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
   const transcript = parseTranscript(readRaw(outDir))
   const sessionId = runSession(outDir)
-  const transcripts = transcriptDir(outDir, run.dir)
+  const transcripts = transcriptDir(outDir, run.dir, home)
   const roles = collectRolesFrom(transcripts, sessionId)
   const split = roles && agentModelSplit(roles)
   const hidden = runHidden(run.task, run.dir, { s1Dir: run.snapshot ?? run.dir })
@@ -359,7 +361,7 @@ function main() {
   const rows = []
   for (const id of readdirSync(RESULTS)) {
     if (!existsSync(join(RESULTS, id, 'run.json'))) continue
-    const metrics = scoreRun(id)
+    const metrics = scoreRun(id, { results: RESULTS, home: homedir() })
     writeFileSync(join(RESULTS, id, 'metrics.json'), JSON.stringify(metrics, null, 2) + '\n')
     rows.push(metrics)
     console.log(scoreLine(metrics))
