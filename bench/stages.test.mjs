@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { STAGES, hiddenSetsOf, isStaged, stageCopyOf, stageCountOf, stagePromptFile } from './stages.mjs'
 
@@ -15,6 +17,15 @@ test('stage prompt files', () => {
   assert.equal(stagePromptFile('p1', 1), 'tasks/p1.md')
   assert.equal(stagePromptFile('p1', 3), 'tasks/p1-s3.md')
   assert.equal(stagePromptFile('h7', 2), 'tasks/h7-s2.md')
+})
+
+test('every staged task ships a prompt for each stage, with LF line endings', () => {
+  for (const task of Object.keys(STAGES)) {
+    for (let stage = 1; stage <= stageCountOf(task); stage++) {
+      const text = readFileSync(join(import.meta.dirname, stagePromptFile(task, stage)), 'utf8')
+      assert.ok(text.trim() !== '' && !text.includes('\r'), `${task} stage ${stage}`)
+    }
+  }
 })
 
 test('hidden sets and the folder each runs on', () => {
