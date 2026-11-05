@@ -28,6 +28,14 @@ test('the README describes the foundation skill, fresh sections and the guard, a
   assert.ok(!/\b(sav(?:es|ing|ings)|cheaper|cuts? cost|half|better code|higher quality|improves|costs? less|fewer tokens)\b|\d\s*%/i.test(claims), 'no saving or quality claim before the runs')
 })
 
+test('the README says the guard refuses only finished heads, and what each caller is told', () => {
+  const guard = read('README.md').split('**Context guard.**')[1].split('\n')[0]
+  assert.ok(!guard.includes('Any message'), 'a working head still takes messages')
+  for (const needle of ['has finished', 'still working takes messages', 'fresh section', 'ask `main`']) {
+    assert.ok(guard.includes(needle), `guard line missing ${needle}`)
+  }
+})
+
 test('CONTRIBUTING lists the foundation skill and the new hook helpers', () => {
   const text = read('CONTRIBUTING.md')
   for (const needle of ['skills/foundation/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs']) {

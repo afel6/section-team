@@ -143,6 +143,7 @@ test('only the last real assistant turn with usage counts', () => {
 test('a trailing synthetic row cannot hide an oversized head, and never counts itself', () => {
   assert.match(headContextRule(eventFor({ jsonl: lines(assistant(OVER), synthetic()) })), /has finished at 450K/)
   assert.match(headContextRule(eventFor({ jsonl: lines(handedBack, synthetic(), attachment()) })), /has finished at 450K/)
+  assert.match(headContextRule(eventFor({ jsonl: lines(readCall, toolResult(READ_ID), synthetic()) })), /has finished at 450K/, 'a synthetic row after a tool result ends the head')
   assert.equal(headContextRule(eventFor({ jsonl: lines(assistant(5000), synthetic()) })), null)
   assert.equal(headContextRule(eventFor({ jsonl: lines(assistant(5000), synthetic(OVER)) })), null)
   assert.equal(headContextRule(eventFor({ jsonl: lines(synthetic(OVER)) })), null)
