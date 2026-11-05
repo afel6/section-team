@@ -93,7 +93,7 @@ function advisorRule(id, e, env) {
 
 // home is where the session mode records live; tests pass a temp folder.
 export function decide(e, env = process.env, home = homedir()) {
-  // Before the agent_type test: a supervisor's call has no agent_type.
+  // Before the agent_type test: a supervisor's call has no agent_type, and the rule words its refusal for either caller.
   if (e?.tool_name === 'SendMessage') return headContextRule(e)
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)

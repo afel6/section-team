@@ -458,8 +458,14 @@ test('the spawned hook gates on the session record when the project mode file is
 })
 
 // The resume guard: a supervisor's SendMessage has no agent_type, so decide must check it first.
-const OVER_LIMIT = JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 1, cache_read_input_tokens: 450000, cache_creation_input_tokens: 0 } } })
-const UNDER_LIMIT = JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 5000 } } })
+const OVER_USAGE = { input_tokens: 1, cache_read_input_tokens: 450000, cache_creation_input_tokens: 0 }
+const finalText = [{ type: 'text', text: 'All done.' }]
+const OVER_LIMIT = JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: finalText, usage: OVER_USAGE } })
+const UNDER_LIMIT = JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: finalText, usage: { input_tokens: 5000 } } })
+const OVER_LIMIT_WORKING = [
+  JSON.stringify({ type: 'assistant', message: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'toolu_w', name: 'Read', input: {} }], usage: OVER_USAGE } }),
+  JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_w', content: 'ok' }] } }),
+].join('\n')
 const sendMessageTo = (agentType, jsonl) => {
   const dir = tempDir()
   const subagents = join(dir, 'sid-1', 'subagents')
@@ -475,10 +481,21 @@ test('hooks.json runs the guard on SendMessage and keeps the tools it already ma
   for (const tool of ['SendMessage', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'SubagentHandback']) assert.match(tool, matcher)
 })
 
-test('a SendMessage to an oversized builder head is refused from the supervisor and from a section', () => {
+test('a SendMessage to a finished oversized builder head is refused, in the words each caller needs', () => {
   const e = sendMessageTo('section-team:backend', OVER_LIMIT)
-  assert.match(decide(e), /the backend section is at 450K tokens/)
-  assert.match(decide({ ...e, agent_type: 'section-team:frontend' }), /the backend section is at 450K tokens/)
+  const fromSupervisor = decide(e)
+  assert.match(fromSupervisor, /the backend section has finished at 450K tokens/)
+  assert.match(fromSupervisor, /Start a fresh Agent call for this work/)
+  const fromSection = decide({ ...e, agent_type: 'section-team:frontend' })
+  assert.match(fromSection, /the backend section has finished at 450K tokens/)
+  assert.match(fromSection, /SendMessage `main` with your request/)
+  assert.doesNotMatch(fromSection, /Start a fresh Agent call/)
+})
+
+test('a SendMessage to an oversized head still working is allowed, from the supervisor and from a section', () => {
+  const e = sendMessageTo('section-team:backend', OVER_LIMIT_WORKING)
+  assert.equal(decide(e), null)
+  assert.equal(decide({ ...e, agent_type: 'section-team:frontend' }), null)
 })
 
 test('a SendMessage to a reviewer, or to a head under the limit, is allowed', () => {
@@ -548,13 +565,13 @@ test('the spawned hook denies a grade above the reviewer and stays silent on an 
   assert.equal(honest.stdout, '')
 })
 
-test('the spawned hook denies an oversized resume and stays silent otherwise', () => {
+test('the spawned hook denies resuming a finished oversized head and stays silent otherwise', () => {
   const refused = spawnHook(JSON.stringify(sendMessageTo('section-team:backend', OVER_LIMIT)))
   assert.equal(refused.status, 0)
   const out = JSON.parse(refused.stdout).hookSpecificOutput
   assert.equal(out.permissionDecision, 'deny')
-  assert.match(out.permissionDecisionReason, /the backend section is at 450K tokens/)
-  for (const input of [sendMessageTo('section-team:backend', '{not json'), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
+  assert.match(out.permissionDecisionReason, /the backend section has finished at 450K tokens/)
+  for (const input of [sendMessageTo('section-team:backend', '{not json'), sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
     const allowed = spawnHook(JSON.stringify(input))
     assert.equal(allowed.status, 0)
     assert.equal(allowed.stdout, '')

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { subagentBase } from './head-context.mjs'
+import { contentOf, subagentBase } from './head-context.mjs'
 
 const REVIEWER_TYPE = 'section-team:reviewer'
 const NO_REVIEWER_CALL = 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.'
@@ -8,7 +8,6 @@ const AGENT_ID = /agentId:\s*([\w-]+)/g
 const OVERALL_LINE = /^[\s*_#>-]*Overall[\s*_]*:[\s*_]*(\d+(?:\.\d+)?)\s*\/\s*10\b/gim
 
 const lastMatch = (pattern, text) => [...text.matchAll(pattern)].at(-1)?.[1]
-const contentOf = entry => (Array.isArray(entry?.message?.content) ? entry.message.content : [])
 // Assistant turns only: transcripts also keep copies of API requests, later in the file than the results of the calls they copy.
 const toolUsesOf = entry => (entry?.type === 'assistant' ? contentOf(entry).filter(part => part?.type === 'tool_use') : [])
 const isReviewerCall = part => part.name === 'Agent' && part.input?.subagent_type === REVIEWER_TYPE
