@@ -129,6 +129,37 @@ for (const missing of ['dir', 'root', 'home']) {
   })
 }
 
+// The launcher is required too. These children cannot reach a real claude even if the check is missing: an empty PATH,
+// a pin binary that does not exist, a fake which, and a stub git, so a red run fails on a missing file, never a paid call.
+const NO_CLAUDE = "process.env.PATH = join(home, 'empty-path'); process.env.Path = process.env.PATH"
+
+test('runOne refuses to run without a launcher', t => {
+  assertRefused(t, `
+    ${NO_CLAUDE}
+    const { runOne } = ${RUN}
+    const deps = ${RUN_ONE_DEPS}
+    delete deps.spawn
+    await runOne(${TEAM_RUN}, join(home, 'out'), { pluginDir: 'x', pin: { binary: join(home, 'no-claude') } }, deps)
+  `, 'spawn')
+})
+
+test('preflight refuses to run without a launcher', t => {
+  assertRefused(t, `
+    ${NO_CLAUDE}
+    const { preflight } = ${PREFLIGHT}
+    const git = () => ({ status: 0, stdout: '', stderr: '' })
+    await preflight({ ${PF_ROUND}, home, ${PF_RESULTS} }, { git, which: () => join(home, 'no-claude'), ${PF_FOLDER}, ${PF_ROOT} })
+  `, 'spawn')
+})
+
+test('judgeCall refuses to run without a launcher', t => {
+  assertRefused(t, `
+    ${NO_CLAUDE}
+    const { judgeCall } = await import('./judge.mjs')
+    judgeCall({ pin: { binary: join(home, 'no-claude'), pluginDir: join(home, 'no-plugin') }, installedKeys: [], files: {}, home, log: () => {} })
+  `, 'spawn')
+})
+
 test('runOne refuses to run without the folder it files its results in', t => {
   assertRefused(t, `const { runOne } = ${RUN}; await runOne(${TEAM_RUN}, undefined, { pluginDir: 'x' }, ${RUN_ONE_DEPS})`, 'outDir')
 })

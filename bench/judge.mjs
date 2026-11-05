@@ -27,6 +27,7 @@ import {
 } from './clean-run.mjs'
 import { classifyEnd, filesAt, firstLine, projectDirFor } from './run-attempts.mjs'
 import { NAME, RESULTS, isTwoStage, killTree, parseArgs, promptFile } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 // No rm or mktemp: the harness makes and deletes each judge's folder. node and npm stay because judges run the
@@ -396,7 +397,8 @@ function keepTranscript({ cwd, sessionId, home, files, job, attempt, timedOut = 
 // A usage or rate limit, another API error or a session with no result is not the judge's fault: it stops judging
 // and uses no attempt, as it stops a batch of runs. runClaude reports no exit code, so a missing result reads as
 // 'no-result' (exitCode 0), never 'crash'.
-export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn = nodeSpawn, kill = killTree, timeoutMs = JUDGE_TIMEOUT_MS, log }) {
+export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn, kill = killTree, timeoutMs = JUDGE_TIMEOUT_MS, log }) {
+  required({ spawn })
   const { binary, pluginDir } = pin
   const childEnvironment = childEnv(env, { pluginDir })
   return (job, attempt) => withCopy(job.source, async cwd => {
@@ -442,7 +444,7 @@ async function main() {
   const jobs = planned.filter(job => pending.has(jobKey(job))).slice(0, limit)
   console.log(`${jobs.length} judge job(s) to run`)
   const log = line => console.log(`${new Date().toISOString()} ${line}`)
-  const call = judgeCall({ pin, installedKeys: installedPluginKeys(), files, log })
+  const call = judgeCall({ pin, installedKeys: installedPluginKeys(), files, spawn: nodeSpawn, log })
   let leftOutNow
   try {
     leftOutNow = await runJobs(jobs, { rows, call, check: judgeCheck(pin), files, log })

@@ -546,8 +546,8 @@ async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) 
 // ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root } = deps
-  required({ outDir, home, dir, root })
+  const { spawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root } = deps
+  required({ outDir, home, dir, root, spawn })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -591,7 +591,7 @@ export function checkVolumes({ root, others } = {}) {
 // folders from its caller (runFolder only names a path). The repo's own seeds and tasks stay defaults: they are only read.
 const REAL_MEMORY = { root: MEMORY_ROOT, backup: MEMORY_BACKUP }
 const REAL_VOLUMES = { root: MEMORY_ROOT, others: [homedir(), RESULTS] }
-const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS })
+const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS, spawn: nodeSpawn })
 
 function restoreMemory({ force = false } = {}) {
   checkVolumes(REAL_VOLUMES)
