@@ -3,7 +3,6 @@
 // score.mjs collectRolesFrom returns them; never touches the disk.
 import { senderOf } from '../hooks/lib/grade.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
-import { changesCode } from '../hooks/lib/report.mjs'
 import { meetsMark, parseGrade, reviewerAnswer } from './gate-stats.mjs'
 
 export const HEADS = ['backend', 'frontend', 'database', 'devops', 'mobile', 'uiux', 'ai-llm', 'testing', 'security', 'docs']
@@ -70,23 +69,14 @@ function sectionJobTimes(roles, caller) {
     .map(m => Date.parse(m.timestamp))
 }
 
-// When a section or its helpers edited code. A section is told "Any other code edit needs a new grade" (QUALITY_GATE in
-// scripts/gen-agents.mjs); main's own brief has no such line, so main gets none. An edit made through the shell does not show.
-function sectionEditTimes(roles, caller) {
-  return roles.filter(r => r.agentId === caller || r.parentId === caller)
-    .flatMap(r => toolUses(r.messages, ...FILE_WRITERS))
-    .filter(use => changesCode(String(use.input.file_path ?? '')))
-    .map(use => Date.parse(use.at))
-}
-
 // One caller's reviewer calls split into gates: a call starts a new gate when it is the first, when a new job arrived
-// strictly between the previous call's start and its own, or when code was edited between them after the previous call passed.
-function splitGates(calls, { jobTimes, editTimes, mode }) {
+// strictly between the previous call's start and its own. A pass ends the gate whatever was edited afterwards.
+function splitGates(calls, { jobTimes }) {
   return calls.reduce((list, call, i) => {
     const from = i === 0 ? NaN : Date.parse(calls[i - 1].start)
     const to = Date.parse(call.start)
     const between = t => t > from && t < to
-    const startsGate = i === 0 || jobTimes.some(between) || (meetsMark(calls[i - 1].grade, mode) && editTimes.some(between))
+    const startsGate = i === 0 || jobTimes.some(between)
     return startsGate ? [...list, [call]] : [...list.slice(0, -1), [...list.at(-1), call]]
   }, [])
 }
@@ -110,8 +100,7 @@ export function gates(roles, mode) {
   const callers = [...new Set(calls.map(call => call.caller))]
   return callers.flatMap(caller => {
     const jobTimes = caller === 'main' ? mainJobTimes(roles) : sectionJobTimes(roles, caller)
-    const editTimes = caller === 'main' ? [] : sectionEditTimes(roles, caller)
-    const split = splitGates(calls.filter(call => call.caller === caller), { jobTimes, editTimes, mode })
+    const split = splitGates(calls.filter(call => call.caller === caller), { jobTimes })
     return split.map((list, i) => gateOf(caller, list, mode, i === split.length - 1))
   })
 }

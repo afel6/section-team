@@ -52,7 +52,7 @@ test('brief starts with the marker and fits the limit', () => {
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
-test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders plus testing', () => {
+test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders, then one testing section', () => {
   const brief = assembleBrief('balanced')
   assert.ok(brief.includes('Single-area task'))
   assert.ok(brief.includes('about 600 lines'))
@@ -60,7 +60,8 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('wake only the testing section to write and run the tests'))
   assert.ok(brief.includes('then run the reviewer gate on your own changed files'))
   assert.ok(brief.includes('Multi-area work'))
-  assert.ok(brief.includes('plus the testing section'))
+  assert.ok(brief.includes('wake one testing section, which fills the test gaps and does the final review in one job'))
+  assert.ok(!brief.includes('plus the testing section for tests and final verification'))
   assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions): build it and its tests yourself, then run the reviewer gate'))
   assert.ok(brief.includes('A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))

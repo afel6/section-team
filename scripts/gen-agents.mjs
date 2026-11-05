@@ -83,6 +83,8 @@ export const HELPER_AGENTS = [
       '',
       'Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.',
       '',
+      'List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes.',
+      '',
       'End your answer with exactly this block, filled in:',
       '',
       '## GRADE',
@@ -151,7 +153,7 @@ const QUALITY_GATE = [
   // Lean and Max job messages state their own gate (brief/gate-lean.md, gate-max.md); Balanced jobs use the defaults above.
   '   - If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-  '   - A pass ends the gate: apply its quick fixes if you like, then rerun the tests, but do not grade again after a pass. Any other code edit needs a new grade.',
+  '   - A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
   '   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
   '   - Put the overall grade and the number of fix rounds on the REPORT\'s Quality line.',
