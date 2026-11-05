@@ -39,7 +39,7 @@ function modeSection(mode, skills, problem) {
   ].join('\n')
 }
 
-// The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, then the Mode section.
+// The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, the plan line when a plan exists, then the Mode section.
 export function composeContext({ mode, autoInstallSkills, problem }, env, summary, hasPlan = false) {
   const skills = skillSetting(autoInstallSkills, env)
   return [
@@ -83,9 +83,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   ]
   const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
   const summary = attempt('summary lookup', () => summaryPath(root))
-  const plan = attempt('plan lookup', () => existsSync(join(root, '.team', 'notes', 'plan.md')))
-  const warnings = [setting.problem, ...stepWarnings, summary.warning, plan.warning].filter(warning => warning !== null)
-  return { context: composeContext(setting, env, summary.value, plan.value === true), warnings }
+  const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
+  const warnings = [setting.problem, ...stepWarnings, summary.warning].filter(warning => warning !== null)
+  return { context: composeContext(setting, env, summary.value, hasPlan), warnings }
 }
 
 export function buildContext(cwd, home = homedir(), env = process.env, sessionId) {

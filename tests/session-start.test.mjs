@@ -486,3 +486,12 @@ test('the context tells the supervisor to read .team/notes/plan.md first, only w
   assert.ok(context.includes('`.team/notes/plan.md` exists: read it first, before new team work.'))
   assert.ok(context.indexOf('plan.md') < context.indexOf('## Mode'))
 })
+
+test('a session started in a subfolder finds plan.md at the repo root', () => {
+  const dir = repo()
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const sub = join(dir, 'src', 'deep')
+  mkdirSync(sub, { recursive: true })
+  assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
+})

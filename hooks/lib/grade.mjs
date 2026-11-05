@@ -5,16 +5,16 @@ const REVIEWER_TYPE = 'section-team:reviewer'
 const NO_REVIEWER_CALL = 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.'
 const AGENT_ID = /agentId:\s*([\w-]+)/g
 // A line of the GRADE block: the harness indents it and a model may bold it. Prose that only mentions an overall grade does not start with it.
-const OVERALL_LINE = /^[\s*_#>-]*Overall[\s*_]*:[\s*_]*(\d+(?:\.\d+)?)\s*\/\s*10\b/gim
+const OVERALL_LINE = /^[ \t*_#>-]*Overall[ \t*_]*:[ \t*_]*(\d+(?:\.\d+)?)\s*\/\s*10\b/gim
 
 const lastMatch = (pattern, text) => [...text.matchAll(pattern)].at(-1)?.[1]
 // Assistant turns only: transcripts also keep copies of API requests, later in the file than the results of the calls they copy.
 const toolUsesOf = entry => (entry?.type === 'assistant' ? contentOf(entry).filter(part => part?.type === 'tool_use') : [])
-const isReviewerCall = part => part.name === 'Agent' && part.input?.subagent_type === REVIEWER_TYPE
+const isReviewerCall = part => (part.name === 'Agent' || part.name === 'Task') && part.input?.subagent_type === REVIEWER_TYPE
 const textOf = content => (Array.isArray(content) ? content.map(part => part?.text ?? '').join('\n') : String(content ?? ''))
 
 // Who a queued hand-back comes from. Anything else queued (a message from the supervisor) has no sender.
-function senderOf(prompt) {
+export function senderOf(prompt) {
   const from = /^<agent-message from="([^"]*)">/.exec(prompt)?.[1]
   return from ?? (prompt.startsWith('<task-notification>') ? /<task-id>([^<]*)<\/task-id>/.exec(prompt)?.[1] : undefined)
 }

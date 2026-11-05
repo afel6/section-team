@@ -1,6 +1,7 @@
 // What a run's transcripts show about its sections and reviewer gates, for mode-check.mjs: wake-ups, reviewer calls
 // and the gates they form (docs/specs/2026-11-01-mode-round-design.md, "Mode fidelity"). Reads roles as
 // score.mjs collectRolesFrom returns them; never touches the disk.
+import { senderOf } from '../hooks/lib/grade.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 import { meetsMark, parseGrade, reviewerAnswer } from './gate-stats.mjs'
 
@@ -53,9 +54,7 @@ function mainJobTimes(roles) {
 
 // A queued message that only hands back the work of one of the section's own subagents.
 function isOwnHandback(prompt, own) {
-  const from = /^<agent-message from="([^"]*)">/.exec(prompt)?.[1]
-  const task = prompt.startsWith('<task-notification>') ? /<task-id>([^<]*)<\/task-id>/.exec(prompt)?.[1] : undefined
-  return own.has(from) || own.has(task)
+  return own.has(senderOf(prompt))
 }
 
 // A section got a new job: a queued_command arrived that is not a hand-back from its own subagents. Its user lines

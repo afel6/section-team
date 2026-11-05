@@ -88,7 +88,7 @@ test('max brief stays within 90 lines', () => {
 })
 
 // Claude Code cuts hook context at 10,000 characters and session start appends up to about 1,000 more:
-// the skill note, the mode section and the last summary.
+// the skill note, the last summary, the plan line and the mode section.
 test('every mode brief is under 9000 characters', () => {
   for (const mode of MODES) {
     const { length } = assembleBrief(mode)
