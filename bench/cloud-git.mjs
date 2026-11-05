@@ -11,7 +11,7 @@ export const EMAIL_VAR = 'CLAUDE_CODE_USER_EMAIL'
 export const SYNC_AUTHOR = ['-c', 'user.name=Raouf', '-c', 'user.email=132957152+afel6@users.noreply.github.com']
 export const RETRY_WAITS_MS = [2000, 4000, 8000, 16000]
 const MAX_BUFFER = 2 * 1024 * 1024 * 1024
-const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/
+export const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 let attrSource
 

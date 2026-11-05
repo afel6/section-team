@@ -2,9 +2,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { recordMode } from '../hooks/lib/mode-record.mjs'
+import { PLUGIN_KEY } from './clean-run.mjs'
 import { fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
-import { BatchStop } from './run-attempts.mjs'
+import { BatchStop, exitCodeOf } from './run-attempts.mjs'
 import { HIDDEN_SETS, TIMEOUT_MIN, builderArgs, freshRepo, isTwoStage, runOne, tagStage, taskProblems } from './run.mjs'
 
 test('h7 has a time limit per stage, and only h7 is a two-stage task', () => {
@@ -168,8 +171,7 @@ test('a single-stage task still spawns once, writes raw.json and records no stag
 })
 
 test('a tag that fails loses only stage 2\'s change measure: the run is said, and counted', async t => {
-  const stuck = { files: {} }
-  const { outDir, ctx, run, deps } = stagedAttempt(t, [{}, stuck])
+  const { outDir, ctx, run, deps } = stagedAttempt(t, [{}, {}])
   const errors = t.mock.method(console, 'error', () => {})
   const spawn = (command, args, options) => {
     if (args.includes('--resume')) writeFileSync(join(options.cwd, '.git', 'index.lock'), '')
@@ -180,4 +182,68 @@ test('a tag that fails loses only stage 2\'s change measure: the run is said, an
   assert.equal(git(deps.dir, 'rev-parse', '--verify', 'stage-1^{commit}').length, 40)
   assert.throws(() => git(deps.dir, 'rev-parse', '--verify', '-q', 'stage-2'))
   assert.match(String(errors.mock.calls.at(-1).arguments[0]), /could not tag stage-2 in .*: /)
+})
+
+test('a stage copy that fails stops the run before stage 2: one line naming the run and the step, and attempts.json lists it', async t => {
+  const { outDir, ctx, run, calls, deps } = stagedAttempt(t, [{}])
+  // A file where the copy goes: cpSync cannot copy a folder over it.
+  const spawn = (command, args, options) => {
+    writeFileSync(`${options.cwd}-s1`, 'in the way')
+    return deps.spawn(command, args, options)
+  }
+  const err = await runOne(run, outDir, ctx, { ...deps, spawn }).then(() => assert.fail('runOne resolved'), e => e)
+  assert.match(err.message, /^h7-solo-mo-r1: could not copy .*easy-0123abcd after stage 1 \([A-Z_]+\)$/)
+  assert.equal(exitCodeOf(err), 1, 'a harness error: stop and report')
+  assert.equal(calls.length, 1, 'stage 2 is not paid for')
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+  const { sessionId } = JSON.parse(readFileSync(join(outDir, 'session.json'), 'utf8'))
+  const history = JSON.parse(readFileSync(join(outDir, 'attempts.json'), 'utf8'))
+  assert.deepEqual(history.map(({ at, reason, ...entry }) => entry), [{ kind: 'stage-copy-failed', attempt: 1, sessionId }])
+  assert.equal(`${run.id}: ${history[0].reason}`, err.message)
+})
+
+// The plugin under test's worktree, which the harness only points the run at: no file of it is read here.
+const OTHER_PLUGIN = join(tmpdir(), 'section-team-next')
+
+// A team attempt of h7 on a plugin whose manifest says 0.2.3, and whose inits load it at loaded. The mode record is
+// written as the plugin's hook would. stashed lists what would have been filed: a team run's real stash moves the user's
+// section memory.
+function otherVersionAttempt(t, loaded) {
+  const started = soloAttempt(t).init
+  const init = { ...started, plugins: [...started.plugins, { name: 'section-team', path: OTHER_PLUGIN, source: PLUGIN_KEY, version: loaded }] }
+  const base = stagedAttempt(t, [{ init }, { init }])
+  const run = { id: 'h7-team-mo-r1', task: 'h7', cond: 'team-mo', base: 'team', rep: 1 }
+  const pin = { ...base.ctx.pin, setups: { ...base.ctx.pin.setups, team: base.ctx.pin.setups.solo } }
+  const stashed = []
+  const spawn = (command, args, options) => {
+    recordMode(base.home, args[args.indexOf(args.includes('--resume') ? '--resume' : '--session-id') + 1], 'balanced')
+    return base.deps.spawn(command, args, options)
+  }
+  return {
+    ...base, run, outDir: join(base.root, 'results', run.id),
+    ctx: { ...base.ctx, pin, pluginDir: OTHER_PLUGIN, pluginVersion: '0.2.3' },
+    stashed,
+    deps: { ...base.deps, spawn, stash: options => { stashed.push(options) } },
+  }
+}
+
+test('a two-stage run works on a plugin at another version: the worktree holds the plugin, this checkout the task', async t => {
+  const { outDir, ctx, run, calls, deps, stashed } = otherVersionAttempt(t, '0.2.3')
+  await runOne(run, outDir, ctx, deps)
+  assert.equal(calls.length, 2)
+  for (const call of calls) {
+    assert.equal(call.options.env.CLAUDE_CODE_PLUGIN_DIRS, OTHER_PLUGIN)
+    assert.equal(JSON.parse(call.args[call.args.indexOf('--settings') + 1]).env.CLAUDE_CODE_PLUGIN_DIRS, OTHER_PLUGIN)
+  }
+  assert.ok(calls[0].args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'h7.md'), 'utf8')), 'the prompt comes from the harness')
+  const record = readRecord(outDir)
+  assert.deepEqual([record.end, record.sectionTeam], ['ok', { path: OTHER_PLUGIN, version: '0.2.3' }])
+  assert.deepEqual(stashed, [{ into: outDir }], 'a team run files section memory through the injected stash')
+})
+
+test('a two-stage run whose init disagrees with the plugin\'s manifest gets no second prompt and is void', async t => {
+  const { outDir, ctx, run, calls, deps } = otherVersionAttempt(t, '0.2.2')
+  await assert.rejects(runOne(run, outDir, ctx, deps), err => err instanceof BatchStop && /section-team version 0\.2\.2, expected 0\.2\.3/.test(err.reason))
+  assert.equal(calls.length, 1)
+  assert.ok(!existsSync(join(outDir, 'run.json')))
 })

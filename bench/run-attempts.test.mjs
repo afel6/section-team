@@ -38,7 +38,7 @@ const PIN = {
   binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', version: '2.1.296', apiKeySource: 'none', builtins: BUILTINS.map(p => p.source),
   pluginDir: PLUGIN_DIR, setups: { solo: SOLO_LISTS, lean: TEAM_LISTS, team: TEAM_LISTS, max: TEAM_LISTS },
 }
-const CTX = { pin: PIN, installedKeys: ['a@market'], pluginDir: PLUGIN_DIR, pluginCommit: 'c0ffee1' }
+const CTX = { pin: PIN, installedKeys: ['a@market'], pluginDir: PLUGIN_DIR, pluginVersion: '0.2.1', pluginCommit: 'c0ffee1' }
 const LEAN = { id: 'h4-lean-mo-r1', task: 'h4', cond: 'lean-mo', base: 'lean', rep: 1 }
 const SOLO = { id: 'h4-solo-mo-r1', task: 'h4', cond: 'solo-mo', base: 'solo', rep: 1 }
 const RUN_DIR = 'C:/Users/Asus/bench-runs/h4-0123abcd'

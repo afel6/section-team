@@ -5,14 +5,14 @@ import { createHash } from 'node:crypto'
 import { EventEmitter, once } from 'node:events'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
-import { outputMessages } from './clean-run.mjs'
+import { SECTION_TEAM_VERSION, outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import { FAKE_PID, endStreams, fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
-  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  CONDITIONS, DEFAULT_CONDS, DEFAULT_PLUGIN_REF, TASKS, TIMEOUT_MIN, batchPlugin, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
+  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, pinnedRef, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
@@ -135,6 +135,14 @@ test('checkRoundTag refuses --round=mo with --tag=ho and accepts either alone', 
   assert.throws(() => checkRoundTag({ round: 'mo', tag: 'ho' }), { name: 'RangeError', message: '--round=mo and --tag=ho must match' })
   for (const ok of [{ round: 'mo', tag: '' }, { round: '', tag: 'mo' }, { round: 'mo', tag: 'mo' }, { round: '', tag: '' }]) {
     assert.doesNotThrow(() => checkRoundTag(ok), JSON.stringify(ok))
+  }
+})
+
+test('parseArgs reads --plugin-ref, empty when it is not passed, and refuses what is not a git ref', () => {
+  assert.equal(parseArgs([]).pluginRef, '')
+  for (const ref of ['v0.2.2', 'fix/fresh-section-per-job', 'eaee8fd']) assert.equal(parseArgs([`--plugin-ref=${ref}`]).pluginRef, ref)
+  for (const bad of ['', '--output=x', '-x', 'a b', 'a;b', 'HEAD~1']) {
+    assert.throws(() => parseArgs([`--plugin-ref=${bad}`]), { name: 'RangeError', message: `--plugin-ref takes a branch, tag or commit, got "${bad}"` })
   }
 })
 
@@ -350,6 +358,69 @@ test('pluginCommitOf refuses a missing or relative --plugin and a worktree not a
   calls.length = 0
   assert.equal(pluginCommitOf(worktree, { git: gitWith({ head: 'bbb', tagged: 'bbb' }) }), 'bbb')
   assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', 'v0.2.1^{commit}']])
+})
+
+test('the default plugin ref stays the tag of the round version', () => {
+  assert.equal(DEFAULT_PLUGIN_REF, `v${SECTION_TEAM_VERSION}`)
+})
+
+test('pluginCommitOf and checkPluginWorktree use a passed ref and name it', () => {
+  const top = 'C:/Users/Asus/section-team-next'
+  const calls = []
+  const gitWith = ({ head = 'bbb', status = '', diff = '' } = {}) => args => {
+    calls.push(args)
+    if (args.includes('--show-toplevel')) return top
+    if (args.includes('HEAD')) return head
+    if (args.includes('status')) return status
+    return args.includes('diff') ? diff : 'bbb'
+  }
+  const ref = 'fix/fresh'
+  assert.equal(pluginCommitOf(top, { ref, git: gitWith() }), 'bbb')
+  assert.doesNotThrow(() => checkPluginWorktree(top, { ref, git: gitWith() }))
+  assert.deepEqual(calls.filter(args => args.includes('rev-parse') && !args.includes('--show-toplevel') && !args.includes('HEAD')), [['rev-parse', 'fix/fresh^{commit}']])
+  assert.deepEqual(calls.at(-1), ['-C', top, 'diff', '--stat', 'fix/fresh'])
+  assert.throws(() => pluginCommitOf('relative', { ref, git: gitWith() }), { message: '--plugin= takes the absolute path of the fix/fresh worktree, got "relative"' })
+  assert.throws(() => pluginCommitOf(top, { ref, git: gitWith({ head: 'aaa' }) }), { message: `${top} is at aaa, not at fix/fresh (bbb)` })
+  assert.throws(() => checkPluginWorktree(top, { ref, git: gitWith({ status: '?? x' }) }), { message: `${top} has uncommitted changes: a batch needs a clean fix/fresh worktree` })
+  assert.throws(() => checkPluginWorktree(top, { ref, git: gitWith({ diff: ' x | 1 +' }) }), { message: `${top} differs from fix/fresh: a batch needs a clean fix/fresh worktree` })
+})
+
+// The harness runs from this checkout; the plugin under test comes from a worktree of its own. Before --plugin-ref the
+// commit check caught this; a branch ref would let it through.
+test('checkPluginWorktree refuses this checkout, which runs the harness, before any git call', () => {
+  const here = dirname(import.meta.dirname)
+  assert.throws(() => checkPluginWorktree(here, { ref: 'fix/fresh', git: () => assert.fail('git ran') }),
+    { message: `--plugin= must be a worktree of fix/fresh apart from this checkout, which runs the harness: got ${here}` })
+})
+
+test('pinnedRef: a pin from before --plugin-ref means the default tag, a newer pin its commit, and a passed ref must be the pin\'s', () => {
+  assert.equal(pinnedRef({}), DEFAULT_PLUGIN_REF)
+  assert.equal(pinnedRef({}, DEFAULT_PLUGIN_REF), DEFAULT_PLUGIN_REF)
+  const pin = { pluginRef: 'fix/fresh', pluginCommit: 'c0ffee1' }
+  assert.equal(pinnedRef(pin), 'c0ffee1', 'the pinned commit: a branch that moves after the preflight must not stop the round')
+  assert.equal(pinnedRef(pin, 'fix/fresh'), 'c0ffee1')
+  assert.throws(() => pinnedRef(pin, 'v0.2.2'), { message: '--plugin-ref=v0.2.2 is not the ref the round pinned: pass --plugin-ref=fix/fresh or leave it out' })
+  assert.throws(() => pinnedRef({}, 'v0.2.2'), { message: `--plugin-ref=v0.2.2 is not the ref the round pinned: pass --plugin-ref=${DEFAULT_PLUGIN_REF} or leave it out` })
+})
+
+test('batchPlugin checks the worktree against the pin, refuses a different ref, and gives the commit and the manifest\'s version', t => {
+  const root = tempRoot(t)
+  const binary = join(root, 'claude.exe')
+  writeFileSync(binary, 'claude bytes')
+  const plugin = 'C:/Users/Asus/section-team-next'
+  const pin = { binary, sha256: createHash('sha256').update('claude bytes').digest('hex'), pluginDir: plugin, pluginRef: 'fix/fresh', pluginCommit: 'pinned' }
+  const gitAt = head => args => {
+    if (args.includes('--show-toplevel')) return plugin
+    if (args.includes('HEAD')) return head
+    if (args.includes('rev-parse')) return args.at(-1).replace('^{commit}', '')
+    return ''
+  }
+  const readVersion = () => '0.2.3'
+  assert.deepEqual(batchPlugin(plugin, pin, '', { git: gitAt('pinned'), readVersion }), { pluginCommit: 'pinned', pluginVersion: '0.2.3' })
+  assert.deepEqual(batchPlugin(plugin, pin, 'fix/fresh', { git: gitAt('pinned'), readVersion }), { pluginCommit: 'pinned', pluginVersion: '0.2.3' })
+  assert.throws(() => batchPlugin(plugin, pin, 'v0.2.2', { git: () => assert.fail('git ran'), readVersion }), { message: '--plugin-ref=v0.2.2 is not the ref the round pinned: pass --plugin-ref=fix/fresh or leave it out' })
+  assert.throws(() => batchPlugin(plugin, pin, '', { git: gitAt('moved'), readVersion }), { message: `${plugin} is at moved, not at pinned (pinned)` })
+  assert.throws(() => batchPlugin('C:/other', pin, '', { git: args => (args.includes('--show-toplevel') ? 'C:/other' : gitAt('pinned')(args)), readVersion }), { message: `--plugin=C:/other is not the worktree the round pinned: pass --plugin=${plugin}` })
 })
 
 // Every killTree test passes its platform and a fake kill or execFile: a real signal to pid 42's group could stop a

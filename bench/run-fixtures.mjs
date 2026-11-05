@@ -55,7 +55,8 @@ export const endStreams = child => {
 }
 
 // A solo run of task easy into a temp root, with a pin and an init that pass the init check. deps always carry a
-// fake kill and a short time limit, so no runOne test can hang or reach the real killTree.
+// fake kill, a short time limit and a harmless stash, so no runOne test can hang, reach the real killTree or move the
+// user's section memory: the real stashRunMemory empties ~/.claude/agent-memory, and a test's cleanup would then delete it.
 export function soloAttempt(t) {
   t.mock.method(console, 'log', () => {})
   const root = tempRoot(t)
@@ -66,12 +67,12 @@ export function soloAttempt(t) {
   const dir = join(root, 'runs', 'easy-0123abcd')
   return {
     root, pin, home, dir, outDir: join(root, 'results', 'easy-solo-mo-r1'),
-    ctx: { pin, installedKeys: ['a@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1', pluginCommit: 'c0ffee1' },
+    ctx: { pin, installedKeys: ['a@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1', pluginVersion: '0.2.1', pluginCommit: 'c0ffee1' },
     init: {
       type: 'system', subtype: 'init', model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none', mcp_servers: [],
       plugins: [{ name: 'cc-plugin-agents-md', path: 'builtin', source: builtins[0] }], agents: ['general-purpose'], skills: [],
     },
     run: { id: 'easy-solo-mo-r1', task: 'easy', cond: 'solo-mo', base: 'solo', rep: 1 },
-    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs') },
+    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs'), stash: () => [] },
   }
 }

@@ -1,8 +1,8 @@
 // Attempts of one benchmark run (spec: docs/specs/2026-11-01-mode-round-design.md, "Attempts and reruns" and "Evidence"):
 // earlier attempts are archived, never deleted; each attempt's ending is classified; API failures and void runs stop the
 // batch (the round after the capped reruns); counted runs get a run.json with their evidence copied beside it.
-// results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop and harness-bug rerun of the
-// run, across attempts; only the CAPPED kinds count toward the cap.
+// results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop, failed stage copy and
+// harness-bug rerun of the run, across attempts; only the CAPPED kinds count toward the cap.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -177,7 +177,7 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
   }
   const init = initOf(messages)
-  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir }), ...effortProblems(evidenceTexts), ...extraReasons]
+  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion }), ...effortProblems(evidenceTexts), ...extraReasons]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
     const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))

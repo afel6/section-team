@@ -5,15 +5,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import vm from 'node:vm'
 import {
-  LINE, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, expect, fire, flush, fresh, freshDb, freePort, get, isDisabled, isEl, it, listenOn, moveOf, norm, ok, openPage, parseHtml,
-  partOf, patch, pending, post, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tryJson, valueIn, view, withDb, withServer, within,
+  LINE, LIST_FIRST, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, errorText, expect, fire, flush, fresh, freshDb, freePort, get, isDisabled, isEl, it, listenOn, moveOf, norm, ok, openPage, parseHtml,
+  partOf, patch, pending, post, readyWith, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tryJson, valueIn, view, withDb, withServer, within,
 } from './lib.mjs'
 
 const E = {
-  type: 'content type must be application/json', big: 'body too large', obj: 'body must be a JSON object', nf: 'not found', mna: 'method not allowed', pnf: 'part not found', mnf: 'move not found',
-  sku: 'sku must be 1 to 32 letters, digits or dashes', name: 'name must be 1 to 80 characters', dupe: 'sku already exists', limit: 'limit must be 1 to 100',
+  contentType: 'content type must be application/json', tooLarge: 'body too large', notObject: 'body must be a JSON object', notFound: 'not found', methodNotAllowed: 'method not allowed', partNotFound: 'part not found', moveNotFound: 'move not found',
+  sku: 'sku must be 1 to 32 letters, digits or dashes', name: 'name must be 1 to 80 characters', duplicateSku: 'sku already exists', limit: 'limit must be 1 to 100',
   date: 'on_date must be a valid YYYY-MM-DD date', qty: 'qty must be a non-zero whole number up to 1000000000', cost: 'unit_cost_cents must be a whole number from 0 to 1000000000', note: 'note must be at most 200 characters',
-  differ: 'from_part and to_part must differ', tqty: 'qty must be a whole number from 1 to 1000000000', busy: 'database busy', internal: 'internal error',
+  differ: 'from_part and to_part must differ', transferQty: 'qty must be a whole number from 1 to 1000000000', busy: 'database busy', internal: 'internal error',
 }
 const NO_REPLY = 'Could not reach the server.'
 const FAILED_REQ = 'Request failed.'
@@ -27,6 +27,17 @@ const part = id => `/api/parts/${id}`
 const moves = id => `/api/parts/${id}/moves`
 
 export function stageOneCases({ stage }) {
+  const tools = stageTools(stage)
+  startupCases(tools)
+  otherToolsCases(tools)
+  routingCases()
+  partsCases(tools)
+  movesCases(tools)
+  pageCases(stage)
+}
+
+// What the cases need from the stage they run on.
+function stageTools(stage) {
   const SCHEMA = stage === 1 ? SCHEMA_V1 : SCHEMA_V2
   // A part as stage 1 knew it. On the final code it must also have a handle, a string.
   const plain = p => {
@@ -42,8 +53,11 @@ export function stageOneCases({ stage }) {
     const r = view(await reply)
     same(label, { status: r.status, type: r.type, body: plain(r.body) }, answer(status, want))
   }
+  return { SCHEMA, plain, plantPart, expectPart }
+}
 
-  // --- Startup and the database file ---
+// --- Startup and the database file ---
+function startupCases({ SCHEMA, plain }) {
   it('the listening line: PORT=0 prints the port the OS picked, leading zeros are dropped, unset or empty PORT is 3000 (when taken: exit 1)', async () => {
     const s = await boot({ PORT: '0', DB_FILE: freshDb() }, { cwd: fresh() })
     const port = Number(/^listening on http:\/\/127\.0\.0\.1:([1-9][0-9]*)\n$/.exec(s.out)?.[1])
@@ -145,8 +159,10 @@ export function stageOneCases({ stage }) {
       assert.ok(move.id > ids.lastMove, `move id ${move.id} after ${ids.lastMove} was deleted`)
     })
   })
+}
 
-  // --- Working with other tools ---
+// --- Working with other tools ---
+function otherToolsCases({ plain, plantPart }) {
   it('the database is the only truth: a row another tool added, changed or removed shows in the next reply', async () => {
     await withServer({}, async s => {
       const known = await partOf(s, 'A-1', 'Old')
@@ -162,7 +178,7 @@ export function stageOneCases({ stage }) {
         { id: added, sku: 'B-1', name: 'Outside', on_hand: 0, value_cents: '0' },
       ])
       withDb(s.file, db => db.prepare('DELETE FROM parts WHERE id = ?').run(added))
-      await expect('removed', get(s, part(added)), 404, err(E.pnf))
+      await expect('removed', get(s, part(added)), 404, err(E.partNotFound))
     })
   })
 
@@ -237,17 +253,19 @@ export function stageOneCases({ stage }) {
       assert.equal(new Set(ids.map(p => p.id)).size, 12)
     })
   })
+}
 
-  // --- Routing and bodies, on one shared server ---
+// --- Routing and bodies, on one shared server ---
+function routingCases() {
   it('unknown paths are 404, compared byte for byte; a listed path with another method is 405', async () => {
     const s = await shared()
     const known = await partOf(s, nextSku())
     const notFound = ['/x', '/api', '/api/', '/API/parts', '/api/%70arts', '/api/./parts', '/api/parts/', `/api/parts/${known.id}/`, `/api/parts/${known.id}/moves/`, `/api/parts/${known.id}/x`, '/api/moves', '/api/moves/', '/api/moves/1/', '/api/transfers/', '/app.js/', '/index.html', '//']
     for (const path of notFound) {
-      for (const method of ['GET', 'POST', 'DELETE']) await expect(`${method} ${path}`, req(s, method, path), 404, err(E.nf))
+      for (const method of ['GET', 'POST', 'DELETE']) await expect(`${method} ${path}`, req(s, method, path), 404, err(E.notFound))
     }
     const wrong = [['PUT', PARTS], ['DELETE', PARTS], ['PATCH', PARTS], ['PUT', part(known.id)], ['POST', part(known.id)], ['PUT', '/api/parts/abc'], ['PATCH', moves(known.id)], ['DELETE', moves(known.id)], ['GET', '/api/moves/1'], ['PATCH', '/api/moves/abc'], ['GET', '/api/transfers'], ['DELETE', '/api/transfers'], ['POST', '/'], ['DELETE', '/'], ['POST', '/app.js']]
-    for (const [method, path] of wrong) await expect(`${method} ${path}`, req(s, method, path), 405, err(E.mna))
+    for (const [method, path] of wrong) await expect(`${method} ${path}`, req(s, method, path), 405, err(E.methodNotAllowed))
     for (const method of ['HEAD', 'OPTIONS']) assert.equal((await req(s, method, PARTS)).status, 405, method)
   })
 
@@ -257,15 +275,15 @@ export function stageOneCases({ stage }) {
     // Sent as written: %31 is not 1, because paths are compared byte for byte.
     const bad = ['abc', '0', `0${known.id}`, `${known.id}.0`, `${known.id}e0`, `-${known.id}`, `+${known.id}`, '%31', '999999999', '9007199254740993', '18446744073709551617', '99999999999999999999999999', '1e3', '%D9%A3']
     for (const id of bad) {
-      await expect(`GET part ${id}`, get(s, part(id)), 404, err(E.pnf))
-      await expect(`PATCH part ${id}`, patch(s, part(id), { name: 'x' }), 404, err(E.pnf))
-      await expect(`DELETE part ${id}`, del(s, part(id)), 404, err(E.pnf))
-      await expect(`GET moves ${id}`, get(s, moves(id)), 404, err(E.pnf))
-      await expect(`POST move ${id}`, post(s, moves(id), { on_date: '2026-03-01', qty: 1, unit_cost_cents: 1 }), 404, err(E.pnf))
-      await expect(`DELETE move ${id}`, del(s, `/api/moves/${id}`), 404, err(E.mnf))
+      await expect(`GET part ${id}`, get(s, part(id)), 404, err(E.partNotFound))
+      await expect(`PATCH part ${id}`, patch(s, part(id), { name: 'x' }), 404, err(E.partNotFound))
+      await expect(`DELETE part ${id}`, del(s, part(id)), 404, err(E.partNotFound))
+      await expect(`GET moves ${id}`, get(s, moves(id)), 404, err(E.partNotFound))
+      await expect(`POST move ${id}`, post(s, moves(id), { on_date: '2026-03-01', qty: 1, unit_cost_cents: 1 }), 404, err(E.partNotFound))
+      await expect(`DELETE move ${id}`, del(s, `/api/moves/${id}`), 404, err(E.moveNotFound))
     }
-    await expect('the path\'s id comes before the body rules', post(s, moves(999999999), 'not json', { type: 'text/plain' }), 404, err(E.pnf))
-    await expect('also for PATCH', patch(s, part(999999999), 'not json', { type: 'text/plain' }), 404, err(E.pnf))
+    await expect('the path\'s id comes before the body rules', post(s, moves(999999999), 'not json', { type: 'text/plain' }), 404, err(E.partNotFound))
+    await expect('also for PATCH', patch(s, part(999999999), 'not json', { type: 'text/plain' }), 404, err(E.partNotFound))
   })
 
   it('body rules for POST and PATCH: 415, then 413, then 400, read whole before any reply', async () => {
@@ -277,12 +295,12 @@ export function stageOneCases({ stage }) {
       return JSON.stringify({ pad: 'x'.repeat(size - text.length) })
     }
     for (const [label, send] of routes) {
-      for (const type of [null, 'text/plain', 'application/jsonx', 'application/json2; charset=utf-8', 'json']) await expect(`${label} type ${type}`, send('{}', { type }), 415, err(E.type))
-      await expect(`${label}: too big and wrong type`, send(padded(10001), { type: 'text/plain' }), 415, err(E.type))
-      await expect(`${label}: too big`, send(padded(10001)), 413, err(E.big))
-      await expect(`${label}: too big and not JSON`, send('x'.repeat(10001)), 413, err(E.big))
-      await expect(`${label}: too big, in pieces`, send(undefined, { parts: ['{"pad":"', 'x'.repeat(6000), 'x'.repeat(6000), '"}'], gap: 20 }), 413, err(E.big))
-      for (const body of ['', 'null', '[]', '"x"', '1', 'true', '{bad', '﻿{}']) await expect(`${label}: body ${JSON.stringify(body)}`, send(body, { type: 'application/json' }), 400, err(E.obj))
+      for (const type of [null, 'text/plain', 'application/jsonx', 'application/json2; charset=utf-8', 'json']) await expect(`${label} type ${type}`, send('{}', { type }), 415, err(E.contentType))
+      await expect(`${label}: too big and wrong type`, send(padded(10001), { type: 'text/plain' }), 415, err(E.contentType))
+      await expect(`${label}: too big`, send(padded(10001)), 413, err(E.tooLarge))
+      await expect(`${label}: too big and not JSON`, send('x'.repeat(10001)), 413, err(E.tooLarge))
+      await expect(`${label}: too big, in pieces`, send(undefined, { parts: ['{"pad":"', 'x'.repeat(6000), 'x'.repeat(6000), '"}'], gap: 20 }), 413, err(E.tooLarge))
+      for (const body of ['', 'null', '[]', '"x"', '1', 'true', '{bad', '﻿{}']) await expect(`${label}: body ${JSON.stringify(body)}`, send(body, { type: 'application/json' }), 400, err(E.notObject))
     }
     const sku = nextSku()
     for (const [i, type] of [' APPLICATION/JSON ; charset=x', 'application/json', '\tapplication/json;'].entries()) {
@@ -293,8 +311,10 @@ export function stageOneCases({ stage }) {
     assert.equal(Buffer.byteLength(size), 10000)
     await ok(post(s, PARTS, size), 201, 'exactly 10000 bytes')
   })
+}
 
-  // --- Parts ---
+// --- Parts ---
+function partsCases({ plain, expectPart }) {
   it('POST /api/parts: rules in order, the name trimmed, other keys ignored, letter case matters in a sku', async () => {
     const s = await shared()
     for (const sku of [undefined, null, 5, '', 'x'.repeat(33), 'a b', 'a_b', 'é', 'a/b', ' a', 'a\n']) await expect(`sku ${JSON.stringify(sku)}`, post(s, PARTS, { sku, name: 7 }), 400, err(E.sku))
@@ -304,7 +324,7 @@ export function stageOneCases({ stage }) {
     const made = await ok(post(s, PARTS, { sku, name: `  ${long}\n`, id: 999, on_hand: 7, extra: true }), 201)
     same('made', { body: plain(made) }, { body: { id: made.id, sku, name: long, on_hand: 0, value_cents: '0' } })
     assert.ok(made.id !== 999)
-    await expect('duplicate sku', post(s, PARTS, { sku, name: 'y' }), 409, err(E.dupe))
+    await expect('duplicate sku', post(s, PARTS, { sku, name: 'y' }), 409, err(E.duplicateSku))
     await expect('name rule before duplicate rule', post(s, PARTS, { sku, name: ' ' }), 400, err(E.name))
     await ok(post(s, PARTS, { sku: sku.toUpperCase(), name: 'y' }), 201, 'another letter case is another part')
     await ok(post(s, PARTS, { sku: nextSku('L').padEnd(32, 'x'), name: 'y' }), 201, '32 characters')
@@ -322,9 +342,9 @@ export function stageOneCases({ stage }) {
     await expectPart('PATCH stays', get(s, part(made.id)), 200, { id: made.id, sku, name: 'Hex bolt', on_hand: 3, value_cents: '600' })
     const gone = await del(s, part(made.id))
     same('DELETE', { status: gone.status, text: gone.text }, { status: 204, text: '' })
-    await expect('gone', get(s, part(made.id)), 404, err(E.pnf))
-    await expect('gone twice', del(s, part(made.id)), 404, err(E.pnf))
-    await expect('its moves went too', del(s, `/api/moves/${first.id}`), 404, err(E.mnf))
+    await expect('gone', get(s, part(made.id)), 404, err(E.partNotFound))
+    await expect('gone twice', del(s, part(made.id)), 404, err(E.partNotFound))
+    await expect('its moves went too', del(s, `/api/moves/${first.id}`), 404, err(E.moveNotFound))
     assert.deepEqual(withDb(s.file, db => db.prepare('SELECT count(*) AS n FROM moves WHERE part_id = ?').get(made.id).n), 0)
   })
 
@@ -404,8 +424,10 @@ export function stageOneCases({ stage }) {
       same('no more matches, though more parts follow', { skus: last.parts.map(p => p.sku), next: last.next }, { skus: ['P-2'], next: null })
     })
   })
+}
 
-  // --- Moves ---
+// --- Moves ---
+function movesCases({ plain, expectPart }) {
   it('POST moves: the rules in order, whole numbers only, the note as given', async () => {
     const s = await shared()
     const made = await partOf(s, nextSku())
@@ -464,7 +486,7 @@ export function stageOneCases({ stage }) {
       assert.equal(plain(await ok(get(s, part(made.id)), 200)).on_hand, 10)
       const gone = await del(s, `/api/moves/${d.id}`)
       same('fine', { status: gone.status, text: gone.text }, { status: 204, text: '' })
-      await expect('gone', del(s, `/api/moves/${d.id}`), 404, err(E.mnf))
+      await expect('gone', del(s, `/api/moves/${d.id}`), 404, err(E.moveNotFound))
       await ok(del(s, `/api/moves/${c.id}`), 204, 'stock going out can always go')
       await ok(del(s, `/api/moves/${a.id}`), 204, 'now fine')
       assert.deepEqual((await ok(get(s, moves(made.id)), 200)).moves.map(m => [m.id, m.balance]), [[b.id, 5]])
@@ -489,11 +511,11 @@ export function stageOneCases({ stage }) {
       await moveOf(s, a.id, '2026-03-10', 10, 500)
       const good = { from_part: a.id, to_part: b.id, on_date: '2026-03-10', qty: 4, unit_cost_cents: 500 }
       const send = over => post(s, '/api/transfers', { ...good, ...over })
-      for (const from_part of [undefined, null, '1', 1.5, 0, -1, 999999, [a.id]]) await expect(`from ${JSON.stringify(from_part)}`, send({ from_part, on_date: 'x', qty: 0 }), 404, err(E.pnf))
-      for (const to_part of [undefined, null, String(b.id), 999999]) await expect(`to ${JSON.stringify(to_part)}`, send({ to_part, on_date: 'x', qty: 0 }), 404, err(E.pnf))
+      for (const from_part of [undefined, null, '1', 1.5, 0, -1, 999999, [a.id]]) await expect(`from ${JSON.stringify(from_part)}`, send({ from_part, on_date: 'x', qty: 0 }), 404, err(E.partNotFound))
+      for (const to_part of [undefined, null, String(b.id), 999999]) await expect(`to ${JSON.stringify(to_part)}`, send({ to_part, on_date: 'x', qty: 0 }), 404, err(E.partNotFound))
       await expect('the same part', send({ to_part: a.id, on_date: 'x', qty: 0 }), 400, err(E.differ))
       await expect('on_date', send({ on_date: '2026-02-30', qty: 0 }), 400, err(E.date))
-      for (const qty of [undefined, 0, -1, 1.5, '1', BILLION + 1]) await expect(`qty ${JSON.stringify(qty)}`, send({ qty, unit_cost_cents: -1 }), 400, err(E.tqty))
+      for (const qty of [undefined, 0, -1, 1.5, '1', BILLION + 1]) await expect(`qty ${JSON.stringify(qty)}`, send({ qty, unit_cost_cents: -1 }), 400, err(E.transferQty))
       for (const unit_cost_cents of [undefined, -1, 1.5, BILLION + 1]) await expect(`cost ${JSON.stringify(unit_cost_cents)}`, send({ unit_cost_cents }), 400, err(E.cost))
       await expect('more than there is', send({ qty: 11 }), 409, err(below('2026-03-10')))
       await expect('before it came in', send({ on_date: '2026-03-09' }), 409, err(below('2026-03-09')))
@@ -509,24 +531,20 @@ export function stageOneCases({ stage }) {
       await expect('the stock that moved can no longer go twice', send({ qty: 7 }), 409, err(below('2026-03-10')))
     })
   })
+}
 
-  // --- Page ---
+// --- Page ---
+function pageCases(stage) {
   const LISTED = (p) => (stage === 1 ? `${p.sku} ${p.name} (${p.on_hand})` : `${p.handle}: ${p.sku} ${p.name} (${p.on_hand})`)
   const P = (id, sku, name, onHand = 0) => ({ id, sku, name, on_hand: onHand, value_cents: '0', ...(stage === 1 ? {} : { handle: `h-${id}` }) })
   const SAMPLE = [P(3, 'A-1', 'Bolt', 5), P(1, 'B-1', '<b>x</b> & co', 0)]
-  const FIRST = '/api/parts?limit=20'
   const rows = page => page.el('part-list').kids.map(li => [li.tag, ...(li.kids ?? []).map(k => (isEl(k) ? `<${k.tag} type=${k.attrs.type}>${textOf(k)}` : k.text))])
   const row = p => ['li', LISTED(p), '<button type=button>Delete']
   const NONE = [['li', 'No parts.']]
   const LIST = SAMPLE.map(row)
-  const errorText = page => textOf(page.el('error'))
   const moreOff = page => isDisabled(page.el('more'))
   const okList = (parts, next = null) => c => c.reply(200, { parts, next })
-  const ready = async (parts = SAMPLE, next = null) => {
-    const page = await openPage()
-    await settle(take(page, 'GET', FIRST), okList(parts, next))
-    return page
-  }
+  const ready = readyWith(SAMPLE)
   const search = async (page, value) => {
     setValue(page.el('search'), value)
     fire(page.el('search'), 'change')
@@ -577,9 +595,9 @@ export function stageOneCases({ stage }) {
 
   it('page: at load the list is requested at once and filled as plain text; no parts is one line; Load more follows next', async () => {
     const page = await openPage()
-    assert.deepEqual(pending(page), [`GET ${FIRST}`], 'requested before any event')
+    assert.deepEqual(pending(page), [`GET ${LIST_FIRST}`], 'requested before any event')
     assert.ok(moreOff(page), 'disabled until the first reply')
-    await settle(take(page, 'GET', FIRST), okList(SAMPLE))
+    await settle(take(page, 'GET', LIST_FIRST), okList(SAMPLE))
     assert.deepEqual({ rows: rows(page), more: moreOff(page), error: errorText(page) }, { rows: LIST, more: true, error: '' })
     const empty = await ready([])
     assert.deepEqual({ rows: rows(empty), more: moreOff(empty) }, { rows: NONE, more: true })
@@ -592,10 +610,10 @@ export function stageOneCases({ stage }) {
     for (const [i, [how, message]] of cases.entries()) {
       const page = await ready()
       await search(page, 'x')
-      await settle(take(page, 'GET', `${FIRST}&q=x`), how)
+      await settle(take(page, 'GET', `${LIST_FIRST}&q=x`), how)
       assert.deepEqual({ error: errorText(page), rows: rows(page) }, { error: message, rows: LIST }, `case ${i}`)
       await search(page, 'y')
-      await settle(take(page, 'GET', `${FIRST}&q=y`), okList([]))
+      await settle(take(page, 'GET', `${LIST_FIRST}&q=y`), okList([]))
       assert.deepEqual({ error: errorText(page), rows: rows(page) }, { error: message, rows: NONE }, 'a success leaves #error alone')
     }
   })
@@ -605,23 +623,23 @@ export function stageOneCases({ stage }) {
     fire(page.el('more'), 'click')
     await flush()
     assert.ok(moreOff(page), 'disabled while it loads')
-    await settle(take(page, 'GET', `${FIRST}&after=A%2F1`), okList([P(2, 'B', 'b')], 'B'))
+    await settle(take(page, 'GET', `${LIST_FIRST}&after=A%2F1`), okList([P(2, 'B', 'b')], 'B'))
     assert.deepEqual(rows(page), [row(P(1, 'A/1', 'a')), row(P(2, 'B', 'b'))])
     assert.equal(moreOff(page), false)
     fire(page.el('more'), 'click')
     await flush()
-    await settle(take(page, 'GET', `${FIRST}&after=B`), c => c.reply(500, err('boom')))
+    await settle(take(page, 'GET', `${LIST_FIRST}&after=B`), c => c.reply(500, err('boom')))
     assert.deepEqual({ error: errorText(page), n: rows(page).length, more: moreOff(page) }, { error: 'boom', n: 2, more: false })
     fire(page.el('more'), 'click')
     await flush()
-    await settle(take(page, 'GET', `${FIRST}&after=B`), okList([P(3, 'C', 'c')]))
+    await settle(take(page, 'GET', `${LIST_FIRST}&after=B`), okList([P(3, 'C', 'c')]))
     assert.deepEqual({ n: rows(page).length, more: moreOff(page) }, { n: 3, more: true })
     const searched = await ready()
     await search(searched, 'a b&c')
-    await settle(take(searched, 'GET', `${FIRST}&q=a%20b%26c`), okList([P(5, 'S', 's')], 'S'))
+    await settle(take(searched, 'GET', `${LIST_FIRST}&q=a%20b%26c`), okList([P(5, 'S', 's')], 'S'))
     fire(searched.el('more'), 'click')
     await flush()
-    await settle(take(searched, 'GET', `${FIRST}&q=a%20b%26c&after=S`), okList([]))
+    await settle(take(searched, 'GET', `${LIST_FIRST}&q=a%20b%26c&after=S`), okList([]))
     assert.equal(rows(searched).length, 1, 'nothing more to add')
   })
 
@@ -633,10 +651,10 @@ export function stageOneCases({ stage }) {
     assert.deepEqual(pending(page), [], 'input does nothing')
     fire(page.el('search'), 'change')
     await flush()
-    await settle(take(page, 'GET', `${FIRST}&q=typed`), okList([]))
+    await settle(take(page, 'GET', `${LIST_FIRST}&q=typed`), okList([]))
     assert.deepEqual(rows(page), NONE)
     await search(page, '')
-    await settle(take(page, 'GET', FIRST), okList(SAMPLE))
+    await settle(take(page, 'GET', LIST_FIRST), okList(SAMPLE))
     assert.deepEqual(rows(page), LIST)
   })
 
@@ -645,17 +663,17 @@ export function stageOneCases({ stage }) {
       const page = await ready()
       await search(page, 'a')
       await search(page, 'b')
-      await settle(take(page, 'GET', `${FIRST}&q=b`), okList([]))
-      await settle(take(page, 'GET', `${FIRST}&q=a`), late)
+      await settle(take(page, 'GET', `${LIST_FIRST}&q=b`), okList([]))
+      await settle(take(page, 'GET', `${LIST_FIRST}&q=a`), late)
       assert.deepEqual({ rows: rows(page), error: errorText(page) }, { rows: NONE, error: '' })
     }
     const page = await ready(SAMPLE, 'B-1')
     fire(page.el('more'), 'click')
     await flush()
     await search(page, 'a')
-    await settle(take(page, 'GET', `${FIRST}&after=B-1`), okList([P(9, 'OLD', 'old')], 'OLD'))
+    await settle(take(page, 'GET', `${LIST_FIRST}&after=B-1`), okList([P(9, 'OLD', 'old')], 'OLD'))
     assert.deepEqual(rows(page), LIST, 'a Load more overtaken by a search adds nothing')
-    await settle(take(page, 'GET', `${FIRST}&q=a`), okList([]))
+    await settle(take(page, 'GET', `${LIST_FIRST}&q=a`), okList([]))
     assert.deepEqual({ rows: rows(page), more: moreOff(page) }, { rows: NONE, more: true })
   })
 
@@ -670,8 +688,8 @@ export function stageOneCases({ stage }) {
     assert.deepEqual({ ...call.opts.headers }, { 'Content-Type': 'application/json' })
     assert.deepEqual(bodyOf(call), FORM)
     await settle(call, c => c.reply(201, P(7, 'N-1', 'New')))
-    assert.deepEqual({ add: isDisabled(page.el('add')), sku: valueIn(page.el('sku')), name: valueIn(page.el('name')), fetches: pending(page) }, { add: false, sku: '', name: '', fetches: [`GET ${FIRST}`] })
-    await settle(take(page, 'GET', FIRST), okList([P(7, 'N-1', 'New')]))
+    assert.deepEqual({ add: isDisabled(page.el('add')), sku: valueIn(page.el('sku')), name: valueIn(page.el('name')), fetches: pending(page) }, { add: false, sku: '', name: '', fetches: [`GET ${LIST_FIRST}`] })
+    await settle(take(page, 'GET', LIST_FIRST), okList([P(7, 'N-1', 'New')]))
     assert.deepEqual(rows(page), [row(P(7, 'N-1', 'New'))])
   })
 
@@ -687,7 +705,7 @@ export function stageOneCases({ stage }) {
     await submit(page)
     await settle(take(page, 'POST', '/api/parts'), c => c.reply(201, P(7, 'N-1', 'New')))
     assert.equal(errorText(page), '')
-    take(page, 'GET', FIRST)
+    take(page, 'GET', LIST_FIRST)
   })
 
   it('page: Delete disables its button and sends the part\'s id; the list comes back afterwards, except with no reply', async () => {
@@ -701,14 +719,14 @@ export function stageOneCases({ stage }) {
     const first = await click(0)
     assert.ok(isDisabled(first), 'disabled while it runs')
     await settle(take(page, 'DELETE', '/api/parts/3'), c => c.reply(404, err('part not found')))
-    assert.deepEqual({ error: errorText(page), disabled: isDisabled(first), fetches: pending(page) }, { error: 'part not found', disabled: false, fetches: [`GET ${FIRST}`] })
-    await settle(take(page, 'GET', FIRST), okList(SAMPLE))
+    assert.deepEqual({ error: errorText(page), disabled: isDisabled(first), fetches: pending(page) }, { error: 'part not found', disabled: false, fetches: [`GET ${LIST_FIRST}`] })
+    await settle(take(page, 'GET', LIST_FIRST), okList(SAMPLE))
     const again = await click(1)
     await settle(take(page, 'DELETE', '/api/parts/1'), c => c.fail())
     assert.deepEqual({ error: errorText(page), disabled: isDisabled(again), fetches: pending(page) }, { error: NO_REPLY, disabled: false, fetches: [] })
     await click(0)
     await settle(take(page, 'DELETE', '/api/parts/3'), c => c.reply(204))
-    assert.deepEqual({ error: errorText(page), fetches: pending(page) }, { error: '', fetches: [`GET ${FIRST}`] })
+    assert.deepEqual({ error: errorText(page), fetches: pending(page) }, { error: '', fetches: [`GET ${LIST_FIRST}`] })
   })
 }
 

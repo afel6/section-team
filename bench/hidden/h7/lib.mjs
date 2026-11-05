@@ -40,9 +40,9 @@ export const tryJson = text => {
 export const same = (label, got, want, msg) => assert.deepEqual({ label, ...got }, { label, ...want }, msg)
 
 // --- Server processes (helper listeners are unref'd: a failed assertion that skips close() cannot hold the process open) ---
-export const listenOn = port => new Promise((ok, no) => {
-  const s = createServer().once('error', no)
-  s.listen(port, '127.0.0.1', () => ok(s.unref()))
+export const listenOn = port => new Promise((resolve, reject) => {
+  const s = createServer().once('error', reject)
+  s.listen(port, '127.0.0.1', () => resolve(s.unref()))
 })
 export async function freePort() {
   const s = await listenOn(0)
@@ -121,12 +121,12 @@ export const REFUSED = { code: 1, out: '', line: 'present' }
 export function req(s, method, path, { body, parts, type, gap = 50 } = {}) {
   const chunks = parts ?? (body === undefined ? [] : [typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body)])
   const headers = { ...(type !== null && (type !== undefined || chunks.length > 0) && { 'content-type': type ?? 'application/json' }) }
-  return new Promise((ok, no) => {
+  return new Promise((resolve, reject) => {
     const r = request({ host: '127.0.0.1', port: s.port, method, path, headers, agent: false }, res => {
       const got = []
-      res.on('data', d => got.push(d)).on('error', no).on('end', () => ok({ status: res.statusCode, type: res.headers['content-type'], text: Buffer.concat(got).toString('utf8') }))
+      res.on('data', d => got.push(d)).on('error', reject).on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], text: Buffer.concat(got).toString('utf8') }))
     })
-    r.setTimeout(20_000, () => r.destroy(new Error(`${method} ${path}: no reply within 20 s`))).on('error', no)
+    r.setTimeout(20_000, () => r.destroy(new Error(`${method} ${path}: no reply within 20 s`))).on('error', reject)
     ;(async () => {
       for (const c of chunks.slice(0, -1)) {
         r.write(c)
@@ -369,4 +369,12 @@ export function take(page, method, url) {
 export const settle = async (call, how) => {
   how(call)
   await flush()
+}
+export const errorText = page => textOf(page.el('error'))
+export const LIST_FIRST = '/api/parts?limit=20'
+// A page with its first list fetch answered. sample: the parts it gets by default, in the part shape of the caller's stage.
+export const readyWith = sample => async (parts = sample, next = null) => {
+  const page = await openPage()
+  await settle(take(page, 'GET', LIST_FIRST), c => c.reply(200, { parts, next }))
+  return page
 }

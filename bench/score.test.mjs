@@ -477,6 +477,7 @@ test('scoreRun gives a two-stage run its copy for s1, its three sets, a computed
   assert.deepEqual(row.cost, { costUSD: 4, costComputed: true })
   assert.deepEqual(row.hidden.parts, { s1: counts })
   assert.deepEqual(row.stage2, { change: null, calls: { freshAgents: 0, agentTypes: {}, sendMessages: 1 } })
+  assert.equal(row.splitCoverage, null, 'modelUsage covers only the last stage, so nothing can be checked against it')
   assert.equal(readFileSync(join(outDir, 'hidden.tap'), 'utf8'), 'the tap')
 })
 
@@ -488,4 +489,5 @@ test('scoreRun leaves a single-stage run as it was: raw.json, the CLI\'s cost, n
   assert.deepEqual(row.cost, { costUSD: 99, costComputed: false })
   assert.deepEqual(row.hidden, { tests: 3, pass: 2, fail: 1, rate: 2 / 3 })
   assert.ok(!('stage2' in row))
+  assert.notEqual(row.splitCoverage, null)
 })

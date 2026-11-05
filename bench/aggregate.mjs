@@ -13,6 +13,8 @@ export const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity'
 const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'all']
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const round = (n, d = 2) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d)
+// No values is no percentage: 100 * null would read as 0.
+const meanPct = xs => (xs.length ? round(100 * mean(xs), 1) : null)
 
 export function judgeScores(judgeRows, key) {
   // → { '<task>-<cond>-r<rep>': { quality: 1–10 mean over dims and judges, overall, wins (ranked 1st), losses (ranked last), rankPoints } }
@@ -74,8 +76,8 @@ export function loadJudged(results, roundTag) {
 }
 
 // One report row. A two-stage task's primary measure is hiddenFail; incompleteRuns counts the runs where that is only what
-// was seen before a set was cut. A two-stage run's tokens are its last stage's alone (see runCost in score.mjs), so they
-// stay out of tokensM and outputK, and a two-stage task shows none.
+// was seen before a set was cut. A two-stage run's tokens and model usage are its last stage's alone (see runCost in
+// score.mjs), so they stay out of tokensM, outputK and opusSharePct, and a two-stage task shows none.
 function tableRow(key, rs) {
   const [task, cond] = key.split('|')
   const singleStage = rs.filter(r => !r.stage2)
@@ -94,7 +96,7 @@ function tableRow(key, rs) {
     judgeLosses: rs.reduce((a, r) => a + (r.judge?.losses ?? 0), 0),
     judgeRankPoints: rs.reduce((a, r) => a + (r.judge?.rankPoints ?? 0), 0),
     agentSpawns: round(mean(rs.map(r => r.agentSpawns ?? 0)), 1),
-    opusSharePct: round(100 * mean(rs.map(opusShare).filter(x => x !== null)), 1),
+    opusSharePct: meanPct(singleStage.map(opusShare).filter(x => x !== null)),
     grade: round(mean(rs.map(r => r.grade.total)), 1),
     timeouts: rs.filter(r => r.timedOut).length,
   }

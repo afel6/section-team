@@ -77,6 +77,17 @@ test('reportTable leaves a two-stage run\'s tokens out, since they are only its 
   assert.deepEqual([rowOf(table, 'all').tokensM, rowOf(table, 'all').outputK], [2, 3], 'nor do they move the mean over all tasks')
 })
 
+test('reportTable leaves a two-stage run\'s opus share out, since its model usage is only its last stage\'s', () => {
+  const opusCost = costUSD => ({ costUSD: 1, modelUsage: { 'claude-opus-5-5': { costUSD } } })
+  const table = reportTable([
+    gradedRun('h7', { hidden: { fail: 0, rate: 1, incomplete: [] }, stage2: { change: null, calls: null }, ...opusCost(0.1) }),
+    gradedRun('easy', { hidden: { fail: 0, rate: 1 }, ...opusCost(0.5) }),
+  ])
+  assert.equal(rowOf(table, 'h7').opusSharePct, null, 'none, not 0')
+  assert.equal(rowOf(table, 'easy').opusSharePct, 50)
+  assert.equal(rowOf(table, 'all').opusSharePct, 50, 'nor does it move the mean over all tasks')
+})
+
 test('the CLI refuses a --round that is not letters and digits, before reading or writing anything', () => {
   const cli = new URL('./aggregate.mjs', import.meta.url)
   const res = spawnSync(process.execPath, [fileURLToPath(cli), '--round=../x'], { encoding: 'utf8' })

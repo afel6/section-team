@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   BENCH_EFFORT, BENCH_MODEL, LIVE_CHECKOUT, PLUGIN_KEY, SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, compacted,
-  effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckouts, outputMessages, readPin, resultOf,
+  effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckouts, outputMessages, pluginVersionOf, readPin, resultOf,
 } from './clean-run.mjs'
 
 // A temp folder removed after the test, even when the test fails.
@@ -159,7 +159,7 @@ test('isUnder: builtin and C:/Users/Asus/claude-team-moderound/x are not under t
 })
 
 test('initProblems accepts a team init (built-ins with path builtin) and names each mismatch', () => {
-  const ctx = { setup: 'team', pin: PIN, pluginDir: PLUGIN_DIR }
+  const ctx = { setup: 'team', pin: PIN, pluginDir: PLUGIN_DIR, pluginVersion: '0.2.1' }
   assert.deepEqual(initProblems(init(), ctx), [])
   const stray = { name: 'caveman', path: 'C:\\Users\\Asus\\.claude\\plugins\\cache\\caveman', source: 'caveman@caveman', version: '1.0.0' }
   const live = { name: 'section-team', path: 'C:\\Users\\Asus\\claude-team', source: PLUGIN_KEY, version: '0.1.1' }
@@ -190,6 +190,32 @@ test('initProblems accepts a team init (built-ins with path builtin) and names e
   assert.throws(() => initProblems(init(), { ...ctx, setup: 'forced' }), RangeError)
   assert.throws(() => initProblems(init(), { ...ctx, pin: undefined }), { message: 'initProblems needs a pin' })
   assert.throws(() => initProblems(init(), { setup: 'lean', pin: PIN }), { message: 'initProblems needs a pluginDir' })
+  assert.throws(() => initProblems(init(), { setup: 'lean', pin: PIN, pluginDir: PLUGIN_DIR }), { message: 'initProblems needs a pluginVersion' })
+})
+
+// One harness measures 0.2.2 and 0.2.3: the version a builder must load is the plugin under test's, not a constant.
+test('initProblems holds a builder to the plugin under test\'s version, and still to exactly one section-team from that path', () => {
+  const ctx = { setup: 'team', pin: PIN, pluginDir: PLUGIN_DIR, pluginVersion: '0.2.3' }
+  const at = version => init({ plugins: [...BUILTINS, { ...SECTION_TEAM, version }] })
+  assert.deepEqual(initProblems(at('0.2.3'), ctx), [])
+  assert.deepEqual(initProblems(at('0.2.1'), ctx), ['section-team version 0.2.1, expected 0.2.3'])
+  assert.deepEqual(initProblems(init({ plugins: BUILTINS }), ctx), ['expected 1 section-team plugin, found 0'])
+  const twice = { ...SECTION_TEAM, version: '0.2.3' }
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, twice, twice] }), ctx), ['expected 1 section-team plugin, found 2'])
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, { ...twice, path: 'C:\\Users\\Asus\\other' }] }), ctx), [`section-team path C:\\Users\\Asus\\other, expected ${PLUGIN_DIR}`])
+})
+
+test('pluginVersionOf reads the version from the plugin\'s manifest, and says in one line when it is missing or invalid', t => {
+  const plugin = tempRoot(t)
+  const manifest = join(plugin, '.claude-plugin', 'plugin.json')
+  assert.throws(() => pluginVersionOf(plugin), { message: `cannot read the plugin version from ${manifest} (ENOENT)` })
+  mkdirSync(dirname(manifest))
+  for (const [text, why] of [['{"version":', 'SyntaxError'], ['[]', 'no version'], ['{"name":"section-team"}', 'no version'], ['{"version":3}', 'no version'], ['{"version":"latest"}', 'no version'], ['{"version":["0.2.3"]}', 'no version']]) {
+    writeFileSync(manifest, text)
+    assert.throws(() => pluginVersionOf(plugin), { message: `cannot read the plugin version from ${manifest} (${why})` }, text)
+  }
+  writeFileSync(manifest, JSON.stringify({ name: 'section-team', version: '0.2.3' }))
+  assert.equal(pluginVersionOf(plugin), '0.2.3')
 })
 
 test('initProblems for solo and judge refuses section-team and anything from the live checkout, and judges use the solo lists', () => {
@@ -204,7 +230,7 @@ test('initProblems for solo and judge refuses section-team and anything from the
 })
 
 test('initProblems in preflight mode accepts only @builtin sources and refuses plugin-authoring', () => {
-  const ctx = { setup: 'lean', pin: { version: '2.1.296' }, pluginDir: PLUGIN_DIR }
+  const ctx = { setup: 'lean', pin: { version: '2.1.296' }, pluginDir: PLUGIN_DIR, pluginVersion: '0.2.1' }
   // Without pin lists and apiKeySource, those are recorded, not compared.
   assert.deepEqual(initProblems(init({ agents: ['any'], skills: [], apiKeySource: 'other' }), ctx), [])
   assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, { name: 'x', path: 'builtin', source: 'x@builtin' }, SECTION_TEAM] }), ctx), [])
@@ -299,9 +325,9 @@ const LINUX_SECTION_TEAM = { ...SECTION_TEAM, path: LINUX_PLUGIN_DIR }
 test('initProblems accepts a Linux worktree path and compares it case for case', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
   const linuxInit = init({ plugins: [...BUILTINS, LINUX_SECTION_TEAM] })
   const pin = { ...PIN, pluginDir: LINUX_PLUGIN_DIR }
-  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: LINUX_PLUGIN_DIR }), [])
-  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: `${LINUX_PLUGIN_DIR}/` }), [])
-  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: '/root/Section-Team-v0.2.1' }),
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: LINUX_PLUGIN_DIR, pluginVersion: '0.2.1' }), [])
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: `${LINUX_PLUGIN_DIR}/`, pluginVersion: '0.2.1' }), [])
+  assert.deepEqual(initProblems(linuxInit, { setup: 'team', pin, pluginDir: '/root/Section-Team-v0.2.1', pluginVersion: '0.2.1' }),
     [`section-team path ${LINUX_PLUGIN_DIR}, expected /root/Section-Team-v0.2.1`])
 })
 

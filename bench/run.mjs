@@ -7,10 +7,11 @@
 // Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
 // Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
-// Usage: node bench/run.mjs --plugin=<absolute path of the v0.2.1 worktree> --tag=mo [--round=mo] --conds=solo,lean,team,max
+// Usage: node bench/run.mjs --plugin=<absolute path of the worktree at the pinned ref> --tag=mo [--round=mo] [--plugin-ref=<git ref>] --conds=solo,lean,team,max
 //          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
 //          [id-substring ...]
-//        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given)
+//        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given; the ref is
+//        the pin's, and a --plugin-ref that differs is refused)
 //        --sync: after every run that finished or stopped, its results and solution folders are committed to <branch> and
 //        pushed (cloud-sync.mjs); required off Windows, where the machine can vanish, unless --no-sync says otherwise.
 //        The cloud round passes --redact-email with it, in every run, push and preflight command; the scan stays on.
@@ -27,19 +28,19 @@ import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import {
-  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, readPin, sha256Of,
+  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, initProblems, installedPluginKeys, outputMessages, pluginVersionOf, readPin, sha256Of,
 } from './clean-run.mjs'
 import {
   BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, firstLine, nextAttempt, pendingRuns, projectDirFor, recordAttempt,
 } from './run-attempts.mjs'
-import { checkBranch } from './cloud-git.mjs'
+import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
 import { MEMORY_ROOT, backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const REPO = dirname(BENCH)
-// The plugin under test: rounds load it from a worktree checked out at this tag.
-const PLUGIN_TAG = `v${SECTION_TEAM_VERSION}`
+// The plugin under test: rounds load it from a worktree checked out at --plugin-ref, by default this tag.
+export const DEFAULT_PLUGIN_REF = `v${SECTION_TEAM_VERSION}`
 // Benchmark projects live outside this repo, in the user's home folder (forward slashes: run ids are joined with '/').
 export const RUNS = join(homedir(), 'bench-runs').replaceAll('\\', '/')
 export const RESULTS = join(BENCH, 'results')
@@ -88,6 +89,8 @@ const RUN_ID = /^[A-Za-z0-9-]+$/
 export function parseArgs(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
   const reps = opt('reps') ?? '2'
+  const pluginRef = opt('plugin-ref')
+  if (pluginRef !== undefined && !BRANCH.test(pluginRef)) throw new RangeError(`--plugin-ref takes a branch, tag or commit, got "${pluginRef}"`)
   if (!/^\d+$/.test(reps) || !Number.isSafeInteger(Number(reps)) || Number(reps) < 1) {
     throw new RangeError(`--reps must be a whole number of at least 1, got "${reps}"`)
   }
@@ -97,6 +100,7 @@ export function parseArgs(argv) {
     round: opt('round') ?? '',
     tasks: opt('tasks')?.split(',') ?? TASKS,
     plugin: opt('plugin') ?? '',
+    pluginRef: pluginRef ?? '',
     rerun: opt('rerun')?.split(',') ?? [],
     reason: opt('reason') ?? '',
     sync: opt('sync') ?? '',
@@ -162,23 +166,25 @@ function gitLine(args) {
   }
 }
 
-// Rounds load the plugin from a worktree of PLUGIN_TAG, never the live checkout: --plugin= must be its absolute path,
-// at the tagged commit. Returns that commit, which every run records.
-export function pluginCommitOf(plugin, { git = gitLine } = {}) {
+// Rounds load the plugin from a worktree at one ref, never the live checkout: --plugin= must be its absolute path, at
+// that ref's commit. Returns that commit, which every run records.
+export function pluginCommitOf(plugin, { ref = DEFAULT_PLUGIN_REF, git = gitLine } = {}) {
   // Windows paths on Windows (and drive-letter paths anywhere); POSIX paths on Linux (os-paths.mjs).
-  if (!isAbsolutePath(plugin)) throw new Error(`--plugin= takes the absolute path of the ${PLUGIN_TAG} worktree, got "${plugin}"`)
+  if (!isAbsolutePath(plugin)) throw new Error(`--plugin= takes the absolute path of the ${ref} worktree, got "${plugin}"`)
   const commit = git(['-C', plugin, 'rev-parse', 'HEAD'])
-  const tagged = git(['rev-parse', `${PLUGIN_TAG}^{commit}`])
-  if (commit !== tagged) throw new Error(`${plugin} is at ${commit}, not at ${PLUGIN_TAG} (${tagged})`)
+  const wanted = git(['rev-parse', `${ref}^{commit}`])
+  if (commit !== wanted) throw new Error(`${plugin} is at ${commit}, not at ${ref} (${wanted})`)
   return commit
 }
 
-// Before each batch the worktree is clean and matches PLUGIN_TAG, and --plugin= is its root folder, not a subfolder.
-export function checkPluginWorktree(plugin, { git = gitLine } = {}) {
+// Before each batch the worktree is clean and matches the ref, and --plugin= is its root folder, not a subfolder. The
+// worktree holds the plugin and this checkout runs the harness: with a branch ref they could otherwise be the same folder.
+export function checkPluginWorktree(plugin, { ref = DEFAULT_PLUGIN_REF, git = gitLine } = {}) {
+  if (samePath(plugin, REPO)) throw new Error(`--plugin= must be a worktree of ${ref} apart from this checkout, which runs the harness: got ${plugin}`)
   const top = git(['-C', plugin, 'rev-parse', '--show-toplevel'])
   if (!samePath(top, plugin)) throw new Error(`--plugin= must be the worktree's root folder ${top}, got ${plugin}`)
-  if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${PLUGIN_TAG} worktree`)
-  if (git(['-C', plugin, 'diff', '--stat', PLUGIN_TAG]) !== '') throw new Error(`${plugin} differs from ${PLUGIN_TAG}: a batch needs a clean ${PLUGIN_TAG} worktree`)
+  if (git(['-C', plugin, 'status', '--porcelain']) !== '') throw new Error(`${plugin} has uncommitted changes: a batch needs a clean ${ref} worktree`)
+  if (git(['-C', plugin, 'diff', '--stat', ref]) !== '') throw new Error(`${plugin} differs from ${ref}: a batch needs a clean ${ref} worktree`)
 }
 
 // The batch runs what the preflight pinned: the plugin worktree it recorded and the binary bytes it hashed. A copy is
@@ -192,6 +198,23 @@ export function checkPin(plugin, pin) {
     : 'put the pinned copy back; never re-pin a started round'
   if (pin.npmPackage && !existsSync(pin.binary)) throw new Error(`${pin.binary} is missing: ${fix}`)
   if (sha256Of(pin.binary) !== pin.sha256) throw new Error(`${pin.binary} differs from the binary the round pinned: ${fix}`)
+}
+
+// What a batch's worktree must match: the commit its pin recorded, so a branch that moves after the preflight stops
+// nothing; a pin from before --plugin-ref has only the default tag. A --plugin-ref that is not the pin's stops the batch.
+export function pinnedRef(pin, passed = '') {
+  const ref = pin.pluginRef ?? DEFAULT_PLUGIN_REF
+  if (passed !== '' && passed !== ref) throw new Error(`--plugin-ref=${passed} is not the ref the round pinned: pass --plugin-ref=${ref} or leave it out`)
+  return pin.pluginCommit ?? ref
+}
+
+// A batch's checks of the plugin under test, before any paid run, and what its runs need from them.
+export function batchPlugin(plugin, pin, passedRef, { git = gitLine, readVersion = pluginVersionOf } = {}) {
+  const ref = pinnedRef(pin, passedRef)
+  const pluginCommit = pluginCommitOf(plugin, { ref, git })
+  checkPluginWorktree(plugin, { ref, git })
+  checkPin(plugin, pin)
+  return { pluginCommit, pluginVersion: readVersion(plugin) }
 }
 
 // ~/.claude/skills and ~/.claude/agents (synced/ left out), like the preflight's syncedListing: the user's own skills
@@ -262,6 +285,9 @@ export function taskProblems(tasks, bench = BENCH) {
   })
 }
 
+// Who commits in a run folder: the solution's git may have no identity of its own.
+const GIT_IDENTITY = ['-c', 'user.email=bench@local', '-c', 'user.name=bench']
+
 // Wipes dir (it must sit inside root, never root itself) and makes a git repo with an 'init' commit;
 // with a seed folder, copies it in and commits it as 'seed', so a run's own changes are a diff from that commit.
 export function freshRepo(dir, { seed = null, root = RUNS } = {}) {
@@ -270,7 +296,7 @@ export function freshRepo(dir, { seed = null, root = RUNS } = {}) {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'ignore', 'pipe'] })
-  const commit = msg => git('-c', 'user.email=bench@local', '-c', 'user.name=bench', 'commit', '-q', '-m', msg)
+  const commit = msg => git(...GIT_IDENTITY, 'commit', '-q', '-m', msg)
   git('init', '-q', '-b', 'main')
   writeFileSync(join(dir, 'README.md'), '# bench project\n')
   git('add', 'README.md')
@@ -414,7 +440,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
       errorFile.end()
     }
     // The pinned binary missing: stop the round with one line (main's catch); the finally still restores memory. The
-    // rejection waits until raw.json and stderr.txt are closed, so nothing that runs next races a stream still opening.
+    // rejection waits until the output files are closed, so nothing that runs next races a stream still opening.
     child.on('error', spawnErr => {
       finish()
       const failed = new Error(`could not start claude (${binary}: ${spawnErr.code ?? spawnErr.message})`)
@@ -431,7 +457,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
 // Missing required evidence stays an exit-1 stop (no void, no cap): the init's problems go into the message for
 // diagnosis, and attempts.json lists the attempt, so the rerun shows between batches.
 function withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) {
-  const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir })
+  const reasons = initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion })
   recordAttempt(outDir, { kind: 'evidence-missing', attempt, sessionId, at: new Date().toISOString(), path: err.path, reasons })
   return new EvidenceMissing(`${err.message}; init problems: ${reasons.join('; ') || 'none'}`, err.path)
 }
@@ -439,7 +465,7 @@ function withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx 
 // Everything the run left (ignored files aside) committed and tagged, so what a stage changed is a diff between tags.
 // A hook the solution installed must not stop the harness.
 export function tagStage(dir, tag) {
-  const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.email=bench@local', '-c', 'user.name=bench', '-c', 'core.hooksPath=/dev/null', ...args], { stdio: ['ignore', 'ignore', 'pipe'] })
+  const git = (...args) => execFileSync('git', ['-C', dir, ...GIT_IDENTITY, '-c', 'core.hooksPath=/dev/null', ...args], { stdio: ['ignore', 'ignore', 'pipe'] })
   git('add', '-A')
   git('commit', '-q', '--allow-empty', '-m', tag)
   git('tag', '-f', tag)
@@ -459,6 +485,18 @@ function tagOrSay(dir, tag) {
 const stageCopyOf = dir => `${dir}-s1`
 const readMessages = (outDir, stage) => outputMessages(readFileSync(join(outDir, rawFile(stage)), 'utf8'))
 
+// The folder as stage 1 left it, for the s1 set. A failed copy stops the run before stage 2 is paid for: a harness error,
+// said in one line naming the run and the step, and listed in attempts.json.
+function copyStageOne({ run, dir, outDir, sessionId, attempt }) {
+  try {
+    cpSync(dir, stageCopyOf(dir), { recursive: true })
+  } catch (err) {
+    const reason = `could not copy ${dir} after stage 1 (${err.code ?? firstLine(err.message)})`
+    recordAttempt(outDir, { kind: 'stage-copy-failed', attempt, sessionId, at: new Date().toISOString(), reason })
+    throw new Error(`${run.id}: ${reason}`, { cause: err })
+  }
+}
+
 // One stage of a single-stage task.
 async function singleStage(claude, outDir) {
   const info = await claude(null)
@@ -469,15 +507,15 @@ async function singleStage(claude, outDir) {
 // scored as it ended, and a void or stopped run spends no more. What finishAttempt judges is the last stage that ran
 // (stage 1's result must not stand in for a stage 2 that wrote none). The hidden sets s2 and reg then fail for a run
 // that never reached stage 2.
-async function twoStages(claude, { run, outDir, dir, sessionId, ctx }) {
+async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) {
   const first = await claude(1)
   const firstMessages = readMessages(outDir, 1)
   const firstEnd = classifyEnd({ messages: firstMessages, timedOut: first.timedOut, exitCode: first.exitCode })
   const stageOne = { stage: 1, ...first, end: firstEnd }
-  const good = firstEnd === 'ok' && initProblems(initOf(firstMessages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir }).length === 0
+  const good = firstEnd === 'ok' && initProblems(initOf(firstMessages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion }).length === 0
   if (!good) return { info: { ...first, stages: [stageOne], snapshot: null }, messages: firstMessages, extraReasons: [] }
   tagOrSay(dir, 'stage-1')
-  cpSync(dir, stageCopyOf(dir), { recursive: true })
+  copyStageOne({ run, dir, outDir, sessionId, attempt })
   const second = await claude(2)
   tagOrSay(dir, 'stage-2')
   const messages = readMessages(outDir, 2)
@@ -491,10 +529,10 @@ async function twoStages(claude, { run, outDir, dir, sessionId, ctx }) {
 }
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
-// ctx = { pin, installedKeys, pluginDir, pluginCommit }, built once per batch by main; deps let tests replace the
+// ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit, the home folder and the run folder.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home = homedir(), dir = runFolder(run), root = RUNS } = deps
+  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home = homedir(), dir = runFolder(run), root = RUNS, stash = stashRunMemory } = deps
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -508,9 +546,9 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
   const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage })
-  const { info, messages, extraReasons } = isTwoStage(run.task) ? await twoStages(claude, { run, outDir, dir, sessionId, ctx }) : await singleStage(claude, outDir)
+  const { info, messages, extraReasons } = isTwoStage(run.task) ? await twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) : await singleStage(claude, outDir)
   // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
-  if (baseOf(run) !== 'solo') stashRunMemory({ into: outDir })
+  if (baseOf(run) !== 'solo') stash({ into: outDir })
   const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const bestEffort = ended === 'api-limit' || ended === 'api-other'
   let copied
@@ -574,7 +612,7 @@ export function isolateSectionMemory({ volumes = checkVolumes, backup = backupSe
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, round, conds, tasks, reps, filters, plugin, rerun, reason, sync, noSync, redactEmail } = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, plugin, pluginRef, rerun, reason, sync, noSync, redactEmail } = parseArgs(argv)
   checkRoundTag({ round, tag })
   const syncBranch = syncBranchOf({ sync, noSync })
   // Every run reads its round's pin by the tag, so a run without one cannot start.
@@ -582,11 +620,8 @@ async function main() {
   checkConds(conds)
   const problems = taskProblems(tasks)
   if (problems.length) throw new Error(`cannot run these tasks: ${problems.join('; ')}`)
-  const pluginCommit = pluginCommitOf(plugin)
-  checkPluginWorktree(plugin)
   const pin = readPin(RESULTS, tag)
-  checkPin(plugin, pin)
-  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, pluginCommit }
+  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, ...batchPlugin(plugin, pin, pluginRef) }
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })

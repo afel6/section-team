@@ -346,7 +346,9 @@ export function scoreRun(id, { results = RESULTS, hidden: runHidden = hiddenTest
   const hidden = runHidden(run.task, run.dir, { s1Dir: run.snapshot ?? run.dir })
   writeFileSync(join(outDir, 'hidden.tap'), hidden.tap)
   return {
-    ...run, transcript, cost: runCost({ run, transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split, splitCoverage: splitCoverage(split, transcript.modelUsage),
+    ...run, transcript, cost: runCost({ run, transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split,
+    // A two-stage run's modelUsage covers only its last stage, so a split over both has nothing to be checked against.
+    splitCoverage: run.stages ? null : splitCoverage(split, transcript.modelUsage),
     hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate, ...(hidden.parts ? { parts: hidden.parts, incomplete: hidden.incomplete } : {}) }, own: own(run.dir),
     code: codeStats(run.dir, seedDirFor(run.task)), team: teamStats(run.dir),
     ...(run.stages ? { stage2: stageTwoMetrics(outDir, run.dir) } : {}),

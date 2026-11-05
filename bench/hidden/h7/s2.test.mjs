@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { copyFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  MOVES, PARTS_V1, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, expect, fire, flush, fresh, freshDb, get, it, moveOf, norm, ok, openPage, parseHtml, partOf, patch, pending, plantV1, post, refused, req, runToExit,
+  LIST_FIRST, MOVES, PARTS_V1, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, errorText, expect, fire, flush, fresh, freshDb, get, it, moveOf, norm, ok, openPage, parseHtml, partOf, patch, pending, plantV1, post, readyWith, refused, req, runToExit,
   same, schemaOf, setValue, settle, shared, sleep, startServer, stopServer, take, textOf, view, withDb, withServer, within, isEl,
 } from './lib.mjs'
 
@@ -289,14 +289,8 @@ it('the report\'s date rules and routes', async () => {
 
 // --- Page ---
 const P = (id, sku, name, onHand = 0, handle = `h-${id}`) => ({ id, sku, name, handle, on_hand: onHand, value_cents: '0' })
-const LIST_FIRST = '/api/parts?limit=20'
 const REPORT = date => `/api/report?as_of=${encodeURIComponent(date)}`
-const ready = async (parts = [P(1, 'A-1', 'Bolt', 5, 'hex-bolt')]) => {
-  const page = await openPage()
-  await settle(take(page, 'GET', LIST_FIRST), c => c.reply(200, { parts, next: null }))
-  return page
-}
-const errorText = page => textOf(page.el('error'))
+const ready = readyWith([P(1, 'A-1', 'Bolt', 5, 'hex-bolt')])
 const reportText = page => ({
   rows: page.el('report-list').kids.filter(isEl).map(li => ({ tag: li.tag, text: textOf(li), kids: li.kids.length })),
   total: textOf(page.el('report-total')),
