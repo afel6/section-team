@@ -220,3 +220,30 @@ test('calibrate runs a two-stage task against its stage-1 reference, and lays st
     rmSync(tmp, { recursive: true, force: true })
   }
 })
+
+test('calibrate lays near-miss-s2 on reference-s2 for s2 and reg2, and near-miss-s1 on reference-s1 for s1', () => {
+  const { tmp, root, seeds } = fixture('t8')
+  write(root, 't8/reference-s1/a.txt', 'ref')
+  write(root, 't8/reference-s2/a.txt', 'ref')
+  write(root, 't8/near-miss-s1/m1/a.txt', 'm1')
+  write(root, 't8/near-miss-s2/k1/a.txt', 'k1')
+  write(root, 't8/near-miss-s2/k2/a.txt', 'k2')
+  const seen = []
+  const read = (folder, file) => (existsSync(join(folder, file)) ? readFileSync(join(folder, file), 'utf8') : 'none')
+  const run = (task, dir, { s1Dir, s2Dir } = {}) => {
+    seen.push({ s1: read(s1Dir, 'a.txt'), s2: read(s2Dir, 'a.txt'), final: read(dir, 'a.txt') })
+    const fail = [read(s1Dir, 'a.txt'), read(s2Dir, 'a.txt'), read(dir, 'a.txt'), read(dir, 'sub/b.txt')].filter(text => text !== 'ref').length
+    return { tests: 4, pass: 4 - fail, fail, rate: (4 - fail) / 4, tap: '' }
+  }
+  const lines = []
+  try {
+    const verdict = calibrate('t8', { root, seeds, run, log: line => lines.push(line) })
+    assert.deepEqual(verdict.problems.filter(p => !/n3/.test(p)), [], 'every near-miss fails a test')
+    assert.deepEqual(seen[0], { s1: 'ref', s2: 'ref', final: 'ref' })
+    assert.ok(seen.some(s => s.s2 === 'k1' && s.s1 === 'ref' && s.final === 'ref'), 'near-miss-s2/k1 on reference-s2')
+    assert.ok(seen.some(s => s.s1 === 'm1' && s.s2 === 'ref'), 'near-miss-s1/m1 on reference-s1')
+    assert.ok(lines.some(line => line.startsWith('near-miss s2/k2 ')), lines.join('; '))
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})

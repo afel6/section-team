@@ -26,15 +26,17 @@ import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
 import { classifyEnd, filesAt, firstLine, projectDirFor } from './run-attempts.mjs'
-import { NAME, RESULTS, isTwoStage, killTree, parseArgs, promptFile } from './run.mjs'
+import { NAME, RESULTS, killTree, parseArgs, promptFile } from './run.mjs'
 import { required } from './section-memory.mjs'
+import { stageCountOf } from './stages.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 // No rm or mktemp: the harness makes and deletes each judge's folder. node and npm stay because judges run the
 // solutions' tests. That runs untrusted code on this machine, with this shell's environment (claude needs it to
 // sign in), so run judging from a shell with no extra tokens set. The builder runs already ran the same code here.
 export const ALLOWED = 'Read,Glob,Grep,Bash(node *),Bash(npm *),Bash(ls *),Bash(cat *)'
-const SECOND_PROMPT = 'Once that was finished, the solutions were given this second request, in the same session:'
+const ORDINALS = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth']
+const LATER_PROMPT = stage => `Once that was finished, the solutions were given this ${ORDINALS[stage]} request, in the same session:`
 const SEED_NOTE = 'SEED/ is the repo before the change; judge only what each solution changed and whether it broke anything'
 const SCORE_FIELDS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability', 'overall']
 const USAGE = 'usage: node bench/judge.mjs --round=<name> --per-pair=<n> [--limit=<n>]'
@@ -269,11 +271,11 @@ export async function runJobs(jobs, { rows, call, check, files, log }) {
 export const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
 // What a group's judges are told the task was, Opus and outside judges alike: a task's prompt as the builder got it, and
-// a two-stage task's second prompt after it.
+// a staged task's later prompts after it, each behind a line saying which request it was.
 export function taskTextOf(bench, pair) {
   const task = pair.split('-')[0]
   const read = stage => readFileSync(join(bench, 'tasks', promptFile(task, stage)), 'utf8')
-  return isTwoStage(task) ? `${read(1)}\n\n${SECOND_PROMPT}\n\n${read(2)}` : read(1)
+  return Array.from({ length: stageCountOf(task) }, (_, i) => (i === 0 ? read(1) : `${LATER_PROMPT(i + 1)}\n\n${read(i + 1)}`)).join('\n\n')
 }
 
 export function prepareJob(job, judgeDir, template) {

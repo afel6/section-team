@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { projectDirFor } from './run-attempts.mjs'
-import { agentModelSplit, codeStats, collectRoles, collectRolesFrom, costOf, hiddenEnv, hiddenTests, isTestPath, ownTests, parseTranscript, readRaw, runCost, runSession, scoreLine, scoreRun, seedDirFor, sessionTexts, splitCoverage, stageCalls, stageChange, stageTwoMetrics, summaryRow, transcriptDir } from './score.mjs'
+import { agentModelSplit, codeStats, collectRoles, collectRolesFrom, costOf, hiddenEnv, hiddenTests, isTestPath, ownTests, parseTranscript, readRaw, runCost, runSession, scoreLine, scoreRun, seedDirFor, sessionTexts, splitCoverage, mainPeak, stageCalls, stageChange, stageMetrics, summaryRow, transcriptDir } from './score.mjs'
 
 const say = (id, model, usage) => ({ type: 'assistant', message: { id, model, usage, content: [] } })
 
@@ -435,12 +435,14 @@ test('a two-stage run\'s cost comes from its transcripts, since a resumed CLI\'s
   assert.deepEqual(runCost({ run: {}, transcript: { costUSD: 99 }, evidenceTexts: texts }), { costUSD: 99, costComputed: false })
 })
 
-test('stageTwoMetrics reports stage 2\'s change and calls; a run that stopped after stage 1 has neither', t => {
+test('stageMetrics reports the change and calls of each later stage and calls; a stage that never ran has neither', t => {
   const outDir = mkdtempSync(join(tmpdir(), 'score-stage-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true, maxRetries: 3 }))
-  assert.deepEqual(stageTwoMetrics(outDir, outDir), { change: null, calls: null })
-  writeFileSync(join(outDir, 'raw-s2.json'), `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'SendMessage', input: {} }] } })}\n`)
-  assert.deepEqual(stageTwoMetrics(outDir, outDir), { change: null, calls: { freshAgents: 0, agentTypes: {}, sendMessages: 1 } })
+  assert.deepEqual(stageMetrics(outDir, outDir, 2), [{ stage: 2, change: null, calls: null }])
+  writeFileSync(join(outDir, 'raw-s2.json'), `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'SendMessage', input: {} }] } })}
+`)
+  const sent = { freshAgents: 0, agentTypes: {}, sendMessages: 1 }
+  assert.deepEqual(stageMetrics(outDir, outDir, 3), [{ stage: 2, change: null, calls: sent }, { stage: 3, change: null, calls: null }])
 })
 
 test('the score line and summary row show a two-stage run\'s three sets; a single-stage run\'s stay as they were', () => {
@@ -477,7 +479,8 @@ test('scoreRun gives a two-stage run its copy for s1, its three sets, a computed
   assert.deepEqual(seen[0].options, { s1Dir: 'C:/copy' })
   assert.deepEqual(row.cost, { costUSD: 4, costComputed: true })
   assert.deepEqual(row.hidden.parts, { s1: counts })
-  assert.deepEqual(row.stage2, { change: null, calls: { freshAgents: 0, agentTypes: {}, sendMessages: 1 } })
+  assert.deepEqual(row.stages, [{ stage: 2, change: null, calls: { freshAgents: 0, agentTypes: {}, sendMessages: 1 } }])
+  assert.deepEqual(row.stage2, row.stages[0])
   assert.equal(row.splitCoverage, null, 'modelUsage covers only the last stage, so nothing can be checked against it')
   assert.equal(readFileSync(join(outDir, 'hidden.tap'), 'utf8'), 'the tap')
 })
@@ -499,6 +502,91 @@ test('scoreRun leaves a single-stage run as it was: raw.json, the CLI\'s cost, n
   const row = scoreRun('h4-team-mo-r1', { ...scoreDeps(results, seen), hidden: (task, dir, options) => { seen.push({ task, dir, options }); return counts } })
   assert.deepEqual(row.cost, { costUSD: 99, costComputed: false })
   assert.deepEqual(row.hidden, { tests: 3, pass: 2, fail: 1, rate: 2 / 3 })
-  assert.ok(!('stage2' in row))
+  assert.ok(!('stage2' in row) && !('stages' in row))
   assert.notEqual(row.splitCoverage, null)
+})
+
+// --- Three-stage tasks (p1) ---
+
+const P1_SETS = ['s1', 's2', 's3', 'reg2', 'reg3']
+
+// A bench folder whose p1 sets write the folders they were given to TMPDIR-<set>, and pass.
+function fakeP1(t) {
+  const bench = mkdtempSync(join(tmpdir(), 'score-p1-'))
+  t.after(() => rmSync(bench, { recursive: true, force: true, maxRetries: 3 }))
+  mkdirSync(join(bench, 'hidden', 'p1'), { recursive: true })
+  for (const set of P1_SETS) {
+    writeFileSync(join(bench, 'hidden', 'p1', `${set}.test.mjs`), [
+      "import { test } from 'node:test'",
+      "import { existsSync, writeFileSync } from 'node:fs'",
+      `writeFileSync(process.env.TMPDIR + '-${set}', JSON.stringify({ target: process.env.TARGET_DIR, s1: process.env.S1_DIR, s2: process.env.S2_DIR }))`,
+      "test('one', () => { if (!existsSync(process.env.TARGET_DIR)) throw new Error('no folder') })",
+      "test('two', () => {})",
+    ].join('\n'))
+  }
+  return bench
+}
+
+test('hiddenTests runs p1\'s five sets on the folders stages.mjs names', t => {
+  const bench = fakeP1(t)
+  const seen = join(bench, 'seen')
+  const folder = name => { const dir = join(bench, name); mkdirSync(dir); return dir }
+  const [s1, s2, final] = ['s1', 's2', 'final'].map(folder)
+  const r = withEnv(t, { TMPDIR: seen }, () => hiddenTests('p1', final, { s1Dir: s1, s2Dir: s2, bench }))
+  const target = set => JSON.parse(readFileSync(`${seen}-${set}`, 'utf8')).target
+  assert.deepEqual(P1_SETS.map(target), [s1, s2, final, s2, final])
+  assert.deepEqual(JSON.parse(readFileSync(`${seen}-s3`, 'utf8')), { target: final, s1, s2 })
+  assert.deepEqual(Object.keys(r.parts), P1_SETS)
+  assert.deepEqual([r.tests, r.pass, r.fail, r.rate], [10, 10, 0, 1])
+  for (const set of P1_SETS) assert.ok(r.tap.includes(`# set ${set}`), set)
+})
+
+test('hiddenTests counts every test of a set whose folder is missing as failed, and scores the rest', t => {
+  const bench = fakeP1(t)
+  const real = join(bench, 'real')
+  mkdirSync(real)
+  // A run that stopped after stage 2: the final code never came.
+  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: real, bench }))
+  assert.deepEqual(r.parts.s3, { tests: 2, pass: 0, fail: 2 })
+  assert.deepEqual(r.parts.reg3, { tests: 2, pass: 0, fail: 2 })
+  assert.deepEqual(['s1', 's2', 'reg2'].map(set => r.parts[set].fail), [0, 0, 0])
+  assert.deepEqual([r.tests, r.pass, r.fail, r.incomplete], [10, 6, 4, []])
+  // Stopped after stage 1: the stage-2 copy and the final code are both missing.
+  const early = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: null, bench }))
+  assert.deepEqual(P1_SETS.map(set => early.parts[set].fail), [0, 2, 2, 2, 2])
+})
+
+test('mainPeak is the largest context of any main-session turn: input plus cache read plus cache creation', () => {
+  const turn = (id, input, read, write) => say(id, 'claude-opus-5-5', { input_tokens: input, cache_read_input_tokens: read, cache_creation_input_tokens: write, output_tokens: 5 })
+  const messages = [{ type: 'system' }, turn('a', 10, 30_000, 9_990), turn('a', 10, 30_000, 9_990), turn('b', 5, 80_000, 9_995), turn('c', 0, 59_000, 1_000)]
+  assert.equal(mainPeak(messages), 90_000)
+  assert.equal(mainPeak([{ type: 'system' }]), 0)
+})
+
+test('scoreRun gives a three-stage run its stage copies, its stage measures and its main-session peak', t => {
+  const result = JSON.stringify({ type: 'result', subtype: 'success', session_id: 'sid' })
+  const { results, outDir } = scoredRun(t, 'p1-team-sm-r1', { task: 'p1', snapshot: 'C:/copy1', stages: [{}, {}, {}] }, { 'raw-s1.json': `${result}\n`, 'raw-s2.json': `${result}\n`, 'raw-s3.json': `${result}\n` })
+  const seen = []
+  const run = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))
+  mkdirSync(`${run.dir}-s2`, { recursive: true })
+  mkdirSync(run.dir, { recursive: true })
+  const row = scoreRun('p1-team-sm-r1', scoreDeps(results, seen))
+  assert.deepEqual(seen[0].options, { s1Dir: 'C:/copy1', s2Dir: `${run.dir}-s2` })
+  assert.deepEqual(row.stages.map(s => s.stage), [2, 3])
+  assert.equal(row.mainPeak, 1_000_000)
+  // Stopped after stage 2: no final code, no stage-2 copy of a stage that did not end well.
+  const stopped = scoredRun(t, 'p1-team-sm-r2', { task: 'p1', stages: [{}, {}] }, { 'raw-s1.json': `${result}\n`, 'raw-s2.json': `${result}\n` })
+  const seenStopped = []
+  scoreRun('p1-team-sm-r2', scoreDeps(stopped.results, seenStopped))
+  assert.equal(seenStopped[0].dir, null, 'stage 3 never ran')
+  assert.equal(seenStopped[0].options.s2Dir, null, 'its copy was never made')
+})
+
+test('a two-stage run that stopped after stage 1 still has its sets run on the code it has, as before', t => {
+  const result = JSON.stringify({ type: 'result', subtype: 'success', session_id: 'sid' })
+  const { results, outDir } = scoredRun(t, 'h7-team-sm-r1', { task: 'h7', stages: [{}] }, { 'raw-s1.json': `${result}\n` })
+  const seen = []
+  scoreRun('h7-team-sm-r1', scoreDeps(results, seen))
+  assert.equal(seen[0].dir, JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8')).dir)
+  assert.deepEqual(Object.keys(seen[0].options), ['s1Dir'])
 })

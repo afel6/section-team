@@ -2,8 +2,8 @@
 // 3 near-miss versions must each fail at least one. Each variant is built in its own temp folder from
 // bench/seeds/<task>/ (if any), then heldout-calibration/<task>/reference/, then the near-miss on top.
 // For a seeded task, each near-miss must also still pass the seed's own tests, run in that same folder.
-// A two-stage task also has reference-s1/ (the code after stage 1, which the hidden sets s1 and reg start) and near-miss-s1/,
-// versions laid on it instead, so the s1 set is calibrated too.
+// A staged task also has reference-s<k>/ (the code after stage k, for each stage but the last, which that stage's hidden
+// sets start) and near-miss-s<k>/, versions laid on it instead, so those sets are calibrated too.
 // Usage: node bench/calibrate.mjs <task>
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, globSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
@@ -68,19 +68,21 @@ export function taskLayout(task, { root = CALIBRATION, seeds = SEEDS } = {}) {
   if (!existsSync(reference)) throw new Error(`no reference for ${task}: ${reference} is missing`)
   const nearDir = join(root, task, 'near-miss')
   const seed = join(seeds, task)
-  const stageOne = join(root, task, 'reference-s1')
-  const stageOneNear = join(root, task, 'near-miss-s1')
-  return {
-    reference, nearDir, nearMissNames: subfolders(nearDir), seed: existsSync(seed) ? seed : null,
-    stageOne: existsSync(stageOne) ? { reference: stageOne, nearDir: stageOneNear, nearMissNames: subfolders(stageOneNear) } : null,
+  const stages = []
+  for (let stage = 1; existsSync(join(root, task, `reference-s${stage}`)); stage++) {
+    const stageNear = join(root, task, `near-miss-s${stage}`)
+    stages.push({ stage, reference: join(root, task, `reference-s${stage}`), nearDir: stageNear, nearMissNames: subfolders(stageNear) })
   }
+  return { reference, nearDir, nearMissNames: subfolders(nearDir), seed: existsSync(seed) ? seed : null, stages }
 }
 
 export function calibrate(task, { root = CALIBRATION, seeds = SEEDS, run = hiddenTests, seedRun = seedTests, log = () => {} } = {}) {
-  const { reference, nearDir, nearMissNames, seed, stageOne } = taskLayout(task, { root, seeds })
+  const { reference, nearDir, nearMissNames, seed, stages } = taskLayout(task, { root, seeds })
   const base = seed ? [seed, reference] : [reference]
   const seedFiles = seed ? seedTestFiles(seed) : []
-  const hidden = stageOne ? dir => run(task, dir, { s1Dir: stageOne.reference }) : dir => run(task, dir)
+  // The hidden sets of each stage start its reference copy, except the copy under test.
+  const copies = (replace = {}) => Object.fromEntries(stages.map(({ stage, reference: copy }) => [`s${stage}Dir`, replace[stage] ?? copy]))
+  const hidden = stages.length ? dir => run(task, dir, copies()) : dir => run(task, dir)
   const ref = testVariant(task, base, hidden)
   log(`reference ${ref.pass}/${ref.tests}`)
   // A reference may replace a seed test file with its own version (h2's does), so the seed's own copies go
@@ -99,12 +101,12 @@ export function calibrate(task, { root = CALIBRATION, seeds = SEEDS, run = hidde
     log(`near-miss ${name} ${counts.pass}/${counts.tests} (${counts.fail} fail)${seedLine}`)
     return seedResult ? { name, fail: counts.fail, seedOk: seedResult.ok === true } : { name, fail: counts.fail }
   })
-  const stageOneMisses = (stageOne?.nearMissNames ?? []).map(name => {
-    const counts = testVariant(task, [stageOne.reference, join(stageOne.nearDir, name)], s1Dir => run(task, reference, { s1Dir }))
-    log(`near-miss s1/${name} ${counts.pass}/${counts.tests} (${counts.fail} fail)`)
-    return { name: `s1/${name}`, fail: counts.fail }
-  })
-  return calibrationVerdict({ reference: ref, nearMisses: [...nearMisses, ...stageOneMisses] })
+  const stageMisses = stages.flatMap(({ stage, reference: stageRef, nearDir: stageNear, nearMissNames: names }) => names.map(name => {
+    const counts = testVariant(task, [stageRef, join(stageNear, name)], copy => run(task, reference, copies({ [stage]: copy })))
+    log(`near-miss s${stage}/${name} ${counts.pass}/${counts.tests} (${counts.fail} fail)`)
+    return { name: `s${stage}/${name}`, fail: counts.fail }
+  }))
+  return calibrationVerdict({ reference: ref, nearMisses: [...nearMisses, ...stageMisses] })
 }
 
 function main() {

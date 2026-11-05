@@ -1,19 +1,20 @@
 // Scores every finished benchmark run: cost/tokens/time from the transcript (cost computed from the session's
 // transcripts when the CLI wrote none, as on a timeout), hidden-test pass rate,
 // the project's own `npm test`, code size, agent/model use. Writes results/<id>/metrics.json and results/summary.json.
-// A two-stage task (h7) scores its three hidden sets, and what stage 2 changed and called (metrics.stage2).
+// A staged task (stages.mjs) scores its hidden sets, and what each later stage changed and called (metrics.stages; stage2 is its first).
 // Usage: node bench/score.mjs   (alone: no other hidden set, calibrate or batch running, because they share port 3000 and the CPU)
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { initOf, outputMessages, resultOf } from './clean-run.mjs'
 import { projectDirFor } from './run-attempts.mjs'
-import { HIDDEN_SETS, RESULTS, SEEDS, isTwoStage } from './run.mjs'
+import { RESULTS, SEEDS } from './run.mjs'
 import { required } from './section-memory.mjs'
+import { hiddenSetsOf, isStaged, stageCopyOf, stageCountOf } from './stages.mjs'
 import { transcriptCost } from './transcript-cost.mjs'
 
 const BENCH = fileURLToPath(new URL('.', import.meta.url))
@@ -154,9 +155,10 @@ export function costOf({ transcript, evidenceTexts }) {
 // would then count it twice. Its tokens and modelUsage are the last stage's for the same reason; the transcripts hold the whole.
 export const runCost = ({ run, transcript, evidenceTexts }) => costOf({ transcript: run.stages ? null : transcript, evidenceTexts })
 
-// The stream-json text of a run: raw.json, or a two-stage run's stages joined in order.
+// The stream-json text of a run: raw.json, or a staged run's stages joined in order.
 export function readRaw(outDir) {
-  const stages = [join(outDir, 'raw-s1.json'), join(outDir, 'raw-s2.json')].filter(existsSync)
+  const stageNumber = name => Number(/^raw-s(\d+)\.json$/.exec(name)?.[1])
+  const stages = readdirSync(outDir).filter(name => stageNumber(name) > 0).sort((a, b) => stageNumber(a) - stageNumber(b)).map(name => join(outDir, name))
   if (stages.length === 0) return readFileSync(join(outDir, 'raw.json'), 'utf8')
   return stages.map(path => readFileSync(path, 'utf8')).join('\n')
 }
@@ -226,14 +228,20 @@ function runHiddenFile(file, env, timeoutMs) {
   return { counts: parseTap(stdout), notOk: notOkCount(stdout), cut: Boolean(r.error), tap: `${stdout}\n${r.stderr ?? ''}` }
 }
 
-// A two-stage task's sets: s1 on the copy made after stage 1, s2 and reg on the final code. S1_DIR lets s2 and reg start
-// the stage-1 code too, to write the data they then migrate. The primary measure is fail, summed over the sets. A set
-// killed at the limit is named in incomplete, and the rate is then 0, as a single-stage run killed at its limit gets:
-// the tests it never reached would otherwise drop out of the rate and raise it.
-function hiddenSets(task, dir, s1Dir, bench, timeoutMs) {
-  const runs = HIDDEN_SETS.map(set => {
-    const { counts, notOk, cut, tap } = runHiddenFile(join(bench, 'hidden', task, `${set}.test.mjs`), { ...hiddenEnv(set === 's1' ? s1Dir : dir), S1_DIR: s1Dir }, timeoutMs)
-    return [set, { counts: { ...counts, fail: notOk }, cut, tap }]
+// A staged task's sets, each on the folder stages.mjs names: s1 and s2 are the copies taken after those stages, final the
+// code at the end. A set whose folder is null (the run stopped before it came to be) counts every test it has as failed.
+// S1_DIR and S2_DIR let later sets start the earlier code too, to write the data they then migrate. The primary measure is
+// fail, summed over the sets. A set killed at the limit is named in incomplete, and the rate is then 0, as a single-stage
+// run killed at its limit gets: the tests it never reached would otherwise drop out of the rate and raise it.
+const MISSING_FOLDER = join(tmpdir(), `bench-no-such-folder-${process.pid}`)
+
+function hiddenSets(task, folders, bench, timeoutMs) {
+  const runs = hiddenSetsOf(task).map(({ set, from }) => {
+    const target = folders[from]
+    const env = { ...hiddenEnv(target ?? MISSING_FOLDER), ...(folders.s1 ? { S1_DIR: folders.s1 } : {}), ...(folders.s2 ? { S2_DIR: folders.s2 } : {}) }
+    const { counts, notOk, cut, tap } = runHiddenFile(join(bench, 'hidden', task, `${set}.test.mjs`), env, timeoutMs)
+    const missing = target === null
+    return [set, { counts: { ...counts, ...(missing ? { pass: 0, fail: Math.max(notOk, counts.tests) } : { fail: notOk }) }, cut, tap }]
   })
   const sum = key => runs.reduce((total, [, { counts }]) => total + counts[key], 0)
   const incomplete = runs.filter(([, { counts, cut }]) => cut || counts.tests === 0).map(([set]) => set)
@@ -245,8 +253,10 @@ function hiddenSets(task, dir, s1Dir, bench, timeoutMs) {
   }
 }
 
-export function hiddenTests(task, dir, { s1Dir = dir, bench = BENCH, timeoutMs = HIDDEN_LIMIT_MS } = {}) {
-  if (isTwoStage(task)) return hiddenSets(task, dir, s1Dir, bench, timeoutMs)
+// dir is the final code (null: the run never got there). s1Dir and s2Dir are the copies after stages 1 and 2: each is dir
+// when absent, and null means the copy was never made.
+export function hiddenTests(task, dir, { s1Dir = dir, s2Dir = dir, bench = BENCH, timeoutMs = HIDDEN_LIMIT_MS } = {}) {
+  if (isStaged(task)) return hiddenSets(task, { s1: s1Dir, s2: stageCountOf(task) > 2 ? s2Dir : undefined, final: dir }, bench, timeoutMs)
   const { counts, tap } = runHiddenFile(join(bench, 'hidden', `${task}.test.mjs`), hiddenEnv(dir), timeoutMs)
   return { ...counts, rate: counts.tests ? counts.pass / counts.tests : 0, tap }
 }
@@ -297,10 +307,10 @@ export function codeStats(dir, seedDir = null) {
   return stats
 }
 
-// What stage 2 changed, as codeStats counts a solution (lines are added plus removed), from the tags run.mjs made; null
-// when the run has no such tags (it stopped after stage 1).
-export function stageChange(dir) {
-  const r = spawnSync('git', ['-C', dir, 'diff', '--numstat', '--no-renames', 'stage-1', 'stage-2'], { encoding: 'utf8', windowsHide: true })
+// What a later stage changed, as codeStats counts a solution (lines are added plus removed), from the tags run.mjs made;
+// null when the run has no such tags (it stopped before that stage).
+export function stageChange(dir, stage = 2) {
+  const r = spawnSync('git', ['-C', dir, 'diff', '--numstat', '--no-renames', `stage-${stage - 1}`, `stage-${stage}`], { encoding: 'utf8', windowsHide: true })
   if (r.status !== 0) return null
   const rows = r.stdout.split('\n').map(line => /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line)).filter(Boolean)
     .map(([, added, removed, rel]) => ({ rel, lines: (Number(added) || 0) + (Number(removed) || 0) }))
@@ -319,10 +329,41 @@ export function stageCalls(raw) {
   return { freshAgents: fresh.length, agentTypes: count(fresh), sendMessages: calls.filter(call => call.name === 'SendMessage').length }
 }
 
-// The stage-2 measures of a two-stage run; both null for a run that stopped after stage 1.
-export function stageTwoMetrics(outDir, dir) {
-  const raw = join(outDir, 'raw-s2.json')
-  return { change: stageChange(dir), calls: existsSync(raw) ? stageCalls(readFileSync(raw, 'utf8')) : null }
+// The measures of stages 2 to count: what each changed and called; both null for a stage that never ran.
+export function stageMetrics(outDir, dir, count) {
+  return Array.from({ length: count - 1 }, (_, i) => {
+    const stage = i + 2
+    const raw = join(outDir, `raw-s${stage}.json`)
+    return { stage, change: stageChange(dir, stage), calls: existsSync(raw) ? stageCalls(readFileSync(raw, 'utf8')) : null }
+  })
+}
+
+// The largest context of any main-session turn (input plus cache read plus cache creation); one API response written
+// once per content block counts once.
+export function mainPeak(messages) {
+  const seen = new Set()
+  let peak = 0
+  for (const m of messages) {
+    const { id, usage } = m?.type === 'assistant' && !m.isSidechain ? m.message ?? {} : {}
+    if (!usage || seen.has(id)) continue
+    if (id) seen.add(id)
+    peak = Math.max(peak, (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0))
+  }
+  return peak
+}
+
+// The folders a staged run's hidden sets start: the stage-1 copy as the run recorded it, the later copies by name (null
+// when never made), and the final code, null when a task of three or more stages stopped before its last stage (h7 keeps scoring a stopped run on the code it has).
+function stageFolders(run) {
+  const count = stageCountOf(run.task)
+  const copy = stage => (existsSync(stageCopyOf(run.dir, stage)) ? stageCopyOf(run.dir, stage) : null)
+  return { s1Dir: run.snapshot ?? run.dir, ...(count > 2 ? { s2Dir: copy(2) } : {}), dir: count > 2 && run.stages && run.stages.length < count ? null : run.dir }
+}
+
+// stage2 stays for the h7 reports: it is the first of stages.
+function stagesOf(outDir, run) {
+  const stages = stageMetrics(outDir, run.dir, stageCountOf(run.task))
+  return { stages, stage2: stages[0] }
 }
 
 function teamStats(dir) {
@@ -345,7 +386,8 @@ export function scoreRun(id, { results, home, hidden: runHidden = hiddenTests, o
   const transcripts = transcriptDir(outDir, run.dir, home)
   const roles = collectRolesFrom(transcripts, sessionId)
   const split = roles && agentModelSplit(roles)
-  const hidden = runHidden(run.task, run.dir, { s1Dir: run.snapshot ?? run.dir })
+  const { dir: finalDir, ...copies } = stageFolders(run)
+  const hidden = runHidden(run.task, finalDir, copies)
   writeFileSync(join(outDir, 'hidden.tap'), hidden.tap)
   return {
     ...run, transcript, cost: runCost({ run, transcript, evidenceTexts: sessionTexts(transcripts, sessionId) }), split,
@@ -353,7 +395,8 @@ export function scoreRun(id, { results, home, hidden: runHidden = hiddenTests, o
     splitCoverage: run.stages ? null : splitCoverage(split, transcript.modelUsage),
     hidden: { tests: hidden.tests, pass: hidden.pass, fail: hidden.fail, rate: hidden.rate, ...(hidden.parts ? { parts: hidden.parts, incomplete: hidden.incomplete } : {}) }, own: own(run.dir),
     code: codeStats(run.dir, seedDirFor(run.task)), team: teamStats(run.dir),
-    ...(run.stages ? { stage2: stageTwoMetrics(outDir, run.dir) } : {}),
+    mainPeak: roles ? mainPeak(roles.find(r => r.role === 'main').messages) : null,
+    ...(run.stages ? stagesOf(outDir, run) : {}),
   }
 }
 
@@ -369,9 +412,9 @@ function main() {
   writeFileSync(join(RESULTS, 'summary.json'), JSON.stringify(rows.map(summaryRow), null, 2) + '\n')
 }
 
-// A two-stage run's failures per hidden set.
+// A staged run's failures per hidden set.
 const setsNote = ({ parts, incomplete }) => (parts
-  ? ` (fail ${HIDDEN_SETS.map(set => `${set} ${parts[set].fail}`).join(' ')}${incomplete.length ? `, incomplete ${incomplete.join(' ')}` : ''})`
+  ? ` (fail ${Object.entries(parts).map(([set, { fail }]) => `${set} ${fail}`).join(' ')}${incomplete.length ? `, incomplete ${incomplete.join(' ')}` : ''})`
   : '')
 
 // The line ends with how the run ended (run.json's end; '?' for held-out runs, which have none). A cost computed from
@@ -385,7 +428,7 @@ export const summaryRow = r => ({
   id: r.id, task: r.task, cond: r.cond, rep: r.rep, timedOut: r.timedOut, isError: r.transcript.isError === true, wallMs: r.wallMs,
   costUSD: r.cost.costUSD, costComputed: r.cost.costComputed, tokens: r.transcript.tokens, turns: r.transcript.turns, agentSpawns: r.transcript.agentSpawns,
   agentTypes: r.transcript.agentTypes, agentModels: r.transcript.agentModels, modelUsage: r.transcript.modelUsage, split: r.split, splitCoverage: r.splitCoverage,
-  hidden: r.hidden, own: r.own, code: r.code, team: r.team, ...(r.stage2 ? { stage2: r.stage2 } : {}),
+  hidden: r.hidden, own: r.own, code: r.code, team: r.team, ...(r.stage2 ? { stage2: r.stage2, stages: r.stages } : {}), ...(r.mainPeak === undefined ? {} : { mainPeak: r.mainPeak }),
 })
 
 // One plain line and exit 1 on any failure; a missing input names the step that makes it.

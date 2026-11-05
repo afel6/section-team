@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { childEnv, cleanSettings, commonArgs } from './clean-run.mjs'
 import {
   ALLOWED, BLIND_KEY, JUDGE_TIMEOUT_MS, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions,
-  judgeSpawnOptions, mirrorSwap, parseVerdict, pendingJobs, prepareJob, runJobs, unswap, withCopy,
+  judgeSpawnOptions, mirrorSwap, parseVerdict, pendingJobs, prepareJob, runJobs, taskTextOf, unswap, withCopy,
 } from './judge.mjs'
 import { projectDirFor } from './run-attempts.mjs'
 
@@ -666,4 +666,13 @@ test('a binary that cannot start stops judging with one line', async t => {
   }
   const broken = callSetup(t, () => missing)
   await assert.rejects(broken.call(broken.job, 1), { message: 'could not start claude (C:/bench-runs/claude-2.1.296.exe: ENOENT)' })
+})
+
+test('taskTextOf gives the judges of a three-stage task all three prompts in order, each after its own line', t => {
+  const bench = mkdtempSync(join(tmpdir(), 'judge-bench-'))
+  t.after(() => rmSync(bench, { recursive: true, force: true }))
+  mkdirSync(join(bench, 'tasks'))
+  for (const [file, text] of [['p1', 'FIRST'], ['p1-s2', 'SECOND'], ['p1-s3', 'THIRD']]) writeFileSync(join(bench, 'tasks', `${file}.md`), text)
+  const text = taskTextOf(bench, 'p1-r1')
+  assert.deepEqual(['FIRST', 'second request', 'SECOND', 'third request', 'THIRD'].map(part => text.indexOf(part)).every((at, i, all) => at >= 0 && (i === 0 || at > all[i - 1])), true, text)
 })
