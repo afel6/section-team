@@ -13,7 +13,7 @@ Measured over 17 benchmark rounds (three tasks of rising size, two runs each, gr
 | An earlier version of this team | $3.39 | 7.7 | 0 / 3 |
 | **section-team now** | $3.10 | **8.6** | **12 / 0** |
 
-It costs about 3.6 times as much as plain Claude Code, for cleaner, better-tested and more robust code.
+Across the later pre-registered rounds, the team cost about 2.2 to 5.2 times as much as plain Claude Code, depending on the mode and the tasks, for cleaner, better-tested and more robust code as judged blind. The table above is the final tuning round; the later rounds on new tasks are the fairer guide.
 
 **Limits:** every setup, plain Claude Code included, passed all the hidden tests, so the gains are in blind-judged quality, not in whether the code works. Each cell is 2 runs (about ±0.3 judge noise), and the team was tuned over 17 rounds on these same three tasks. A pre-registered held-out round on three new tasks it had never seen measured a smaller gain that still cleared the bar set in advance: blind judge quality 8.8 against 8.2 for plain Claude Code, both passing every hidden test, at about 2.2 times the cost ([details](docs/benchmark-heldout-2026-11.md)). A later pre-registered round on a clean machine measured the default mode at 8.8 against 7.4, at about 5.2 times the cost ([details](docs/benchmark-modes-2026-11.md)).
 
@@ -78,6 +78,16 @@ Section heads work like solo builders. Each reads `.team/notes/INDEX.md` first, 
 - **Memory:** each section keeps its memory per project, one folder per section in `.claude/agent-memory-local/` under the session's folder (in a git worktree session, the worktree's folder). At session start section-team adds `**/.claude/agent-memory-local/` to the repo's `.git/info/exclude`, even with `.team/keep-in-git`, so memory folders stay out of git in every folder of the repo. Remote sessions (`CLAUDE_CODE_REMOTE_MEMORY_DIR`) keep memory elsewhere, so advisors there cannot save memory. Before 0.2.0 one memory served every project; those notes stay in `~/.claude/agent-memory/section-team-*`, and copying one of those folders into a project's `.claude/agent-memory-local/` brings it into that project. Advisors may write only inside their own memory folder there.
 
 Section heads skip your global `CLAUDE.md` (it can cost many thousands of tokens per agent) but read the project's own rule files (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `.claude/rules/*.md`), and carry a short copy of the house rules.
+
+## Platform readiness (0.2.3)
+Changes aimed at long sessions and real multi-area platforms. Plain words, no promises:
+- **Fresh sections for new jobs.** A section that is kept alive across many jobs re-reads its whole history on every turn, which gets expensive. In 0.2.3 each new job gets a fresh Agent call; a message to a section only continues that same job (a fix list, a question, a resume). Section heads also get a shorter tool list, and are told to keep tool output short.
+- **Context guard.** If the supervisor tries to message a builder section whose context is already over 300,000 tokens, the plugin refuses and says to start a fresh section pointed at the notes and its REPORT. If the plugin cannot read the needed files, it allows the message.
+- **Grade check.** A section's REPORT grade is now compared with the reviewer's own grade in its transcript. A grade above the reviewer's, or a grade with no reviewer call, is refused at handback. If the result cannot be read, nothing is refused.
+- **Foundation skill.** `section-team:foundation` is loaded by the supervisor before a new platform or product, or work needing 3 or more builders. It asks the user at most 5 questions, writes a short `.team/notes/foundation.md` (stack, data model, contracts, build order as vertical slices, test plan), waits for your OK, then builds one slice at a time with a whole-stack check after each. `.team/notes/plan.md` tracks the slices so a new chat can carry on. Security is woken for auth, payments, uploads or secrets, docs come after the builders report, and the final review starts the app and drives the critical flows.
+- **A harder benchmark task.** `bench/tasks/h7.md` is a two-stage task (build, then change it) with hidden tests for each stage and for stage-1 behaviour surviving. It exists to show whether the code is really better, because earlier tasks were passed by every setup.
+
+**What is measured and what is not.** The cost figures behind these changes come from replaying local transcripts from 2026-10-24 to 2026-11-04 at the benchmark's prices: a rough model, not a bill. Not measured yet: the saving in real use, and any gain in code quality or in hidden-test failures. The h7 runs that could show this have not been done, so treat 0.2.3 as unproven until they are.
 
 ## Develop
 - `npm test` — hook logic (node:test)
