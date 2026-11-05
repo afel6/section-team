@@ -296,6 +296,14 @@ test('every builder lets a stated mode gate replace its numbers and reviewer mod
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('If the job states a mode gate'), `${id} is read-only and has no gate`)
 })
 
+test('a builder is not told to skip the gate for config files, which the handback hook counts as code', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(!text.includes('config values'), id)
+    assert.ok(text.includes('Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):'), id)
+  }
+})
+
 test('advisors read the notes but get neither the reviewer nor the coder', () => {
   for (const id of ADVISOR_IDS) {
     const text = agentFile(id)

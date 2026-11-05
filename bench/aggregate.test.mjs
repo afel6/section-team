@@ -101,7 +101,7 @@ test('loadJudged: no judge file is no scores; a judge file without its blind key
   t.after(() => rmSync(results, { recursive: true, force: true }))
   assert.deepEqual(loadJudged(results, 'ho'), {})
   writeFileSync(join(results, 'judge-ho.json'), '[]')
-  assert.throws(() => loadJudged(results, 'ho'), /blind-key-ho\.json: run node bench\/anonymize\.mjs --round=ho first/)
+  assert.throws(() => loadJudged(results, 'ho'), /blind-key-ho\.json: run node bench\/anonymize\.mjs --round=ho --conds=<setups> --tasks=<tasks> --reps=<n> first/)
   writeFileSync(join(results, 'blind-key-ho.json'), '{}')
   assert.deepEqual(loadJudged(results, 'ho'), {})
 })

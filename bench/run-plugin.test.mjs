@@ -175,6 +175,18 @@ function refusingCli(t) {
   return { home, results, run }
 }
 
+// A batch costs money per run, so its size is always named. The child has a temp home and results folder and no pin there.
+test('a batch refuses to start unless it names its tasks and its reps', t => {
+  const { run } = refusingCli(t)
+  const start = (...flags) => run('run.mjs', '--plugin=/no/worktree', '--tag=zzguard', '--conds=team', '--no-sync', ...flags)
+  for (const [flags, missing] of [[[], 'tasks'], [['--tasks=h7'], 'reps'], [['--reps=1'], 'tasks']]) {
+    const { status, stderr } = start(...flags)
+    assert.equal(status, 1, stderr)
+    assert.match(stderr, new RegExp(`--${missing}= is required`))
+  }
+  assert.match(start('--tasks=h7', '--reps=1').stderr, /preflight-zzguard\.json/, 'with both named it gets as far as the pin')
+})
+
 const uniqueRound = () => `clitest${randomBytes(4).toString('hex')}`
 
 // run.mjs reads its pin from the results folder BENCH_RESULTS names: a temp one, so these tests never touch bench/results.

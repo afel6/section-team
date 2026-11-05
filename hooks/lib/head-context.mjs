@@ -37,8 +37,10 @@ function contextTokens(entries) {
   return tokenCount(usage?.input_tokens) + tokenCount(usage?.cache_read_input_tokens) + tokenCount(usage?.cache_creation_input_tokens)
 }
 
-// Each content part is its own row, so a text row with stop_reason tool_use has its call still to come.
-const endsInText = row => hasPart(row, 'text') && !hasPart(row, 'tool_use') && row.message.stop_reason !== 'tool_use'
+// Each content part is its own row, so a text row with stop_reason tool_use has its call still to come. Claude Code 2.1.304 and
+// older write that row with a null stop_reason, so null counts as working too; the few real turns that ended on null are then
+// allowed, as hooks fail open.
+const endsInText = row => hasPart(row, 'text') && !hasPart(row, 'tool_use') && row.message.stop_reason != null && row.message.stop_reason !== 'tool_use'
 
 // The result of a SubagentHandback call. An error result is the gate refusing the handback, and that head works on.
 function answersHandback(row, rows) {

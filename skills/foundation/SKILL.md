@@ -4,7 +4,7 @@ description: Lay the foundation before building a new platform or product with t
 ---
 # Foundation first
 
-For the supervisor, before waking any builder on a new platform or product with two or more builder areas. Do the steps in order.
+For the supervisor, before waking any builder on a new platform or product with two or more builder areas. Do the steps in order. `.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.
 
 ## Ask
 Ask the user at most 5 questions whose answers change the build: users and scale, must-use stack, hosting, compliance, deadline. Choose sensible defaults for the rest and say which.
@@ -33,6 +33,6 @@ After the OK the note is frozen. A change goes through you and is recorded in `.
 Keep `.team/notes/plan.md` as a short status table of the slices, updated after each job. A new chat reads it first, so the work survives across sessions.
 
 ## Build one slice at a time
-Wake the sections for one slice only. Each slice ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts. Each job message names the foundation note and the slice.
+Wake the sections for one slice only. Each slice ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts. Each job message names the foundation note and the slice. In a worktree session, give the note's full path.
 
-A repo created during this session needs `.team/` added to `.git/info/exclude` before its first commit, because session start only does that for a repo that already exists.
+If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.

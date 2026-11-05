@@ -109,7 +109,7 @@ test('context names the latest summary and excludes .team/', () => {
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const context = buildContext(dir, tempHome())
   assert.ok(context.startsWith('[section-team supervisor]'))
-  assert.ok(context.includes('\n\nLast team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it before new team work.\n\n'))
+  assert.ok(context.includes('\n\nLast team summary: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it first.\n\n'))
   assert.ok(!context.includes(dir))
   assert.ok(readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
 })
@@ -119,7 +119,7 @@ test('a session in a subfolder names the summary relative to the project root', 
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const sub = join(dir, 'src')
   mkdirSync(sub)
-  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
+  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
 })
 
 test('hook prints SessionStart additionalContext', () => {
@@ -317,7 +317,7 @@ test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.ok(envOn.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(envOn.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
   const fileOn = contextFor('{"autoInstallSkills":true}', {})
-  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json), which replaces asking first'))
+  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json): install'))
   assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
   assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
   assert.ok(contextFor('{"mode":"lean"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
@@ -445,7 +445,7 @@ test('composeContext builds the same text as buildContext, and puts the summary 
   const dir = withModeFile(repo(), '{"mode":"lean","autoInstallSkills":true}')
   assert.equal(buildContext(dir, tempHome(), {}), composeContext(readMode(dir), {}, null))
   const withSummary = composeContext({ mode: 'max', autoInstallSkills: null, problem: null }, {}, 'S')
-  assert.ok(withSummary.includes('\n\nLast team summary for this project: S. Read it before new team work.\n\n## Mode\n'))
+  assert.ok(withSummary.includes('\n\nLast team summary: S. Read it first.\n\n## Mode\n'))
 })
 
 for (const mode of MODES) {
@@ -483,8 +483,19 @@ test('the context tells the supervisor to read .team/notes/plan.md first, only w
   mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
   writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
   const context = buildContext(dir, tempHome(), {})
-  assert.ok(context.includes('`.team/notes/plan.md` exists: read it first, before new team work.'))
+  assert.ok(context.includes('`.team/notes/plan.md` exists: read it first.'))
   assert.ok(context.indexOf('plan.md') < context.indexOf('## Mode'))
+})
+
+test('a worktree session finds the plan in the main checkout, and is told that is where .team/ lives', () => {
+  const dir = repo()
+  const worktree = join(dir, '..', 'wt')
+  execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', worktree])
+  assert.ok(!buildContext(worktree, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  assert.ok(buildContext(worktree, tempHome(), {}).includes('`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'))
 })
 
 test('a session started in a subfolder finds plan.md at the repo root', () => {

@@ -4,11 +4,12 @@
 // A two-stage task (TWO_STAGE_TASKS) gets its second prompt by --resume in the same session once stage 1 ended ok: the run
 // keeps raw-s1.json and raw-s2.json, tags the folder stage-1 and stage-2, and copies it to <folder>-s1 after stage 1.
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
-// Team runs get empty section memory: the user's is moved aside for the round (see section-memory.mjs).
+// Team runs start with empty section memory because every agent since 0.2.0 has `memory: local`: a run's notes stay in its own
+// folder, and nothing touches the user's. Older plugin versions are refused (pluginVersionOf).
 // lean and max runs start with .team/mode.json set to their mode (see prepareRun).
 // Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
 // Usage: node bench/run.mjs --plugin=<absolute path of the worktree at the pinned ref> --tag=mo [--round=mo] [--plugin-ref=<git ref>] --conds=solo,lean,team,max
-//          [--tasks=h4,h5,h6] [--reps=3] [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
+//          --tasks=h4,h5,h6 --reps=3 [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
 //          [id-substring ...]
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given; the ref is
 //        the pin's, and a --plugin-ref that differs is refused)
@@ -17,7 +18,7 @@
 //        The cloud round passes --redact-email with it, in every run, push and preflight command; the scan stays on.
 //        exit 1: harness or evidence error; stop and report, do not resume
 //        exit 2: the batch stopped (resume to rerun); exit 3: the round stopped (fix the cause as a harness bug first)
-//        node bench/run.mjs --restore-memory [--force]   (after an interrupted round: puts the user's section memory back)
+//        node bench/run.mjs --restore-memory [--force]   (puts back section memory an older harness moved aside and left there)
 import { spawn as nodeSpawn, execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs'
@@ -35,7 +36,7 @@ import {
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
-import { MEMORY_BACKUP, MEMORY_ROOT, backupSectionMemory, renameRetry, required, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
+import { MEMORY_BACKUP, MEMORY_ROOT, renameRetry, required, restoreMessage, restoreSectionMemory, sameVolume } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const REPO = dirname(BENCH)
@@ -116,6 +117,14 @@ export function parseArgs(argv) {
   const badRerun = args.rerun.find(id => !RUN_ID.test(id))
   if (badRerun !== undefined) throw new RangeError(`--rerun takes run ids of letters, digits and dashes, got "${badRerun}"`)
   return { ...args, reps: Number(reps), filters: argv.filter(a => !a.startsWith('--')) }
+}
+
+// What must be on the command line even though parseArgs has a default for it: the defaults suit a report that only reads,
+// not a step that spends money or wipes a folder.
+export function requireFlags(argv, flags) {
+  for (const flag of flags) {
+    if (!argv.some(a => a.startsWith(`--${flag}=`))) throw new RangeError(`--${flag}= is required: it has a default for reports, but this step must name it`)
+  }
 }
 
 // The preflight names the round's pin by --round and the run ids carry --tag: both must name the same round.
@@ -537,8 +546,8 @@ async function twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) 
 // ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root, stash } = deps
-  required({ outDir, home, dir, root, stash })
+  const { spawn = nodeSpawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root } = deps
+  required({ outDir, home, dir, root })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
@@ -553,8 +562,6 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
   const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage })
   const { info, messages, extraReasons } = isTwoStage(run.task) ? await twoStages(claude, { run, outDir, dir, sessionId, attempt, ctx }) : await singleStage(claude, outDir)
-  // Section memory the run wrote is filed with its results before the run counts as done, so the next team run starts empty.
-  if (baseOf(run) !== 'solo') stash({ into: outDir })
   const ended = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const bestEffort = ended === 'api-limit' || ended === 'api-other'
   let copied
@@ -570,7 +577,7 @@ export async function runOne(run, outDir, ctx, deps = {}) {
 
 const nearestExisting = path => (existsSync(path) || dirname(path) === path ? path : nearestExisting(dirname(path)))
 
-// Section memory moves between MEMORY_ROOT, the backup in home and RESULTS: renames need one volume. MEMORY_ROOT
+// A restore moves section memory between MEMORY_ROOT, the backup in home and RESULTS: renames need one volume. MEMORY_ROOT
 // may not exist yet (no section has saved a note), so its nearest existing parent stands in for it.
 export function checkVolumes({ root, others } = {}) {
   required({ root, others })
@@ -584,7 +591,7 @@ export function checkVolumes({ root, others } = {}) {
 // folders from its caller (runFolder only names a path). The repo's own seeds and tasks stay defaults: they are only read.
 const REAL_MEMORY = { root: MEMORY_ROOT, backup: MEMORY_BACKUP }
 const REAL_VOLUMES = { root: MEMORY_ROOT, others: [homedir(), RESULTS] }
-const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS, stash: args => stashRunMemory({ ...args, root: MEMORY_ROOT }) })
+const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS })
 
 function restoreMemory({ force = false } = {}) {
   checkVolumes(REAL_VOLUMES)
@@ -594,32 +601,16 @@ function restoreMemory({ force = false } = {}) {
 
 const SIGNAL_NUMBERS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
 
-// Moves the user's section memory aside for the round (see section-memory.mjs) and returns the function that
-// moves it back. Ctrl+C, a closed console, a kill or a crash skip `finally`; they all end in process exit, whose
-// handler stops the run in progress and then puts the memory back. It runs at most once.
-export function isolateSectionMemory({ volumes, backup, restore, stop = stopActiveChild } = {}) {
-  required({ volumes, backup, restore })
-  volumes()
-  console.log(`section memory moved aside: ${backup().join(' ') || '(none)'}`)
-  let released = false
-  const putBack = () => {
-    if (released) return
-    released = true
-    stop()
-    try {
-      restore()
-    } catch (err) {
-      console.error(`could not restore your section memory: ${err.message}; run node bench/run.mjs --restore-memory`)
-      process.exitCode = 1
-    }
-  }
+// Ctrl+C, a closed console, a kill or a crash skip `finally`; they all end in process exit, whose handler stops the run in
+// progress. Returns the function that removes the handlers and stops any run still going.
+export function stopRunOnExit({ stop = stopActiveChild } = {}) {
   const onSignal = signal => process.exit(128 + SIGNAL_NUMBERS[signal])
-  process.on('exit', putBack)
+  process.on('exit', stop)
   for (const signal of Object.keys(SIGNAL_NUMBERS)) process.once(signal, onSignal)
   return () => {
     for (const signal of Object.keys(SIGNAL_NUMBERS)) process.off(signal, onSignal)
-    process.off('exit', putBack)
-    putBack()
+    process.off('exit', stop)
+    stop()
   }
 }
 
@@ -627,6 +618,7 @@ async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
   const { tag, round, conds, tasks, reps, filters, plugin, pluginRef, rerun, reason, sync, noSync, redactEmail } = parseArgs(argv)
+  requireFlags(argv, ['tasks', 'reps'])
   checkRoundTag({ round, tag })
   const syncBranch = syncBranchOf({ sync, noSync })
   // Every run reads its round's pin by the tag, so a run without one cannot start.
@@ -641,9 +633,8 @@ async function main() {
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
   const publish = syncBranch === null ? null : await publisher({ runs, tag, options: { branch: syncBranch, redactEmail } })
-  const isolate = () => isolateSectionMemory({ volumes: () => checkVolumes(REAL_VOLUMES), backup: () => backupSectionMemory(REAL_MEMORY), restore: restoreMemory })
   const one = watchUserLists(withPublish((r, o) => runOne(r, o, ctx, realRunDeps(r)), publish), { home: homedir() })
-  await runAll(todo, { isolate, results: RESULTS, runOne: one })
+  await runAll(todo, { results: RESULTS, runOne: one })
   console.log('all runs finished')
 }
 
@@ -676,13 +667,12 @@ async function publisher({ runs, tag, options }) {
   }
 }
 
-// Runs each run in order. The user's section memory stays out of every team run: it is moved aside only when a
-// run other than solo is left, and moved back even when a run throws. runOne is required: main binds it to the
-// batch's ctx, and a default without ctx could only crash mid-batch.
-export async function runAll(todo, { runOne: one, isolate, results } = {}) {
+// Runs each run in order. runOne is required: main binds it to the batch's ctx, and a default without ctx could only
+// crash mid-batch.
+export async function runAll(todo, { runOne: one, results } = {}) {
   if (typeof one !== 'function') throw new TypeError('runAll needs a runOne bound to the batch context')
-  required({ isolate, results })
-  const release = todo.some(run => baseOf(run) !== 'solo') ? isolate() : () => {}
+  required({ results })
+  const release = stopRunOnExit()
   try {
     for (const run of todo) await one(run, join(results, run.id))
   } finally {

@@ -12,6 +12,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { CALIBRATION, NODE_TEST_PATTERNS, taskLayout } from './calibrate.mjs'
 import { NAME, RESULTS, ROUND_CONDS, SEEDS } from './run.mjs'
 import { hiddenEnv, isTestPath, sameAsSeed } from './score.mjs'
+import { required } from './section-memory.mjs'
 
 export const TIME_LIMIT_MS = 300_000
 const TASKS = ['h5', 'h6', 'h7']
@@ -173,7 +174,8 @@ const lineOf = (id, row) => {
   return `${id}  ${measure}  valid ${row.valid.length}/${row.files.length}${skipped}`
 }
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, root, seeds, run } = {}) {
+export function main(argv = process.argv.slice(2), { results, root, seeds, run } = {}) {
+  required({ results })
   const round = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(round)) {
     console.error('usage: node bench/test-strength.mjs --round=<tag>   (letters and digits only)')
@@ -189,4 +191,4 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, root, se
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS })

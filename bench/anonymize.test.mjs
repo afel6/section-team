@@ -113,6 +113,68 @@ test('the CLI refuses --round=x/.. and deletes nothing', t => {
   assert.ok(existsSync(join(home, 'keep.txt')), 'home folder untouched')
 })
 
+// A round already anonymized by the CLI in a temp home and results folder, with one finished run.
+function anonymizedRound(t) {
+  const home = mkdtempSync(join(tmpdir(), 'bench-home-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const results = join(home, 'results')
+  put(join(home, 'run', 'app.mjs'), 'export {}\n')
+  put(join(results, 'zz-a-r1', 'run.json'), JSON.stringify({ id: 'zz-a-r1', dir: join(home, 'run') }))
+  const env = { ...process.env, HOME: home, USERPROFILE: home, BENCH_RESULTS: results }
+  const cli = (...flags) => spawnSync(process.execPath, [join(import.meta.dirname, 'anonymize.mjs'), '--round=zzclitest', ...flags], { encoding: 'utf8', env })
+  const keyPath = join(results, 'blind-key-zzclitest.json')
+  const judgeDir = join(home, 'bench-judge-zzclitest')
+  const { status, stderr } = cli('--conds=a', '--tasks=zz', '--reps=1')
+  assert.equal(status, 0, stderr)
+  return { cli, keyPath, judgeDir, key: readFileSync(keyPath, 'utf8') }
+}
+
+const assertKept = ({ judgeDir, keyPath, key }) => {
+  assert.ok(existsSync(join(judgeDir, 'zz-r1', 'X', 'app.mjs')), 'the judge folder is kept')
+  assert.equal(readFileSync(keyPath, 'utf8'), key, 'the key is kept')
+}
+
+test('the CLI refuses a round that leaves out --conds, --tasks or --reps, and deletes nothing', t => {
+  const round = anonymizedRound(t)
+  for (const [flags, missing] of [[['--tasks=zz', '--reps=1'], 'conds'], [['--conds=a', '--reps=1'], 'tasks'], [['--conds=a', '--tasks=zz'], 'reps'], [[], 'conds']]) {
+    const res = round.cli(...flags)
+    assert.equal(res.status, 1, missing)
+    assert.match(res.stderr, new RegExp(`--${missing}= is required`))
+    assertKept(round)
+  }
+})
+
+test('the CLI refuses flags that would replace the round\'s key, and deletes nothing', t => {
+  const round = anonymizedRound(t)
+  for (const flags of [['--conds=a', '--tasks=zz', '--reps=2'], ['--conds=a', '--tasks=yy', '--reps=1'], ['--conds=a,b', '--tasks=zz', '--reps=1']]) {
+    const res = round.cli(...flags)
+    assert.equal(res.status, 1, flags.join(' '))
+    assert.match(res.stderr, /blind-key-zzclitest\.json is not the key of these flags/)
+    assertKept(round)
+  }
+})
+
+test('the CLI refuses too many setups and a key it cannot read, before it deletes anything', t => {
+  const round = anonymizedRound(t)
+  const res = round.cli('--conds=a,b,c,d,e', '--tasks=zz', '--reps=1')
+  assert.equal(res.status, 1)
+  assert.match(res.stderr, /1 to 4 conditions/)
+  assertKept(round)
+  writeFileSync(round.keyPath, '{ nope')
+  assert.equal(round.cli('--conds=a', '--tasks=zz', '--reps=1').status, 1)
+  assert.ok(existsSync(join(round.judgeDir, 'zz-r1', 'X', 'app.mjs')))
+})
+
+test('anonymizing again with the same flags rebuilds the folder from empty and keeps the key', t => {
+  const round = anonymizedRound(t)
+  const stale = join(round.judgeDir, 'zz-r1', 'X', 'stale.txt')
+  put(stale)
+  const { status, stderr } = round.cli('--conds=a', '--tasks=zz', '--reps=1')
+  assert.equal(status, 0, stderr)
+  assert.ok(!existsSync(stale))
+  assertKept(round)
+})
+
 test('a relative symlink in a run stays relative, so it never points back into the run folder', t => {
   const box = sandbox(t)
   fakeH2Run(box)

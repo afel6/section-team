@@ -51,7 +51,7 @@ One Windows PC with about 40 plugins and 629 skills, Claude Code CLI 2.1.318. A 
 - `tools: ..., mcp__*` gives a head no MCP tools at all. A limited head still gets `SubagentHandback`.
 - The skill list alone is 30K characters on that PC. It is the largest part of what is left, and it depends on what the user has installed, not on the plugin.
 - Of 115 real heads, 5 called a project MCP server and 5 the browser.
-- The replay's tools row assumed about 53K removed per head. The desktop measurement supports that for the desktop and not for the terminal.
+- The replay's tools row assumed about 45K removed per head, a flat cut in the replay script. No limited head has been measured in the desktop app: 71.8K and 24.7K compare a default head with a helper, which has no memory setting, no preloaded skill and a much shorter prompt, so their 47K gap is more than a head can lose (at most about 43K). Like for like is an estimate of about 39K, or about 30K for a head that keeps the browser tools; at those the rows would be about $838 and $204. Treat $785 and $190 as rough until Proof step 4 reads a limited head.
 
 ## Stage 1: Cost
 
@@ -107,11 +107,11 @@ Spend is checked with the usage tool between steps. Paid steps stop at 90% of th
 
 1. All local checks: `npm test`, `npm run test:board`, `npm run validate`, `gen-agents --check`, `node --test bench/*.test.mjs`.
 2. An independent review of the whole branch.
-3. Push the same branch so CI runs on all three systems. PR 16 stays unmerged.
+3. Push the same branch so CI runs on all three systems. PR 16 stays unmerged. Its description covers only the first commit, so rewrite it when the branch is pushed, from `README.md`'s Platform readiness section and fresh check output; that edit is an external write and needs the user's yes. Do not repeat the claim in commit 169d157's message that everything exported takes its target from its caller: 12405d0 and 3a1ad0e fixed more defaults after it.
 4. **Tiny live checks, under $1:** one head told to reply "ok", to read its real start size and confirm a limited head can still hand back, and a browser head (frontend, testing, uiux or ai-llm) confirms it can reach a browser tool through the per-server wildcards. A head also hands back a graded code REPORT with no reviewer call, and the refusal is seen: this proves the `agent_id` and path derivation on a real payload. One real `SendMessage`, to capture the hook payload the guard assumes.
-5. **Smoke, about $10:** one Balanced run of h7 through both stages, to confirm `--resume` works, stage 2 wakes fresh heads, and all three test sets run.
-6. **Calibration, about $3:** two solo runs of h7. If nothing fails, harden the spec.
-7. **The real test, about $90 to $125, needs the user's yes with the exact figure:** 6 to 8 pairs of solo vs Balanced on h7, plus 0.2.2 vs 0.2.3. This is the only step that can show better code.
+5. **Smoke, about $10, plus about $1 for its preflight, which needs the user's yes:** a batch needs a pin and a plugin worktree apart from this checkout. Run `git worktree add --detach <path> fix/fresh-section-per-job`, then `node bench/preflight.mjs --round=<tag> --plugin=<path> --plugin-ref=fix/fresh-section-per-job` (four runs), then `node bench/run.mjs --plugin=<path> --plugin-ref=fix/fresh-section-per-job --tag=<tag> --conds=team --tasks=h7 --reps=1`: one Balanced run of h7 through both stages, to confirm `--resume` works, stage 2 wakes fresh heads, and all three test sets run. Score it alone, with no other hidden set, calibrate or batch running: they share port 3000 and the CPU, and an overlap can fail correct code.
+6. **Calibration, about $3:** two solo runs of h7 on the same tag (`--conds=solo --tasks=h7 --reps=2`), scored alone. If nothing fails, harden the spec.
+7. **The real test, about $90 to $125 plus about $1 for a second preflight, needs the user's yes with the exact figure, preflight included:** 6 to 8 pairs of solo vs Balanced on h7, plus 0.2.2 vs 0.2.3. The 0.2.3 runs can share the smoke run's tag; 0.2.2 needs its own tag, a worktree at `v0.2.2` and its own preflight. Runs are scored alone. This is the only step that can show better code.
 
 Two-stage h7 cannot reproduce growth over many days; that stays unmeasured.
 

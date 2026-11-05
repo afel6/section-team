@@ -6,8 +6,9 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, extname, join, relative } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { judgeDirFor } from './anonymize.mjs'
+import { anonymizeCommand, judgeDirFor } from './anonymize.mjs'
 import { NAME, RESULTS } from './run.mjs'
+import { required } from './section-memory.mjs'
 import { codeStats, isTestPath } from './score.mjs'
 
 export const WORDS = ['section-team', 'section', 'supervisor', 'REPORT', 'GRADE', 'reviewer', 'near-miss', 'near miss', 'nearmiss', 'mutant', 'Lean', 'Balanced', 'Max mode', '.team', 'ponytail']
@@ -79,7 +80,7 @@ function solutionsOf(key) {
 
 function scanOne(judgeDir, { group, label, cond }) {
   const dir = join(judgeDir, group, label)
-  if (!existsSync(dir)) throw new Error(`${group}/${label}: solution folder missing in ${judgeDir}; finish that run, then run node bench/anonymize.mjs again`)
+  if (!existsSync(dir)) throw new Error(`${group}/${label}: solution folder missing in ${judgeDir}; finish that run, then run node bench/anonymize.mjs again with the same flags`)
   const seed = join(judgeDir, group, 'SEED')
   const scan = scanSolution(dir, existsSync(seed) ? seed : null)
   return { cond, ...scan, extraPaths: scan.extraPaths.map(rel => `${group}/${label}/${rel}`) }
@@ -125,7 +126,8 @@ function readKey(path) {
   }
 }
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, home = homedir() } = {}) {
+export function main(argv = process.argv.slice(2), { results, home } = {}) {
+  required({ results, home })
   const round = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(round)) {
     console.error('usage: node bench/leak-scan.mjs --round=<tag>   (letters and digits only)')
@@ -137,9 +139,9 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, home = h
     writeFileSync(join(results, `leak-scan-${round}.json`), JSON.stringify(scan, null, 2) + '\n')
     console.log(formatTable(scan))
   } catch (err) {
-    console.error(`leak-scan: ${err.code === 'ENOENT' ? `missing ${err.path}: run node bench/anonymize.mjs --round=${round} first` : err.message}`)
+    console.error(`leak-scan: ${err.code === 'ENOENT' ? `missing ${err.path}: run ${anonymizeCommand(round)} first` : err.message}`)
     process.exitCode = 1
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS, home: homedir() })

@@ -166,6 +166,59 @@ test('a re-grade after a pass is unfaithful', t => {
   assert.deepEqual(result.broken, ['gate of main graded again after a pass'])
 })
 
+// A section is told "Any other code edit needs a new grade", so that grade starts a new gate. With no edit between the two
+// calls it still broke "a pass ends the gate", and so does main, whose own brief has no such line.
+const graded = (between, helper = []) => [
+  main_(wake(0, 'testing')),
+  section('testing', 't1', [userLine(1, 'job'), wake(3, 'reviewer'), ...between, wake(9, 'reviewer')]),
+  ...helper,
+  ...reviews('t1', [[4, 9], [10, 9]]),
+]
+const shapeOf = list => list.map(g => [g.caller, g.reviews.length, g.fixRounds, g.regradeAfterPass])
+
+test('a section that edits code after a pass and grades again follows the brief: a new gate, no fix round', t => {
+  const ways = {
+    'its own Edit': graded([write(6, 'src/app.mjs', 'Edit')]),
+    'its own Write': graded([write(6, 'src/app.mjs')]),
+    'its coder': graded([], [section('coder', 'c1', [userLine(5, 'fix'), write(6, 'src/app.mjs')], 't1')]),
+  }
+  for (const [name, roles] of Object.entries(ways)) {
+    assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['t1', 1, 0, false], ['t1', 1, 0, false]], name)
+    const { broken } = checkRun({ cond: 'team-mo', task: 'h6', roles, runDir: runDir(t), record: 'balanced' })
+    assert.deepEqual(broken.filter(line => line.startsWith('gate of')), [], name)
+  }
+})
+
+test('a pass, an edit and a new grade do not count against any mode\'s fix rounds', () => {
+  for (const [mode, grades] of [['lean', [7, 9, 9]], ['balanced', [7, 7, 9, 9]], ['max', [8, 8, 8, 9, 9]]]) {
+    const list = grades.map((grade, i) => [10 * (i + 1), grade])
+    const roles = [main_(wake(0, 'testing')), section('testing', 't1', [userLine(1, 'job'), write(list.at(-1)[0] - 1, 'src/app.mjs', 'Edit')]), ...reviews('t1', list)]
+    assert.deepEqual(gates(roles, mode).map(g => [g.fixRounds, g.regradeAfterPass]), [[grades.length - 2, false], [0, false]], mode)
+  }
+})
+
+test('a grade after a pass with no code edit in between is still a re-grade', t => {
+  const ways = {
+    'nothing between': graded([]),
+    'a note and memory only': graded([write(6, '.team/notes/api.md'), write(7, '.claude/agent-memory-local/section-team-testing/MEMORY.md', 'Edit')]),
+    'an edit before the pass': [main_(wake(0, 'testing')), section('testing', 't1', [userLine(1, 'job'), write(2, 'src/app.mjs'), wake(3, 'reviewer'), wake(9, 'reviewer')]), ...reviews('t1', [[4, 9], [10, 9]])],
+  }
+  for (const [name, roles] of Object.entries(ways)) {
+    assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['t1', 2, 1, true]], name)
+    assert.ok(checkRun({ cond: 'team-mo', task: 'h6', roles, runDir: runDir(t), record: 'balanced' }).broken.includes('gate of t1 graded again after a pass'), name)
+  }
+})
+
+test('an edit after a failing grade stays in the gate as a fix round', () => {
+  const roles = [main_(wake(0, 'testing')), section('testing', 't1', [userLine(1, 'job'), write(6, 'src/app.mjs', 'Edit')]), ...reviews('t1', [[4, 7], [10, 9]])]
+  assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['t1', 2, 1, false]])
+})
+
+test('main\'s own edit after a pass does not excuse its re-grade: its brief says a pass ends the gate', () => {
+  const roles = [main_(wake(2, 'reviewer'), write(5, 'src/app.mjs', 'Edit'), wake(8, 'reviewer')), ...reviews(null, [[3, 9], [9, 9]])]
+  assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['main', 2, 1, true]])
+})
+
 test('a queued_command from main between two section reviewer calls starts a new gate; the section\'s own reviewer hand-back does not; a skill-load user line does not', () => {
   const backend = between => section('backend', 'b1', [userLine(1, 'job'), skillLoad(2), wake(3, 'reviewer'), wake(4, 'coder'), ...between, wake(9, 'reviewer')])
   const own = [handBack(6, 'rb10'), notified(6.5, 'rb10'), handBack(7, 'c1'), skillLoad(8)]

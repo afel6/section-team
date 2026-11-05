@@ -1,5 +1,5 @@
-// A test once ran the real stashRunMemory by leaving out its folder: the default moved the user's section notes into
-// the test's temp folder, and the test's cleanup deleted them. So what moves, deletes or pushes real data names its
+// A test once ran the real stash of section memory (since removed) by leaving out its folder: the default moved the user's
+// section notes into the test's temp folder, and the test's cleanup deleted them. So what moves, deletes or pushes real data names its
 // target, with no default, and a forgetful caller throws.
 // Every case here runs in a child whose home folder is a temp one holding one note. If a default comes back, the case
 // fails against that temp note. Never make these calls in this process: that is how the notes were lost.
@@ -44,6 +44,7 @@ const PREFLIGHT = "await import('./preflight.mjs')"
 const JUDGE = "await import('./external-judge.mjs')"
 const ATTEMPTS = "await import('./run-attempts.mjs')"
 const SCORE = "await import('./score.mjs')"
+const GIT = "await import('./cloud-git.mjs')"
 const TEAM_RUN = "{ id: 'easy-team-mo-r1', task: 'easy', cond: 'team-mo', base: 'team', rep: 1 }"
 const ROOT = "root: join(home, 'memory')"
 const BACKUP = "backup: join(home, 'backup')"
@@ -60,13 +61,6 @@ const PIN = "file: join(home, 'pin.json'), round: 'zzguard', branch: 'zzguard'"
 
 // module, function, the target it names as missing, its arguments.
 const TARGET_CASES = [
-  [SECTION_MEMORY, 'stashRunMemory', 'root', `{ into: join(home, 'results') }`],
-  [SECTION_MEMORY, 'stashRunMemory', 'into', `{ ${ROOT} }`],
-  [SECTION_MEMORY, 'stashRunMemory', 'root', ''],
-  [SECTION_MEMORY, 'stashRunMemory', 'root', `{ root: null, into: join(home, 'results') }`],
-  [SECTION_MEMORY, 'backupSectionMemory', 'root', `{ ${BACKUP} }`],
-  [SECTION_MEMORY, 'backupSectionMemory', 'backup', `{ ${ROOT} }`],
-  [SECTION_MEMORY, 'backupSectionMemory', 'root', ''],
   [SECTION_MEMORY, 'restoreSectionMemory', 'root', `{ ${BACKUP}, ${LEFTOVERS} }`],
   [SECTION_MEMORY, 'restoreSectionMemory', 'backup', `{ ${ROOT}, ${LEFTOVERS} }`],
   [SECTION_MEMORY, 'restoreSectionMemory', 'leftovers', `{ ${ROOT}, ${BACKUP} }`],
@@ -81,8 +75,7 @@ const TARGET_CASES = [
   [RUN, 'checkVolumes', 'root', ''],
   [RUN, 'checkVolumes', 'others', `{ ${ROOT} }`],
   [RUN, 'watchUserLists', 'home', 'async () => {}'],
-  [RUN, 'isolateSectionMemory', 'volumes', '{ backup: () => [], restore: () => {}, stop: () => {} }'],
-  [RUN, 'runAll', 'results', `[${TEAM_RUN}], { runOne: async () => {}, isolate: () => () => {} }`],
+  [RUN, 'runAll', 'results', `[${TEAM_RUN}], { runOne: async () => {} }`],
   [RUN, 'publishAtStart', 'results', ''],
   [RUN, 'publishAtStart', 'results', `{ ${PUBLISH}, ${PF_FOLDER} }, ${STUB_SYNC}`],
   [RUN, 'publishAtStart', 'folder', `{ ${PUBLISH}, ${PF_RESULTS} }, ${STUB_SYNC}`],
@@ -104,6 +97,17 @@ const TARGET_CASES = [
   [SCORE, 'scoreRun', 'results', `'zzguard'`],
   [SCORE, 'scoreRun', 'results', `'zzguard', { home }`],
   [SCORE, 'scoreRun', 'home', `'zzguard', { ${PF_RESULTS} }`],
+  [GIT, 'scanAndPush', 'cwd', `{ branch: 'zzguard', email: 'a@b.c' }`],
+  [GIT, 'scanAndPush', 'branch', `{ cwd: join(home, 'repo'), email: 'a@b.c' }`],
+  [GIT, 'scanAndPush', 'email', `{ cwd: join(home, 'repo'), branch: 'zzguard' }`],
+  [GIT, 'scanAndPush', 'cwd', ''],
+  [GIT, 'openWorktree', 'repo', `{ branch: 'zzguard', dir: join(home, 'worktree') }`],
+  [GIT, 'openWorktree', 'branch', `{ repo: join(home, 'repo'), dir: join(home, 'worktree') }`],
+  [GIT, 'openWorktree', 'dir', `{ repo: join(home, 'repo'), branch: 'zzguard' }`],
+  [GIT, 'openWorktree', 'repo', ''],
+  [GIT, 'commitPaths', 'cwd', `{ paths: ['zzguard'], message: 'm' }`],
+  [GIT, 'commitPaths', 'paths', `{ cwd: join(home, 'repo'), message: 'm' }`],
+  [GIT, 'commitPaths', 'cwd', ''],
 ]
 
 for (const [module, name, missing, args] of TARGET_CASES) {
@@ -112,9 +116,9 @@ for (const [module, name, missing, args] of TARGET_CASES) {
   })
 }
 
-const RUN_ONE_DEPS = "{ stash: () => [], dir: join(home, 'runs', 'one'), root: join(home, 'runs'), home, spawn: () => { throw new Error('spawned') }, kill: () => {}, timeoutMs: 1000 }"
+const RUN_ONE_DEPS = "{ dir: join(home, 'runs', 'one'), root: join(home, 'runs'), home, spawn: () => { throw new Error('spawned') }, kill: () => {}, timeoutMs: 1000 }"
 
-for (const missing of ['stash', 'dir', 'root', 'home']) {
+for (const missing of ['dir', 'root', 'home']) {
   test(`runOne refuses to run without ${missing}`, t => {
     assertRefused(t, `
       const { runOne } = ${RUN}
@@ -141,16 +145,28 @@ test('freshRepo refuses to run without the folder that bounds the wipe', t => {
   assertRefused(t, `const { freshRepo } = ${RUN}; freshRepo(join(home, 'runs', 'one'))`, 'root')
 })
 
-test('isolateSectionMemory refuses to run without the backup it is given', t => {
-  assertRefused(t, `const { isolateSectionMemory } = ${RUN}; isolateSectionMemory({ volumes: () => {}, restore: () => {}, stop: () => {} })`, 'backup')
+// Every agent has `memory: local` since 0.2.0, so a run's notes stay in its own folder and nothing needs the user's moved.
+test('a team batch leaves the section notes where they are', t => {
+  const body = `
+    const run = ${RUN}
+    const memory = ${SECTION_MEMORY}
+    if (run.isolateSectionMemory || memory.backupSectionMemory || memory.stashRunMemory) throw new Error('a move of the notes is back')
+    await run.runAll([${TEAM_RUN}], { runOne: async () => {}, results: join(home, 'results') })
+  `
+  const { status, stderr, noteKept } = inFakeHome(t, body)
+  assert.equal(status, 0, stderr)
+  assert.equal(noteKept, true)
 })
 
-test('isolateSectionMemory refuses to run without the restore it is given', t => {
-  assertRefused(t, `const { isolateSectionMemory } = ${RUN}; isolateSectionMemory({ volumes: () => {}, backup: () => [], stop: () => {} })`, 'restore')
-})
+// What these reports write is a round's real file: a test that left out the folder would overwrite it.
+for (const report of ['mode-check', 'test-strength', 'leak-scan', 'bars']) {
+  test(`${report} main refuses to write without the results folder`, t => {
+    assertRefused(t, `const { main } = await import('./${report}.mjs'); main(['--round=zzguard'])`, 'results')
+  })
+}
 
-test('runAll refuses a team batch with no isolate', t => {
-  assertRefused(t, `const { runAll } = ${RUN}; await runAll([${TEAM_RUN}], { runOne: async () => {} })`, 'isolate')
+test('leak-scan main refuses to read without the home folder', t => {
+  assertRefused(t, `const { main } = await import('./leak-scan.mjs'); main(['--round=zzguard'], { ${PF_RESULTS} })`, 'home')
 })
 
 for (const [missing, options] of [['repo', `{ syncRoot: join(home, 'sync') }`], ['syncRoot', `{ repo: join(home, 'repo') }`]]) {
@@ -200,6 +216,19 @@ test('the score command line passes the results folder it is told to use, and a 
   writeFileSync(join(results, 'zz', 'run.json'), JSON.stringify({ id: 'zz', task: 'h4', dir: join(home, 'runs', 'zz') }))
   const { stderr } = spawnSync(process.execPath, [join(import.meta.dirname, 'score.mjs')], { env, encoding: 'utf8' })
   assert.ok(stderr.includes(`missing ${join(results, 'zz', 'raw.json')}`), stderr)
+})
+
+test('the report command lines use the results folder they are told to use', t => {
+  const { results, env } = cliHome(t)
+  mkdirSync(results, { recursive: true })
+  const cli = (script, round) => spawnSync(process.execPath, [join(import.meta.dirname, script), `--round=${round}`], { env, encoding: 'utf8' })
+  for (const [script, file] of [['mode-check.mjs', 'mode-check-zzguard.json'], ['test-strength.mjs', 'test-strength-zzguard.json']]) {
+    const { status, stderr } = cli(script, 'zzguard')
+    assert.equal(status, 0, stderr)
+    assert.ok(existsSync(join(results, file)), file)
+  }
+  assert.ok(cli('leak-scan.mjs', 'zzguard').stderr.includes(join(results, 'blind-key-zzguard.json')))
+  assert.ok(cli('bars.mjs', 'mo').stderr.includes(results))
 })
 
 test('the fake home works on this platform', t => {

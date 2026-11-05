@@ -13,7 +13,7 @@ const MESSAGE_PREFIX = 'section-team session-start'
 
 const autoInstallNote = source => [
   '## Skill installs',
-  `- Automatic skill installs are on (${source}), which replaces asking first: install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
+  `- Automatic skill installs are on (${source}): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
 // Whether skill installs are automatic, and where that came from: the mode file wins, then the environment when it is set
@@ -27,7 +27,7 @@ function skillSetting(autoInstallSkills, env) {
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
 const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode's gate before you call that work done."
 
-const PLAN_LINE = '`.team/notes/plan.md` exists: read it first, before new team work.'
+const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
 function modeSection(mode, skills, problem) {
   return [
@@ -45,7 +45,7 @@ export function composeContext({ mode, autoInstallSkills, problem }, env, summar
   return [
     assembleBrief(mode),
     skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
-    summary ? `Last team summary for this project: ${summary}. Read it before new team work.` : null,
+    summary ? `Last team summary: ${summary}. Read it first.` : null,
     hasPlan ? PLAN_LINE : null,
     modeSection(mode, skills, problem),
   ].filter(part => part !== null).join('\n\n')

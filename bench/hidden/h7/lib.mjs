@@ -37,13 +37,18 @@ export const tryJson = text => {
   }
 }
 // A failing row of a table test names itself.
-export const same = (label, got, want, msg) => assert.deepEqual({ label, ...got }, { label, ...want }, msg)
+// Node 26 throws ERR_INVALID_ARG_TYPE for an explicit undefined message, so it is only passed when given.
+export const same = (label, got, want, ...msg) => assert.deepEqual({ label, ...got }, { label, ...want }, ...msg)
 
 // --- Server processes (helper listeners are unref'd: a failed assertion that skips close() cannot hold the process open) ---
 export const listenOn = port => new Promise((resolve, reject) => {
   const s = createServer().once('error', reject)
   s.listen(port, '127.0.0.1', () => resolve(s.unref()))
 })
+export const portFree = port => listenOn(port).then(s => new Promise(resolve => s.close(() => resolve(true))), () => false)
+// Exit 1 is right only with the port taken. Another program can take or free it between the first probe and the server's bind,
+// so a probe before the server started and one after it exited both count.
+export const tookPort = async (r, freeBefore, port = 3000) => r.code === 1 && (!freeBefore || !(await portFree(port)))
 export async function freePort() {
   const s = await listenOn(0)
   const { port } = s.address()

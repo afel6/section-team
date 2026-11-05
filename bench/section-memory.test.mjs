@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSy
 import { execFileSync } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { backupSectionMemory, renameRetry, restoreMessage, restoreSectionMemory, sameVolume, stashRunMemory } from './section-memory.mjs'
+import { renameRetry, restoreMessage, restoreSectionMemory, sameVolume } from './section-memory.mjs'
 
 // Children run with CLAUDE_* stripped, so their agent memory is always ~/.claude/agent-memory, whatever the parent's
 // CLAUDE_CONFIG_DIR says: MEMORY_ROOT must follow the child, not the parent.
@@ -40,16 +40,18 @@ const userIsBack = paths => {
   assert.equal(note(paths.root, 'other-agent'), 'not ours')
 }
 
-test('a round moves the user\'s section memory aside, gives each team run empty memory, and puts it back', t => {
+// What an older harness left behind: the user's section folders in a backup, with the manifest it wrote first.
+function movedAside(paths, pid = process.pid) {
+  const names = readdirSync(paths.root).filter(name => name.startsWith('section-team-')).sort()
+  mkdirSync(paths.backup)
+  writeFileSync(join(paths.backup, 'manifest.json'), JSON.stringify({ names, pid, startedAt: '2026-11-01T00:00:00.000Z' }))
+  for (const name of names) renameSync(join(paths.root, name), join(paths.backup, name))
+  return names
+}
+
+test('a restore puts back what an older round moved aside, and files what its runs left', t => {
   const paths = sandbox(t)
-  assert.deepEqual(backupSectionMemory(paths), ['section-team-backend', 'section-team-testing'])
-  assert.deepEqual(readdirSync(paths.root), ['other-agent'], 'only section-team folders move')
-
-  runWrites(paths, 'section-team-testing', 'run 1 note')
-  stashRunMemory({ ...paths, into: join(paths.results, 'h1-team-ho-r1') })
-  assert.deepEqual(readdirSync(paths.root), ['other-agent'], 'the next team run starts empty')
-  assert.equal(note(join(paths.results, 'h1-team-ho-r1', 'section-memory'), 'section-team-testing'), 'run 1 note')
-
+  movedAside(paths)
   // An interrupted run left a note under a name the user also has, and one under a new name.
   runWrites(paths, 'section-team-testing', 'left by an interrupted run')
   runWrites(paths, 'section-team-docs', 'also left')
@@ -64,25 +66,13 @@ test('a round moves the user\'s section memory aside, gives each team run empty 
 
 test('a restore that stopped half way can run again without filing the user\'s own folders as run notes', t => {
   const paths = sandbox(t)
-  backupSectionMemory(paths)
+  movedAside(paths)
   runWrites(paths, 'section-team-docs', 'run note')
   // The first restore moved backend back, then stopped.
   renameSync(join(paths.backup, 'section-team-backend'), join(paths.root, 'section-team-backend'))
   const result = restoreSectionMemory(paths)
   assert.deepEqual(result, { restored: ['section-team-testing'], notes: ['section-team-docs'] })
   userIsBack(paths)
-})
-
-test('a backup that fails half way puts back what it moved, removes the backup and says so', t => {
-  const paths = sandbox(t)
-  let moves = 0
-  const failSecond = (from, to) => {
-    if (++moves === 2) throw Object.assign(new Error('rename failed'), { code: 'ENOENT' })
-    renameSync(from, to)
-  }
-  assert.throws(() => backupSectionMemory({ ...paths, rename: failSecond }), /could not move your section memory aside \(ENOENT\); it is back in/)
-  userIsBack(paths)
-  assert.ok(!existsSync(paths.backup))
 })
 
 test('a backup that stopped before its manifest moved nothing, so the restore leaves root alone', t => {
@@ -95,18 +85,9 @@ test('a backup that stopped before its manifest moved nothing, so the restore le
   assert.ok(!existsSync(paths.leftovers))
 })
 
-test('a round refuses to start while an earlier backup still exists, and changes nothing', t => {
-  const paths = sandbox(t)
-  backupSectionMemory(paths)
-  runWrites(paths, 'section-team-testing', 'written by a run')
-  assert.throws(() => backupSectionMemory(paths), /--restore-memory/)
-  assert.equal(note(paths.backup, 'section-team-testing'), 'user testing note')
-  assert.equal(note(paths.root, 'section-team-testing'), 'written by a run')
-})
-
 test('a restore refuses while the round that made the backup is still running, unless forced', t => {
   const paths = sandbox(t)
-  backupSectionMemory({ ...paths, pid: 999_999 })
+  movedAside(paths, 999_999)
   assert.throws(() => restoreSectionMemory({ ...paths, alive: () => true }), /pid 999999.*--force/)
   assert.ok(existsSync(join(paths.backup, 'section-team-testing')), 'nothing moved')
   restoreSectionMemory({ ...paths, alive: () => true, force: true })
@@ -120,33 +101,14 @@ test('restoring without a backup is refused, so a user\'s memory is never moved 
   assert.ok(!existsSync(paths.leftovers))
 })
 
-test('a user with no section memory gets an empty backup, and the restore leaves no section folder behind', t => {
+test('a user with no section memory had an empty backup, and the restore leaves no section folder behind', t => {
   const paths = sandbox(t)
   rmSync(join(paths.root, 'section-team-testing'), { recursive: true })
   rmSync(join(paths.root, 'section-team-backend'), { recursive: true })
-  assert.deepEqual(backupSectionMemory(paths), [])
+  assert.deepEqual(movedAside(paths), [])
   runWrites(paths, 'section-team-testing', 'run note')
   restoreSectionMemory(paths)
   assert.deepEqual(readdirSync(paths.root), ['other-agent'])
-})
-
-test('a rerun of the same run files its notes next to the first attempt\'s, not over them', t => {
-  const paths = sandbox(t)
-  backupSectionMemory(paths)
-  const into = join(paths.results, 'h1-team-ho-r1')
-  runWrites(paths, 'section-team-testing', 'attempt 1')
-  stashRunMemory({ ...paths, into })
-  runWrites(paths, 'section-team-testing', 'attempt 2')
-  stashRunMemory({ ...paths, into })
-  assert.equal(note(join(into, 'section-memory'), 'section-team-testing'), 'attempt 1')
-  assert.equal(note(join(into, 'section-memory-2'), 'section-team-testing'), 'attempt 2')
-})
-
-test('stashing with no run notes does nothing', t => {
-  const paths = sandbox(t)
-  backupSectionMemory(paths)
-  stashRunMemory({ ...paths, into: join(paths.results, 'h1-team-ho-r1') })
-  assert.ok(!existsSync(join(paths.results, 'h1-team-ho-r1')))
 })
 
 test('renameRetry retries a busy folder with a growing wait, and gives up on other errors at once', () => {
@@ -166,19 +128,6 @@ test('renameRetry retries a busy folder with a growing wait, and gives up on oth
 test('sameVolume is true for two folders in the temp folder', t => {
   const paths = sandbox(t)
   assert.equal(sameVolume(paths.root, paths.results), true)
-})
-
-test('when the move aside and the rollback both fail, the error is one line with the --restore-memory hint, and that restore works', t => {
-  const paths = sandbox(t)
-  let calls = 0
-  const flaky = (from, to) => {
-    calls++
-    if (calls === 2 || calls === 3) throw Object.assign(new Error('locked'), { code: 'ENOENT' })
-    renameSync(from, to)
-  }
-  assert.throws(() => backupSectionMemory({ ...paths, rename: flaky }), /could not move your section memory aside \(ENOENT\) nor back \(ENOENT\): run node bench\/run\.mjs --restore-memory/)
-  restoreSectionMemory({ ...paths, force: true })
-  userIsBack(paths)
 })
 
 test('a corrupt manifest is named in the error, with how to recover', t => {

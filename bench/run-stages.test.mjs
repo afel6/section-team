@@ -206,15 +206,13 @@ test('a stage copy that fails stops the run before stage 2: one line naming the 
 const OTHER_PLUGIN = join(tmpdir(), 'section-team-next')
 
 // A team attempt of h7 on a plugin whose manifest says 0.2.3, and whose inits load it at loaded. The mode record is
-// written as the plugin's hook would. stashed lists what would have been filed: a team run's real stash moves the user's
-// section memory.
+// written as the plugin's hook would.
 function otherVersionAttempt(t, loaded) {
   const started = soloAttempt(t).init
   const init = { ...started, plugins: [...started.plugins, { name: 'section-team', path: OTHER_PLUGIN, source: PLUGIN_KEY, version: loaded }] }
   const base = stagedAttempt(t, [{ init }, { init }])
   const run = { id: 'h7-team-mo-r1', task: 'h7', cond: 'team-mo', base: 'team', rep: 1 }
   const pin = { ...base.ctx.pin, setups: { ...base.ctx.pin.setups, team: base.ctx.pin.setups.solo } }
-  const stashed = []
   const spawn = (command, args, options) => {
     recordMode(base.home, args[args.indexOf(args.includes('--resume') ? '--resume' : '--session-id') + 1], 'balanced')
     return base.deps.spawn(command, args, options)
@@ -222,13 +220,12 @@ function otherVersionAttempt(t, loaded) {
   return {
     ...base, run, outDir: join(base.root, 'results', run.id),
     ctx: { ...base.ctx, pin, pluginDir: OTHER_PLUGIN, pluginVersion: '0.2.3' },
-    stashed,
-    deps: { ...base.deps, spawn, stash: options => { stashed.push(options) } },
+    deps: { ...base.deps, spawn },
   }
 }
 
 test('a two-stage run works on a plugin at another version: the worktree holds the plugin, this checkout the task', async t => {
-  const { outDir, ctx, run, calls, deps, stashed } = otherVersionAttempt(t, '0.2.3')
+  const { outDir, ctx, run, calls, deps } = otherVersionAttempt(t, '0.2.3')
   await runOne(run, outDir, ctx, deps)
   assert.equal(calls.length, 2)
   for (const call of calls) {
@@ -238,7 +235,6 @@ test('a two-stage run works on a plugin at another version: the worktree holds t
   assert.ok(calls[0].args[1].endsWith(readFileSync(join(import.meta.dirname, 'tasks', 'h7.md'), 'utf8')), 'the prompt comes from the harness')
   const record = readRecord(outDir)
   assert.deepEqual([record.end, record.sectionTeam], ['ok', { path: OTHER_PLUGIN, version: '0.2.3' }])
-  assert.deepEqual(stashed, [{ into: outDir }], 'a team run files section memory through the injected stash')
 })
 
 test('a two-stage run whose init disagrees with the plugin\'s manifest gets no second prompt and is void', async t => {

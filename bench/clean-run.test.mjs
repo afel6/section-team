@@ -205,6 +205,17 @@ test('initProblems holds a builder to the plugin under test\'s version, and stil
   assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, { ...twice, path: 'C:\\Users\\Asus\\other' }] }), ctx), [`section-team path C:\\Users\\Asus\\other, expected ${PLUGIN_DIR}`])
 })
 
+test('pluginVersionOf refuses a plugin from before 0.2.0, whose sections read and write the real notes', t => {
+  const plugin = join(tempRoot(t), 'plugin')
+  mkdirSync(join(plugin, '.claude-plugin'), { recursive: true })
+  const at = version => {
+    writeFileSync(join(plugin, '.claude-plugin', 'plugin.json'), JSON.stringify({ version }))
+    return () => pluginVersionOf(plugin)
+  }
+  for (const old of ['0.1.1', '0.0.9']) assert.throws(at(old), { message: `section-team ${old} keeps section memory in ~/.claude/agent-memory, where a run would read and write your real notes: the harness runs 0.2.0 or later` })
+  for (const ok of ['0.2.0', '0.2.3', '0.10.0', '1.0.0']) assert.equal(at(ok)(), ok)
+})
+
 test('pluginVersionOf reads the version from the plugin\'s manifest, and says in one line when it is missing or invalid', t => {
   const plugin = tempRoot(t)
   const manifest = join(plugin, '.claude-plugin', 'plugin.json')

@@ -2,7 +2,7 @@
 // transcripts when the CLI wrote none, as on a timeout), hidden-test pass rate,
 // the project's own `npm test`, code size, agent/model use. Writes results/<id>/metrics.json and results/summary.json.
 // A two-stage task (h7) scores its three hidden sets, and what stage 2 changed and called (metrics.stage2).
-// Usage: node bench/score.mjs
+// Usage: node bench/score.mjs   (alone: no other hidden set, calibrate or batch running, because they share port 3000 and the CPU)
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'

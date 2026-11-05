@@ -55,8 +55,7 @@ export const endStreams = child => {
 }
 
 // A solo run of task easy into a temp root, with a pin and an init that pass the init check. deps always carry a
-// fake kill, a short time limit and a harmless stash, so no runOne test can hang, reach the real killTree or move the
-// user's section memory: the real stashRunMemory empties ~/.claude/agent-memory, and a test's cleanup would then delete it.
+// fake kill and a short time limit, so no runOne test can hang or reach the real killTree.
 export function soloAttempt(t) {
   t.mock.method(console, 'log', () => {})
   const root = tempRoot(t)
@@ -73,6 +72,6 @@ export function soloAttempt(t) {
       plugins: [{ name: 'cc-plugin-agents-md', path: 'builtin', source: builtins[0] }], agents: ['general-purpose'], skills: [],
     },
     run: { id: 'easy-solo-mo-r1', task: 'easy', cond: 'solo-mo', base: 'solo', rep: 1 },
-    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs'), stash: () => [] },
+    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs') },
   }
 }

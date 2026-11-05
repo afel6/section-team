@@ -7,6 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
+import { anonymizeCommand } from './anonymize.mjs'
 import { RESULTS, parseArgs } from './run.mjs'
 
 export const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
@@ -71,7 +72,7 @@ export function loadJudged(results, roundTag) {
   const judgePath = join(results, `judge${suffix}.json`)
   const keyPath = join(results, `blind-key${suffix}.json`)
   if (!existsSync(judgePath)) return {}
-  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
+  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run ${roundTag ? anonymizeCommand(roundTag) : 'node bench/anonymize.mjs'} first`)
   return judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
 }
 

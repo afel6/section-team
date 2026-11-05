@@ -10,10 +10,11 @@ import { GATES, parseModeFile } from '../hooks/lib/mode.mjs'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { modeOfCond } from './gate-stats.mjs'
-import { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
+import { BUILDERS, FILE_WRITERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
 import { insideFolder } from './os-paths.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
+import { required } from './section-memory.mjs'
 
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 // The setup in a run's condition, the part before its round tag ('team-mo' is team).
@@ -82,7 +83,6 @@ function modeFileRules(mode, runDir) {
 
 const recordRules = (mode, record) => (record === mode ? [] : [`mode record is ${record ?? 'missing'}, not ${mode}`])
 
-const FILE_WRITERS = ['Write', 'Edit', 'MultiEdit']
 const SHELLS = ['Bash', 'PowerShell']
 
 // A tool's file_path as a runDir-relative posix path, or null when it lies outside runDir (or is runDir itself).
@@ -265,7 +265,8 @@ export function modeCheck({ results = RESULTS, round, readers = {} }) {
 
 const lineOf = (id, row) => `${id}  ${row.faithful ? 'faithful' : 'not faithful'}  tier ${row.tier ?? '–'}${row.broken.length ? `  ${row.broken.join('; ')}` : ''}`
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, readers } = {}) {
+export function main(argv = process.argv.slice(2), { results, readers } = {}) {
+  required({ results })
   const round = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(round)) {
     console.error('usage: node bench/mode-check.mjs --round=<tag>   (letters and digits only)')
@@ -282,4 +283,4 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, readers 
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS })

@@ -21,7 +21,7 @@ import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { judgeDirFor } from './anonymize.mjs'
+import { anonymizeCommand, judgeDirFor } from './anonymize.mjs'
 import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
@@ -417,7 +417,7 @@ export function judgeCall({ pin, installedKeys, files, env = process.env, home =
 
 function readKey(results, round) {
   const path = join(results, `blind-key-${round}.json`)
-  if (!existsSync(path)) throw new Error(`missing ${path}: run node bench/anonymize.mjs --round=${round} first`)
+  if (!existsSync(path)) throw new Error(`missing ${path}: run ${anonymizeCommand(round)} first`)
   const key = readJson(path)
   if (typeof key !== 'object' || key === null || Array.isArray(key)) throw new Error(`${path} is not a blind key (one object per group)`)
   return key

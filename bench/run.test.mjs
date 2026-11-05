@@ -12,7 +12,7 @@ import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } 
 import { FAKE_PID, endStreams, fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  freshRepo, modeFileFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, stopRunOnExit, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
@@ -257,66 +257,32 @@ test('run folders are named by task and a hash, so the setup never shows in a pa
   assert.equal(runFolder({ id: 'h1-team-ho-r1', task: 'h1' }), team, 'stable, so a rerun reuses the folder')
 })
 
-test('runAll moves section memory aside only when a team run is left, and always moves it back, even when a run throws', async () => {
+test('runAll runs each run in order, stops at a throw, and removes its exit handlers either way', async () => {
+  const handlers = () => ['SIGINT', 'exit'].map(event => process.listenerCount(event))
+  const before = handlers()
   const calls = []
-  const isolate = () => { calls.push('aside'); return () => calls.push('back') }
-  const ok = async run => { calls.push(run.id) }
   const team = { id: 'h1-team-ho-r1', base: 'team' }
   const solo = { id: 'h1-solo-ho-r1', base: 'solo' }
-
-  await runAll([solo], { runOne: ok, isolate, results: 'results' })
-  assert.deepEqual(calls, ['h1-solo-ho-r1'], 'a solo-only round leaves the memory alone')
-
-  calls.length = 0
-  await runAll([team, solo], { runOne: ok, isolate, results: 'results' })
-  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'h1-solo-ho-r1', 'back'])
+  await runAll([team, solo], { runOne: async run => { calls.push(run.id); assert.notDeepEqual(handlers(), before, 'a kill during a run stops it') }, results: 'results' })
+  assert.deepEqual(calls, ['h1-team-ho-r1', 'h1-solo-ho-r1'])
+  assert.deepEqual(handlers(), before)
 
   calls.length = 0
   const failing = async run => { calls.push(run.id); throw new Error('claude crashed') }
-  await assert.rejects(runAll([team, solo], { runOne: failing, isolate, results: 'results' }), /claude crashed/)
-  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'back'])
-
-  calls.length = 0
-  await runAll([{ id: 'h1-lean-mo-r1', base: 'lean' }, { id: 'h1-max-mo-r1', base: 'max' }], { runOne: ok, isolate, results: 'results' })
-  assert.deepEqual(calls, ['aside', 'h1-lean-mo-r1', 'h1-max-mo-r1', 'back'], 'lean and max runs are team runs too')
+  await assert.rejects(runAll([team, solo], { runOne: failing, results: 'results' }), /claude crashed/)
+  assert.deepEqual(calls, ['h1-team-ho-r1'])
+  assert.deepEqual(handlers(), before)
 })
 
 test('runAll gives each run a folder under the results it was given', async () => {
   const folders = []
-  await runAll([{ id: 'h1-solo-ho-r1', base: 'solo' }], { runOne: async (run, outDir) => folders.push(outDir), isolate: () => () => {}, results: 'given' })
+  await runAll([{ id: 'h1-solo-ho-r1', base: 'solo' }], { runOne: async (run, outDir) => folders.push(outDir), results: 'given' })
   assert.deepEqual(folders, [join('given', 'h1-solo-ho-r1')])
 })
 
-test('runAll refuses to start without a runOne, before section memory moves', async () => {
-  let moved = false
-  const isolate = () => { moved = true; return () => {} }
-  await assert.rejects(runAll([{ id: 'h4-team-mo-r1', base: 'team' }], { isolate }), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' })
-  assert.equal(moved, false)
+test('runAll refuses to start without a runOne', async () => {
+  await assert.rejects(runAll([{ id: 'h4-team-mo-r1', base: 'team' }], { results: 'results' }), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' })
   await assert.rejects(runAll([]), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' }, 'also with no options at all')
-})
-
-test('isolateSectionMemory refuses a different-drive setup before anything moves', () => {
-  let moved = false
-  const volumes = () => { throw new Error('C:/x and D:/y are on different drives') }
-  assert.throws(() => isolateSectionMemory({ volumes, backup: () => { moved = true; return [] }, restore: () => {} }), /different drives/)
-  assert.equal(moved, false)
-})
-
-test('isolateSectionMemory puts the memory back once, and a failed restore is one line with the --restore-memory hint', t => {
-  const lines = []
-  t.mock.method(console, 'log', () => {})
-  t.mock.method(console, 'error', line => lines.push(line))
-  const exitCode = process.exitCode
-  t.after(() => { process.exitCode = exitCode })
-  const listeners = ['SIGINT', 'exit'].map(event => process.listenerCount(event))
-  let restores = 0
-  const release = isolateSectionMemory({ volumes: () => {}, backup: () => ['section-team-testing'], restore: () => { restores++; throw new Error('EBUSY') }, stop: () => {} })
-  release()
-  release()
-  assert.equal(restores, 1, 'release is idempotent')
-  assert.deepEqual(lines, ['could not restore your section memory: EBUSY; run node bench/run.mjs --restore-memory'])
-  assert.equal(process.exitCode, 1)
-  assert.deepEqual(['SIGINT', 'exit'].map(event => process.listenerCount(event)), listeners, 'its signal and exit handlers are removed')
 })
 
 test('checkVolumes accepts a memory folder that does not exist yet, by its nearest existing parent', t => {
@@ -431,12 +397,15 @@ test('spawnOptions starts claude in the harness\'s process group on every platfo
   assert.deepEqual(spawnOptions('C:/run', env), { cwd: 'C:/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 })
 
-test('isolateSectionMemory stops the running claude before it puts the memory back', t => {
-  t.mock.method(console, 'log', () => {})
+test('stopRunOnExit stops the running claude when released, and removes its handlers', () => {
+  const handlers = () => ['SIGINT', 'exit'].map(event => process.listenerCount(event))
+  const before = handlers()
   const calls = []
-  const release = isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => calls.push('restore'), stop: () => calls.push('stop') })
+  const release = stopRunOnExit({ stop: () => calls.push('stop') })
+  assert.notDeepEqual(handlers(), before)
   release()
-  assert.deepEqual(calls, ['stop', 'restore'])
+  assert.deepEqual(calls, ['stop'])
+  assert.deepEqual(handlers(), before)
 })
 
 test('checkVolumes accepts results and home folders that do not exist yet', t => {
@@ -530,7 +499,7 @@ test('stopping the round mid-run stops the child with the kill its run was given
   const kill = child => { killed.push(child.pid); endStreams(child) }
   const running = runOne(run, outDir, ctx, { ...deps, spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 60_000 })
   await new Promise(resolve => setTimeout(resolve, 50))
-  isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => {} })()
+  stopRunOnExit()()
   await running
   assert.deepEqual(killed, [FAKE_PID], 'the default stop used the run\'s own kill')
   const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))

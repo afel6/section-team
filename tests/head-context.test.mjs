@@ -81,8 +81,6 @@ test('every builder head is guarded', () => {
 test('every shape a head finishes in is refused over the limit', () => {
   const finished = {
     'text that ended the turn': lines(assistant(OVER)),
-    'text with no stop reason': lines(turn([TEXT])),
-    'text with a null stop reason': lines(turn([TEXT], { stop_reason: null })),
     'thinking and text in one row': lines(turn([THINKING, TEXT], { stop_reason: 'end_turn' })),
     'text after tools': lines(readCall, toolResult(READ_ID), assistant(OVER)),
     'a handback and its result': lines(handedBack),
@@ -104,6 +102,9 @@ test('every shape of a head still working is allowed over the limit', () => {
     'text and a tool call in one row': lines(turn([TEXT, READ_CALL], { stop_reason: 'tool_use' })),
     'text and a tool call in one row, no stop reason': lines(turn([TEXT, READ_CALL])),
     'text about to be followed by its tool call': lines(turn([TEXT], { stop_reason: 'tool_use' })),
+    // Claude Code 2.1.304 and older write the text of a message still streaming with a null stop reason.
+    'text with no stop reason': lines(turn([TEXT])),
+    'text with a null stop reason': lines(turn([TEXT], { stop_reason: null })),
     'the result of another tool': lines(readCall, toolResult(READ_ID)),
     'just resumed, the message as a string': lines(assistant(OVER), userSays('a sibling replied')),
     'just resumed, the message as parts': lines(assistant(OVER), userSays([TEXT])),
@@ -134,7 +135,7 @@ test('output tokens do not count', () => {
 test('only the last real assistant turn with usage counts', () => {
   assert.equal(headContextRule(eventFor({ jsonl: lines(assistant(OVER), assistant(5000)) })), null, 'a compacted head is small again')
   assert.match(headContextRule(eventFor({ jsonl: lines(assistant(5000), assistant(OVER)) })), /at 450K/)
-  const noUsage = JSON.stringify({ type: 'assistant', message: { content: [TEXT] } })
+  const noUsage = JSON.stringify({ type: 'assistant', message: { content: [TEXT], stop_reason: 'end_turn' } })
   assert.match(headContextRule(eventFor({ jsonl: lines(assistant(OVER), noUsage) })), /at 450K/)
   const notAssistant = JSON.stringify({ type: 'user', message: { usage: { input_tokens: 1 } } })
   assert.match(headContextRule(eventFor({ jsonl: lines(assistant(OVER), notAssistant, noUsage) })), /at 450K/)

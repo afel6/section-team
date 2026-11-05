@@ -52,6 +52,8 @@ export function pluginVersionOf(pluginDir) {
     throw new Error(`cannot read the plugin version from ${path} (${err.code ?? err.name})`, { cause: err })
   }
   if (typeof manifest?.version !== 'string' || !VERSION_PATTERN.test(manifest.version)) throw new Error(`cannot read the plugin version from ${path} (no version)`)
+  // Before 0.2.0 sections had `memory: user`, and the harness no longer moves the user's notes out of their way.
+  if (/^0\.[01]\./.test(manifest.version)) throw new Error(`section-team ${manifest.version} keeps section memory in ~/.claude/agent-memory, where a run would read and write your real notes: the harness runs 0.2.0 or later`)
   return manifest.version
 }
 

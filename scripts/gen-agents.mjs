@@ -141,9 +141,9 @@ function handOut(s, isAdvisor) {
 
 const KEEP = isAdvisor => `Keep for yourself: ${isAdvisor ? 'design decisions, tricky questions and the final advice' : 'design decisions, tricky bugs, integration and the final check'}.`
 
-// Builders only. Docs-only and config-only jobs have no code to grade.
+// Builders only. Docs-only jobs have no code to grade. A config file does count: the handback hook's changesCode reads it as code.
 const QUALITY_GATE = [
-  'Quality gate (skip it when the job changed no code, for example docs only or config values):',
+  'Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):',
   '   - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
   "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,

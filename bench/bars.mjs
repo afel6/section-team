@@ -9,9 +9,11 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
+import { anonymizeCommand } from './anonymize.mjs'
 import { configPath, groupOf, mean, qualities, readBars, readInput, shown } from './bars-common.mjs'
 import { outsideJudges, outsideLine, outsideReport, secondaryLine } from './bars-outside.mjs'
 import { NAME, RESULTS } from './run.mjs'
+import { required } from './section-memory.mjs'
 import { round, sampleSD, tCrit975 } from './stats.mjs'
 
 // Solo runs always count as faithful; a mode run only with a faithful mode-check row.
@@ -123,7 +125,7 @@ export function bars({ config, quals, summary, modeCheck }) {
 const INPUTS = roundTag => [
   ['summary.json', 'node bench/score.mjs', 'array'],
   [`judge-${roundTag}.json`, `node bench/judge.mjs --round=${roundTag}`, 'array'],
-  [`blind-key-${roundTag}.json`, `node bench/anonymize.mjs --round=${roundTag}`, 'object'],
+  [`blind-key-${roundTag}.json`, anonymizeCommand(roundTag), 'object'],
   [`mode-check-${roundTag}.json`, `node bench/mode-check.mjs --round=${roundTag}`, 'object'],
 ]
 
@@ -142,7 +144,8 @@ function heldOutInputs(dir) {
   return { summary: read('summary.json', 'array'), judgeRows: read('judge-ho.json', 'array'), key: read('blind-key-ho.json', 'object') }
 }
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, heldout = HELDOUT } = {}) {
+export function main(argv = process.argv.slice(2), { results, heldout = HELDOUT } = {}) {
+  required({ results })
   const roundTag = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(roundTag)) {
     console.error('usage: node bench/bars.mjs --round=<tag>   (letters and digits only)')
@@ -167,4 +170,4 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, heldout 
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS })

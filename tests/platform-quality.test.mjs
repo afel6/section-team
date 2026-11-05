@@ -33,10 +33,16 @@ test('the foundation skill triggers on a new multi-area platform, not on a count
   assert.ok(!text.includes('3 or more'))
 })
 
-test('the foundation skill names the note and slice in each job, and excludes .team/ from a repo created mid-session', () => {
+test('the foundation skill says where .team/ is, and names the note and slice in each job, by full path in a worktree session', () => {
+  const text = read('skills/foundation/SKILL.md')
+  assert.ok(text.includes('`.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.'))
+  const build = text.split('## Build one slice at a time\n')[1]
+  assert.ok(build.includes('Each job message names the foundation note and the slice. In a worktree session, give the note\'s full path.'))
+})
+
+test('the supervisor creates a missing repo itself and keeps both .team/ and section memory out of its first commit', () => {
   const build = read('skills/foundation/SKILL.md').split('## Build one slice at a time\n')[1]
-  assert.ok(build.includes('Each job message names the foundation note and the slice.'))
-  assert.ok(build.includes('A repo created during this session needs `.team/` added to `.git/info/exclude` before its first commit, because session start only does that for a repo that already exists.'))
+  assert.ok(build.includes('If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.'))
 })
 
 test('every tier file sends a new multi-area platform to the foundation skill, just before the short plan rule', () => {

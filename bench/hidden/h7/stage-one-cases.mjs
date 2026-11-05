@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import vm from 'node:vm'
 import {
   LINE, LIST_FIRST, REFUSED, SCHEMA_V1, SCHEMA_V2, all, answer, assets, boot, byId, del, dump, err, errorText, expect, fire, flush, fresh, freshDb, freePort, get, isDisabled, isEl, it, listenOn, moveOf, norm, ok, openPage, parseHtml,
-  partOf, patch, pending, post, readyWith, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tryJson, valueIn, view, withDb, withServer, within,
+  partOf, patch, pending, portFree, post, readyWith, refused, req, runToExit, same, schemaOf, setValue, settle, shared, sleep, stopServer, take, textOf, tookPort, tryJson, valueIn, view, withDb, withServer, within,
 } from './lib.mjs'
 
 const E = {
@@ -73,10 +73,9 @@ function startupCases({ SCHEMA, plain }) {
     await stopServer(padded)
     assert.equal(padded.out, LINE(want))
     for (const PORT of [undefined, '']) {
-      const free = await listenOn(3000).then(b => new Promise(r => b.close(() => r(true))), () => false)
+      const free = await portFree(3000)
       const r = await runToExit({ PORT, DB_FILE: freshDb() }, { waitMs: 4000 })
-      if (free) assert.equal(r.out, LINE(3000))
-      else assert.equal(r.code, 1)
+      if (!await tookPort(r, free)) assert.equal(r.out, LINE(3000))
     }
   })
 

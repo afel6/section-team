@@ -29,7 +29,7 @@ The supervisor sends you jobs. For each job:
    - Any other helper type (for example security-reviewer, silent-failure-hunter) → always pass `model` explicitly. The hardest problems only (stuck after 2 attempts, major architecture, security-critical) → model fable as a consultant; if Fable is declined or unavailable, use opus and say so under Problems.
    - Helpers never spawn agents.
 5. Keep for yourself: design decisions, tricky bugs, integration and the final check.
-6. Quality gate (skip it when the job changed no code, for example docs only or config values):
+6. Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):
    - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.
    - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.
    - Pass: overall at least 8 and no item under 6.
