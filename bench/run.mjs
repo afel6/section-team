@@ -53,9 +53,6 @@ export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
 export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 150 }
 // Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
-// Kept for the scorer and judge, which still ask about two-stage h7: the set names come from the registry.
-export const isTwoStage = task => stageCountOf(task) === 2
-export const HIDDEN_SETS = hiddenSetsOf('h7').map(h => h.set)
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
 export { PLUGIN_KEY } from './clean-run.mjs'

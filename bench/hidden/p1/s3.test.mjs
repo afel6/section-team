@@ -1,4 +1,4 @@
-// Hidden set s3 of task p1: stage 3, the model, the summary and the category, on the final code. The model, the summary and the category. is a stand-in server of our own (model-server.mjs) on port 0.
+// Hidden set s3 of task p1: stage 3 (the model, the summary and the category) run on the final code, against a stand-in model server of our own (model-server.mjs) on port 0.
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'

@@ -137,6 +137,12 @@ case (the last line is `p1: calibration ok`). The broken versions are listed at 
 - Journal mode: a builder that switches the database to WAL changes a version 1 file at start and fails "a version 1 database is
   used as it is"; the text says "used as it is".
 
+## Not hidden-tested
+
+- `p1.md:157` (the builder's own tests, `package.json` and README): these are files the builder delivers; a hidden test cannot grade their quality from outside.
+- `p1-s2.md:39` (update your tests and the README): same reason, and what the README says is not behaviour.
+- `p1-s3.md:24` (the builder's tests must not reach a real model): the builder's own test run cannot be watched from the hidden set, which uses only its stand-in server.
+
 ## Broken versions
 
 Each is one changed file laid over the reference of its stage (`bench/heldout-calibration/p1/near-miss-s1/`, `near-miss-s2/`,

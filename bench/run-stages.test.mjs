@@ -8,13 +8,14 @@ import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { PLUGIN_KEY } from './clean-run.mjs'
 import { fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import { BatchStop, exitCodeOf } from './run-attempts.mjs'
-import { HIDDEN_SETS, TIMEOUT_MIN, builderArgs, freshRepo, isTwoStage, parseArgs, runOne, tagStage, taskProblems } from './run.mjs'
+import { hiddenSetsOf, stageCountOf } from './stages.mjs'
+import { TIMEOUT_MIN, builderArgs, freshRepo, parseArgs, runOne, tagStage, taskProblems } from './run.mjs'
 
 test('h7 has a time limit per stage, and only h7 is a two-stage task', () => {
   assert.equal(TIMEOUT_MIN.h7, 120)
-  assert.ok(isTwoStage('h7'))
-  for (const task of ['easy', 'h4', 'h5', 'h6', 'constructor']) assert.ok(!isTwoStage(task), task)
-  assert.deepEqual(HIDDEN_SETS, ['s1', 's2', 'reg'])
+  assert.equal(stageCountOf('h7'), 2)
+  for (const task of ['easy', 'h4', 'h5', 'h6', 'constructor']) assert.notEqual(stageCountOf(task), 2, task)
+  assert.deepEqual(hiddenSetsOf('h7').map(h => h.set), ['s1', 's2', 'reg'])
 })
 
 test('builderArgs on a resume uses --resume instead of --session-id and changes nothing else', () => {
