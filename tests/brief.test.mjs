@@ -52,7 +52,9 @@ test('balanced brief matches its fixture, character for character', () => {
 test('every mode gives a new job a fresh section and keeps SendMessage for the same job', () => {
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.includes('- One agent id per job: a section on two jobs has two ids, so keep both. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues that job: a fix list, a question, a resume.'), mode)
+    assert.ok(brief.includes('- One agent id per job: a section on two jobs has two ids; keep both. A new job gets a fresh Agent call. SendMessage only continues that job: a question, a resume or a fix list within 5 minutes of the handback;'), mode)
+    assert.ok(brief.includes("a fix list sent more than 5 minutes after the section handed back goes to a fresh Agent call with its REPORT and changed files, because the old head's cache has expired"), mode)
+    assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
     assert.ok(!brief.includes("Keep each job's agent id"), mode)
     assert.ok(brief.includes('start a fresh one on the final-review job'), mode)
     assert.ok(brief.includes('(wake it if it has no id)'), mode)
