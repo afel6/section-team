@@ -29,7 +29,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 
 ## Reports
 - Every section ends with a `## REPORT` block. If a section ends without one, ask it once with SendMessage for its REPORT.
-- A REPORT may name a `Suggested skill:`. List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill (pass `https://github.com/<owner>/<repo>` and the skill name) and give it to the section that asked. It also finds a missing one.
+- A REPORT may name a `Suggested skill:`. List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill (pass `https://github.com/<owner>/<repo>` and the skill name) and give it to the section that asked. add-skill finds a missing one.
 - After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; get it with Bash `date +%Y-%m-%d/%H%M%S`).
 
 ## Failures

@@ -5,7 +5,7 @@ export const SOURCES_FILE = new URL('../skills/add-skill/trusted-sources.json', 
 
 // Exact, case-insensitive match: no prefixes, no trimming, no pattern syntax.
 export function isTrusted(owner, list) {
-  return typeof owner === 'string' && owner !== '' && Array.isArray(list)
+  return typeof owner === 'string' && /^[A-Za-z0-9._-]{1,100}$/.test(owner) && Array.isArray(list)
     && list.some(o => typeof o === 'string' && o.toLowerCase() === owner.toLowerCase())
 }
 

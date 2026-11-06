@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { isTrusted, check } from '../scripts/trusted-source.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../scripts/trusted-source.mjs', import.meta.url))
@@ -17,7 +18,7 @@ test('exact owners match, case-insensitively', () => {
 })
 
 test('look-alike, empty, path and oversized owners are not trusted', () => {
-  for (const owner of ['anthropic', 'vercel-lab', 'microsoft-x', '', '../x', 'a'.repeat(200), undefined, 5]) {
+  for (const owner of ['anthropic', 'vercel-lab', 'microsoft-x', '', '../x', 'K', 'a'.repeat(200), undefined, 5]) {
     assert.equal(isTrusted(owner, LIST), false, String(owner))
   }
 })
@@ -47,4 +48,18 @@ test('a missing or broken list exits 2 with one line and trusts no one', () => {
     assert.equal(r.code, 2)
     assert.equal(r.message.split('\n').length, 1)
   }
+})
+
+test('the shipped list holds exactly the three trusted owners', () => {
+  const list = JSON.parse(readFileSync(new URL('../skills/add-skill/trusted-sources.json', import.meta.url), 'utf8'))
+  assert.deepEqual(list, ['anthropics', 'vercel-labs', 'microsoft'])
+})
+
+test('a Unicode look-alike never folds onto a listed owner', () => {
+  assert.equal(isTrusted('\u212A', ['k']), false)
+})
+
+test('SKILL.md says a searched skill is never covered by the automatic-install sentence', () => {
+  const skill = readFileSync(new URL('../skills/add-skill/SKILL.md', import.meta.url), 'utf8')
+  assert.ok(skill.includes('is never covered by the automatic-install sentence above'))
 })

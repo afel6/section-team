@@ -72,7 +72,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill'))
-  assert.ok(brief.includes('and give it to the section that asked. It also finds a missing one.'))
+  assert.ok(brief.includes('and give it to the section that asked. add-skill finds a missing one.'))
   assert.ok(!brief.includes('so do not ask'))
   assert.ok(!brief.includes("Never install a suggested skill without the user's yes."))
   assert.ok(brief.includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
