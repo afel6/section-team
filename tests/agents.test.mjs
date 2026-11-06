@@ -159,7 +159,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
     'A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
-    'Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. Write one test per requirement line and one per bug you find; add no other tests. A fix after the gate costs far more than care now.',
+    'Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -385,11 +385,6 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(!text.includes('0–10'))
 })
 
-test('builders and testing keep tests in proportion to the requirements', () => {
-  const line = 'Write one test per requirement line and one per bug you find; add no other tests.'
-  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(line), `${id} lacks the proportion line`)
-  assert.ok(agentFile('testing').split(line).length === 3, 'testing should carry it in its role text and the gate')
-})
 
 test('plan-advisor is a read-only advisor that returns at most 8 fixes with reasons', () => {
   const text = agentFile('plan-advisor')

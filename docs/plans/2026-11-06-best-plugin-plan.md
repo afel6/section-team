@@ -223,6 +223,8 @@ These follow h7.md's form: a numbered list of exact requirements, every value st
 - [ ] **Step 2: Score both alone, and judge both blind.**
 - [ ] **Step 3: Keep the result only if it improves on both counts.** The candidate stays if its cost is lower and its judged quality is not lower. Otherwise, revert Tasks 9 and 10 one at a time and say which one hurt. Record the numbers in the plan's Evidence section and commit `docs: record the stage-1 cost cut measurements`.
 
+Measured 2026-11-06: neither cut lowered cost (Balanced p1 stage 1, one run each: $7.47 without, $8.07 with; judged 8.5 each), so both are taken out (commit after 91aea3d).
+
 The spec's third candidate, one grade per job in Lean, is left out here: Lean already allows only 1 fix round. It is tried only if Lean misses its cost target in the proof round.
 
 ## Phase 4: plan check and skill search (free)
