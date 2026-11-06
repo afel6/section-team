@@ -17,6 +17,17 @@ Across the later pre-registered rounds, the default mode cost about 2.2 to 5.2 t
 
 **Limits:** every setup, plain Claude Code included, passed all the hidden tests, so the gains are in blind-judged quality, not in whether the code works. Each cell is 2 runs (about ±0.3 judge noise), and the team was tuned over 17 rounds on these same three tasks. A pre-registered held-out round on three new tasks it had never seen measured a smaller gain that still cleared the bar set in advance: blind judge quality 8.8 against 8.2 for plain Claude Code, both passing every hidden test, at about 2.2 times the cost ([details](docs/benchmark-heldout-2026-11.md)). A later pre-registered round on a clean machine measured the default mode at 8.8 against 7.4, at about 5.2 times the cost ([details](docs/benchmark-modes-2026-11.md)).
 
+**A platform-sized round (0.2.3, 2026-11-07).** Task p1 is a help-desk platform built in three stages in one session (accounts and roles, then a dashboard, then an AI feature against a fake model server), with 264 hidden tests and a 60-minute limit per stage. Each setup ran twice, at plugin commit 98338a6, and Codex judged every group blind in two orders:
+
+| | Cost (mean, API rate) | × solo | Hidden tests (mean of 264) | Codex judge (mean) | Ranked 1st | Stages in time |
+|---|---|---|---|---|---|---|
+| Plain Claude Code (solo) | $4.22 | 1.0 | 264 | 7.5 | 0 of 4 | 6 of 6 |
+| Lean | $9.82 | 2.3 | 264 | 7.75 | 0 of 4 | 6 of 6 |
+| **Balanced (default)** | $18.79 | 4.5 | 263 | **8.75** | **4 of 4** | 6 of 6 |
+| Max | $25.78 | 6.1 | 210 | 7.0 | 0 of 4 | 5 of 6 |
+
+Balanced was ranked first in every judged group. Lean was barely ahead of solo. Max was slower and no better: one Max run timed out in stage 3. Not one mode met all of the targets set before the round (Lean at most 2× solo cost and +1.0 judged; Balanced at most 3.5× and +1.5; Max the best judged). The plan check (`plan-advisor`) never ran, because p1's first stage is a single-area API, so the foundation flow did not start. The supervisor's own chat peaked at 189K to 205K tokens in team runs, against 154K to 176K for solo. Two runs per setup, one judge model.
+
 **Method:** each round builds the same three tasks (a small library, a command-line tool and a web app) twice per setup. Hidden tests check correctness, then the solutions are anonymised and graded blind by Opus judges on correctness, code quality, tests, robustness and docs. The tasks, hidden tests, harness and scorer are in [`bench/`](bench/), and every round's raw scores and judge notes are in [`bench/data/`](bench/data/); a round runs real paid Claude sessions. Full results and every round's changes: [docs/benchmark-2026-10-24.md](docs/benchmark-2026-10-24.md) (final summary at the end).
 
 ## Requirements

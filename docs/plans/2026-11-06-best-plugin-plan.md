@@ -278,6 +278,20 @@ The spec's third candidate, one grade per job in Lean, is left out here: Lean al
 - [ ] **Step 3: Score every run alone, then judge them blind.**
 - [ ] **Step 4: Compare each mode with its targets in the Global Constraints.** Include that every team run woke `section-team:plan-advisor` before its first builder, and that `mainPeak` stayed under 150K. Write the table, with each miss and its number, into the readiness plan's Evidence section and README's Results. Commit `docs: record the p1 proof round`.
 
+**Measured 2026-11-07 (tag `pr`, plugin 98338a6, results in `C:/Users/Asus/bench-results-proof`, Codex judge in both orders):**
+
+| Target | Lean | Balanced | Max |
+|---|---|---|---|
+| Cost (target: Lean ≤ 2×, Balanced ≤ 3.5×, Max uncapped) | 2.33× ✗ | 4.46× ✗ | 6.12× (uncapped) |
+| Hidden tests (≥ solo / ≥ Lean / ≥ Balanced) | 264 vs 264 ✓ | 263 vs 264 ✗ | 210 vs 263 ✗ |
+| Judged (≥ solo+1.0 / ≥ solo+1.5 / ≥ Balanced); solo 7.5 | 7.75 ✗ | 8.75 ✗ (+1.25) | 7.0 ✗ |
+| Every stage within 60 minutes | ✓ | ✓ | ✗ (r2 stage 3 timed out) |
+| Supervisor chat under 150K | ✗ (198K, 201K) | ✗ (195K, 189K) | ✗ (205K, 158K) |
+| plan-advisor woke before the first builder | ✗ never | ✗ never | ✗ never |
+| No user data touched | ✓ | ✓ | ✓ |
+
+Balanced was ranked first in all 4 judged groups. plan-advisor never ran, because p1's stage 1 is a single-area API, so the foundation flow never started. Solo's chat peaked at 154K and 176K.
+
 ### Task 15: Report
 
 - [ ] **Step 1: Update PR 16's description.** Show the user the text first.
