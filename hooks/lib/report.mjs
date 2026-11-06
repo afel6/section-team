@@ -2,7 +2,7 @@ import { DEFAULT_MODE, GATES } from './mode.mjs'
 
 export const PREFIX = 'section-team:'
 export const BUILDER_IDS = ['frontend', 'backend', 'database', 'testing', 'security', 'devops', 'uiux', 'docs', 'ai-llm', 'mobile']
-export const ADVISOR_IDS = ['ai-engineer', 'data-scientist']
+export const ADVISOR_IDS = ['ai-engineer', 'data-scientist', 'plan-advisor']
 export const SECTION_IDS = [...BUILDER_IDS, ...ADVISOR_IDS]
 export const ADVISOR_HELPERS = ['section-team:scout', 'architect', 'planner', 'code-explorer'] // scout is read-only (Read, Grep, Glob, Skill; no write or shell tools)
 
@@ -49,7 +49,7 @@ export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
 const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
-const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
+export const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
 
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
 export function needsGate(report) {

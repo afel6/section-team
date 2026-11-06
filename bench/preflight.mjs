@@ -8,7 +8,8 @@
 // arguments and environment, proves from its init, its mode record and its answer that a run starts clean and in its
 // mode. Only a preflight without problems writes the round's pin, results/preflight-<round>.json.
 // Spec: docs/specs/2026-11-01-mode-round-design.md (Pinned CLI, Preflight).
-// Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the v0.2.1 worktree> [--sync=<branch> --redact-email | --no-sync]
+// Usage: node bench/preflight.mjs --round=mo --plugin=<absolute path of the worktree at the ref> [--plugin-ref=<git ref>] [--sync=<branch> --redact-email | --no-sync]
+//        (--plugin-ref defaults to v<SECTION_TEAM_VERSION>; the pin records it and its commit, and run.mjs holds a batch to them.)
 //        (--sync pushes the pin to the results branch at once; required off Windows, as for run.mjs. The cloud round
 //        passes --redact-email to every run, push and preflight command; the scan stays on.)
 import { spawnSync } from 'node:child_process'
@@ -18,11 +19,12 @@ import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { ROUND_CLI_VERSION, claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, resultOf, sha256Of } from './clean-run.mjs'
-import { publishItems, syncReady } from './cloud-sync.mjs'
+import { ROUND_CLI_VERSION, VERSION_PATTERN, claudeListing, initOf, initProblems, installedPluginKeys, outputMessages, pluginVersionOf, resultOf, sha256Of } from './clean-run.mjs'
+import { REAL_SYNC, publishItems, syncReady } from './cloud-sync.mjs'
 import {
-  NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder, syncBranchOf,
+  DEFAULT_PLUGIN_REF, NAME, RESULTS, ROUND_CONDS as SETUPS, RUNS, builderArgs, builderEnv, checkPluginWorktree, parseArgs, pluginCommitOf, prepareRun, runFolder, syncBranchOf,
 } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 // The mode record each setup's session leaves; solo runs with section-team off, so it leaves none.
 const RECORD = { solo: null, lean: 'lean', team: 'balanced', max: 'max' }
@@ -36,7 +38,6 @@ const SYNCED = ['plugins/synced', 'skills/synced']
 const firstLine = text => String(text ?? '').split(/\r?\n/)[0].trim()
 const runVersion = (run, command) => run(command, ['--version'], { encoding: 'utf8', windowsHide: true, timeout: VERSION_TIMEOUT_MS })
 const NPM_PACKAGE = '@anthropic-ai/claude-code'
-const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 // The pinned binary must start and print its own version.
 function checkVersion(run, binary, version) {
@@ -111,12 +112,12 @@ function recordedProblems(init) {
 }
 
 // One line per failed check of one setup's run, each starting with the setup; empty when it passes.
-export function preflightProblems({ setup, messages, record, pluginDir, version }) {
+export function preflightProblems({ setup, messages, record, pluginDir, version, pluginVersion }) {
   if (!SETUPS.includes(setup)) throw new RangeError(`preflightProblems takes a setup of ${SETUPS.join(', ')}, got "${setup}"`)
   const init = initOf(messages)
   const expected = RECORD[setup]
   return [
-    ...initProblems(init, { setup, pin: { version }, pluginDir }),
+    ...initProblems(init, { setup, pin: { version }, pluginDir, pluginVersion }),
     ...recordedProblems(init),
     ...(record === expected ? [] : [`mode record ${record ?? 'none'}, expected ${expected ?? 'none'}`]),
     ...answerProblems(resultOf(messages)),
@@ -134,14 +135,14 @@ function differProblems(label, values) {
 
 // The round's pin from each setup's init (null when a setup has none; its own check reports that), and the lines
 // that keep it from being written.
-export function pinFor({ version, binary, sha256, npmPackage, pluginDir, inits }) {
+export function pinFor({ version, binary, sha256, npmPackage, pluginDir, pluginRef, pluginCommit, inits }) {
   const present = SETUPS.filter(setup => inits[setup]).map(setup => [setup, inits[setup]])
   const builtins = present.map(([setup, init]) => [setup, builtinsOf(init)])
   const keySources = present.map(([setup, init]) => [setup, init.apiKeySource])
   const problems = [...differProblems('built-in plugins differ', builtins), ...differProblems('apiKeySource differs', keySources)]
   const setups = Object.fromEntries(present.map(([setup, init]) => [setup, { plugins: sourcesOf(init), agents: init.agents, skills: init.skills }]))
   const installed = npmPackage === undefined ? {} : { npmPackage }
-  return { problems, pin: { version, binary, sha256, ...installed, apiKeySource: keySources[0]?.[1], builtins: builtins[0]?.[1] ?? [], pluginDir, setups } }
+  return { problems, pin: { version, binary, sha256, ...installed, apiKeySource: keySources[0]?.[1], builtins: builtins[0]?.[1] ?? [], pluginDir, pluginRef, pluginCommit, setups } }
 }
 
 // The session's mode record; an unreadable one still yields a line that names its setup.
@@ -160,7 +161,7 @@ function exitProblems(setup, r) {
 }
 
 // One setup's run on the pinned copy in a fresh run folder: its problems, and its init (null without one).
-function checkSetup(setup, { home, binary, version, pluginDir, installedKeys }, { spawn, folder, root }) {
+function checkSetup(setup, { home, binary, version, pluginDir, pluginVersion, installedKeys }, { spawn, folder, root }) {
   const run = { id: `pf-${setup}`, task: 'pf', base: setup, cond: setup }
   const dir = prepareRun(run, { dir: folder(run), root })
   const sessionId = randomUUID()
@@ -171,7 +172,7 @@ function checkSetup(setup, { home, binary, version, pluginDir, installedKeys }, 
   const synced = JSON.stringify(syncedListing(home)) === JSON.stringify(before) ? [] : [`${setup}: the synced plugins or skills changed during the run`]
   if (r.error) return { problems: [`${setup}: could not run claude (${r.error.code ?? r.error.message})`, ...synced], init: null }
   const messages = outputMessages(r.stdout)
-  const checks = preflightProblems({ setup, messages, record: recordOf(home, sessionId), pluginDir, version })
+  const checks = preflightProblems({ setup, messages, record: recordOf(home, sessionId), pluginDir, version, pluginVersion })
   return { problems: [...exitProblems(setup, r), ...checks, ...synced], init: initOf(messages) }
 }
 
@@ -181,25 +182,28 @@ function versionOnPath(run) {
   return versionOf(r.stdout)
 }
 
-// The whole preflight; deps replace git, the --version runs, the paid spawns and the run folders in tests.
-// Returns every problem; the pin file is written only when there are none.
-export function preflight({ round, plugin, home = homedir(), results = RESULTS }, deps = {}) {
-  const { git, run = spawnSync, spawn = spawnSync, folder = runFolder, root = RUNS, which = npmClaude, platform = process.platform } = deps
+// The whole preflight. Every caller names the run folders (deps.folder and deps.root); the other deps replace git, the
+// --version runs and the paid spawns in tests. Returns every problem; the pin file is written only when there are none.
+export function preflight({ round, plugin, pluginRef = '', home, results } = {}, deps = {}) {
+  const { git, run = spawnSync, spawn, folder, root, which = npmClaude, platform = process.platform, readVersion = pluginVersionOf } = deps
+  required({ home, results, folder, root, spawn })
   if (typeof round !== 'string' || !NAME.test(round)) throw new RangeError('--round= names the round in letters and digits, e.g. --round=mo')
   // Every run's init is checked against the pin, so a round's pin never changes: not here, and not at the write ('wx').
   const file = join(results, `preflight-${round}.json`)
   if (existsSync(file)) throw new Error(`${file} exists: round ${round} is already pinned; delete it only if no run of the round has started`)
   // No paid call with a plugin path the batches would refuse.
-  pluginCommitOf(plugin, { git })
-  checkPluginWorktree(plugin, { git })
+  const ref = pluginRef || DEFAULT_PLUGIN_REF
+  const pluginCommit = pluginCommitOf(plugin, { ref, git })
+  checkPluginWorktree(plugin, { ref, git })
+  const pluginVersion = readVersion(plugin)
   const inPlace = platform !== 'win32' && !existsSync(join(home, '.local', 'share', 'claude', 'versions'))
   // In place, the round's version is fixed: PATH's claude may be another CLI. Windows reads it from PATH, as before.
   const version = inPlace ? ROUND_CLI_VERSION : versionOnPath(run)
   const { binary, sha256, npmPackage } = inPlace ? pinInstalled({ version, run, which }) : copyBinary({ home, version, run })
-  const ctx = { home, binary, version, pluginDir: plugin, installedKeys: installedPluginKeys(home, { platform }) }
+  const ctx = { home, binary, version, pluginDir: plugin, pluginVersion, installedKeys: installedPluginKeys(home, { platform }) }
   const checks = SETUPS.map(setup => checkSetup(setup, ctx, { spawn, folder, root }))
   const inits = Object.fromEntries(SETUPS.map((setup, i) => [setup, checks[i].init]))
-  const { problems, pin } = pinFor({ version, binary, sha256, npmPackage, pluginDir: plugin, inits })
+  const { problems, pin } = pinFor({ version, binary, sha256, npmPackage, pluginDir: plugin, pluginRef: ref, pluginCommit, inits })
   const all = [...checks.flatMap(check => check.problems), ...problems]
   if (all.length === 0) {
     mkdirSync(results, { recursive: true })
@@ -209,24 +213,26 @@ export function preflight({ round, plugin, home = homedir(), results = RESULTS }
 }
 
 // The written pin goes to the sync branch at once; false without a branch.
-export function publishPin({ file, round, branch, redactEmail = false }, { publish = publishItems } = {}) {
+export function publishPin({ file, round, branch, redactEmail = false }, { publish } = {}) {
+  required({ publish })
   if (branch === null) return false
   publish({ items: [{ from: file, to: `results/${basename(file)}` }], message: `chore(results): pin round ${round}` }, { branch, redactEmail })
   return true
 }
 
 function main() {
-  const { round, plugin, sync, noSync, redactEmail } = parseArgs(process.argv.slice(2))
+  const { round, plugin, pluginRef, sync, noSync, redactEmail } = parseArgs(process.argv.slice(2))
   // Before any paid call: off Windows the pin must reach the results branch, so the email variable and the remote are
   // checked first.
   const branch = syncBranchOf({ sync, noSync })
-  if (branch !== null) syncReady({ branch, redactEmail })
-  const { problems, pin, file } = preflight({ round, plugin })
+  if (branch !== null) syncReady({ ...REAL_SYNC, branch, redactEmail })
+  const { problems, pin, file } = preflight({ round, plugin, pluginRef, home: homedir(), results: RESULTS }, { folder: runFolder, root: RUNS, spawn: spawnSync })
   for (const line of problems) console.error(`preflight: ${line}`)
   if (problems.length > 0) process.exitCode = 1
   else {
     console.log(`preflight ok: claude ${pin.version} pinned at ${pin.binary}; the round's reference is in ${file}`)
-    if (publishPin({ file, round, branch, redactEmail })) console.log(`preflight: the pin is pushed to ${branch}`)
+    const publish = (what, options) => publishItems(what, { ...REAL_SYNC, ...options })
+    if (publishPin({ file, round, branch, redactEmail }, { publish })) console.log(`preflight: the pin is pushed to ${branch}`)
   }
 }
 

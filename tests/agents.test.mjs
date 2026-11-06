@@ -3,12 +3,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ROSTER, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
+import { ROSTER, RELAY, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
 const AGENTS = new URL('../agents/', import.meta.url)
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
+const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
 const front = text => Object.fromEntries(text.split('---')[1].trim().split('\n').filter(l => /^\w/.test(l)).map(l => [l.split(':')[0], l.slice(l.indexOf(':') + 1).trim()]))
 
 test('roster matches the section ids', () => {
@@ -30,17 +31,68 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
   }
 })
 
-test('advisors cannot use shell tools; builders have no tools allowlist', () => {
-  for (const s of ROSTER) {
-    const fm = front(render(s))
-    const id = s.id
-    if (ADVISOR_IDS.includes(id)) {
-      assert.ok(fm.tools, `${id} needs a tools allowlist`)
-      for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!fm.tools.includes(banned), `${id} has ${banned}`)
-    } else {
-      assert.equal(fm.tools, undefined, `${id} should inherit tools`)
-    }
+test('advisors cannot use shell tools, and their allowlist is unchanged', () => {
+  for (const id of ADVISOR_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit', id)
+    for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!tools.includes(banned), `${id} has ${banned}`)
   }
+})
+
+const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
+
+test('every builder has the base tool list, and only four have browser entries', () => {
+  for (const id of BUILDER_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS, id)
+  }
+})
+
+test('helpers keep their tools', () => {
+  assert.equal(front(agentFile('scout')).tools, 'Read, Grep, Glob, Skill')
+  assert.equal(front(agentFile('coder')).tools, 'Read, Write, Edit, Bash, PowerShell, Grep, Glob, Skill')
+  assert.equal(front(agentFile('reviewer')).tools, 'Read, Grep, Glob, Bash')
+})
+
+const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+
+test('builders and the coder keep tool output short; advisors, scout and reviewer do not carry the line', () => {
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(SHORT_OUTPUT), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes(SHORT_OUTPUT), id)
+})
+
+test('sections ask a sibling only while it works, ask main once it has handed back, and never wake a section', () => {
+  const sentence = 'Ask a sibling a question only while it is working; if it has handed back, ask `main`. Never wake a section yourself.'
+  assert.ok(RELAY.includes(sentence))
+  for (const s of ROSTER) assert.ok(agentFile(s.id).includes(sentence), s.id)
+})
+
+test('no builder keeps the old sibling sentence, and only the security section has the review exception', () => {
+  const exception = "do not review other sections' work. The security pass the job assigns is the exception. You still run your own reviewer gate before you finish."
+  for (const id of BUILDER_IDS) {
+    assert.ok(!agentFile(id).includes('Message a sibling only while it is working'), id)
+    assert.equal(agentFile(id).includes(exception), id === 'security', id)
+  }
+})
+
+test('testing goes through the supervisor only when a direct fix list is refused or fails', () => {
+  const testing = agentFile('testing')
+  assert.ok(testing.includes('(by agent id; if that is refused or fails, through the supervisor)'))
+  assert.ok(!testing.includes('(by agent id, else through the supervisor)'))
+})
+
+test('builders learn they have no project MCP tools, right after the short-output line; nobody else carries it', () => {
+  const line = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(`${SHORT_OUTPUT}\n${line}`), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes(line), id)
+})
+
+test('builders treat the approved foundation note as frozen; advisors write no notes', () => {
+  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(line), id)
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes(line), id)
 })
 
 test('committed files match the generator', () => {
@@ -76,8 +128,6 @@ test('testing owns the final review; other builders keep the separate-review lin
   assert.ok(!frontend.includes('skip a separate full review pass'), 'frontend.md still has the ambiguous skip line')
 })
 
-const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
-
 test('every section head skips the global CLAUDE.md, carries the house rules and knows the scout; builders also know the coder', () => {
   for (const s of ROSTER) {
     const text = agentFile(s.id)
@@ -108,7 +158,8 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
+    'A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
+    'Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -120,13 +171,17 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     for (const sentence of sentences) assert.ok(text.includes(sentence), `${id} lacks: ${sentence}`)
     assert.ok(text.includes('\n7. Write notes for anything other sections depend on'), `${id}: step 7 is no longer the notes step the plan step points to`)
     assert.ok(!text.includes("Once your helpers' code is in"), `${id} still gates only the helpers' code`)
+    assert.ok(!text.includes('A later job that changes code gets its own grade.'), `${id} keeps the old after-a-pass line`)
+    assert.ok(text.indexOf('Before your first grade') < text.indexOf("send your changed files to Agent `section-team:reviewer`"), `${id} walks its code after the grade`)
   }
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes('Before your first grade'), `${id} has no gate to run`)
 })
 
 test('house rules carry the friendly-errors rule; the reviewer fails a user-triggerable stack trace; testing probes I/O and startup failures', () => {
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace);'), `${id} friendly errors`)
   const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes('List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes.\n\nEnd your answer with exactly this block, filled in:'), 'reviewer fix-list cap')
   assert.ok(reviewer.includes('user-facing errors stay friendly and leak nothing'), 'reviewer errors item')
   assert.ok(reviewer.includes('Rethrowing to the runtime is not handling: a stack trace a user can trigger (a bad env value, a data path that is a directory, a missing parent folder, a port in use) scores errors under 6.'), 'reviewer stack-trace threshold')
   assert.ok(agentFile('testing').includes('Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace.'), 'testing I/O probes')
@@ -242,6 +297,14 @@ test('every builder lets a stated mode gate replace its numbers and reviewer mod
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('If the job states a mode gate'), `${id} is read-only and has no gate`)
 })
 
+test('a builder is not told to skip the gate for config files, which the handback hook counts as code', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(!text.includes('config values'), id)
+    assert.ok(text.includes('Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):'), id)
+  }
+})
+
 test('advisors read the notes but get neither the reviewer nor the coder', () => {
   for (const id of ADVISOR_IDS) {
     const text = agentFile(id)
@@ -257,7 +320,7 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
   assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
-  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
+  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A failing fix list is the one message that may wake a builder. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))
   assert.ok(testing.includes('send each owning section its part of the fix list'))
@@ -320,4 +383,17 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(text.includes("Where the project's own rules differ from the house rules, the project's rules win."))
   assert.ok(text.includes('Score each item 1–10:'))
   assert.ok(!text.includes('0–10'))
+})
+
+
+test('plan-advisor is a read-only advisor that returns at most 8 fixes with reasons', () => {
+  const text = agentFile('plan-advisor')
+  assert.equal(front(text).tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit')
+  assert.ok(ADVISOR_IDS.includes('plan-advisor'))
+  assert.match(text, /at most 8 fixes/)
+  assert.match(text, /with its reason/)
+  // The spec's "What it checks" list.
+  for (const check of ['a wrong build order', 'security, AI and data risks', 'which sections and skills each slice needs', 'whether each quality target is a number or a check']) {
+    assert.ok(text.includes(check), `plan-advisor lacks: ${check}`)
+  }
 })

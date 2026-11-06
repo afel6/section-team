@@ -28,7 +28,7 @@ test('an ungraded handback is a problem card, like partial and blocked, never do
   assert.deepEqual(data.counts, { active: 0, done: 0, problem: 1 })
 })
 
-test('board has 10 builders then 2 advisors and counts states', () => {
+test('board has 10 builders then 3 advisors and counts states', () => {
   const data = boardModel({
     agents: [
       { id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' },
@@ -40,7 +40,7 @@ test('board has 10 builders then 2 advisors and counts states', () => {
     request: 'add login',
     lastSummary: '14:02',
   })
-  assert.deepEqual(data.cards.map(c => c.kind), [...Array(10).fill('builder'), 'advisor', 'advisor'])
+  assert.deepEqual(data.cards.map(c => c.kind), [...Array(10).fill('builder'), 'advisor', 'advisor', 'advisor'])
   const card = id => data.cards.find(c => c.id === id)
   assert.equal(card('frontend').line, 'Running · login form')
   assert.equal(card('backend').line, 'Done · /api/login + JWT')
@@ -82,7 +82,7 @@ test('bare and foreign agent types never light a card', () => {
 
 test('empty board is all asleep', () => {
   const data = emptyBoard()
-  assert.equal(data.cards.length, 12)
+  assert.equal(data.cards.length, 13)
   assert.ok(data.cards.every(c => c.state === 'asleep'))
 })
 
@@ -119,6 +119,21 @@ test('sectionUsage: head, helpers and a grandchild roll up to the section; helpe
     usage: { S1: { total: 1000, out: 100 }, H1: { total: 2000, out: 200 }, H2: { total: 300, out: 30 }, G1: { total: 40, out: 4 } },
   })
   assert.deepEqual(result, { frontend: { total: 3340, out: 334, helpers: 2, models: [['haiku', 1], ['sonnet', 1]] } })
+})
+
+test('sectionUsage: two spawns of one section add up to one section', () => {
+  const later = { id: 'S2', type: 'section-team:frontend', status: 'running', description: 'second job' }
+  const result = sectionUsage({
+    agents: [{ ...HEAD, status: 'completed' }, later],
+    spawns: {
+      S1: { subagentType: 'section-team:frontend', model: 'claude-opus-5-5' },
+      S2: { subagentType: 'section-team:frontend', model: 'claude-opus-5-5' },
+      H1: { parentAgentId: 'S1', subagentType: 'Explore', model: 'claude-haiku-5-5' },
+      H2: { parentAgentId: 'S2', subagentType: 'Explore', model: 'claude-haiku-5-5' },
+    },
+    usage: { S1: { total: 1000, out: 100 }, S2: { total: 500, out: 50 }, H1: { total: 20, out: 2 }, H2: { total: 30, out: 3 } },
+  })
+  assert.deepEqual(result, { frontend: { total: 1550, out: 155, helpers: 2, models: [['haiku', 2]] } })
 })
 
 test('sectionUsage: agents with no section ancestor are ignored, even with helpers of their own', () => {
@@ -232,19 +247,19 @@ test('stripLine: awake sections as dots, then tokens and helpers, then the aslee
   })
   const line = stripLine(data)
   assert.ok(line.startsWith('Team · ● frontend running · ● testing waiting'), line)
-  assert.ok(line.endsWith('10 asleep'), line)
-  assert.equal(line, 'Team · ● frontend running · ● testing waiting · 48k tokens · 3 helpers · 10 asleep')
+  assert.ok(line.endsWith('11 asleep'), line)
+  assert.equal(line, 'Team · ● frontend running · ● testing waiting · 48k tokens · 3 helpers · 11 asleep')
 })
 
 test('stripLine: shows 4 awake sections and folds the rest into +N more', () => {
   const agents = ['frontend', 'backend', 'database', 'testing', 'security', 'devops'].map((id, i) => ({ id: String(i), type: `section-team:${id}`, status: 'running', description: 'x' }))
   const line = stripLine(boardModel({ agents }))
   assert.ok(line.includes('+2 more'), line)
-  assert.equal(line, 'Team · ● frontend running · ● backend running · ● database running · ● testing running · +2 more · 6 asleep')
+  assert.equal(line, 'Team · ● frontend running · ● backend running · ● database running · ● testing running · +2 more · 7 asleep')
   assert.equal(stripLine(boardModel({ agents: agents.slice(0, 4) })).includes('more'), false)
 })
 
 test('stripLine: usage with nobody awake still shows tokens and helpers, with no empty slot', () => {
   const line = stripLine(boardModel({ usage: { frontend: { total: 5, out: 1, helpers: 1, models: [['haiku', 1]] } } }))
-  assert.equal(line, 'Team · 5 tokens · 1 helper · 12 asleep')
+  assert.equal(line, 'Team · 5 tokens · 1 helper · 13 asleep')
 })

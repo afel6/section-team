@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { relative, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { assembleBrief } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, readMode } from './lib/mode.mjs'
 import { modeRecordDir, recordMode } from './lib/mode-record.mjs'
@@ -12,7 +13,7 @@ const MESSAGE_PREFIX = 'section-team session-start'
 
 const autoInstallNote = source => [
   '## Skill installs',
-  `- Automatic skill installs are on (${source}), which replaces asking first: install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
+  `- Automatic skill installs are on (${source}): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
 // Whether skill installs are automatic, and where that came from: the mode file wins, then the environment when it is set
@@ -26,6 +27,8 @@ function skillSetting(autoInstallSkills, env) {
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
 const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode's gate before you call that work done."
 
+const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
+
 function modeSection(mode, skills, problem) {
   return [
     '## Mode',
@@ -36,13 +39,14 @@ function modeSection(mode, skills, problem) {
   ].join('\n')
 }
 
-// The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, then the Mode section.
-export function composeContext({ mode, autoInstallSkills, problem }, env, summary) {
+// The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, the plan line when a plan exists, then the Mode section.
+export function composeContext({ mode, autoInstallSkills, problem }, env, summary, hasPlan = false) {
   const skills = skillSetting(autoInstallSkills, env)
   return [
     assembleBrief(mode),
     skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
-    summary ? `Last team summary for this project: ${summary}. Read it before new team work.` : null,
+    summary ? `Last team summary: ${summary}. Read it first.` : null,
+    hasPlan ? PLAN_LINE : null,
     modeSection(mode, skills, problem),
   ].filter(part => part !== null).join('\n\n')
 }
@@ -79,8 +83,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   ]
   const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
   const summary = attempt('summary lookup', () => summaryPath(root))
+  const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
   const warnings = [setting.problem, ...stepWarnings, summary.warning].filter(warning => warning !== null)
-  return { context: composeContext(setting, env, summary.value), warnings }
+  return { context: composeContext(setting, env, summary.value, hasPlan), warnings }
 }
 
 export function buildContext(cwd, home = homedir(), env = process.env, sessionId) {

@@ -281,6 +281,28 @@ function benchWith(root, prompt, tasks) {
   return bench
 }
 
+test('prepare gives the outside judges of a two-stage task both prompts', t => {
+  const box = sandbox(t, [['h7-r1', ['X', 'Y']]])
+  const results = join(box.root, 'results')
+  mkdirSync(results)
+  scanned(results, 'ho')
+  const bench = benchWith(box.root, '{{LABELS}}\n{{TASK}}\n', ['h7', 'h7-s2'])
+  prepare({ round: 'ho', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} })
+  assert.match(readFileSync(join(box.out, 'case-01', 'JUDGE.md'), 'utf8'), /task h7\n[^]*task h7-s2/)
+})
+
+test('prepare gives the outside judges of a --stages=1 p1 pair only the first prompt', t => {
+  const box = sandbox(t, [['p1-r1', ['X', 'Y']]])
+  writeFileSync(join(box.judgeDir, 'stages.json'), JSON.stringify({ 'p1-r1': 1 }))
+  const results = join(box.root, 'results')
+  mkdirSync(results)
+  scanned(results, 'ho')
+  const bench = benchWith(box.root, '{{LABELS}}\n{{TASK}}\n', ['p1', 'p1-s2', 'p1-s3'])
+  prepare({ round: 'ho', out: box.out, results, judgeDir: box.judgeDir, bench, log: () => {} })
+  const text = readFileSync(join(box.out, 'case-01', 'JUDGE.md'), 'utf8')
+  assert.ok(text.includes('task p1\n') && !text.includes('task p1-s2') && !text.includes('task p1-s3'), text)
+})
+
 test('prepare checks every pair before copying anything, and JUDGE.md never says scratch is deleted for you', t => {
   const box = sandbox(t)
   const results = join(box.root, 'results')

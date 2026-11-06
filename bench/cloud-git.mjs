@@ -5,13 +5,14 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { required } from './section-memory.mjs'
 
 export const EMAIL_VAR = 'CLAUDE_CODE_USER_EMAIL'
 // Every commit of the round's branches is made under this address (the user's GitHub noreply address).
 export const SYNC_AUTHOR = ['-c', 'user.name=Raouf', '-c', 'user.email=132957152+afel6@users.noreply.github.com']
 export const RETRY_WAITS_MS = [2000, 4000, 8000, 16000]
 const MAX_BUFFER = 2 * 1024 * 1024 * 1024
-const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/
+export const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 let attrSource
 
@@ -155,7 +156,8 @@ export function scanHistory({ cwd, email, label }) {
 
 // A worktree of branch at dir: reused when it is there; else the local branch, else the remote one, else a new orphan.
 // When the remote branch exists, the worktree is fast-forwarded to it; a branch that diverged from it stops here.
-export function openWorktree({ repo, branch, dir, remote = 'origin', wait }) {
+export function openWorktree({ repo, branch, dir, remote = 'origin', wait } = {}) {
+  required({ repo, branch, dir })
   checkBranch(branch)
   if (existsSync(join(dir, '.git'))) {
     const head = git(['symbolic-ref', '--short', 'HEAD'], { cwd: dir })
@@ -188,7 +190,8 @@ function catchUp({ dir, branch, remote, wait }) {
 
 // Stages paths (ignored files too: a solution's own .gitignore must not drop its files) and commits; false when
 // nothing changed.
-export function commitPaths({ cwd, paths, message }) {
+export function commitPaths({ cwd, paths, message } = {}) {
+  required({ cwd, paths })
   git(['add', '-A', '-f', '--', ...paths], { cwd })
   if (tryGit(['diff', '--cached', '--quiet'], { cwd }) !== null) return false
   git([...SYNC_AUTHOR, 'commit', '-q', '-m', message], { cwd })
@@ -203,7 +206,8 @@ export function unpushed({ cwd, branch, remote = 'origin' }) {
 }
 
 // Scans what the push would send, then pushes, retrying a failure 4 times. Nothing to push: no scan, no push.
-export function scanAndPush({ cwd, branch, email, remote = 'origin', wait = sleep, push = () => git(['push', '-q', remote, `HEAD:refs/heads/${branch}`], { cwd }) }) {
+export function scanAndPush({ cwd, branch, email, remote = 'origin', wait = sleep, push = () => git(['push', '-q', remote, `HEAD:refs/heads/${branch}`], { cwd }) } = {}) {
+  required({ cwd, branch, email })
   if (unpushed({ cwd, branch, remote }) === 0) return false
   const hits = scanOutgoing({ cwd, email, remote })
   if (hits.length > 0) throw new EmailFound(hits)

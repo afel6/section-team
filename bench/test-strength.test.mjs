@@ -315,3 +315,12 @@ test('main refuses a round that is not letters and digits; the CLI file says so 
   assert.equal(r.stdout, '')
   assert.equal(r.stderr.trim(), 'usage: node bench/test-strength.mjs --round=<tag>   (letters and digits only)')
 })
+
+test('main also measures h7 runs, on their final code', t => {
+  const root = folder(t, taskFiles('h7'))
+  const solution = folder(t, { 'a.test.mjs': 'lib.mjs=ref' })
+  const results = folder(t, { 'h7-team-sm-r1/run.json': JSON.stringify({ dir: solution, snapshot: join(solution, 'never-read') }) })
+  const out = runMain(t, ['--round=sm'], { results, root, seeds: folder(t), run: fakeRun() })
+  assert.deepEqual([out.exitCode, out.errors], [undefined, []])
+  assert.deepEqual(out.logs, ['h7-team-sm-r1  caught 1/3 (0.33)  valid 1/1'])
+})

@@ -6,10 +6,16 @@ import { readExtra } from './assign-skill.mjs'
 // All heads run on Opus: benchmark rounds 4–6 showed Sonnet builder heads land at solo quality even with the Opus gate.
 export const MODEL = { builder: 'claude-opus-5-5', advisor: 'claude-opus-5-5' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
-export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
+export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). Ask a sibling a question only while it is working; if it has handed back, ask `main`. Never wake a section yourself. When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
 export const CONSULTANT = false // Phase 0 C3: helpers run on fable directly
 
 const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit'
+// Tool schemas are re-sent on every turn of a head, so a builder lists only the tools it uses instead of inheriting them all.
+// An allowlist drops every MCP tool not named, and `mcp__*` in `tools` grants nothing (measured on CLI 2.1.318), so heads reach project MCP servers only through `main`.
+const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
+const builderTools = id => (BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS)
 
 export const ROSTER = [
   { id: 'frontend', kind: 'builder', color: 'blue', description: 'Frontend section head: UI pages, components, styling, client state. Use for any user-facing screen work.', role: 'You own everything the user sees in a browser: pages, components, styling, client-side state and accessibility of the UI you build.', skills: ['frontend-design:frontend-design', 'modern-web-guidance:modern-web-guidance'], core: ['frontend-design:frontend-design'], goto: ['react-review'], helpers: ['react-reviewer', 'typescript-reviewer', 'a11y-architect'] },
@@ -24,10 +30,15 @@ export const ROSTER = [
   { id: 'mobile', kind: 'builder', color: 'green', description: 'Mobile section head: iOS, Android, Flutter and React Native app work.', role: 'You own mobile apps: screens, native integration, builds and store readiness.', skills: [], core: [], goto: ['flutter-review', 'kotlin-review'], helpers: ['flutter-reviewer', 'swift-reviewer', 'kotlin-reviewer'] },
   { id: 'ai-engineer', kind: 'advisor', color: 'cyan', description: 'AI engineer ADVISOR (read-only): advises the supervisor on model choice, prompts, RAG and agent design. Never changes project files.', role: 'You advise the supervisor on AI decisions: which model, how to prompt, retrieval design, agent architecture, evaluation.', skills: ['claude-api', 'architecture-decision-records'], core: ['claude-api'], goto: [], helpers: ['architect', 'code-explorer'] },
   { id: 'data-scientist', kind: 'advisor', color: 'yellow', description: 'Data scientist ADVISOR (read-only): advises the supervisor on data, metrics, analytics, ML and experiments. Never changes project files.', role: 'You advise the supervisor on data decisions: metrics, analysis method, experiments, ML approach.', skills: ['data:statistical-analysis', 'data:explore-data', 'dataviz'], core: [], goto: [], helpers: ['code-explorer'] },
+  { id: 'plan-advisor', kind: 'advisor', color: 'orange', description: 'Advisor (read-only) that checks a platform foundation note for gaps, wrong build order, missing checks and risks; returns at most 8 fixes, each with its reason. Never changes project files.', role: 'You check a platform plan before any code is written: read the foundation note and the code around it for gaps; a wrong build order; slices with no check that proves them; unstated contracts; missing operations needs; security, AI and data risks; which sections and skills each slice needs; and whether each quality target is a number or a check. Return at most 8 fixes, most important first, each with its reason.', skills: ['architecture-decision-records'], core: [], goto: [], helpers: ['architect', 'code-explorer'] },
 ]
 
 const PROJECT_RULES = 'Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'
 const HOUSE_RULES = "House rules (the user's standards): return new objects instead of mutating; small focused files (200–400 lines typical, 800 max) and functions (under 50 lines); validate input at boundaries; handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace); no hardcoded secrets; no console.log in shipped code; write tests first for new behaviour and aim for 80% coverage; conventional commit messages if you commit."
+// Builders and the coder only: Bash output is 27% of head context.
+const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+// Builders only: their allowlist leaves out project MCP servers (see BUILDER_TOOLS).
+const NO_PROJECT_MCP = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
 
 // The reviewer's clean-code rubric. Later tasks import RUBRIC_ITEMS and PASS_RULE.
 export const RUBRIC_ITEMS = ['structure', 'naming', 'duplication', 'size', 'errors', 'tests', 'security', 'leftovers']
@@ -54,7 +65,7 @@ export const HELPER_AGENTS = [
   {
     id: 'coder', model: 'sonnet', color: 'green', tools: 'Read, Write, Edit, Bash, PowerShell, Grep, Glob, Skill',
     description: 'Routine-coding helper for section heads: writes or edits code and tests exactly as specified by the head, runs them, and reports. Does not make design decisions.',
-    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', PROJECT_RULES, HOUSE_RULES, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
+    body: ["You are the **coder**, a routine-coding helper for a section head of section-team. Follow the head's spec exactly: the files, signatures and test cases it gives you. Do not make design decisions; if the spec is unclear, say so in your result instead of guessing.", '', PROJECT_RULES, HOUSE_RULES, SHORT_OUTPUT, '', 'Run the relevant tests. End with a short result: files changed, tests run and their result, anything unclear. Never spawn agents.'],
   },
   {
     id: 'reviewer', model: 'opus', color: 'red', tools: 'Read, Grep, Glob, Bash',
@@ -72,6 +83,8 @@ export const HELPER_AGENTS = [
       'If the request says another section writes the tests, score tests as n/a and leave it out of the overall.',
       '',
       'Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.',
+      '',
+      'List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes.',
       '',
       'End your answer with exactly this block, filled in:',
       '',
@@ -131,16 +144,17 @@ function handOut(s, isAdvisor) {
 
 const KEEP = isAdvisor => `Keep for yourself: ${isAdvisor ? 'design decisions, tricky questions and the final advice' : 'design decisions, tricky bugs, integration and the final check'}.`
 
-// Builders only. Docs-only and config-only jobs have no code to grade.
+// Builders only. Docs-only jobs have no code to grade. A config file does count: the handback hook's changesCode reads it as code.
 const QUALITY_GATE = [
-  'Quality gate (skip it when the job changed no code, for example docs only or config values):',
+  'Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):',
+  '   - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
   "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
   // Lean and Max job messages state their own gate (brief/gate-lean.md, gate-max.md); Balanced jobs use the defaults above.
   '   - If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-  '   - A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
+  '   - A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
   '   - If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
   '   - If it still fails, finish with `Status: partial` and the grade; never call it done.',
   '   - Put the overall grade and the number of fix rounds on the REPORT\'s Quality line.',
@@ -152,6 +166,7 @@ const WRITE_NOTES = [
   '   - One file per note in `.team/notes/` (create the folder if needed), about 80 lines max, plus one line for it in `.team/notes/INDEX.md`: `<file> — <owner section> — <one-line summary> — <date>`. Change only your own lines there.',
   '   - Log a shared decision by appending to `.team/notes/decisions.md`: date, section, decision, why. It is the only note several sections write.',
   '   - You own the notes you write. Never edit another section\'s note. Ask its owner instead.',
+  '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.',
 ].join('\n')
 
 const BUILDER_COORDINATION = `${RELAY} If a question or fix list about your files or notes reaches you (directly, or forwarded by the supervisor with the asker's agent id), handle it and reply to the asker's agent id; if the answer is a contract, write or update your note and reply with the note's name. Record every agreement in your REPORT's Coordination line.`
@@ -164,8 +179,11 @@ const SPEC_LITERAL = 'Treat every value the spec names as exact (a header value,
 
 function finalStep(s, isAdvisor) {
   if (isAdvisor) return `You never change project files and never run shell commands. Write and Edit are only for your memory folder. Your helpers must be read-only types (${ADVISOR_HELPERS.join(', ')}). Your REPORT's Quality line is always \`n/a (no code)\`.`
-  if (s.id === 'testing') return "Follow the project's rules. Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list. Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails. " + STRICTER + ' ' + SPEC_LITERAL + " For multi-section tasks you own the final review and verification when the job assigns it: run the reviewer over every section's changed files (Agent `section-team:reviewer`, with `run_in_background: false`), run the full test suite, and report what you found. The section that wrote a file owns it: if the final pass fails, send each owning section its part of the fix list (by agent id, else through the supervisor), let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade. Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back. When a job asks for near-miss copies, write each as `.team/near-miss/<n>-<original file name>` whose first line is a comment `near-miss: <the one bug>`; swap a copy into place only to run the tests and restore the original also when a test run fails; leave the copies in `.team/near-miss/` and never anywhere else."
-  return "Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work; you still run your own reviewer gate before you finish. " + STRICTER + ' ' + SPEC_LITERAL
+  if (s.id === 'testing') return "Follow the project's rules. Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list. Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails. " + STRICTER + ' ' + SPEC_LITERAL + " For multi-section tasks you own the final review and verification when the job assigns it: run the reviewer over every section's changed files (Agent `section-team:reviewer`, with `run_in_background: false`). The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces, reporting the commands and results. Changed files are where to start, not the limit. Report what you found. The section that wrote a file owns it: if the final pass fails, send each owning section its part of the fix list (by agent id; if that is refused or fails, through the supervisor), let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade. Message a builder only with a failing fix list it must act on. A failing fix list is the one message that may wake a builder. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back. When a job asks for near-miss copies, write each as `.team/near-miss/<n>-<original file name>` whose first line is a comment `near-miss: <the one bug>`; swap a copy into place only to run the tests and restore the original also when a test run fails; leave the copies in `.team/near-miss/` and never anywhere else."
+  const reviewGate = s.id === 'security'
+    ? '. The security pass the job assigns is the exception. You still run your own reviewer gate before you finish. '
+    : '; you still run your own reviewer gate before you finish. '
+  return "Follow the project's rules. When the job says the testing section owns the final review, do not review other sections' work" + reviewGate + STRICTER + ' ' + SPEC_LITERAL
 }
 
 const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
@@ -173,7 +191,7 @@ const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)
 export function render(s, extra = {}) {
   const isAdvisor = s.kind === 'advisor'
   const lines = ['---', `name: ${s.id}`, `description: ${JSON.stringify(s.description)}`, `model: ${MODEL[s.kind]}`, `color: ${s.color}`, 'omitClaudeMd: true', 'memory: local']
-  if (isAdvisor) lines.push(`tools: ${ADVISOR_TOOLS}`)
+  lines.push(`tools: ${isAdvisor ? ADVISOR_TOOLS : builderTools(s.id)}`)
   if (s.core.length > 0) lines.push('skills:', ...s.core.map(k => `  - ${k}`))
   lines.push('---')
   const goTo = [...new Set([...s.skills.filter(k => !s.core.includes(k)), ...s.goto, ...(extra[s.id] ?? [])])] // everything but the core skill is a go-to mention: preloads cost context
@@ -194,6 +212,7 @@ export function render(s, extra = {}) {
     '',
     PROJECT_RULES,
     HOUSE_RULES,
+    ...(isAdvisor ? [] : [SHORT_OUTPUT, NO_PROJECT_MCP]),
     '',
     'The supervisor sends you jobs. For each job:',
     ...numbered(steps),

@@ -171,7 +171,7 @@ test('main gives one line and exit 1 for a bad round, a missing key, a bad key a
   const usage = { errors: ['usage: node bench/leak-scan.mjs --round=<tag>   (letters and digits only)'], exitCode: 1 }
   assert.deepEqual(run([]), usage)
   assert.deepEqual(run(['--round=../x']), usage)
-  assert.deepEqual(run(['--round=mo']), { errors: [`leak-scan: missing ${keyPath}: run node bench/anonymize.mjs --round=mo first`], exitCode: 1 })
+  assert.deepEqual(run(['--round=mo']), { errors: [`leak-scan: missing ${keyPath}: run node bench/anonymize.mjs --round=mo --conds=<setups> --tasks=<tasks> --reps=<n> first`], exitCode: 1 })
   writeFileSync(keyPath, '{ nope')
   assert.deepEqual(run(['--round=mo']), { errors: [`leak-scan: ${keyPath}: not valid JSON`], exitCode: 1 })
   rmSync(keyPath)

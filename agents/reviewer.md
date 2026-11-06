@@ -26,6 +26,8 @@ If the request says another section writes the tests, score tests as n/a and lea
 
 Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.
 
+List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes.
+
 End your answer with exactly this block, filled in:
 
 ## GRADE

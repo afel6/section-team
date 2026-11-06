@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
-import { BENCH_MODEL, PLUGIN_KEY } from './clean-run.mjs'
+import { BENCH_MODEL, PLUGIN_KEY, SECTION_TEAM_VERSION } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
 import { ROUND_CLI_VERSION } from './clean-run.mjs'
 import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
@@ -48,7 +48,7 @@ const answer = (text, fields = {}) => ({ type: 'result', is_error: false, result
 
 function problemsOf(setup, { initMessage = init(setup), result = answer('NO'), record = EXPECTED_RECORD[setup] } = {}) {
   const messages = [initMessage, result].filter(Boolean)
-  return preflightProblems({ setup, messages, record, pluginDir: PLUGIN_DIR, version: VERSION })
+  return preflightProblems({ setup, messages, record, pluginDir: PLUGIN_DIR, version: VERSION, pluginVersion: '0.2.1' })
 }
 
 test('versionOf reads 2.1.296 from "2.1.296 (Claude Code)"', () => {
@@ -186,7 +186,7 @@ test('syncedListing lists both synced folders, sorted, and treats a missing fold
   ])
 })
 
-const BASE = { version: VERSION, binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', sha256: 'ab12', pluginDir: PLUGIN_DIR }
+const BASE = { version: VERSION, binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', sha256: 'ab12', pluginDir: PLUGIN_DIR, pluginRef: 'v0.2.1', pluginCommit: 'tagged' }
 const INITS = Object.fromEntries(SETUPS.map(setup => [setup, init(setup)]))
 
 test('pinFor records the round\'s reference from the four inits', () => {
@@ -198,7 +198,7 @@ test('pinFor records the round\'s reference from the four inits', () => {
       setups: { solo: { plugins: BUILTIN_SOURCES, ...SOLO_LISTS }, lean: teamSetup, team: teamSetup, max: teamSetup },
     },
   })
-  assert.deepEqual(Object.keys(pinFor({ ...BASE, inits: INITS }).pin), ['version', 'binary', 'sha256', 'apiKeySource', 'builtins', 'pluginDir', 'setups'])
+  assert.deepEqual(Object.keys(pinFor({ ...BASE, inits: INITS }).pin), ['version', 'binary', 'sha256', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups'])
 })
 
 test('built-in sets that differ between setups fail', () => {
@@ -245,7 +245,7 @@ function fakeRound(t, { initFields = {}, during = {} } = {}) {
     return { status: 0, stdout: `${stdout}\n`, stderr: '' }
   }
   const runs = join(root, 'runs')
-  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs }
+  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs, readVersion: () => '0.2.1' }
   return { home, results: join(root, 'results'), calls, deps, binary: join(home, 'bench-runs', `claude-${VERSION}.exe`) }
 }
 
@@ -280,7 +280,7 @@ test('preflight on Linux without a versions folder pins the npm-installed CLI in
   const { problems, pin } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, which: () => installed, platform: 'linux' })
   assert.deepEqual(problems, [])
   assert.deepEqual({ binary: pin.binary, sha256: pin.sha256, npmPackage: pin.npmPackage }, { binary: installed, sha256: sha256('npm claude bytes'), npmPackage: `@anthropic-ai/claude-code@${VERSION}` })
-  assert.deepEqual(Object.keys(pin), ['version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'setups'])
+  assert.deepEqual(Object.keys(pin), ['version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups'])
   assert.deepEqual(calls.run, [[installed, ['--version']]], 'claude on PATH is never asked')
   assert.deepEqual(calls.spawn.map(s => s.binary), [installed, installed, installed, installed])
   assert.equal(existsSync(join(home, 'bench-runs')), false, 'nothing is copied')
@@ -316,6 +316,68 @@ test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn
     { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v0.2.1 worktree` })
   assert.throws(() => preflight({ round: '', plugin: PLUGIN_DIR, home, results }, deps), { message: '--round= names the round in letters and digits, e.g. --round=mo' })
   assert.deepEqual(calls, { run: [], spawn: [] })
+})
+
+test('preflight with no --plugin-ref checks the default v<version> tag, and records it and its commit in the pin', t => {
+  const { home, results, deps } = fakeRound(t)
+  const calls = []
+  const git = args => { calls.push(args.join(' ')); return gitAt('tagged')(args) }
+  const { problems, pin, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git })
+  assert.deepEqual(problems, [])
+  assert.deepEqual([pin.pluginRef, pin.pluginCommit], [`v${SECTION_TEAM_VERSION}`, 'tagged'])
+  assert.equal(JSON.parse(readFileSync(file, 'utf8')).pluginRef, `v${SECTION_TEAM_VERSION}`)
+  assert.ok(calls.includes(`rev-parse v${SECTION_TEAM_VERSION}^{commit}`))
+})
+
+test('preflight uses a passed ref for both worktree checks, and records it and its commit in the pin', t => {
+  const { home, results, deps } = fakeRound(t)
+  const calls = []
+  const git = args => { calls.push(args.join(' ')); return gitAt('tagged')(args) }
+  const { problems, pin, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, pluginRef: 'fix/fresh', home, results }, { ...deps, git })
+  assert.deepEqual(problems, [])
+  assert.deepEqual([pin.pluginRef, pin.pluginCommit], ['fix/fresh', 'tagged'])
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), pin)
+  assert.ok(calls.includes('rev-parse fix/fresh^{commit}'))
+  assert.ok(calls.includes(`-C ${PLUGIN_DIR} diff --stat fix/fresh`))
+})
+
+test('preflight names a passed ref when the worktree is not at it, before any spawn', t => {
+  const { home, results, calls, deps } = fakeRound(t)
+  assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, pluginRef: 'fix/fresh', home, results }, { ...deps, git: gitAt('other') }),
+    { message: `${PLUGIN_DIR} is at other, not at fix/fresh (tagged)` })
+  assert.deepEqual(calls, { run: [], spawn: [] })
+})
+
+// A plugin folder with this manifest (null: none), whose builders' inits load it at loaded, on a fake round. The real
+// manifest reader runs.
+function otherVersionRound(t, { manifest, loaded }) {
+  const plugin = tempRoot(t)
+  if (manifest !== null) writeFile(join(plugin, '.claude-plugin', 'plugin.json'), manifest)
+  const entry = { ...SECTION_TEAM, path: plugin, version: loaded }
+  const builders = Object.fromEntries(['lean', 'team', 'max'].map(setup => [setup, { plugins: [...BUILTINS, entry] }]))
+  const round = fakeRound(t, { initFields: builders })
+  const { readVersion, ...deps } = round.deps
+  const git = args => (args.includes('--show-toplevel') ? plugin : gitAt('tagged')(args))
+  return { ...round, plugin, deps: { ...deps, git } }
+}
+
+test('preflight passes a plugin at another version when its manifest matches, and fails when the init disagrees', t => {
+  const matching = otherVersionRound(t, { manifest: JSON.stringify({ version: '0.2.3' }), loaded: '0.2.3' })
+  const { problems: none } = preflight({ round: 'mo', plugin: matching.plugin, pluginRef: 'fix/fresh', home: matching.home, results: matching.results }, matching.deps)
+  assert.deepEqual(none, [])
+  const other = otherVersionRound(t, { manifest: JSON.stringify({ version: '0.2.3' }), loaded: '0.2.2' })
+  const { problems, file } = preflight({ round: 'mo', plugin: other.plugin, pluginRef: 'fix/fresh', home: other.home, results: other.results }, other.deps)
+  assert.deepEqual(problems, ['lean', 'team', 'max'].map(setup => `${setup}: section-team version 0.2.2, expected 0.2.3`))
+  assert.equal(existsSync(file), false)
+})
+
+test('preflight stops in one line on a missing or invalid manifest, before any spawn', t => {
+  for (const [manifest, why] of [[null, 'ENOENT'], ['{"version":', 'SyntaxError'], ['{}', 'no version']]) {
+    const { plugin, home, results, calls, deps } = otherVersionRound(t, { manifest, loaded: '0.2.3' })
+    const path = join(plugin, '.claude-plugin', 'plugin.json')
+    assert.throws(() => preflight({ round: 'mo', plugin, home, results }, deps), { message: `cannot read the plugin version from ${path} (${why})` })
+    assert.deepEqual(calls.spawn, [])
+  }
 })
 
 test('preflight never overwrites a round\'s pin: an existing one stops it before any spawn', t => {

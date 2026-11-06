@@ -14,7 +14,7 @@ import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.url))
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
-const FIXTURE = readFileSync(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url), 'utf8').trim()
+const FIXTURE = readFileSync(new URL('./fixtures/supervisor-balanced.md', import.meta.url), 'utf8').trim()
 const MARKER = '[section-team supervisor]'
 const UNGRADED_LINE = 'A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode\'s gate before you call that work done.'
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
@@ -52,7 +52,7 @@ test('brief starts with the marker and fits the limit', () => {
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
-test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders plus testing', () => {
+test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders, then one testing section', () => {
   const brief = assembleBrief('balanced')
   assert.ok(brief.includes('Single-area task'))
   assert.ok(brief.includes('about 600 lines'))
@@ -60,7 +60,8 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('wake only the testing section to write and run the tests'))
   assert.ok(brief.includes('then run the reviewer gate on your own changed files'))
   assert.ok(brief.includes('Multi-area work'))
-  assert.ok(brief.includes('plus the testing section'))
+  assert.ok(brief.includes('wake one testing section, which fills the test gaps and does the final review in one job'))
+  assert.ok(!brief.includes('plus the testing section for tests and final verification'))
   assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions): build it and its tests yourself, then run the reviewer gate'))
   assert.ok(brief.includes('A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
@@ -71,6 +72,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
   assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill'))
+  assert.ok(brief.includes('and give it to the section that asked. add-skill finds a missing one.'))
   assert.ok(!brief.includes('so do not ask'))
   assert.ok(!brief.includes("Never install a suggested skill without the user's yes."))
   assert.ok(brief.includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
@@ -81,7 +83,7 @@ test('brief: single-area work up to about 600 lines is built by the supervisor a
 
 test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
   const brief = assembleBrief('balanced')
-  assert.ok(brief.includes('testing, docs and advisors not counted'))
+  assert.ok(brief.includes('testing, docs, the security pass and advisors not counted'))
 })
 
 test('the injected brief hands per-job skills, uses notes, gates its own code and describes the board commands', () => {
@@ -109,7 +111,7 @@ test('context names the latest summary and excludes .team/', () => {
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const context = buildContext(dir, tempHome())
   assert.ok(context.startsWith('[section-team supervisor]'))
-  assert.ok(context.includes('\n\nLast team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it before new team work.\n\n'))
+  assert.ok(context.includes('\n\nLast team summary: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it first.\n\n'))
   assert.ok(!context.includes(dir))
   assert.ok(readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
 })
@@ -119,7 +121,7 @@ test('a session in a subfolder names the summary relative to the project root', 
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const sub = join(dir, 'src')
   mkdirSync(sub)
-  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
+  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
 })
 
 test('hook prints SessionStart additionalContext', () => {
@@ -294,7 +296,7 @@ test('a Max mode file at the repo root applies to a session started in a subfold
   assert.ok(ctx.includes('## Mode\n- This project runs in Max mode (from .team/mode.json).'))
 })
 
-test('without a mode file the context is the v0.1.1 brief plus a Balanced mode section', () => {
+test('without a mode file the context is the Balanced brief plus a Balanced mode section', () => {
   assert.equal(
     buildContext(repo(), tempHome(), {}),
     `${FIXTURE}\n\n## Mode\n- This project runs in Balanced mode (default).\n- Automatic skill installs: off (default).\n- ${UNGRADED_LINE}`,
@@ -317,7 +319,7 @@ test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.ok(envOn.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(envOn.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
   const fileOn = contextFor('{"autoInstallSkills":true}', {})
-  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json), which replaces asking first'))
+  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json): install'))
   assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
   assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
   assert.ok(contextFor('{"mode":"lean"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
@@ -445,7 +447,7 @@ test('composeContext builds the same text as buildContext, and puts the summary 
   const dir = withModeFile(repo(), '{"mode":"lean","autoInstallSkills":true}')
   assert.equal(buildContext(dir, tempHome(), {}), composeContext(readMode(dir), {}, null))
   const withSummary = composeContext({ mode: 'max', autoInstallSkills: null, problem: null }, {}, 'S')
-  assert.ok(withSummary.includes('\n\nLast team summary for this project: S. Read it before new team work.\n\n## Mode\n'))
+  assert.ok(withSummary.includes('\n\nLast team summary: S. Read it first.\n\n## Mode\n'))
 })
 
 for (const mode of MODES) {
@@ -471,8 +473,38 @@ for (const mode of MODES) {
     // The longest relative path latestSummary can give: the latest time of day and the highest same-second suffix.
     const summary = '.team/reports/2026-10-12/235959-supervisor-summary-999.md'
     assert.equal(summary.length, 57)
-    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary)
-    for (const part of ['Automatic skill installs are on', summary, '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
+    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary, true)
+    for (const part of ['Automatic skill installs are on', summary, '`.team/notes/plan.md` exists', '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }
+
+test('the context tells the supervisor to read .team/notes/plan.md first, only when it exists', () => {
+  const dir = repo()
+  assert.ok(!buildContext(dir, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const context = buildContext(dir, tempHome(), {})
+  assert.ok(context.includes('`.team/notes/plan.md` exists: read it first.'))
+  assert.ok(context.indexOf('plan.md') < context.indexOf('## Mode'))
+})
+
+test('a worktree session finds the plan in the main checkout, and is told that is where .team/ lives', () => {
+  const dir = repo()
+  const worktree = join(dir, '..', 'wt')
+  execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', worktree])
+  assert.ok(!buildContext(worktree, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  assert.ok(buildContext(worktree, tempHome(), {}).includes('`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'))
+})
+
+test('a session started in a subfolder finds plan.md at the repo root', () => {
+  const dir = repo()
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const sub = join(dir, 'src', 'deep')
+  mkdirSync(sub, { recursive: true })
+  assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
+})

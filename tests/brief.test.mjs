@@ -8,7 +8,7 @@ import { assembleBrief, modeRules } from '../hooks/lib/brief.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 
 const BRIEF_DIR = fileURLToPath(new URL('../brief/', import.meta.url))
-const FIXTURE = fileURLToPath(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('./fixtures/supervisor-balanced.md', import.meta.url))
 const MODES = ['lean', 'balanced', 'max']
 const JOB_GATE = "Every job message states this mode's gate"
 const NEAR_MISS_RULE = '- The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.'
@@ -44,8 +44,40 @@ const readFailure = (dir, message) => err => {
 
 after(() => temps.forEach(dir => rmSync(dir, { recursive: true, force: true })))
 
-test('balanced brief is the v0.1.1 supervisor brief, character for character', () => {
+test('balanced brief matches its fixture, character for character', () => {
   assert.equal(assembleBrief('balanced'), readFileSync(FIXTURE, 'utf8').trim())
+})
+
+// Measured on local transcripts, 2026-10-24 to 2026-11-04: 59% of the spend on section heads went on rewriting an expired prompt cache.
+test('every mode gives a new job a fresh section and keeps SendMessage for the same job', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes('- One agent id per job: a section on two jobs has two ids, so keep both. A new job gets a fresh Agent call (long-lived sections cost more). SendMessage only continues that job: a fix list, a question, a resume.'), mode)
+    assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
+    assert.ok(!brief.includes("Keep each job's agent id"), mode)
+    assert.ok(brief.includes('start a fresh one on the final-review job'), mode)
+    assert.ok(brief.includes('(wake it if it has no id)'), mode)
+    assert.ok(!brief.includes('Wake each section once per session'), mode)
+    assert.ok(!brief.includes('so it keeps its context'), mode)
+  }
+})
+
+test('every mode drops the advisor aside and the new skills section, and keeps add-skill for a suggested skill', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(!brief.includes('ai-engineer advises on AI decisions'), mode)
+    assert.ok(!brief.includes('## New skills'), mode)
+    assert.ok(!brief.includes('When the user pastes a GitHub link'), mode)
+    assert.ok(brief.includes('with the `section-team:add-skill` skill'), mode)
+  }
+})
+
+test('every mode tells the supervisor to run project MCP calls for sections, under How to wake a section', () => {
+  const rule = '- Sections have no project MCP tools: when one asks, run the call yourself and reply to its agent id.'
+  for (const mode of MODES) {
+    const section = assembleBrief(mode).split('## How to wake a section\n')[1].split('\n## ')[0]
+    assert.ok(section.split('\n').includes(rule), mode)
+  }
 })
 
 test('balanced brief leaves out the job-message gate sentence that only lean and max carry', () => {
@@ -57,7 +89,7 @@ test('max brief stays within 90 lines', () => {
 })
 
 // Claude Code cuts hook context at 10,000 characters and session start appends up to about 1,000 more:
-// the skill note, the mode section and the last summary.
+// the skill note, the last summary, the plan line and the mode section.
 test('every mode brief is under 9000 characters', () => {
   for (const mode of MODES) {
     const { length } = assembleBrief(mode)
@@ -104,7 +136,7 @@ test('each gate part states its mode\'s GATES values', () => {
     assert.equal(gate.includes(sections), fixRounds !== GATES.balanced.fixRounds, `${mode}: the "Sections get" line is wrong`)
     assert.equal(part(`gate-${mode}`).includes('near-miss'), nearMiss, `${mode}: near-miss must appear only when GATES says so`)
     assert.equal(gate.includes(NEAR_MISS_RULE), nearMiss, `${mode}: the near-miss gate rule is wrong`)
-    if (mode === 'balanced') continue // Balanced stays the v0.1.1 brief word for word, so it has no job-message rule
+    if (mode === 'balanced') continue // Balanced jobs use the sections' default gate, so it has no job-message rule
     const job = gate.find(line => line.startsWith(`- ${JOB_GATE}`))
     assert.ok(job !== undefined, `${mode}: the gate lacks the job-message rule`)
     assert.ok(job.includes('the near-miss check') === nearMiss, `${mode}: the job-message rule must name the near-miss check only when GATES says so`)
@@ -121,12 +153,23 @@ test('max tiers add probing, near-miss copies, security and docs always', () => 
     'the security section for a security pass',
     '(the one cross-review you ask for)',
     'near-miss copies and final verification',
-    'the docs section always',
+    'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
   ]) {
     assert.ok(tiers.includes(text), `tiers-max lacks "${text}"`)
   }
   assert.ok(!tiers.includes('Wake nobody'), 'tiers-max must not tell the supervisor to wake nobody')
+})
+
+test('every mode counts only builders toward the plan rule, and balanced and lean run security before the one cross-review', () => {
+  for (const mode of MODES) {
+    const plan = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- 3 or more distinct builders'))
+    assert.ok(plan.includes('(testing, docs, the security pass and advisors not counted)'), mode)
+  }
+  for (const mode of ['lean', 'balanced']) {
+    const multi = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- Multi-area work'))
+    assert.ok(multi.endsWith(' Run it before the final review; it is the one cross-review you ask for.'), mode)
+  }
 })
 
 test('lean tiers keep tests with the supervisor and builders, and testing for the final check only', () => {
@@ -139,9 +182,7 @@ test('lean tiers keep tests with the supervisor and builders, and testing for th
   ]) {
     assert.ok(tiers.includes(text), `tiers-lean lacks "${text}"`)
   }
-  for (const text of ['near-miss', 'security']) {
-    assert.ok(!tiers.includes(text), `tiers-lean must not mention "${text}"`)
-  }
+  assert.ok(!tiers.includes('near-miss'), 'tiers-lean must not mention "near-miss"')
 })
 
 // Lean and Max differ from Balanced only in the mode table's rules, so Balanced's other tier rules must stay in both.
@@ -150,8 +191,7 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
   const advisor = balanced.find(line => line.startsWith('- An AI or data decision'))
   const plan = balanced.find(line => line.startsWith('- 3 or more distinct builders'))
   assert.ok(advisor !== undefined && plan !== undefined, 'tiers-balanced lacks the advisor or the plan rule')
-  const maxPlan = plan.replace('docs and advisors', 'docs, the security pass and advisors')
-  assert.notEqual(maxPlan, plan, 'the plan rule in tiers-balanced no longer says "docs and advisors"')
+  assert.ok(plan.includes('(testing, docs, the security pass and advisors not counted)'), 'the plan rule must exclude testing, docs, the security pass and advisors')
   const shared = [
     'one kind of work (a CLI, an API, a library, a page, a schema)',
     'up to about 600 lines of new code',
@@ -169,7 +209,7 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
       phrases: ['add the docs section when the task asks for docs or a README'],
     },
     max: {
-      wholeLines: [advisor, maxPlan],
+      wholeLines: [advisor, plan],
       phrases: [
         'about 50 lines of new code or less',
         'build it and its tests yourself',

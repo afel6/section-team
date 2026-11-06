@@ -1,28 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { EventEmitter, once } from 'node:events'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
+import { FAKE_PID, endStreams, fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
-  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkPluginWorktree, checkRoundTag, checkVolumes, killTree,
-  freshRepo, isolateSectionMemory, modeFileFor, parseArgs, plan, pluginCommitOf, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, syncBranchOf, taskProblems, userListing,
+  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkRoundTag, checkVolumes, killTree,
+  freshRepo, modeFileFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, stopRunOnExit, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
-const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
-
-// A temp folder removed after the test, even when the test fails.
-function tempRoot(t) {
-  const root = mkdtempSync(join(tmpdir(), 'bench-run-'))
-  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3 }))
-  return root
-}
+// The two-stage tasks' tests are in run-stages.test.mjs; the plugin under test's are in run-plugin.test.mjs.
 
 test('plan defaults are unchanged', () => {
   const runs = plan()
@@ -263,69 +257,32 @@ test('run folders are named by task and a hash, so the setup never shows in a pa
   assert.equal(runFolder({ id: 'h1-team-ho-r1', task: 'h1' }), team, 'stable, so a rerun reuses the folder')
 })
 
-test('runAll moves section memory aside only when a team run is left, and always moves it back, even when a run throws', async () => {
+test('runAll runs each run in order, stops at a throw, and removes its exit handlers either way', async () => {
+  const handlers = () => ['SIGINT', 'exit'].map(event => process.listenerCount(event))
+  const before = handlers()
   const calls = []
-  const isolate = () => { calls.push('aside'); return () => calls.push('back') }
-  const ok = async run => { calls.push(run.id) }
   const team = { id: 'h1-team-ho-r1', base: 'team' }
   const solo = { id: 'h1-solo-ho-r1', base: 'solo' }
-
-  await runAll([solo], { runOne: ok, isolate })
-  assert.deepEqual(calls, ['h1-solo-ho-r1'], 'a solo-only round leaves the memory alone')
-
-  calls.length = 0
-  await runAll([team, solo], { runOne: ok, isolate })
-  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'h1-solo-ho-r1', 'back'])
+  await runAll([team, solo], { runOne: async run => { calls.push(run.id); assert.notDeepEqual(handlers(), before, 'a kill during a run stops it') }, results: 'results' })
+  assert.deepEqual(calls, ['h1-team-ho-r1', 'h1-solo-ho-r1'])
+  assert.deepEqual(handlers(), before)
 
   calls.length = 0
   const failing = async run => { calls.push(run.id); throw new Error('claude crashed') }
-  await assert.rejects(runAll([team, solo], { runOne: failing, isolate }), /claude crashed/)
-  assert.deepEqual(calls, ['aside', 'h1-team-ho-r1', 'back'])
-
-  calls.length = 0
-  await runAll([{ id: 'h1-lean-mo-r1', base: 'lean' }, { id: 'h1-max-mo-r1', base: 'max' }], { runOne: ok, isolate })
-  assert.deepEqual(calls, ['aside', 'h1-lean-mo-r1', 'h1-max-mo-r1', 'back'], 'lean and max runs are team runs too')
+  await assert.rejects(runAll([team, solo], { runOne: failing, results: 'results' }), /claude crashed/)
+  assert.deepEqual(calls, ['h1-team-ho-r1'])
+  assert.deepEqual(handlers(), before)
 })
 
-test('runAll refuses to start without a runOne, before section memory moves', async () => {
-  let moved = false
-  const isolate = () => { moved = true; return () => {} }
-  await assert.rejects(runAll([{ id: 'h4-team-mo-r1', base: 'team' }], { isolate }), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' })
-  assert.equal(moved, false)
+test('runAll gives each run a folder under the results it was given', async () => {
+  const folders = []
+  await runAll([{ id: 'h1-solo-ho-r1', base: 'solo' }], { runOne: async (run, outDir) => folders.push(outDir), results: 'given' })
+  assert.deepEqual(folders, [join('given', 'h1-solo-ho-r1')])
+})
+
+test('runAll refuses to start without a runOne', async () => {
+  await assert.rejects(runAll([{ id: 'h4-team-mo-r1', base: 'team' }], { results: 'results' }), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' })
   await assert.rejects(runAll([]), { name: 'TypeError', message: 'runAll needs a runOne bound to the batch context' }, 'also with no options at all')
-})
-
-test('pluginCommitOf with the real git says in one line that a worktree does not exist', t => {
-  const missing = join(tempRoot(t), 'no-such-worktree')
-  assert.throws(() => pluginCommitOf(missing), err => {
-    assert.match(err.message, /^git -C .*no-such-worktree rev-parse HEAD failed: fatal: /)
-    assert.doesNotMatch(err.message, /\n/)
-    return true
-  })
-})
-
-test('isolateSectionMemory refuses a different-drive setup before anything moves', () => {
-  let moved = false
-  const volumes = () => { throw new Error('C:/x and D:/y are on different drives') }
-  assert.throws(() => isolateSectionMemory({ volumes, backup: () => { moved = true; return [] }, restore: () => {} }), /different drives/)
-  assert.equal(moved, false)
-})
-
-test('isolateSectionMemory puts the memory back once, and a failed restore is one line with the --restore-memory hint', t => {
-  const lines = []
-  t.mock.method(console, 'log', () => {})
-  t.mock.method(console, 'error', line => lines.push(line))
-  const exitCode = process.exitCode
-  t.after(() => { process.exitCode = exitCode })
-  const listeners = ['SIGINT', 'exit'].map(event => process.listenerCount(event))
-  let restores = 0
-  const release = isolateSectionMemory({ volumes: () => {}, backup: () => ['section-team-testing'], restore: () => { restores++; throw new Error('EBUSY') }, stop: () => {} })
-  release()
-  release()
-  assert.equal(restores, 1, 'release is idempotent')
-  assert.deepEqual(lines, ['could not restore your section memory: EBUSY; run node bench/run.mjs --restore-memory'])
-  assert.equal(process.exitCode, 1)
-  assert.deepEqual(['SIGINT', 'exit'].map(event => process.listenerCount(event)), listeners, 'its signal and exit handlers are removed')
 })
 
 test('checkVolumes accepts a memory folder that does not exist yet, by its nearest existing parent', t => {
@@ -342,20 +299,6 @@ test('builderEnv drops session, key and switch variables, sets the round switche
     { PATH: '/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w', CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' })
   assert.deepEqual(parent, copy, 'the parent environment is not changed')
   assert.throws(() => builderEnv(parent, {}), /pluginDir/, 'no silent fallback to the live checkout')
-})
-
-test('pluginCommitOf refuses a missing or relative --plugin and a worktree not at v0.2.1, and returns its commit', () => {
-  const worktree = join(tmpdir(), 'section-team-v0.2.1')
-  const calls = []
-  const gitWith = ({ head, tagged }) => args => { calls.push(args); return args.includes('HEAD') ? head : tagged }
-  for (const bad of ['', 'section-team-v0.2.1', './w']) {
-    assert.throws(() => pluginCommitOf(bad, { git: gitWith({}) }), { message: `--plugin= takes the absolute path of the v0.2.1 worktree, got "${bad}"` })
-  }
-  assert.deepEqual(calls, [], 'refused before any git call')
-  assert.throws(() => pluginCommitOf(worktree, { git: gitWith({ head: 'aaa', tagged: 'bbb' }) }), { message: `${worktree} is at aaa, not at v0.2.1 (bbb)` })
-  calls.length = 0
-  assert.equal(pluginCommitOf(worktree, { git: gitWith({ head: 'bbb', tagged: 'bbb' }) }), 'bbb')
-  assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', 'v0.2.1^{commit}']])
 })
 
 // Every killTree test passes its platform and a fake kill or execFile: a real signal to pid 42's group could stop a
@@ -454,46 +397,20 @@ test('spawnOptions starts claude in the harness\'s process group on every platfo
   assert.deepEqual(spawnOptions('C:/run', env), { cwd: 'C:/run', env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 })
 
-test('isolateSectionMemory stops the running claude before it puts the memory back', t => {
-  t.mock.method(console, 'log', () => {})
+test('stopRunOnExit stops the running claude when released, and removes its handlers', () => {
+  const handlers = () => ['SIGINT', 'exit'].map(event => process.listenerCount(event))
+  const before = handlers()
   const calls = []
-  const release = isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => calls.push('restore'), stop: () => calls.push('stop') })
+  const release = stopRunOnExit({ stop: () => calls.push('stop') })
+  assert.notDeepEqual(handlers(), before)
   release()
-  assert.deepEqual(calls, ['stop', 'restore'])
+  assert.deepEqual(calls, ['stop'])
+  assert.deepEqual(handlers(), before)
 })
 
 test('checkVolumes accepts results and home folders that do not exist yet', t => {
   const root = tempRoot(t)
   assert.doesNotThrow(() => checkVolumes({ root: join(root, 'agent-memory'), others: [join(root, 'no', 'results')] }))
-})
-
-test('checkPluginWorktree accepts the clean worktree root, whatever its slashes or case', () => {
-  const calls = []
-  const plugin = 'C:\\Users\\Asus\\Section-Team-v0.2.1\\'
-  const git = args => { calls.push(args); return args.includes('--show-toplevel') ? 'C:/Users/Asus/section-team-v0.2.1' : '' }
-  assert.doesNotThrow(() => checkPluginWorktree(plugin, { git }))
-  assert.deepEqual(calls, [['-C', plugin, 'rev-parse', '--show-toplevel'], ['-C', plugin, 'status', '--porcelain'], ['-C', plugin, 'diff', '--stat', 'v0.2.1']])
-})
-
-test('pluginCommitOf and checkPluginWorktree take a Linux worktree path and compare it case for case', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
-  const top = '/root/section-team-v0.2.1'
-  const git = args => (args.includes('--show-toplevel') ? top : args.includes('HEAD') || args.includes('v0.2.1^{commit}') ? 'bbb' : '')
-  assert.equal(pluginCommitOf(top, { git }), 'bbb')
-  assert.throws(() => pluginCommitOf('\\rooted', { git }), { message: '--plugin= takes the absolute path of the v0.2.1 worktree, got "\\rooted"' })
-  assert.doesNotThrow(() => checkPluginWorktree(`${top}/`, { git }))
-  assert.throws(() => checkPluginWorktree('/root/Section-Team-v0.2.1', { git }),
-    { message: `--plugin= must be the worktree's root folder ${top}, got /root/Section-Team-v0.2.1` })
-})
-
-test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff from v0.2.1, in one line each', () => {
-  const top = 'C:/Users/Asus/section-team-v0.2.1'
-  const gitWith = ({ status = '', diff = '' }) => args => (args.includes('--show-toplevel') ? top : args.includes('status') ? status : diff)
-  const cases = [
-    [`${top}/agents`, {}, `--plugin= must be the worktree's root folder ${top}, got ${top}/agents`],
-    [top, { status: '?? stray.md' }, `${top} has uncommitted changes: a batch needs a clean v0.2.1 worktree`],
-    [top, { diff: ' agents/backend.md | 2 +-' }, `${top} differs from v0.2.1: a batch needs a clean v0.2.1 worktree`],
-  ]
-  for (const [plugin, out, message] of cases) assert.throws(() => checkPluginWorktree(plugin, { git: gitWith(out) }), { message }, message)
 })
 
 test('parseArgs reads --sync, --no-sync and --redact-email', () => {
@@ -554,17 +471,18 @@ test('publishAtStart checks the sync first, then publishes every run with result
     publishItems: ({ items, message }, options) => { calls.push(['items', items, message, options]); return { pushed: false } },
   }
   const options = { branch: 'bench/mode-round-cloud-results', redactEmail: true }
-  publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, sync)
+  const folder = run => join(root, 'runs', run.id)
+  publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, sync)
   assert.deepEqual(calls, [
     ['ready', options],
-    ['run', runs[1].id, join(root, runs[1].id), runFolder(runs[1]), options],
+    ['run', runs[1].id, join(root, runs[1].id), folder(runs[1]), options],
     ['items', [{ from: join(root, 'preflight-mo.json'), to: 'results/preflight-mo.json' }], 'chore(results): pin round mo', options],
   ])
   const failing = { ...sync, publishRun: () => { throw Object.assign(new Error('could not reach origin'), { name: 'PushFailed' }) } }
-  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, failing),
+  assert.throws(() => publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, failing),
     { name: 'BatchStop', message: 'batch stopped: could not reach origin; resume once the network is back' })
   const noEmail = { ...sync, syncReady: () => { throw new Error('$CLAUDE_CODE_USER_EMAIL is not set') } }
-  assert.throws(() => publishAtStart({ runs, results: root, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
+  assert.throws(() => publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
 })
 
 test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {
@@ -575,71 +493,13 @@ test('checkConds refuses any setup but solo, lean, team and max, so a round neve
   assert.throws(() => checkConds(['solo', 'forced']), { name: 'RangeError', message })
 })
 
-// The fake children's pid: odd, so never a Windows PID, and above Linux's pid_max, so a regression that reached the
-// real killTree would stop nothing.
-const FAKE_PID = 2147483647
-
-// A stand-in for the pinned binary: it writes the session transcript where Claude Code would and streams an init and a result.
-// With transcript false it writes no session file, as when the API fails before the first turn is saved. With hang
-// true it streams only the init and runs until it is killed (its streams ended), then closes with code null.
-function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false }) {
-  return (command, args, options) => {
-    calls.push({ command, args, options })
-    const sessionId = args[args.indexOf('--session-id') + 1]
-    const project = projectDirFor(options.cwd, home)
-    mkdirSync(project, { recursive: true })
-    if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
-    const child = Object.assign(new EventEmitter(), { pid: FAKE_PID, stdout: new PassThrough(), stderr: new PassThrough() })
-    const lines = hang ? [{ ...init, session_id: sessionId }] : [{ ...init, session_id: sessionId }, result]
-    Promise.all([once(child.stdout, 'end'), once(child.stderr, 'end')]).then(() => child.emit('close', hang ? null : 0))
-    const text = `${lines.map(line => JSON.stringify(line)).join('\n')}\n`
-    // A hanging child's init is written at once (the stream holds it until runOne pipes it): written from setImmediate,
-    // a 50 ms stop sometimes came first under the full suite's load, and the run was void with no init.
-    if (hang) child.stdout.write(text)
-    else setImmediate(() => {
-      child.stdout.end(text)
-      child.stderr.end()
-    })
-    return child
-  }
-}
-
-// A kill for fake children: it ends their streams, so they close with code null. The real killTree would run
-// taskkill on the fake pid; tests never rely on it.
-const endStreams = child => {
-  child.stdout.end()
-  child.stderr.end()
-}
-
-// A solo run of task easy into a temp root, with a pin and an init that pass the init check. deps always carry a
-// fake kill and a short time limit, so no runOne test can hang or reach the real killTree.
-function soloAttempt(t) {
-  t.mock.method(console, 'log', () => {})
-  const root = tempRoot(t)
-  const builtins = ['cc-plugin-agents-md@builtin']
-  // A binary path under the temp root that never exists: a regression that dropped the injected spawn could start nothing.
-  const pin = { binary: join(root, 'claude-2.1.296.exe'), version: '2.1.296', apiKeySource: 'none', builtins, setups: { solo: { agents: ['general-purpose'], skills: [] } } }
-  const home = join(root, 'home')
-  const dir = join(root, 'runs', 'easy-0123abcd')
-  return {
-    root, pin, home, dir, outDir: join(root, 'results', 'easy-solo-mo-r1'),
-    ctx: { pin, installedKeys: ['a@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1', pluginCommit: 'c0ffee1' },
-    init: {
-      type: 'system', subtype: 'init', model: 'claude-opus-5-5', claude_code_version: '2.1.296', apiKeySource: 'none', mcp_servers: [],
-      plugins: [{ name: 'cc-plugin-agents-md', path: 'builtin', source: builtins[0] }], agents: ['general-purpose'], skills: [],
-    },
-    run: { id: 'easy-solo-mo-r1', task: 'easy', cond: 'solo-mo', base: 'solo', rep: 1 },
-    deps: { kill: endStreams, timeoutMs: 5_000, home, dir, root: join(root, 'runs') },
-  }
-}
-
 test('stopping the round mid-run stops the child with the kill its run was given, never the real killTree', async t => {
   const { home, outDir, ctx, init, run, deps } = soloAttempt(t)
   const killed = []
   const kill = child => { killed.push(child.pid); endStreams(child) }
   const running = runOne(run, outDir, ctx, { ...deps, spawn: fakeClaude({ home, calls: [], init, hang: true }), kill, timeoutMs: 60_000 })
   await new Promise(resolve => setTimeout(resolve, 50))
-  isolateSectionMemory({ volumes: () => {}, backup: () => [], restore: () => {} })()
+  stopRunOnExit()()
   await running
   assert.deepEqual(killed, [FAKE_PID], 'the default stop used the run\'s own kill')
   const record = JSON.parse(readFileSync(join(outDir, 'run.json'), 'utf8'))

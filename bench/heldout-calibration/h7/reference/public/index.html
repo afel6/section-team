@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parts store</title>
+</head>
+<body>
+<h1>Parts store</h1>
+<form id="part-form" novalidate>
+  <label for="sku">SKU</label>
+  <input type="text" id="sku">
+  <label for="name">Name</label>
+  <input type="text" id="name">
+  <button type="submit" id="add">Add</button>
+</form>
+<label for="search">Search</label>
+<input type="search" id="search">
+<ul id="part-list"></ul>
+<button type="button" id="more" disabled>Load more</button>
+<form id="report-form" novalidate>
+  <label for="as-of">As of</label>
+  <input type="date" id="as-of">
+  <button type="submit" id="report">Show report</button>
+</form>
+<ul id="report-list"></ul>
+<p id="report-total"></p>
+<p id="error" role="alert"></p>
+<script src="/app.js"></script>
+</body>
+</html>

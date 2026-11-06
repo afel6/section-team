@@ -7,7 +7,7 @@ import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from '
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
 // The notice's sections take the place of the same-headed ones in the brief, so a switch back to Balanced cancels Lean or Max rules.
-const REPLACES = "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate."
+const REPLACES = "These sections replace the ones with the same headings in your brief; your next job message to a section states this mode's gate."
 
 function attempt(label, fn) {
   try {

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { childEnv, cleanSettings, commonArgs } from './clean-run.mjs'
 import {
   ALLOWED, BLIND_KEY, JUDGE_TIMEOUT_MS, checkLeakScan, countedEdges, edgeCounts, fillPrompt, judgeArgs, judgeCall, judgeCheck, judgeFiles, judgeOptions,
-  judgeSpawnOptions, mirrorSwap, parseVerdict, pendingJobs, prepareJob, runJobs, unswap, withCopy,
+  judgeSpawnOptions, mirrorSwap, parseVerdict, pendingJobs, prepareJob, runJobs, taskTextOf, unswap, withCopy,
 } from './judge.mjs'
 import { projectDirFor } from './run-attempts.mjs'
 
@@ -437,6 +437,17 @@ test('prepareJob gives judge 2 of a two-solution pair the X/Y swap, and judge 1 
   assert.match(first.prompt, /^Solutions: X, Y\. SEED\/ is the repo/)
 })
 
+test('prepareJob gives the judges of a two-stage task both prompts, and a single-stage task its file as it is', t => {
+  const judgeDir = mkdtempSync(join(tmpdir(), 'judge-dir-'))
+  t.after(() => rmSync(judgeDir, { recursive: true, force: true }))
+  for (const pair of ['h7-r1', 'h2-r1']) for (const label of ['X', 'Y']) mkdirSync(join(judgeDir, pair, label), { recursive: true })
+  const task = name => readFileSync(join(BENCH, 'tasks', `${name}.md`), 'utf8')
+  const { prompt } = prepareJob({ pair: 'h7-r1', judge: 1 }, judgeDir, '{{TASK}}')
+  assert.ok(prompt.startsWith(task('h7')), 'the first prompt comes first')
+  assert.ok(prompt.endsWith(task('h7-s2')), 'the second prompt comes last')
+  assert.equal(prepareJob({ pair: 'h2-r1', judge: 1 }, judgeDir, '{{TASK}}').prompt, task('h2'))
+})
+
 test('edgeCounts counts first and last folders per setup', () => {
   const key = { 'h4-r1': { X: 'solo', Y: 'lean', Z: 'team', W: 'max' }, 'h5-r1': { X: 'lean', Y: 'team', Z: 'max', W: 'solo' } }
   const jobs = ['h4-r1', 'h5-r1'].flatMap(pair => [1, 2].map(judge => ({ pair, judge, labels: LABELS4, swap: mirrorSwap(judge, LABELS4) })))
@@ -655,4 +666,29 @@ test('a binary that cannot start stops judging with one line', async t => {
   }
   const broken = callSetup(t, () => missing)
   await assert.rejects(broken.call(broken.job, 1), { message: 'could not start claude (C:/bench-runs/claude-2.1.296.exe: ENOENT)' })
+})
+
+test('taskTextOf gives the judges of a three-stage task all three prompts in order, each after its own line', t => {
+  const bench = mkdtempSync(join(tmpdir(), 'judge-bench-'))
+  t.after(() => rmSync(bench, { recursive: true, force: true }))
+  mkdirSync(join(bench, 'tasks'))
+  for (const [file, text] of [['p1', 'FIRST'], ['p1-s2', 'SECOND'], ['p1-s3', 'THIRD']]) writeFileSync(join(bench, 'tasks', `${file}.md`), text)
+  const text = taskTextOf(bench, 'p1-r1')
+  assert.deepEqual(['FIRST', 'second request', 'SECOND', 'third request', 'THIRD'].map(part => text.indexOf(part)).every((at, i, all) => at >= 0 && (i === 0 || at > all[i - 1])), true, text)
+  // A pair run with --stages=1 is judged on the first prompt alone; --stages=2 on the first two.
+  assert.equal(taskTextOf(bench, 'p1-r1', 1), 'FIRST')
+  const two = taskTextOf(bench, 'p1-r1', 2)
+  assert.ok(two.includes('SECOND') && !two.includes('THIRD') && !two.includes('third request'), two)
+  for (const bad of [0, 4, 1.5, '1']) assert.throws(() => taskTextOf(bench, 'p1-r1', bad), RangeError, String(bad))
+})
+
+test('prepareJob tells the judges only the stages the pair\'s runs asked for, as anonymize recorded them', t => {
+  const judgeDir = mkdtempSync(join(tmpdir(), 'judge-stages-'))
+  t.after(() => rmSync(judgeDir, { recursive: true, force: true }))
+  for (const pair of ['p1-r1', 'p1-r2']) for (const label of ['X', 'Y']) mkdirSync(join(judgeDir, pair, label), { recursive: true })
+  writeFileSync(join(judgeDir, 'stages.json'), JSON.stringify({ 'p1-r1': 1 }))
+  const task = name => readFileSync(join(BENCH, 'tasks', `${name}.md`), 'utf8')
+  assert.equal(prepareJob({ pair: 'p1-r1', judge: 1 }, judgeDir, '{{TASK}}').prompt, task('p1'), 'a --stages=1 pair gets only the first prompt')
+  const all = prepareJob({ pair: 'p1-r2', judge: 1 }, judgeDir, '{{TASK}}').prompt
+  assert.ok(all.startsWith(task('p1')) && all.endsWith(task('p1-s3')), 'a pair not listed gets every prompt')
 })

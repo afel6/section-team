@@ -1,6 +1,8 @@
 import { homedir } from 'node:os'
 import nodePath from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { gradeRule } from './lib/grade.mjs'
+import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
 import { readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
@@ -53,7 +55,8 @@ function projectGate(e, env, home) {
   return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 
-// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the mode's pass mark, is refused.
+// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
+// claims a grade its own transcript does not back, or claims done while the reviewer scored an item under the mode's item minimum is refused.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const block = extractReport(e.tool_input?.message)
@@ -61,7 +64,8 @@ function handbackGate(id, e, env, home) {
   const report = parseReport(block)
   const gate = projectGate(e, env, home)
   if (needsGate(report)) return gateReasons(gate).ungraded
-  return failsGate(report, gate.passOverall) ? gateReasons(gate).failing : null
+  if (failsGate(report, gate.passOverall)) return gateReasons(gate).failing
+  return claimsDoneWithCode(report) ? gradeRule(e, report.quality, gate) : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
@@ -89,6 +93,8 @@ function advisorRule(id, e, env) {
 
 // home is where the session mode records live; tests pass a temp folder.
 export function decide(e, env = process.env, home = homedir()) {
+  // Before the agent_type test: a supervisor's call has no agent_type, and the rule words its refusal for either caller.
+  if (e?.tool_name === 'SendMessage') return headContextRule(e)
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null

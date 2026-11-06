@@ -1,12 +1,14 @@
 // What a run's transcripts show about its sections and reviewer gates, for mode-check.mjs: wake-ups, reviewer calls
 // and the gates they form (docs/specs/2026-11-01-mode-round-design.md, "Mode fidelity"). Reads roles as
 // score.mjs collectRolesFrom returns them; never touches the disk.
+import { senderOf } from '../hooks/lib/grade.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 import { meetsMark, parseGrade, reviewerAnswer } from './gate-stats.mjs'
 
 export const HEADS = ['backend', 'frontend', 'database', 'devops', 'mobile', 'uiux', 'ai-llm', 'testing', 'security', 'docs']
 export const BUILDERS = HEADS.filter(head => !['testing', 'security', 'docs'].includes(head))
 const REVIEWER = 'section-team:reviewer'
+export const FILE_WRITERS = ['Write', 'Edit', 'MultiEdit']
 
 // The section head a subagent type names ('section-team:backend' → 'backend'), or null (reviewer, scout, coder, other agents).
 const headOf = type => {
@@ -53,9 +55,7 @@ function mainJobTimes(roles) {
 
 // A queued message that only hands back the work of one of the section's own subagents.
 function isOwnHandback(prompt, own) {
-  const from = /^<agent-message from="([^"]*)">/.exec(prompt)?.[1]
-  const task = prompt.startsWith('<task-notification>') ? /<task-id>([^<]*)<\/task-id>/.exec(prompt)?.[1] : undefined
-  return own.has(from) || own.has(task)
+  return own.has(senderOf(prompt))
 }
 
 // A section got a new job: a queued_command arrived that is not a hand-back from its own subagents. Its user lines
@@ -69,14 +69,15 @@ function sectionJobTimes(roles, caller) {
     .map(m => Date.parse(m.timestamp))
 }
 
-// One caller's reviewer calls split into gates: a call starts a new gate when it is the first, or when a new job
-// arrived strictly between the previous call's start and its own.
-function splitGates(calls, jobTimes) {
+// One caller's reviewer calls split into gates: a call starts a new gate when it is the first, when a new job arrived
+// strictly between the previous call's start and its own. A pass ends the gate whatever was edited afterwards.
+function splitGates(calls, { jobTimes }) {
   return calls.reduce((list, call, i) => {
     const from = i === 0 ? NaN : Date.parse(calls[i - 1].start)
     const to = Date.parse(call.start)
-    const newJob = i === 0 || jobTimes.some(t => t > from && t < to)
-    return newJob ? [...list, [call]] : [...list.slice(0, -1), [...list.at(-1), call]]
+    const between = t => t > from && t < to
+    const startsGate = i === 0 || jobTimes.some(between)
+    return startsGate ? [...list, [call]] : [...list.slice(0, -1), [...list.at(-1), call]]
   }, [])
 }
 
@@ -99,7 +100,7 @@ export function gates(roles, mode) {
   const callers = [...new Set(calls.map(call => call.caller))]
   return callers.flatMap(caller => {
     const jobTimes = caller === 'main' ? mainJobTimes(roles) : sectionJobTimes(roles, caller)
-    const split = splitGates(calls.filter(call => call.caller === caller), jobTimes)
+    const split = splitGates(calls.filter(call => call.caller === caller), { jobTimes })
     return split.map((list, i) => gateOf(caller, list, mode, i === split.length - 1))
   })
 }
