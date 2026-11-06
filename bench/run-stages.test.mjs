@@ -293,6 +293,13 @@ test('upTo 1 on p1 runs stage 1 only', async t => {
   await runOne(run, outDir, ctx, deps)
   assert.equal(calls.length, 1)
   assert.deepEqual(readRecord(outDir).stages.map(s => s.stage), [1])
+  assert.equal(readRecord(outDir).stagesAsked, 1, 'run.json records the stages asked for, so the judges get only those prompts')
+})
+
+test('a full p1 run records all three stages asked for, also when it stops in stage 2', async t => {
+  const full = p1Attempt(t, [{}, { hang: true }])
+  await runOne(full.run, full.outDir, full.ctx, { ...full.deps, timeoutMs: 100 })
+  assert.equal(readRecord(full.outDir).stagesAsked, 3)
 })
 
 test('parseArgs reads --stages and refuses one a task cannot run', () => {

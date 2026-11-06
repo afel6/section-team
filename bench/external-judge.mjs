@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
 import { readBars } from './bars-common.mjs'
-import { judgeDirFor } from './anonymize.mjs'
+import { judgeDirFor, stagesAskedOf } from './anonymize.mjs'
 import { checkLeakScan, fillPrompt, parseVerdict, subfolders, taskTextOf } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { required } from './section-memory.mjs'
@@ -178,7 +178,7 @@ function checkPairs(judgeDir, pairs, bench) {
   const tasks = Object.fromEntries(pairs.map(pair => {
     const own = labelsOf(pair)
     if (own.join() !== labels.join()) throw new Error(`${pair} has solutions ${own.join(', ') || 'none'}, but ${pairs[0]} has ${labels.join(', ')}: every group needs the same`)
-    return [pair, taskTextOf(bench, pair)]
+    return [pair, taskTextOf(bench, pair, stagesAskedOf(judgeDir, pair))]
   }))
   return { labels, tasks }
 }
@@ -276,7 +276,7 @@ export function rebuildHeldOut({ results, judgeDir = judgeDirFor('ho'), out, ben
   const cases = readJson(join(results, 'external-key-ho.json'))
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ho first`)
   const template = relabel(readFileSync(join(bench, 'data', 'heldout', 'judge-prompt-ho.md'), 'utf8'))
-  const tasks = Object.fromEntries(cases.map(c => [c.pair, taskTextOf(bench, c.pair)]))
+  const tasks = Object.fromEntries(cases.map(c => [c.pair, taskTextOf(bench, c.pair, stagesAskedOf(judgeDir, c.pair))]))
   writeCases({ judgeDir, out, cases, judgeText: (c, seed) => fillPrompt(template, { labels: ['A', 'B'], task: tasks[c.pair], seed }) + HAND_IN })
   return cases.length
 }

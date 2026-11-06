@@ -11,6 +11,7 @@ import { basename, join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { DEFAULT_CONDS, NAME, RESULTS, SEEDS, TASKS, parseArgs, requireFlags } from './run.mjs'
+import { stageCountOf } from './stages.mjs'
 
 const LABELS = ['X', 'Y', 'Z', 'W']
 
@@ -25,13 +26,29 @@ function copyClean(src, dest) {
   cpSync(src, dest, { recursive: true, verbatimSymlinks: true, filter: path => !isHidden(path) })
 }
 
-function runDir(runPath) {
+// A run's folder and the stages it was asked for (absent in a run made before run.json recorded them: every stage).
+function readRun(runPath) {
   try {
-    const { dir } = JSON.parse(readFileSync(runPath, 'utf8'))
+    const { dir, stagesAsked } = JSON.parse(readFileSync(runPath, 'utf8'))
     if (typeof dir !== 'string' || dir === '') throw new Error('no "dir" field')
-    return dir
+    return { dir, stagesAsked }
   } catch (err) {
     throw new Error(`bad run file ${runPath}: ${err.message}`, { cause: err })
+  }
+}
+
+// judgeDir/stages.json lists each pair whose runs were asked for fewer stages than the task has ({ pair: n }); the judges
+// are told only those prompts. Outside the pair folders, so no judge sees it.
+const STAGES_FILE = 'stages.json'
+
+// The stages a pair's runs were asked for, or undefined when they were asked for all of them.
+export function stagesAskedOf(judgeDir, pair) {
+  const path = join(judgeDir, STAGES_FILE)
+  if (!existsSync(path)) return undefined
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'))[pair]
+  } catch (err) {
+    throw new Error(`${path} is not valid JSON: anonymize the round again`, { cause: err })
   }
 }
 
@@ -45,14 +62,19 @@ function pairs(conds, tasks, reps) {
   }))
 }
 
-// Copies the pair's finished runs (those with a run.json) and, when at least one was copied, the task's seed.
+// Copies the pair's finished runs (those with a run.json) and, when at least one was copied, the task's seed. Returns the
+// stages its runs were asked for (null when none finished); runs asked for different stages are refused before any copy.
 function copyPair({ task, rep, pair, labels }, { results, judgeDir, seeds }) {
   const done = Object.entries(labels)
     .map(([label, cond]) => [label, join(results, `${task}-${cond}-r${rep}`, 'run.json')])
     .filter(([, runPath]) => existsSync(runPath))
-  for (const [label, runPath] of done) copyClean(runDir(runPath), join(judgeDir, pair, label))
+    .map(([label, runPath]) => [label, readRun(runPath)])
+  const asked = [...new Set(done.map(([, run]) => run.stagesAsked ?? stageCountOf(task)))]
+  if (asked.length > 1) throw new Error(`${pair}: its runs asked for different stages (${asked.toSorted().join(', ')}), so no one task text fits them`)
+  for (const [label, run] of done) copyClean(run.dir, join(judgeDir, pair, label))
   const seed = join(seeds, task)
   if (done.length > 0 && existsSync(seed)) copyClean(seed, join(judgeDir, pair, 'SEED'))
+  return asked[0] ?? null
 }
 
 function checkedPairs(conds, tasks, reps) {
@@ -68,7 +90,9 @@ const keyOf = all => Object.fromEntries(all.map(({ pair, labels }) => [pair, lab
 // It adds to judgeDir and never deletes from it; main() empties the folder first.
 export function anonymize({ conds, tasks = TASKS, reps = 2, results = RESULTS, judgeDir, seeds = SEEDS }) {
   const all = checkedPairs(conds, tasks, reps)
-  for (const p of all) copyPair(p, { results, judgeDir, seeds })
+  const asked = all.map(p => [p.pair, copyPair(p, { results, judgeDir, seeds }), stageCountOf(p.task)])
+  const fewer = Object.fromEntries(asked.filter(([, n, count]) => n !== null && n < count).map(([pair, n]) => [pair, n]))
+  if (Object.keys(fewer).length > 0) writeFileSync(join(judgeDir, STAGES_FILE), `${JSON.stringify(fewer, null, 2)}\n`)
   return keyOf(all)
 }
 

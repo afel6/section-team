@@ -352,12 +352,14 @@ export function mainPeak(messages) {
   return peak
 }
 
-// The folders a staged run's hidden sets start: the stage-1 copy as the run recorded it, the later copies by name (null
-// when never made), and the final code, null when a task of three or more stages stopped before its last stage (h7 keeps scoring a stopped run on the code it has).
+// The folders a staged run's hidden sets start: the stage-1 copy as the run recorded it, the stage-2 copy by name or, when
+// the run stopped in stage 2 (no copy of a stage that did not end well), the code as it ended (null when stage 2 never ran),
+// and the final code, null when a task of three or more stages stopped before its last stage (h7 keeps scoring a stopped run on the code it has).
 function stageFolders(run) {
   const count = stageCountOf(run.task)
   const copy = stage => (existsSync(stageCopyOf(run.dir, stage)) ? stageCopyOf(run.dir, stage) : null)
-  return { s1Dir: run.snapshot ?? run.dir, ...(count > 2 ? { s2Dir: copy(2) } : {}), dir: count > 2 && run.stages && run.stages.length < count ? null : run.dir }
+  const s2Dir = copy(2) ?? (run.stages?.length === 2 ? run.dir : null)
+  return { s1Dir: run.snapshot ?? run.dir, ...(count > 2 ? { s2Dir } : {}), dir: count > 2 && run.stages && run.stages.length < count ? null : run.dir }
 }
 
 // stage2 stays for the h7 reports: it is the first of stages.

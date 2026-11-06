@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlink
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { anonymize, judgeDirFor, missingRuns } from './anonymize.mjs'
+import { anonymize, judgeDirFor, missingRuns, stagesAskedOf } from './anonymize.mjs'
 
 // Fresh results/, judge/ and seeds/ folders under one temp root, removed after the test.
 function sandbox(t) {
@@ -79,6 +79,37 @@ test('four setups get labels X, Y, Z and W, and a finished run is copied under W
   assert.deepEqual(key, { 'h1-r1': { X: 'lean-mo', Y: 'team-mo', Z: 'max-mo', W: 'solo-mo' } })
   assert.deepEqual(Object.keys(key['h1-r1']), ['X', 'Y', 'Z', 'W'])
   assert.ok(existsSync(join(box.judgeDir, 'h1-r1', 'W', 'app.mjs')))
+})
+
+// A finished p1 run of cond, as run.json records it (stagesAsked left out, as in a run made before it was recorded).
+function fakeP1Run({ root, results }, cond, stagesAsked) {
+  const run = join(root, `p1-${cond}`)
+  put(join(run, 'app.mjs'), 'export {}\n')
+  put(join(results, `p1-${cond}-r1`, 'run.json'), JSON.stringify({ id: `p1-${cond}-r1`, dir: run, ...(stagesAsked === undefined ? {} : { stagesAsked }) }))
+}
+
+test('a pair run with fewer stages than its task has is listed in stages.json, so the judges get only those prompts', t => {
+  const box = sandbox(t)
+  fakeP1Run(box, 'solo-mo', 1)
+  fakeP1Run(box, 'lean-mo', 1)
+  anonymize({ conds: ['solo-mo', 'lean-mo'], tasks: ['p1'], reps: 1, ...box })
+  assert.deepEqual(JSON.parse(readFileSync(join(box.judgeDir, 'stages.json'), 'utf8')), { 'p1-r1': 1 })
+  assert.equal(stagesAskedOf(box.judgeDir, 'p1-r1'), 1)
+  assert.equal(stagesAskedOf(box.judgeDir, 'p1-r2'), undefined, 'a pair not listed asked for every stage')
+})
+
+test('a pair run with every stage writes no stages.json, and runs that asked for different stages are refused', t => {
+  const box = sandbox(t)
+  fakeP1Run(box, 'solo-mo', 3)
+  fakeP1Run(box, 'lean-mo')
+  anonymize({ conds: ['solo-mo', 'lean-mo'], tasks: ['p1'], reps: 1, ...box })
+  assert.ok(!existsSync(join(box.judgeDir, 'stages.json')))
+  assert.equal(stagesAskedOf(box.judgeDir, 'p1-r1'), undefined)
+  const mixed = sandbox(t)
+  fakeP1Run(mixed, 'solo-mo', 1)
+  fakeP1Run(mixed, 'lean-mo', 3)
+  assert.throws(() => anonymize({ conds: ['solo-mo', 'lean-mo'], tasks: ['p1'], reps: 1, ...mixed }), /p1-r1: its runs asked for different stages \(1, 3\)/)
+  assert.ok(!existsSync(join(mixed.judgeDir, 'p1-r1')), 'nothing copied')
 })
 
 test('more conditions than labels X, Y, Z and W is refused', t => {

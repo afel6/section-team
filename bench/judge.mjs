@@ -21,7 +21,7 @@ import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { anonymizeCommand, judgeDirFor } from './anonymize.mjs'
+import { anonymizeCommand, judgeDirFor, stagesAskedOf } from './anonymize.mjs'
 import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
@@ -271,18 +271,22 @@ export async function runJobs(jobs, { rows, call, check, files, log }) {
 export const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
 // What a group's judges are told the task was, Opus and outside judges alike: a task's prompt as the builder got it, and
-// a staged task's later prompts after it, each behind a line saying which request it was.
-export function taskTextOf(bench, pair) {
+// a staged task's later prompts after it, each behind a line saying which request it was. stages: how many prompts the
+// pair's runs were asked for (--stages), all of them by default.
+export function taskTextOf(bench, pair, stages) {
   const task = pair.split('-')[0]
+  const count = stageCountOf(task)
+  const asked = stages ?? count
+  if (!Number.isInteger(asked) || asked < 1 || asked > count) throw new RangeError(`${pair}: ${stages} stages asked for, but ${task} has 1 to ${count}`)
   const read = stage => readFileSync(join(bench, 'tasks', promptFile(task, stage)), 'utf8')
-  return Array.from({ length: stageCountOf(task) }, (_, i) => (i === 0 ? read(1) : `${LATER_PROMPT(i + 1)}\n\n${read(i + 1)}`)).join('\n\n')
+  return Array.from({ length: asked }, (_, i) => (i === 0 ? read(1) : `${LATER_PROMPT(i + 1)}\n\n${read(i + 1)}`)).join('\n\n')
 }
 
 export function prepareJob(job, judgeDir, template) {
   const source = join(judgeDir, job.pair)
   const labels = subfolders(source).filter(name => /^[A-Z]$/.test(name))
   if (labels.length === 0) throw new Error(`no solution folders in ${source}`)
-  const prompt = fillPrompt(template, { labels, task: taskTextOf(BENCH, job.pair), seed: existsSync(join(source, 'SEED')) })
+  const prompt = fillPrompt(template, { labels, task: taskTextOf(BENCH, job.pair, stagesAskedOf(judgeDir, job.pair)), seed: existsSync(join(source, 'SEED')) })
   return { ...job, source, labels, prompt, swap: mirrorSwap(job.judge, labels) }
 }
 

@@ -558,7 +558,8 @@ async function stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, up
     }
   }
   const sum = key => stages.reduce((total, s) => total + s[key], 0)
-  return { info: { ...info, wallMs: sum('wallMs'), startedAt: stages[0].startedAt, stages, snapshot }, messages, extraReasons }
+  // stagesAsked: what --stages asked for, so the judges are told only those prompts (stages holds what ran).
+  return { info: { ...info, wallMs: sum('wallMs'), startedAt: stages[0].startedAt, stages, snapshot, stagesAsked: last }, messages, extraReasons }
 }
 
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.

@@ -574,12 +574,20 @@ test('scoreRun gives a three-stage run its stage copies, its stage measures and 
   assert.deepEqual(seen[0].options, { s1Dir: 'C:/copy1', s2Dir: `${run.dir}-s2` })
   assert.deepEqual(row.stages.map(s => s.stage), [2, 3])
   assert.equal(row.mainPeak, 1_000_000)
-  // Stopped after stage 2: no final code, no stage-2 copy of a stage that did not end well.
+  // Stopped in stage 2: no final code, so s3 and reg3 fail; s2 and reg2 run on the code as stage 2 ended (no copy of a
+  // stage that did not end well), as h7 and a stage-1 stop are scored.
   const stopped = scoredRun(t, 'p1-team-sm-r2', { task: 'p1', stages: [{}, {}] }, { 'raw-s1.json': `${result}\n`, 'raw-s2.json': `${result}\n` })
   const seenStopped = []
   scoreRun('p1-team-sm-r2', scoreDeps(stopped.results, seenStopped))
+  const stoppedDir = JSON.parse(readFileSync(join(stopped.outDir, 'run.json'), 'utf8')).dir
   assert.equal(seenStopped[0].dir, null, 'stage 3 never ran')
-  assert.equal(seenStopped[0].options.s2Dir, null, 'its copy was never made')
+  assert.equal(seenStopped[0].options.s2Dir, stoppedDir, 'stage 2 is scored on the code it ended with')
+  // Stopped in stage 1 (or run with --stages=1): stage 2 never ran, so s2 and reg2 fail too.
+  const early = scoredRun(t, 'p1-team-sm-r3', { task: 'p1', stages: [{}] }, { 'raw-s1.json': `${result}\n` })
+  const seenEarly = []
+  scoreRun('p1-team-sm-r3', scoreDeps(early.results, seenEarly))
+  assert.equal(seenEarly[0].options.s2Dir, null, 'stage 2 never ran')
+  assert.equal(seenEarly[0].dir, null)
 })
 
 test('a two-stage run that stopped after stage 1 still has its sets run on the code it has, as before', t => {
