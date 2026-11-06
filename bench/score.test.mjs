@@ -305,18 +305,35 @@ function fakeSets(t, failing = []) {
   return bench
 }
 
-// hiddenTests with TMPDIR (and a key that must not reach the sets) set for the call.
-function withEnv(t, env, fn) {
+// hiddenTests with TMPDIR (and a key that must not reach the sets) set for the call only. Restoring at the end of the
+// test instead would let a second call save the first call's values as the ones to put back. fn must be synchronous.
+function withEnv(env, fn) {
   const saved = Object.fromEntries(Object.keys(env).map(key => [key, process.env[key]]))
   Object.assign(process.env, env)
-  t.after(() => { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value } })
-  return fn()
+  try {
+    return fn()
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
 }
+
+// Off Windows os.tmpdir() reads TMPDIR, so a value left behind sends the next test's temp folders into a missing folder.
+test('withEnv puts every variable back after its call, even when one test calls it twice or the call throws', () => {
+  const before = process.env.SECTION_TEAM_WITHENV_PROBE
+  withEnv({ SECTION_TEAM_WITHENV_PROBE: 'first' }, () => {})
+  withEnv({ SECTION_TEAM_WITHENV_PROBE: 'second' }, () => {})
+  assert.equal(process.env.SECTION_TEAM_WITHENV_PROBE, before)
+  assert.throws(() => withEnv({ SECTION_TEAM_WITHENV_PROBE: 'third' }, () => { throw new Error('boom') }), /boom/)
+  assert.equal(process.env.SECTION_TEAM_WITHENV_PROBE, before)
+})
 
 test('hiddenTests runs s1 on the stage-1 copy and s2 and reg on the final code, adding up the failures', t => {
   const bench = fakeSets(t, ['s2', 'reg'])
   const seen = join(bench, 'seen')
-  const r = withEnv(t, { TMPDIR: seen, ANTHROPIC_API_KEY: 'test-key' }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench }))
+  const r = withEnv({ TMPDIR: seen, ANTHROPIC_API_KEY: 'test-key' }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench }))
   const read = set => JSON.parse(readFileSync(`${seen}-${set}`, 'utf8'))
   assert.deepEqual(read('s1'), { target: 'C:/copy', s1: 'C:/copy', key: null })
   assert.deepEqual(read('s2'), { target: 'C:/final', s1: 'C:/copy', key: null })
@@ -330,7 +347,7 @@ test('hiddenTests runs s1 on the stage-1 copy and s2 and reg on the final code, 
 test('hiddenTests without a stage-1 copy runs all three sets on the one folder there is', t => {
   const bench = fakeSets(t)
   const seen = join(bench, 'seen')
-  withEnv(t, { TMPDIR: seen }, () => hiddenTests('h7', 'C:/final', { bench }))
+  withEnv({ TMPDIR: seen }, () => hiddenTests('h7', 'C:/final', { bench }))
   assert.deepEqual(JSON.parse(readFileSync(`${seen}-s1`, 'utf8')).target, 'C:/final')
 })
 
@@ -341,7 +358,7 @@ test('hiddenTests marks a set killed at its limit as incomplete, so its zero fai
   writeFileSync(join(bench, 'hidden', 'h7', 's1.test.mjs'), fast)
   writeFileSync(join(bench, 'hidden', 'h7', 'reg.test.mjs'), fast)
   // Long enough for a passing set under load: 's1' and 'reg' may be cut too, but 's2' can never finish in time.
-  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench, timeoutMs: 1500 }))
+  const r = withEnv({ TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench, timeoutMs: 1500 }))
   assert.ok(r.incomplete.includes('s2'), JSON.stringify(r.incomplete))
   assert.equal(r.parts.s2.tests, 0)
 })
@@ -351,7 +368,7 @@ test('hiddenTests counts a test past its timeout as a failure, though the summar
   const writeSet = (set, lines) => writeFileSync(join(bench, 'hidden', 'h7', `${set}.test.mjs`), ["import { test } from 'node:test'", ...lines].join('\n'))
   writeSet('reg', ["test('passes', () => {})", "test('too slow', { timeout: 50 }, () => new Promise(resolve => setTimeout(resolve, 500)))"])
   writeSet('s1', ["test('parent', async t => { await t.test('child', () => { throw new Error('no') }) })"])
-  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench }))
+  const r = withEnv({ TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench }))
   assert.deepEqual(r.parts.reg, { tests: 2, pass: 1, fail: 1 })
   assert.equal(r.parts.s1.fail, 1, 'a subtest\'s line is indented: only its parent counts')
   assert.equal(r.fail, 2)
@@ -367,7 +384,7 @@ test('a set cut at its limit keeps the failures it already wrote, and the tests 
     "test('fails second', () => { throw new Error('no') })",
     "test('hangs', () => new Promise(resolve => setTimeout(resolve, 8000)))",
   ].join('\n'))
-  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench, timeoutMs: 5000 }))
+  const r = withEnv({ TMPDIR: join(bench, 'seen') }, () => hiddenTests('h7', 'C:/final', { s1Dir: 'C:/copy', bench, timeoutMs: 5000 }))
   assert.ok(r.incomplete.includes('s2'), JSON.stringify(r.incomplete))
   // At least: on Linux and macOS the killed runner may also report the hanging test.
   assert.ok(r.parts.s2.fail >= 2, JSON.stringify(r.parts))
@@ -532,7 +549,7 @@ test('hiddenTests runs p1\'s five sets on the folders stages.mjs names', t => {
   const seen = join(bench, 'seen')
   const folder = name => { const dir = join(bench, name); mkdirSync(dir); return dir }
   const [s1, s2, final] = ['s1', 's2', 'final'].map(folder)
-  const r = withEnv(t, { TMPDIR: seen }, () => hiddenTests('p1', final, { s1Dir: s1, s2Dir: s2, bench }))
+  const r = withEnv({ TMPDIR: seen }, () => hiddenTests('p1', final, { s1Dir: s1, s2Dir: s2, bench }))
   const target = set => JSON.parse(readFileSync(`${seen}-${set}`, 'utf8')).target
   assert.deepEqual(P1_SETS.map(target), [s1, s2, final, s2, final])
   assert.deepEqual(JSON.parse(readFileSync(`${seen}-s3`, 'utf8')), { target: final, s1, s2 })
@@ -546,13 +563,13 @@ test('hiddenTests counts every test of a set whose folder is missing as failed, 
   const real = join(bench, 'real')
   mkdirSync(real)
   // A run that stopped after stage 2: the final code never came.
-  const r = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: real, bench }))
+  const r = withEnv({ TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: real, bench }))
   assert.deepEqual(r.parts.s3, { tests: 2, pass: 0, fail: 2 })
   assert.deepEqual(r.parts.reg3, { tests: 2, pass: 0, fail: 2 })
   assert.deepEqual(['s1', 's2', 'reg2'].map(set => r.parts[set].fail), [0, 0, 0])
   assert.deepEqual([r.tests, r.pass, r.fail, r.incomplete], [10, 6, 4, []])
   // Stopped after stage 1: the stage-2 copy and the final code are both missing.
-  const early = withEnv(t, { TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: null, bench }))
+  const early = withEnv({ TMPDIR: join(bench, 'seen') }, () => hiddenTests('p1', null, { s1Dir: real, s2Dir: null, bench }))
   assert.deepEqual(P1_SETS.map(set => early.parts[set].fail), [0, 2, 2, 2, 2])
 })
 
