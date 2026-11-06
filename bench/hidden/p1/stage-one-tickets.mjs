@@ -1,6 +1,6 @@
 // Stage 1, tickets and comments: shapes, rules, lists, who sees what, and the audit entries they leave.
 import assert from 'node:assert/strict'
-import { E, adminOf, answer, api, commentOf, err, expect, it, ok, req, rows, same, shared, ticketOf, userOf, view, withServer, sessionOf, ADMIN_PW } from './lib.mjs'
+import { E, inWindow, adminOf, answer, api, commentOf, err, expect, it, ok, req, rows, same, shared, ticketOf, userOf, view, withServer, sessionOf, ADMIN_PW } from './lib.mjs'
 
 const TICKET_KEYS = ['created_at', 'created_by', 'description', 'id', 'priority', 'status', 'title']
 const COMMENT_KEYS = ['created_at', 'id', 'text', 'ticket_id', 'user_id']
@@ -24,7 +24,7 @@ function createCases() {
       const ticket = JSON.parse(r.text)
       assert.deepEqual(Object.keys(ticket).sort(), TICKET_KEYS)
       same('ticket', { status: r.status, id: ticket.id, title: ticket.title, description: ticket.description, state: ticket.status, priority: ticket.priority, created_by: ticket.created_by }, { status: 201, id: 1, title: 'A title', description: 'Some text', state: 'open', priority: 'normal', created_by: 1 })
-      assert.ok(ticket.created_at >= t0 && ticket.created_at <= t1)
+      assert.ok(inWindow(ticket.created_at, t0, t1))
       const log = rows(s.file, "SELECT at, user_id, action, target FROM audit WHERE action = 'ticket.create'")
       assert.deepEqual(log, [{ at: ticket.created_at, user_id: 1, action: 'ticket.create', target: 'ticket:1' }])
       for (const priority of ['low', 'normal', 'high']) same(priority, { priority: (await ok(c.post('/api/tickets', { title: 'p', description: 'd', priority }), 201)).priority }, { priority })
@@ -164,7 +164,7 @@ function commentCases() {
       assert.equal(r.status, 201)
       assert.deepEqual(Object.keys(first).sort(), COMMENT_KEYS)
       same('comment', { ...first, created_at: undefined }, { id: 1, ticket_id: t.id, user_id: 1, text: 'Hello', created_at: undefined })
-      assert.ok(first.created_at >= t0 && first.created_at <= t1)
+      assert.ok(inWindow(first.created_at, t0, t1))
       const second = await ok(api(s, M).post(path, { text: 'Second' }), 201)
       assert.equal(second.user_id, M.user.id)
       assert.deepEqual(await ok(api(s, M).get(path), 200), { comments: [first, second] })

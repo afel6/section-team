@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
   ADMIN_PW, E, REFUSED, adminOf, answer, api, commentOf, err, errLines, expect, fresh, freshDb, freePort, get, it, ok, post, refused, req, rows, runToExit, same,
-  sleep, startServer, stopServer, ticketOf, userOf, view, withServer,
+  inWindow, sleep, startServer, stopServer, ticketOf, userOf, view, withServer,
 } from './lib.mjs'
 import { startModel } from './model-server.mjs'
 
@@ -383,7 +383,7 @@ function auditCases() {
       const t1 = Date.now()
       const entries = log()
       same('entries', { list: entries.map(e => [e.user_id, e.action, e.target]) }, { list: [[M.user.id, 'ticket.summary', `ticket:${t.id}`], [1, 'ticket.category', `ticket:${t.id}`], [M.user.id, 'ticket.category', `ticket:${closed.id}`]] })
-      assert.ok(entries.every(e => e.at >= t0 && e.at <= t1), 'at is a time of the request')
+      assert.ok(entries.every(e => inWindow(e.at, t0, t1)), 'at is a time of the request')
       use(() => good(''))
       await post(s, `/api/tickets/${t.id}/summary`, undefined, { as: M })
       use(() => ({ status: 500 }))

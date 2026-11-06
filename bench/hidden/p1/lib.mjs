@@ -22,6 +22,12 @@ const running = new Set()
 
 export const ADMIN_PW = 'admin-password-123'
 export const USER_PW = 'member-password-123'
+// The server is another process, and on Windows each process reads Date.now() through its own timer offset: the same instant
+// can read a few ms apart (up to one 15.6 ms timer step). A time the server stores for a request is therefore compared with
+// the test's readings taken just before and just after the request, widened by this much on each side. Seconds, a time taken
+// at startup or a time of another request are all far outside it.
+export const CLOCK_SLACK_MS = 20
+export const inWindow = (at, t0, t1) => Number.isInteger(at) && at >= t0 - CLOCK_SLACK_MS && at <= t1 + CLOCK_SLACK_MS
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 export const fresh = () => mkdtempSync(join(ROOT, 'c-'))
 export const freshDb = () => join(fresh(), 'data.db')

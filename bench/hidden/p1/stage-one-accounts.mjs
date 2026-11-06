@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   ADMIN_PW, E, SCRYPT, USER_PW, adminOf, answer, api, cookieOf, err, expect, get, it, nextName, ok, passwordMatches, post, req, rows, same, scryptHash, sessionOf,
-  shared, sha256, sleep, userOf, view, withDb, withServer,
+  CLOCK_SLACK_MS, inWindow, shared, sha256, sleep, userOf, view, withDb, withServer,
 } from './lib.mjs'
 
 const COOKIE_TAIL = 'Path=/; HttpOnly; SameSite=Strict'
@@ -32,7 +32,7 @@ function loginCases() {
       same('session', { token_hash: sessions[0].token_hash, user_id: sessions[0].user_id }, { token_hash: sha256(token), user_id: 1 })
       assert.match(sessions[0].token_hash, /^[0-9a-f]{64}$/)
       const at = sessions[0].expires_at - 28_800_000
-      assert.ok(at >= t0 && at <= t1, `expires_at is the request time + 8 hours (${at} not in ${t0}..${t1})`)
+      assert.ok(inWindow(at, t0, t1), `expires_at is the request time + 8 hours (${at} not in ${t0}..${t1})`)
       assert.deepEqual(rows(s.file, 'SELECT at, user_id, action, target FROM audit'), [{ at, user_id: 1, action: 'login', target: 'user:1' }])
       const me = await get(s, '/api/session', { headers: { cookie: `sid=${token}` } })
       same('GET /api/session', view(me), answer(200, { user: { id: 1, username: 'admin', role: 'admin' } }))
@@ -54,7 +54,7 @@ function loginCases() {
       const t1 = Date.now()
       const got = loginRows(s.file)
       assert.deepEqual(got.map(r => r.username), wrong.map(w => w[0]), 'one row per failure, with the username as given')
-      assert.ok(got.every(r => r.at >= t0 && r.at <= t1), 'at is the request time')
+      assert.ok(got.every(r => inWindow(r.at, t0, t1)), 'at is the request time')
       assert.equal(rows(s.file, 'SELECT count(*) AS n FROM sessions')[0].n, 0)
       assert.equal(rows(s.file, 'SELECT count(*) AS n FROM audit')[0].n, 0, 'a failed login adds no audit entry')
     })
@@ -95,7 +95,7 @@ function failureLimitCases() {
   it('only failures newer than 15 minutes count, and the database is the truth: rows another tool added lock at once, old rows do not', async () => {
     await withServer({}, async s => {
       const plant = (n, at) => withDb(s.file, db => { for (let i = 0; i < n; i++) db.prepare('INSERT INTO login_failures (username, at) VALUES (?, ?)').run('admin', at) })
-      plant(5, Date.now() - 900_000 - 1)
+      plant(5, Date.now() - 900_000 - CLOCK_SLACK_MS)
       await ok(post(s, '/api/session', { username: 'admin', password: ADMIN_PW }), 200, 'five failures just outside the window')
       plant(4, Date.now())
       plant(1, Date.now() - 900_000 - 5000)
@@ -153,7 +153,7 @@ function sessionCases() {
       add(createHashOfBytes(bytes), Date.now() + 60_000)
       await expect('a hash of the 32 bytes is not the hash of the text', get(s, '/api/session', { headers: { cookie: `sid=${bytes}` } }), 401, err(E.login))
       const old = 'ef'.repeat(32)
-      add(sha256(old), Date.now() - 1)
+      add(sha256(old), Date.now() - CLOCK_SLACK_MS - 1)
       await expect('expired', get(s, '/api/session', { headers: { cookie: `sid=${old}` } }), 401, err(E.login))
       const soon = '12'.repeat(32)
       add(sha256(soon), Date.now() + 2500)
@@ -239,7 +239,7 @@ function createUserCases() {
         same(username, view(r), answer(201, { id: i + 2, username, role: i % 2 ? 'admin' : 'member' }))
         same('login with the exact password', { status: (await post(s, '/api/session', { username, password })).status }, { status: 200 })
         const [entry] = rows(s.file, "SELECT at, user_id, action, target FROM audit WHERE action = 'user.create' AND target = ?", `user:${i + 2}`)
-        same('audit', { user_id: entry.user_id, action: entry.action, recent: entry.at >= t0 && entry.at <= Date.now() }, { user_id: 1, action: 'user.create', recent: true })
+        same('audit', { user_id: entry.user_id, action: entry.action, recent: inWindow(entry.at, t0, Date.now()) }, { user_id: 1, action: 'user.create', recent: true })
       }
       const list = await ok(c.get('/api/users'), 200)
       assert.deepEqual(list.users.map(u => Object.keys(u).sort()), list.users.map(() => ['id', 'role', 'username']))
