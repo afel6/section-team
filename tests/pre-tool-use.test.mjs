@@ -50,6 +50,13 @@ test('advisors may write only inside their own memory folder in the project', ()
   assert.match(decide(ev('section-team:data-scientist', 'Write', {})), /memory folder/)
 })
 
+test('plan-advisor is read-only: Bash refused, Write only inside its memory folder', () => {
+  assert.match(decide(ev('section-team:plan-advisor', 'Bash')), /read-only/)
+  assert.equal(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(LOCAL, 'section-team-plan-advisor', 'x.md') })), null)
+  assert.match(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(PROJECT, '.team', 'notes', 'foundation.md') })), /memory folder/)
+  assert.match(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(LOCAL, 'section-team-ai-engineer', 'x.md') })), /memory folder/)
+})
+
 test('advisors may only spawn read-only helper types', () => {
   assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'code-explorer', run_in_background: false })), null)
   assert.equal(decide(ev('section-team:data-scientist', 'Agent', { subagent_type: 'planner', run_in_background: false })), null)

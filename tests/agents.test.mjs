@@ -390,3 +390,11 @@ test('builders and testing keep tests in proportion to the requirements', () => 
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(line), `${id} lacks the proportion line`)
   assert.ok(agentFile('testing').split(line).length === 3, 'testing should carry it in its role text and the gate')
 })
+
+test('plan-advisor is a read-only advisor that returns at most 8 fixes with reasons', () => {
+  const text = agentFile('plan-advisor')
+  assert.equal(front(text).tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit')
+  assert.ok(ADVISOR_IDS.includes('plan-advisor'))
+  assert.match(text, /at most 8 fixes/)
+  assert.match(text, /with its reason/)
+})

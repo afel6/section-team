@@ -24,6 +24,9 @@ Write `.team/notes/foundation.md`, under 150 lines, with:
 
 Add a line for it, and one for `.team/notes/plan.md` once you keep it, to `.team/notes/INDEX.md`.
 
+## Check the plan
+Wake `section-team:plan-advisor` (Agent call, `run_in_background: false`) on `.team/notes/foundation.md`. It returns at most 8 fixes, each with its reason. Revise the note, then show the user the advice you took and the advice you did not, with why.
+
 ## Get the OK
 Show the note to the user and wake nobody until they say OK. Ask here whether sections may commit after each job, because the user's rules may forbid commits otherwise.
 

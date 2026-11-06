@@ -27,7 +27,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     // Sections nobody woke fold into one line instead of a card each.
     expect(await ui.find({ key: 'card-mobile' })).toBeUndefined()
     expect(await ui.find({ key: 'card-ai-engineer' })).toBeUndefined()
-    expect((await ui.find({ key: 'asleep' }))?.text).toBe('9 asleep')
+    expect((await ui.find({ key: 'asleep' }))?.text).toBe('10 asleep')
   })
 }
 
@@ -149,7 +149,7 @@ test('the strip sits above the prompt: idle before anyone wakes, then the sectio
 
   await clock.advance(1000)
   const text = (await (await mountStrip($ as never)).find({ key: 'strip' }))?.text
-  expect(text).toContain('Team · ● frontend running · ● backend done · 10 asleep')
+  expect(text).toContain('Team · ● frontend running · ● backend done · 11 asleep')
 })
 
 test('the strip button opens the board, and a survey on the band leaves the band to the engine', async ($, on) => {

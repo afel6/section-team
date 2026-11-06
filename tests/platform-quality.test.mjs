@@ -17,7 +17,7 @@ test('the foundation skill has valid frontmatter and every required step heading
   assert.ok(match, 'frontmatter with name then description')
   assert.equal(match[1], 'foundation')
   assert.ok(match[2].length > 40)
-  const headings = ['Ask', 'Write the foundation note', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
+  const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
   assert.deepEqual([...text.matchAll(/^## (.+)$/gm)].map(m => m[1]), headings, 'headings missing or out of order')
   const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts', 'auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
   for (const needle of [...noteContents, 'wake nobody until they say OK', 'frozen', 'whole-stack verification', 'at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
@@ -73,4 +73,22 @@ test('the final review runs the whole stack in the brief and in the testing sect
   assert.ok(assembleBrief('balanced').includes(`${WHOLE_STACK}.`))
   assert.ok(read('agents/testing.md').includes(`${WHOLE_STACK}, reporting the commands and results.`))
   assert.ok(read('agents/testing.md').includes('Changed files are where to start, not the limit.'))
+})
+
+test('the foundation skill checks the plan with the plan advisor before asking for the OK', () => {
+  const text = read('skills/foundation/SKILL.md')
+  assert.ok(text.indexOf('## Check the plan') > 0 && text.indexOf('## Check the plan') < text.indexOf('## Get the OK'))
+  assert.ok(text.includes('section-team:plan-advisor'))
+  assert.ok(text.includes('advice you took and the advice you did not, with why'))
+})
+
+test('the plan advisor is named in the brief but not in any tier line', () => {
+  for (const mode of MODES) {
+    assert.ok(assembleBrief(mode).includes('plan-advisor'), mode)
+    assert.ok(!read(`brief/tiers-${mode}.md`).includes('plan-advisor'), `${mode} tiers`)
+  }
+})
+
+test('every mode brief stays under 9000 characters with the plan advisor', () => {
+  for (const mode of MODES) assert.ok(assembleBrief(mode).length < 9000, mode)
 })

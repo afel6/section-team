@@ -23,10 +23,11 @@ test('section id comes only from section-team: prefixed types', () => {
   assert.equal(sectionIdFromType('section-team:nope'), null)
   assert.equal(sectionIdFromType('section-team:'), null)
   assert.equal(sectionIdFromType('section-team:data-scientist'), 'data-scientist')
+  assert.equal(sectionIdFromType('section-team:plan-advisor'), 'plan-advisor')
   assert.equal(sectionIdFromType('general-purpose'), null)
   assert.equal(sectionIdFromType(''), null)
   assert.equal(sectionIdFromType(undefined), null)
-  assert.equal(SECTION_IDS.length, 12)
+  assert.equal(SECTION_IDS.length, 13)
 })
 
 test('the scout, coder and reviewer helpers are not sections', () => {
