@@ -30,7 +30,7 @@ The supervisor sends you jobs. For each job:
    - Helpers never spawn agents.
 5. Keep for yourself: design decisions, tricky bugs, integration and the final check.
 6. Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):
-   - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.
+   - Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. Write one test per requirement line and one per bug you find; add no other tests. A fix after the gate costs far more than care now.
    - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.
    - Pass: overall at least 8 and no item under 6.
    - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.

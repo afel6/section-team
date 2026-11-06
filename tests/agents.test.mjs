@@ -384,3 +384,9 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(text.includes('Score each item 1–10:'))
   assert.ok(!text.includes('0–10'))
 })
+
+test('builders and testing keep tests in proportion to the requirements', () => {
+  const line = 'Write one test per requirement line and one per bug you find; add no other tests.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(line), `${id} lacks the proportion line`)
+  assert.ok(agentFile('testing').split(line).length === 3, 'testing should carry it in its role text and the gate')
+})
