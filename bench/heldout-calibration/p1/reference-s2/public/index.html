@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help desk</title>
+</head>
+<body>
+<h1>Help desk</h1>
+<p id="error" role="alert"></p>
+<form id="login-form" novalidate hidden>
+  <label for="username">Username</label>
+  <input type="text" id="username">
+  <label for="password">Password</label>
+  <input type="password" id="password">
+  <button type="submit" id="login">Log in</button>
+</form>
+<section id="dashboard" hidden>
+  <p id="who"></p>
+  <button type="button" id="logout">Log out</button>
+  <form id="filter-form" novalidate>
+    <label for="priority">Priority</label>
+    <select id="priority">
+      <option value="">Any</option>
+      <option value="low">low</option>
+      <option value="normal">normal</option>
+      <option value="high">high</option>
+    </select>
+    <label for="from">From</label>
+    <input type="date" id="from">
+    <label for="to">To</label>
+    <input type="date" id="to">
+    <button type="submit" id="apply">Apply</button>
+  </form>
+  <ul id="counts"></ul>
+  <p id="total"></p>
+  <img id="chart" alt="Tickets by status">
+</section>
+<script src="/app.js"></script>
+</body>
+</html>

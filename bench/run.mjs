@@ -51,7 +51,7 @@ export const RESULTS = process.env.BENCH_RESULTS || join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
-export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120 }
+export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 150 }
 // Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
 // Kept for the scorer and judge, which still ask about two-stage h7: the set names come from the registry.
 export const isTwoStage = task => stageCountOf(task) === 2
