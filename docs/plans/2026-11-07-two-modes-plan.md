@@ -137,10 +137,37 @@
 
 ### Task 6: The second proof round (paid: about $120; needs the user's yes)
 
-- [ ] **Step 1: Run all local checks, then push and wait for CI to be green.**
-- [ ] **Step 2: Run the round.** Make a new pin worktree at the head and one preflight with a new tag. Then 2 runs each of solo, team and max on p1, all stages, one at a time, checking usage before each run, with the user's 97% stop.
-- [ ] **Step 3: Score every run alone,** then run anonymize, the leak scan, `external-judge prepare` and `codex-judge`, with both orders.
-- [ ] **Step 4: Compare with the spec's targets.** Include the supervisor's peak and whether `plan-advisor` ran at stage 2. Write the table into README Results and this plan, and commit `docs: record the second p1 proof round`.
+- [x] **Step 1: Run all local checks, then push and wait for CI to be green.**
+- [x] **Step 2: Run the round.** Make a new pin worktree at the head and one preflight with a new tag. Then 2 runs each of solo, team and max on p1, all stages, one at a time, checking usage before each run, with the user's 97% stop.
+- [x] **Step 3: Score every run alone,** then run anonymize, the leak scan, `external-judge prepare` and `codex-judge`, with both orders.
+- [x] **Step 4: Compare with the spec's targets.** Include the supervisor's peak and whether `plan-advisor` ran at stage 2. Write the table into README Results and this plan, and commit `docs: record the second p1 proof round`.
+
+**Evidence (2026-11-09, plugin 5b9ba51, round tag `tm`, CLI 2.1.318, Codex judge CLI 0.167 at gpt-6.1-sol, effort ultra, 4 cases in two orders):**
+
+| | Run 1 | Run 2 | Mean | Target | Result |
+|---|---|---|---|---|---|
+| Solo cost | $4.27 | $3.50 | $3.89 | | |
+| Solo hidden (of 264) | 264 | 264 | 264 | | |
+| Solo judged | 7, 7 | 7, 8 | 7.25 | | |
+| Balanced cost | $15.50 | $16.42 | 4.1× solo | ≤ 5× | met |
+| Balanced hidden | 262 | 261 | 261.5 | ≥ solo (264) | missed |
+| Balanced judged | 8, 9 | 8, 8 | 8.25 | ≥ solo + 1.5 (8.75) | missed |
+| Balanced longest stage | 20.4 min | 23.0 min | | ≤ 60 | met |
+| Balanced supervisor peak | 117K | 115K | | < 150K | met |
+| Max cost | $34.93 | $37.45 | 9.3× solo | reported | |
+| Max hidden | 262 | 262 | 262 | ≥ Balanced (261.5) | met |
+| Max judged | 8, 8 | 9, 9 | 8.5 | ≥ Balanced + 0.25 (8.5) | met, at the bar |
+| Max longest stage | 43.2 min | 54.9 min | | ≤ 120 | met |
+| Max supervisor peak | 171K | 176K | | < 150K | missed |
+| `plan-advisor` at stage 2 | yes, yes (Balanced); yes, yes (Max) | | | every team run | met |
+| No high security finding in Max | security section stopped at start both runs | | | none | not measurable |
+| User data | section notes still 137 files | | | none read, moved or lost | met |
+
+- Judged columns list each run's two cases (one per order). Ranked first: Balanced in both p1-r1 cases, Max in both p1-r2 cases, solo never; the pair winner was the same in both orders.
+- Hidden failures: "every value is shown as plain text, never as HTML" (stage 2 and its stage-3 regression) in Balanced run 1 and both Max runs, because the page type-checked the report reply (`typeof … === 'number'`) and drew nothing for string counts; "invalid UTF-8 inside a string is replaced, not refused" in Balanced run 2. Both are checks the spec does not state.
+- Shared defects Codex found in every setup, solo included: valid ticket ids above 2^53 return 500 in every run but Max run 2, and a summary that overlaps an edit can return the old title with an audit order no serial run gives.
+- The leak scan found one tell, a `.team/notes` comment in one Max copy; left unedited, as in the mode round.
+- After the round, f7787b0 fixed the security start (`security-review` is no longer preloaded and loads only when `git merge-base HEAD origin/HEAD` succeeds) and the unstated checks (house rules, reviewer rubric, gate and supervisor lines), and Max's supervisor now runs the testing section's one flow command. Unmeasured: another round costs about $112.
 
 ### Task 7: Report
 

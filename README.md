@@ -28,6 +28,16 @@ Across the later pre-registered rounds, the default mode cost about 2.2 to 5.2 t
 
 Balanced was ranked first in every judged group. Lean was barely ahead of solo. Max was slower and no better: one Max run timed out in stage 3. Not one mode met all of the targets set before the round (Lean at most 2× solo cost and +1.0 judged; Balanced at most 3.5× and +1.5; Max the best judged). The plan check (`plan-advisor`) never ran, because p1's first stage is a single-area API, so the foundation flow did not start. The supervisor's own chat peaked at 189K to 205K tokens in team runs, against 154K to 176K for solo. Two runs per setup, one judge model.
 
+**A second p1 round (0.3.0, 2026-11-09).** The same task, judge and limits, at plugin commit 5b9ba51 (two modes, every job handed to a section, Max rebuilt with a 120-minute stage limit). Targets were set before the round:
+
+| | Cost (mean, API rate) | × solo | Hidden tests (mean of 264) | Codex judge (mean) | Ranked 1st | Longest stage | Supervisor's chat peak |
+|---|---|---|---|---|---|---|---|
+| Plain Claude Code (solo) | $3.89 | 1.0 | 264 | 7.25 | 0 of 4 | 9 min | 150K to 167K |
+| **Balanced (default)** | $15.96 | 4.1 | 261.5 | 8.25 | 2 of 4 | 23 min | 115K to 117K |
+| Max | $36.19 | 9.3 | 262 | 8.5 | 2 of 4 | 55 min | 171K to 176K |
+
+Met: Balanced's cost (at most 5× solo) and time (60 minutes a stage); Max judged 0.25 above Balanced, exactly its bar, with hidden tests at least Balanced's, inside 120 minutes; `plan-advisor` ran at stage 2 in all four team runs; Balanced's supervisor stayed under 150K. Missed: Balanced judged 1.0 above solo, not 1.5; both modes passed fewer hidden tests than solo; Max's supervisor went over 150K. Not measurable: Max's security pass, because the security section stopped at start in both Max runs (it preloaded `security-review`, which needs an `origin/HEAD` ref the benchmark repos lack). Every team-mode hidden failure came from a check the spec does not ask for: in three of the four runs the page refused a report whose counts were not numbers, so the plain-text test found an empty list, and one Balanced run refused a body whose invalid UTF-8 the spec says to replace. In both orders Codex picked the same winner for each pair: Balanced for the first, Max for the second. Commit f7787b0 lets the security section start without that ref and tells every section not to add checks the spec does not state; neither fix is measured yet. Codex judged on CLI 0.167, because the app had replaced the 0.166 binary of earlier rounds.
+
 **Method:** each round builds the same three tasks (a small library, a command-line tool and a web app) twice per setup. Hidden tests check correctness, then the solutions are anonymised and graded blind by Opus judges on correctness, code quality, tests, robustness and docs. The tasks, hidden tests, harness and scorer are in [`bench/`](bench/), and every round's raw scores and judge notes are in [`bench/data/`](bench/data/); a round runs real paid Claude sessions. Full results and every round's changes: [docs/benchmark-2026-10-24.md](docs/benchmark-2026-10-24.md) (final summary at the end).
 
 ## Requirements
