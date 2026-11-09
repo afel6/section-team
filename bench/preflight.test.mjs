@@ -33,8 +33,8 @@ const BUILTIN_SOURCES = BUILTINS.map(p => p.source)
 const SECTION_TEAM = { name: 'section-team', path: 'C:\\Users\\Asus\\section-team-v0.2.1', source: PLUGIN_KEY, version: '0.2.1' }
 const SOLO_LISTS = { agents: ['general-purpose'], skills: ['tdd-workflow'] }
 const TEAM_LISTS = { agents: ['general-purpose', 'section-team:backend'], skills: ['tdd-workflow', 'section-team:add-skill'] }
-const SETUPS = ['solo', 'lean', 'team', 'max']
-const EXPECTED_RECORD = { solo: null, lean: 'lean', team: 'balanced', max: 'max' }
+const SETUPS = ['solo', 'team', 'max']
+const EXPECTED_RECORD = { solo: null, team: 'balanced', max: 'max' }
 
 // One setup's init as Claude Code 2.1.296 writes it, with any fields replaced.
 function init(setup, fields = {}) {
@@ -61,9 +61,9 @@ test('each setup\'s expected mode record', () => {
   for (const setup of SETUPS) assert.deepEqual(problemsOf(setup), [], setup)
   assert.deepEqual(problemsOf('solo', { record: 'balanced' }), ['solo: mode record balanced, expected none'])
   assert.deepEqual(problemsOf('team', { record: null }), ['team: mode record none, expected balanced'])
-  assert.deepEqual(problemsOf('lean', { record: 'max' }), ['lean: mode record max, expected lean'])
+  assert.deepEqual(problemsOf('team', { record: 'max' }), ['team: mode record max, expected balanced'])
   assert.deepEqual(problemsOf('max', { record: 'balanced' }), ['max: mode record balanced, expected max'])
-  assert.throws(() => problemsOf('forced'), { message: 'preflightProblems takes a setup of solo, lean, team, max, got "forced"' })
+  assert.throws(() => problemsOf('forced'), { message: 'preflightProblems takes a setup of solo, team, max, got "forced"' })
 })
 
 test('a stray plugin, an MCP server or plugin-authoring fails', () => {
@@ -72,9 +72,9 @@ test('a stray plugin, an MCP server or plugin-authoring fails', () => {
   assert.deepEqual(problemsOf('solo', { initMessage: init('solo', { plugins: [...BUILTINS, stray] }) }), ['solo: plugins that are not built-ins: caveman@caveman'])
   assert.deepEqual(problemsOf('team', { initMessage: init('team', { mcp_servers: [{ name: 'notion', status: 'connected' }] }) }), ['team: MCP servers loaded: notion'])
   assert.deepEqual(problemsOf('max', { initMessage: init('max', { plugins: [...BUILTINS, SECTION_TEAM, authoring] }) }), ['max: cc-plugin-plugin-authoring@builtin is loaded'])
-  assert.deepEqual(problemsOf('lean', { initMessage: init('lean', { plugins: BUILTINS }) }), ['lean: expected 1 section-team plugin, found 0'])
-  assert.deepEqual(problemsOf('lean', { initMessage: init('lean', { model: 'claude-haiku-5-5', claude_code_version: '2.1.297' }) }), [
-    'lean: model claude-haiku-5-5, expected claude-opus-5-5', 'lean: claude_code_version 2.1.297, expected 2.1.296',
+  assert.deepEqual(problemsOf('team', { initMessage: init('team', { plugins: BUILTINS }) }), ['team: expected 1 section-team plugin, found 0'])
+  assert.deepEqual(problemsOf('team', { initMessage: init('team', { model: 'claude-haiku-5-5', claude_code_version: '2.1.297' }) }), [
+    'team: model claude-haiku-5-5, expected claude-opus-5-5', 'team: claude_code_version 2.1.297, expected 2.1.296',
   ])
 })
 
@@ -82,7 +82,7 @@ test('the answer must say NO to automatic skill installs, from a result that is 
   assert.deepEqual(problemsOf('team', { result: answer('YES') }), ['team: the answer about automatic skill installs is "YES", expected NO'])
   assert.deepEqual(problemsOf('team', { result: answer('YES or NO') }), ['team: the answer about automatic skill installs is "YES or NO", expected NO'])
   for (const text of ['Maybe', '', 'UNKNOWN']) {
-    assert.deepEqual(problemsOf('lean', { result: answer(text) }), [`lean: the answer about automatic skill installs is "${text}", expected NO`])
+    assert.deepEqual(problemsOf('max', { result: answer(text) }), [`max: the answer about automatic skill installs is "${text}", expected NO`])
   }
   assert.deepEqual(problemsOf('solo', { result: answer('No.') }), [])
   assert.deepEqual(problemsOf('team', { result: answer('API Error: overloaded\nmore', { is_error: true }) }), ['team: claude ended on an error: API Error: overloaded'])
@@ -189,13 +189,13 @@ test('syncedListing lists both synced folders, sorted, and treats a missing fold
 const BASE = { version: VERSION, binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', sha256: 'ab12', pluginDir: PLUGIN_DIR, pluginRef: 'v0.2.1', pluginCommit: 'tagged' }
 const INITS = Object.fromEntries(SETUPS.map(setup => [setup, init(setup)]))
 
-test('pinFor records the round\'s reference from the four inits', () => {
+test('pinFor records the round\'s reference from the three inits', () => {
   const teamSetup = { plugins: [...BUILTIN_SOURCES, PLUGIN_KEY], ...TEAM_LISTS }
   assert.deepEqual(pinFor({ ...BASE, inits: INITS }), {
     problems: [],
     pin: {
       ...BASE, apiKeySource: 'none', builtins: BUILTIN_SOURCES, pluginDir: PLUGIN_DIR,
-      setups: { solo: { plugins: BUILTIN_SOURCES, ...SOLO_LISTS }, lean: teamSetup, team: teamSetup, max: teamSetup },
+      setups: { solo: { plugins: BUILTIN_SOURCES, ...SOLO_LISTS }, team: teamSetup, max: teamSetup },
     },
   })
   assert.deepEqual(Object.keys(pinFor({ ...BASE, inits: INITS }).pin), ['version', 'binary', 'sha256', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups'])
@@ -206,10 +206,10 @@ test('built-in sets that differ between setups fail', () => {
   const inits = { ...INITS, team: init('team', { plugins: [extra, ...BUILTINS, SECTION_TEAM] }) }
   const both = BUILTIN_SOURCES.join(', ')
   assert.deepEqual(pinFor({ ...BASE, inits }).problems, [
-    `the built-in plugins differ between setups: solo ${both}; lean ${both}; team ${both}, cc-plugin-x@builtin; max ${both}`,
+    `the built-in plugins differ between setups: solo ${both}; team ${both}, cc-plugin-x@builtin; max ${both}`,
   ])
   assert.deepEqual(pinFor({ ...BASE, inits: { ...INITS, max: init('max', { apiKeySource: 'ANTHROPIC_API_KEY' }) } }).problems, [
-    'the apiKeySource differs between setups: solo none; lean none; team none; max ANTHROPIC_API_KEY',
+    'the apiKeySource differs between setups: solo none; team none; max ANTHROPIC_API_KEY',
   ])
   assert.deepEqual(pinFor({ ...BASE, inits: { ...INITS, solo: null } }).problems, [], 'a setup without an init is reported by its own check')
 })
@@ -249,7 +249,7 @@ function fakeRound(t, { initFields = {}, during = {} } = {}) {
   return { home, results: join(root, 'results'), calls, deps, binary: join(home, 'bench-runs', `claude-${VERSION}.exe`) }
 }
 
-test('preflight runs the four setups on the copied binary with the builders\' arguments and writes the pin', t => {
+test('preflight runs the three setups on the copied binary with the builders\' arguments and writes the pin', t => {
   const { home, results, calls, deps, binary } = fakeRound(t)
   const { problems, pin, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, deps)
   assert.deepEqual(problems, [])
@@ -257,7 +257,7 @@ test('preflight runs the four setups on the copied binary with the builders\' ar
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), pin)
   assert.deepEqual({ version: pin.version, binary: pin.binary, sha256: pin.sha256 }, { version: VERSION, binary, sha256: sha256('claude bytes') })
   assert.deepEqual(calls.run, [['claude', ['--version']], [binary, ['--version']]])
-  assert.equal(calls.spawn.length, 4)
+  assert.equal(calls.spawn.length, 3)
   for (const [i, { binary: command, args, options }] of calls.spawn.entries()) {
     const sessionId = args[args.indexOf('--session-id') + 1]
     const expected = builderArgs(SETUPS[i], args[1], { sessionId, installedKeys: ['caveman@caveman'], pluginDir: PLUGIN_DIR })
@@ -282,7 +282,7 @@ test('preflight on Linux without a versions folder pins the npm-installed CLI in
   assert.deepEqual({ binary: pin.binary, sha256: pin.sha256, npmPackage: pin.npmPackage }, { binary: installed, sha256: sha256('npm claude bytes'), npmPackage: `@anthropic-ai/claude-code@${VERSION}` })
   assert.deepEqual(Object.keys(pin), ['version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups'])
   assert.deepEqual(calls.run, [[installed, ['--version']]], 'claude on PATH is never asked')
-  assert.deepEqual(calls.spawn.map(s => s.binary), [installed, installed, installed, installed])
+  assert.deepEqual(calls.spawn.map(s => s.binary), [installed, installed, installed])
   assert.equal(existsSync(join(home, 'bench-runs')), false, 'nothing is copied')
   assert.equal(ROUND_CLI_VERSION, VERSION)
 })
@@ -354,7 +354,7 @@ function otherVersionRound(t, { manifest, loaded }) {
   const plugin = tempRoot(t)
   if (manifest !== null) writeFile(join(plugin, '.claude-plugin', 'plugin.json'), manifest)
   const entry = { ...SECTION_TEAM, path: plugin, version: loaded }
-  const builders = Object.fromEntries(['lean', 'team', 'max'].map(setup => [setup, { plugins: [...BUILTINS, entry] }]))
+  const builders = Object.fromEntries(['team', 'max'].map(setup => [setup, { plugins: [...BUILTINS, entry] }]))
   const round = fakeRound(t, { initFields: builders })
   const { readVersion, ...deps } = round.deps
   const git = args => (args.includes('--show-toplevel') ? plugin : gitAt('tagged')(args))
@@ -367,7 +367,7 @@ test('preflight passes a plugin at another version when its manifest matches, an
   assert.deepEqual(none, [])
   const other = otherVersionRound(t, { manifest: JSON.stringify({ version: '0.2.3' }), loaded: '0.2.2' })
   const { problems, file } = preflight({ round: 'mo', plugin: other.plugin, pluginRef: 'fix/fresh', home: other.home, results: other.results }, other.deps)
-  assert.deepEqual(problems, ['lean', 'team', 'max'].map(setup => `${setup}: section-team version 0.2.2, expected 0.2.3`))
+  assert.deepEqual(problems, ['team', 'max'].map(setup => `${setup}: section-team version 0.2.2, expected 0.2.3`))
   assert.equal(existsSync(file), false)
 })
 
@@ -411,11 +411,10 @@ test('preflight reports every problem, one line each, and writes no pin', t => {
     writeFileSync(modeRecordFile(home, sessionId), '{"mode":"turbo"}')
     return { status: 0, stdout: [init('max'), answer('NO')].map(m => JSON.stringify(m)).join('\n'), stderr: '' }
   }
-  const { home, results, deps } = fakeRound(t, { initFields: { lean: { mcp_servers: [{ name: 'notion' }] } }, during: { solo: timedOut, team: syncs, max: badRecord } })
+  const { home, results, deps } = fakeRound(t, { during: { solo: timedOut, team: syncs, max: badRecord } })
   const { problems, file } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, deps)
   assert.deepEqual(problems, [
     'solo: could not run claude (ETIMEDOUT)',
-    'lean: MCP servers loaded: notion',
     'team: claude exited 1: Error: hook failed',
     'team: the synced plugins or skills changed during the run',
     'max: mode record unreadable (mode record is not valid), expected max',

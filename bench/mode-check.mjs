@@ -6,10 +6,10 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, sep } from 'node:path'
-import { GATES, parseModeFile } from '../hooks/lib/mode.mjs'
+import { parseModeFile } from '../hooks/lib/mode.mjs'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { modeOfCond } from './gate-stats.mjs'
+import { ROUND_GATES, modeOfCond } from './gate-stats.mjs'
 import { BUILDERS, FILE_WRITERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
 import { insideFolder } from './os-paths.mjs'
 import { NAME, RESULTS } from './run.mjs'
@@ -77,7 +77,7 @@ function modeFileRules(mode, runDir) {
   if (mode === 'balanced') return text === null ? [] : ['.team/mode.json present (a team run has none)']
   if (text === null) return [`.team/mode.json missing (${mode} expected)`]
   const parsed = parseModeFile(text)
-  const named = parsed.modeUsable ? parsed.mode : 'nothing usable'
+  const named = parsed.modeUsable ? parsed.retired ?? parsed.mode : 'nothing usable' // a lean run's file still says lean
   return named === mode ? [] : [`.team/mode.json says ${named}, not ${mode}`]
 }
 
@@ -118,7 +118,7 @@ function reviewerRules(roles, mode) {
 }
 
 function gateRules(roles, mode) {
-  const max = GATES[mode].fixRounds
+  const max = ROUND_GATES[mode].fixRounds
   return gates(roles, mode).flatMap(gate => [
     ...(gate.endsEarly ? [`gate of ${gate.caller} ended early`] : []),
     ...(gate.fixRounds > max ? [`gate of ${gate.caller} had ${gate.fixRounds} fix rounds (at most ${max})`] : []),

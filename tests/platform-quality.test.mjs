@@ -6,7 +6,7 @@ import { assembleBrief } from '../hooks/lib/brief.mjs'
 
 const root = new URL('../', import.meta.url)
 const read = path => readFileSync(fileURLToPath(new URL(path, root)), 'utf8')
-const MODES = ['lean', 'balanced', 'max']
+const MODES = ['balanced', 'max']
 const FOUNDATION = '- A new platform or product with two or more builder areas: load the `section-team:foundation` skill before you wake anyone; it replaces the short plan below.'
 const SECURITY = ' Work touching auth, payments, uploads or secrets also wakes the security section.'
 const WHOLE_STACK = 'The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces'
@@ -54,8 +54,8 @@ test('every tier file sends a new multi-area platform to the foundation skill, j
   }
 })
 
-test('balanced and lean multi-area lines wake security for risky work; max does not repeat it', () => {
-  for (const mode of ['lean', 'balanced']) {
+test('balanced multi-area lines wake security for risky work; max does not repeat it', () => {
+  for (const mode of ['balanced']) {
     const line = read(`brief/tiers-${mode}.md`).split('\n').find(l => l.startsWith('- Multi-area work'))
     assert.ok(line.includes(`parts that touch the same files run one after another.${SECURITY}`), mode)
   }
@@ -63,7 +63,7 @@ test('balanced and lean multi-area lines wake security for risky work; max does 
 })
 
 test('docs wake after the builders report in every mode', () => {
-  for (const mode of ['lean', 'balanced']) {
+  for (const mode of ['balanced']) {
     assert.ok(read(`brief/tiers-${mode}.md`).includes('when the task asks for docs or a README, after the builders report'), mode)
   }
   assert.ok(read('brief/tiers-max.md').includes('and the docs section always, after the builders report'))

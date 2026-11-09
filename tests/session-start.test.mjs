@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { buildContext, composeContext } from '../hooks/session-start.mjs'
+import { buildContext, composeContext, startContext } from '../hooks/session-start.mjs'
 import { assembleBrief } from '../hooks/lib/brief.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
-import { MODES, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
+import { MODES, RETIRED_LINE, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
 import { writeReport, excludeFile } from '../hooks/lib/paths.mjs'
 import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
@@ -303,12 +303,25 @@ test('without a mode file the context is the Balanced brief plus a Balanced mode
   )
 })
 
-test('a Lean mode file gives the Lean brief and says where the mode came from', () => {
-  const ctx = contextFor('{"mode":"lean"}', {})
-  assert.ok(ctx.startsWith(`${assembleBrief('lean')}\n\n`))
-  assert.ok(ctx.includes('- This project runs in Lean mode (from .team/mode.json).'))
+test('a Max mode file gives the Max brief and says where the mode came from', () => {
+  const ctx = contextFor('{"mode":"max"}', {})
+  assert.ok(ctx.startsWith(`${assembleBrief('max')}\n\n`))
+  assert.ok(ctx.includes('- This project runs in Max mode (from .team/mode.json).'))
+  assert.ok(!ctx.includes(RETIRED_LINE))
   // Balanced is the default mode, so an explicit {"mode":"balanced"} reads the same as no file.
   assert.ok(contextFor('{"mode":"balanced"}', {}).includes('- This project runs in Balanced mode (default).'))
+})
+
+test('a saved lean starts as Balanced with the one retired line, once, and nothing else changes', () => {
+  const ctx = contextFor('{"mode":"lean"}', {})
+  assert.ok(ctx.startsWith(`${assembleBrief('balanced')}\n\n`))
+  assert.ok(ctx.includes('- This project runs in Balanced mode (default).'))
+  assert.equal(RETIRED_LINE, 'Lean was removed in 0.3.0; this project runs Balanced until you pick a mode.')
+  assert.equal(ctx.split(RETIRED_LINE).length, 2)
+  assert.ok(ctx.includes(`## Mode\n- This project runs in Balanced mode (default).\n- ${RETIRED_LINE}\n- Automatic skill installs:`))
+  assert.ok(ctx.length < 10000)
+  const result = startContext(withModeFile(repo(), '{"mode":"lean"}'), tempHome(), {})
+  assert.deepEqual(result.warnings, [])
 })
 
 test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKILLS, then off', () => {
@@ -322,7 +335,7 @@ test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json): install'))
   assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
   assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
-  assert.ok(contextFor('{"mode":"lean"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.ok(contextFor('{"mode":"max"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(contextFor(null, {}).includes('- Automatic skill installs: off (default).'))
   const fileOffEnvOn = contextFor('{"autoInstallSkills":false}', ENV_ON)
   assert.ok(fileOffEnvOn.includes('- Automatic skill installs: off (from .team/mode.json).'))
@@ -360,8 +373,8 @@ test('the mode is recorded per session, only when the hook knows the session id'
   const h2 = tempHome()
   buildContext(repo(), h2, {})
   assert.equal(existsSync(join(h2, '.claude', 'section-team', 'modes')), false)
-  recordMode(h, 's2', 'lean')
-  assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"lean"}')
+  recordMode(h, 's2', 'balanced')
+  assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"balanced"}')
   recordMode(h, 's2', 'max')
   assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"max"}')
 })
@@ -445,6 +458,7 @@ test('hook: an error outside the side effects (no brief files) gives one systemM
 
 test('composeContext builds the same text as buildContext, and puts the summary before the Mode section', () => {
   const dir = withModeFile(repo(), '{"mode":"lean","autoInstallSkills":true}')
+  assert.ok(readMode(dir).retired === 'lean')
   assert.equal(buildContext(dir, tempHome(), {}), composeContext(readMode(dir), {}, null))
   const withSummary = composeContext({ mode: 'max', autoInstallSkills: null, problem: null }, {}, 'S')
   assert.ok(withSummary.includes('\n\nLast team summary: S. Read it first.\n\n## Mode\n'))

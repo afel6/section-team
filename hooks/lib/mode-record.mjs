@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { MODES, assertMode } from './mode.mjs'
+import { MODES, RETIRED_MODE, assertMode } from './mode.mjs'
 
 // The mode each session runs in, kept per session so later hooks can tell when the project's mode changed
 // and the handback gate can keep the session's mode when the mode file breaks mid-session.
@@ -38,11 +38,12 @@ function parseRecord(text) {
   } catch {
     data = null // not JSON: reported just below as an invalid record
   }
+  if (data?.mode === RETIRED_MODE) return RETIRED_MODE // a record written before 0.3.0: callers run it with activeMode
   if (!MODES.includes(data?.mode)) throw new Error('mode record is not valid')
   return data.mode
 }
 
-// The mode the session last ran in, or null when it has no record yet (a session from before 0.2.0, or a record never written).
+// The mode the session last ran in (a record from before 0.3.0 may say lean: see activeMode), or null when it has no record yet (a session from before 0.2.0, or a record never written).
 // Throws one line on a bad session id or an invalid record; another read error keeps its code.
 export function readRecord(home, sessionId) {
   const file = modeRecordFile(home, sessionId)

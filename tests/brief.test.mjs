@@ -1,6 +1,6 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,7 +9,7 @@ import { GATES } from '../hooks/lib/mode.mjs'
 
 const BRIEF_DIR = fileURLToPath(new URL('../brief/', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('./fixtures/supervisor-balanced.md', import.meta.url))
-const MODES = ['lean', 'balanced', 'max']
+const MODES = ['balanced', 'max']
 const JOB_GATE = "Every job message states this mode's gate"
 const NEAR_MISS_RULE = '- The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.'
 const LITERAL = "- costs $& and $1 and $$ and $'"
@@ -80,7 +80,7 @@ test('every mode tells the supervisor to run project MCP calls for sections, und
   }
 })
 
-test('balanced brief leaves out the job-message gate sentence that only lean and max carry', () => {
+test('balanced brief leaves out the job-message gate sentence that only max carries', () => {
   assert.ok(!assembleBrief('balanced').includes(JOB_GATE))
 })
 
@@ -97,14 +97,6 @@ test('every mode brief is under 9000 characters', () => {
   }
 })
 
-test('lean brief: sonnet reviewer, 1 fix round, a test per spec line, no testing section for a single area', () => {
-  const brief = assembleBrief('lean')
-  assert.ok(brief.includes('model: "sonnet"'))
-  assert.ok(brief.includes('1 fix round'))
-  assert.ok(brief.includes('give each spec line a test a plausible wrong implementation fails'))
-  assert.ok(!brief.includes('wake only the testing section'))
-})
-
 test('max brief: pass mark 9, no item under 7, 3 fix rounds, near-miss copies', () => {
   const brief = assembleBrief('max')
   for (const text of ['overall at least 9', 'no item under 7', '3 fix rounds', 'near-miss']) {
@@ -117,8 +109,8 @@ test('max gate keeps near-miss copies in .team/near-miss, swapped in after build
   for (const s of ['.team/near-miss/', 'after every builder has reported', 'always restore the original']) assert.ok(gate.includes(s), s)
 })
 
-test('lean and balanced briefs do not mention .team/near-miss', () => {
-  for (const m of ['lean', 'balanced']) assert.ok(!assembleBrief(m).includes('.team/near-miss'))
+test('the balanced brief does not mention .team/near-miss', () => {
+  assert.ok(!assembleBrief('balanced').includes('.team/near-miss'))
 })
 
 test('each gate part states its mode\'s GATES values', () => {
@@ -161,32 +153,19 @@ test('max tiers add probing, near-miss copies, security and docs always', () => 
   assert.ok(!tiers.includes('Wake nobody'), 'tiers-max must not tell the supervisor to wake nobody')
 })
 
-test('every mode counts only builders toward the plan rule, and balanced and lean run security before the one cross-review', () => {
+test('every mode counts only builders toward the plan rule, and balanced runs security before the one cross-review', () => {
   for (const mode of MODES) {
     const plan = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- 3 or more distinct builders'))
     assert.ok(plan.includes('(testing, docs, the security pass and advisors not counted)'), mode)
   }
-  for (const mode of ['lean', 'balanced']) {
+  for (const mode of ['balanced']) {
     const multi = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- Multi-area work'))
     assert.ok(multi.endsWith(' Run it before the final review; it is the one cross-review you ask for.'), mode)
   }
 })
 
-test('lean tiers keep tests with the supervisor and builders, and testing for the final check only', () => {
-  const tiers = part('tiers-lean')
-  for (const text of [
-    'Wake no section.',
-    'try to break it with bad input',
-    'each writes the tests for its own code',
-    'the testing section only for the final check',
-  ]) {
-    assert.ok(tiers.includes(text), `tiers-lean lacks "${text}"`)
-  }
-  assert.ok(!tiers.includes('near-miss'), 'tiers-lean must not mention "near-miss"')
-})
-
-// Lean and Max differ from Balanced only in the mode table's rules, so Balanced's other tier rules must stay in both.
-test('lean and max tiers keep the balanced tier rules that do not depend on the mode', () => {
+// Max differs from Balanced only in the mode table's rules, so Balanced's other tier rules must stay in it.
+test('max tiers keep the balanced tier rules that do not depend on the mode', () => {
   const balanced = lines(part('tiers-balanced'))
   const advisor = balanced.find(line => line.startsWith('- An AI or data decision'))
   const plan = balanced.find(line => line.startsWith('- 3 or more distinct builders'))
@@ -204,10 +183,6 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
   ]
   for (const text of shared) assert.ok(balanced.some(line => line.includes(text)), `tiers-balanced lacks "${text.slice(0, 60)}"`)
   const own = {
-    lean: {
-      wholeLines: [advisor, plan],
-      phrases: ['add the docs section when the task asks for docs or a README'],
-    },
     max: {
       wholeLines: [advisor, plan],
       phrases: [
@@ -222,7 +197,7 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
       ],
     },
   }
-  for (const mode of ['lean', 'max']) {
+  for (const mode of ['max']) {
     const tiers = part(`tiers-${mode}`)
     const tierLines = lines(tiers)
     for (const line of own[mode].wholeLines) assert.ok(tierLines.includes(line), `tiers-${mode} lacks the whole line "${line.slice(0, 60)}"`)
@@ -230,8 +205,8 @@ test('lean and max tiers keep the balanced tier rules that do not depend on the 
   }
 })
 
-test('lean and max briefs end the gate with the job-message rule', () => {
-  for (const mode of ['lean', 'max']) {
+test('max brief ends the gate with the job-message rule', () => {
+  for (const mode of ['max']) {
     assert.ok(assembleBrief(mode).includes(JOB_GATE), `${mode} brief lacks the rule`)
     assert.ok(modeRules(mode).split('\n').at(-1).startsWith(`- ${JOB_GATE}`), `${mode} gate does not end with the rule`)
   }
@@ -257,19 +232,20 @@ test('every line of the mode rules is a line of the assembled brief', () => {
   }
 })
 
-test('lean and max gates keep the balanced gate rules that do not depend on the mode', () => {
+test('max gates keep the balanced gate rules that do not depend on the mode', () => {
   const shared = lines(part('gate-balanced')).filter(line => !line.includes('Pass:') && !line.includes('fix round'))
   assert.ok(shared.length > 0)
-  for (const mode of ['lean', 'max']) {
+  for (const mode of ['max']) {
     const own = new Set(lines(part(`gate-${mode}`)))
     for (const line of shared) assert.ok(own.has(line), `gate-${mode} lacks: ${line.slice(0, 60)}`)
   }
 })
 
 test('an unknown mode is refused with one friendly line', () => {
-  const unknown = { message: /^unknown mode "turbo": pick lean, balanced or max$/ }
+  const unknown = { message: /^unknown mode "turbo": pick balanced or max$/ }
   assert.throws(() => assembleBrief('turbo'), unknown)
   assert.throws(() => modeRules('turbo'), unknown)
+  assert.throws(() => assembleBrief('lean'), { message: 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max' })
   assert.throws(() => assembleBrief(undefined), { message: /^unknown mode \(not shown\)/ })
 })
 
@@ -284,18 +260,22 @@ test('a missing part file is named without the folder, and other modes still bui
 
 test('a core.md with a marker missing, doubled or not under a heading is refused', () => {
   const missing = editCore(core => core.replace('{{GATE}}\n', ''))
-  assert.throws(() => assembleBrief('lean', missing), { message: coreMessage('GATE') })
-  assert.throws(() => modeRules('lean', missing), { message: coreMessage('GATE') })
+  assert.throws(() => assembleBrief('max', missing), { message: coreMessage('GATE') })
+  assert.throws(() => modeRules('max', missing), { message: coreMessage('GATE') })
   const doubled = editCore(core => `${core}\n{{TIERS}}\n`)
-  assert.throws(() => assembleBrief('lean', doubled), { message: coreMessage('TIERS') })
-  assert.throws(() => modeRules('lean', doubled), { message: coreMessage('TIERS') })
+  assert.throws(() => assembleBrief('max', doubled), { message: coreMessage('TIERS') })
+  assert.throws(() => modeRules('max', doubled), { message: coreMessage('TIERS') })
   const headless = editCore(core => core.replace('## When to wake sections\n', 'When to wake sections\n'))
-  assert.throws(() => assembleBrief('lean', headless), { message: coreMessage('TIERS') })
-  assert.throws(() => modeRules('lean', headless), { message: coreMessage('TIERS') })
+  assert.throws(() => assembleBrief('max', headless), { message: coreMessage('TIERS') })
+  assert.throws(() => modeRules('max', headless), { message: coreMessage('TIERS') })
 })
 
 test('part text is put in literally, so $&, $1, $$ and $\' survive', () => {
   const dir = briefCopy()
-  writeFileSync(join(dir, 'tiers-lean.md'), `${LITERAL}\n`)
-  assert.ok(assembleBrief('lean', dir).includes(LITERAL))
+  writeFileSync(join(dir, 'tiers-max.md'), `${LITERAL}\n`)
+  assert.ok(assembleBrief('max', dir).includes(LITERAL))
+})
+
+test('no lean brief part is left', () => {
+  for (const name of ['tiers-lean.md', 'gate-lean.md']) assert.equal(existsSync(join(BRIEF_DIR, name)), false, name)
 })

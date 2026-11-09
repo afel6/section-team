@@ -36,16 +36,19 @@ export function parseGrade(text) {
   return overall && verdict ? { overall: Number(overall[1]), verdict: verdict[1].toLowerCase(), items: itemsOf(block) } : null
 }
 
+// Lean was removed in 0.3.0, but rounds measured before it hold lean runs: their gate stays here so those results still read.
+export const ROUND_GATES = Object.freeze({ lean: Object.freeze({ passOverall: 8, minItem: null, fixRounds: 1 }), ...GATES })
+
 const MODE_OF_COND = { lean: 'lean', team: 'balanced', max: 'max' }
 // A run setup's mode: team runs Balanced; solo (or anything else) has none.
 export const modeOfCond = cond => (Object.hasOwn(MODE_OF_COND, cond) ? MODE_OF_COND[cond] : null)
 
-// Whether a review reaches the mode's own mark (GATES): overall at least passOverall and, when the mode sets
+// Whether a review reaches the mode's own mark (ROUND_GATES): overall at least passOverall and, when the mode sets
 // minItem, every scored item at least minItem. No readable grade never does.
 export function meetsMark(grade, mode) {
-  if (!Object.hasOwn(GATES, mode)) throw new Error(`meetsMark: unknown mode ${String(mode)}`)
+  if (!Object.hasOwn(ROUND_GATES, mode)) throw new Error(`meetsMark: unknown mode ${String(mode)}`)
   if (!grade) return false
-  const { passOverall, minItem } = GATES[mode]
+  const { passOverall, minItem } = ROUND_GATES[mode]
   return grade.overall >= passOverall && (minItem === null || Object.values(grade.items).every(n => n >= minItem))
 }
 

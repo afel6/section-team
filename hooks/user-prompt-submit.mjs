@@ -1,12 +1,12 @@
 import { homedir } from 'node:os'
 import { modeRules } from './lib/brief.mjs'
-import { modeName, readMode } from './lib/mode.mjs'
+import { activeMode, modeName, readMode } from './lib/mode.mjs'
 import { assertSessionId, readRecord, recordMode } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
-// The notice's sections take the place of the same-headed ones in the brief, so a switch back to Balanced cancels Lean or Max rules.
+// The notice's sections take the place of the same-headed ones in the brief, so a switch back to Balanced cancels Max rules.
 const REPLACES = "These sections replace the ones with the same headings in your brief; your next job message to a section states this mode's gate."
 
 function attempt(label, fn) {
@@ -41,7 +41,7 @@ export function promptCheck({ cwd, session_id: sessionId }, home = homedir()) {
   } catch (err) {
     return { notice: null, warnings: [`${SKIPPED}: ${err.message}`] }
   }
-  const read = attempt('mode record read', () => readRecord(home, sessionId))
+  const read = attempt('mode record read', () => activeMode(readRecord(home, sessionId)))
   const decision = decide(read.value, readMode(projectRoot(cwd), keptModeEnding(read.value)))
   const saved = decision.keep === null ? { warning: null } : attempt('mode record', () => recordMode(home, sessionId, decision.keep))
   const warnings = [read.warning, decision.warning, saved.warning].filter(warning => warning !== null)

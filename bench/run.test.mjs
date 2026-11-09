@@ -11,7 +11,7 @@ import { outputMessages } from './clean-run.mjs'
 import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } from './run-attempts.mjs'
 import { FAKE_PID, endStreams, fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
-  CONDITIONS, DEFAULT_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkRoundTag, checkVolumes, killTree,
+  CONDITIONS, DEFAULT_CONDS, ROUND_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkRoundTag, checkVolumes, killTree,
   freshRepo, modeFileFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, stopRunOnExit, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
@@ -44,26 +44,27 @@ test('plan alternates the condition order by rep, so no condition always goes fi
   ])
 })
 
-test('plan runs the lean and max setups in the order --conds gives them, tagged like the others', () => {
-  const order = plan({ conds: ['solo', 'lean', 'team', 'max'], tasks: ['h1'], reps: 1 }).map(r => r.cond)
-  assert.deepEqual(order, ['solo', 'lean', 'team', 'max'])
-  const runs = plan({ tag: 'mo', conds: ['lean', 'max'], tasks: ['h1'], reps: 2 })
-  assert.deepEqual(runs.map(r => r.id), ['h1-lean-mo-r1', 'h1-max-mo-r1', 'h1-max-mo-r2', 'h1-lean-mo-r2'])
-  assert.deepEqual(runs.map(r => r.base), ['lean', 'max', 'max', 'lean'])
+test('plan runs the solo, team and max setups in the order --conds gives them, tagged like the others', () => {
+  const order = plan({ conds: ['solo', 'team', 'max'], tasks: ['h1'], reps: 1 }).map(r => r.cond)
+  assert.deepEqual(order, ['solo', 'team', 'max'])
+  const runs = plan({ tag: 'mo', conds: ['team', 'max'], tasks: ['h1'], reps: 2 })
+  assert.deepEqual(runs.map(r => r.id), ['h1-team-mo-r1', 'h1-max-mo-r1', 'h1-max-mo-r2', 'h1-team-mo-r2'])
+  assert.deepEqual(runs.map(r => r.base), ['team', 'max', 'max', 'team'])
   const repeated = plan({ conds: ['team', 'team'], tasks: ['h1'], reps: 1 }).map(r => r.id)
   assert.deepEqual(repeated, ['h1-team-r1'], 'a repeated setup adds no run')
   assert.throws(() => plan({ conds: ['lean', 'mxa'], tasks: ['h1'] }), /^RangeError: --conds takes team, solo, forced, lean, max, got "mxa"$/, 'a typo is refused, not silently skipped')
 })
 
-test('the setups are team, solo, forced, lean and max; a round without --conds still plans team, solo and forced', () => {
+test('the setups still name lean so old results read; a round without --conds still plans team, solo and forced', () => {
   assert.deepEqual(CONDITIONS, ['team', 'solo', 'forced', 'lean', 'max'])
   assert.deepEqual(DEFAULT_CONDS, ['team', 'solo', 'forced'])
   assert.deepEqual(parseArgs([]).conds, ['team', 'solo', 'forced'])
-  assert.deepEqual(parseArgs(['--conds=solo,lean,team,max']).conds, ['solo', 'lean', 'team', 'max'])
+  assert.deepEqual(parseArgs(['--conds=solo,team,max']).conds, ['solo', 'team', 'max'])
+  assert.deepEqual(ROUND_CONDS, ['solo', 'team', 'max'])
 })
 
-test('modeFileFor gives lean and max their mode file, and team, solo and forced none', () => {
-  assert.strictEqual(modeFileFor('lean'), '{"mode":"lean"}\n')
+test('modeFileFor gives max its mode file, team, solo and forced none, and refuses lean', () => {
+  assert.throws(() => modeFileFor('lean'), { name: 'RangeError', message: 'lean was removed in 0.3.0: its old results still read, but no new run can use it' })
   assert.strictEqual(modeFileFor('max'), '{"mode":"max"}\n')
   for (const base of ['team', 'solo', 'forced']) assert.strictEqual(modeFileFor(base), null, base)
 })
@@ -71,17 +72,17 @@ test('modeFileFor gives lean and max their mode file, and team, solo and forced 
 // A run's options: its session id, the installed plugin keys read when the batch starts, and the v0.2.1 worktree.
 const OPTIONS = { sessionId: '0b7c-sid', installedKeys: ['a@market', 'b@market'], pluginDir: 'C:/Users/Asus/section-team-v0.2.1' }
 
-test('lean, max and forced builder runs get exactly the team run\'s arguments', () => {
-  for (const base of ['lean', 'max', 'forced']) assert.deepEqual(builderArgs(base, 'the prompt', OPTIONS), builderArgs('team', 'the prompt', OPTIONS), base)
+test('max and forced builder runs get exactly the team run\'s arguments', () => {
+  for (const base of ['max', 'forced']) assert.deepEqual(builderArgs(base, 'the prompt', OPTIONS), builderArgs('team', 'the prompt', OPTIONS), base)
 })
 
-test('prepareRun writes the mode file for lean and max into the fresh run folder, uncommitted, and none for team', t => {
+test('prepareRun writes the mode file for max into the fresh run folder, uncommitted, and none for team', t => {
   const root = tempRoot(t)
   const seeds = join(root, 'seeds')
   mkdirSync(join(seeds, 'h1'), { recursive: true })
   writeFileSync(join(seeds, 'h1', 'a.txt'), 'seeded\n')
 
-  for (const [base, text] of [['lean', '{"mode":"lean"}\n'], ['max', '{"mode":"max"}\n']]) {
+  for (const [base, text] of [['max', '{"mode":"max"}\n']]) {
     const dir = join(root, base)
     const run = { id: `h1-${base}-mo-r1`, task: 'h1', cond: `${base}-mo`, base }
     assert.strictEqual(prepareRun(run, { dir, root, seeds }), dir)
@@ -97,9 +98,11 @@ test('prepareRun writes the mode file for lean and max into the fresh run folder
   assert.equal(git(teamDir, 'status', '--porcelain'), '')
 
   const again = join(root, 'again')
-  prepareRun({ id: 'h1-lean-mo-r1', task: 'h1', cond: 'lean-mo', base: 'lean' }, { dir: again, root, seeds })
+  prepareRun({ id: 'h1-max-mo-r1', task: 'h1', cond: 'max-mo', base: 'max' }, { dir: again, root, seeds })
   prepareRun({ id: 'h1-team-mo-r1', task: 'h1', cond: 'team-mo', base: 'team' }, { dir: again, root, seeds })
   assert.ok(!existsSync(join(again, '.team')), 'a rerun of the folder as a team run removes the old mode file')
+
+  assert.throws(() => prepareRun({ id: 'h1-lean-mo-r1', task: 'h1', cond: 'lean-mo', base: 'lean' }, { dir: join(root, 'lean'), root, seeds }), { name: 'RangeError' })
 
   const nobase = join(root, 'nobase')
   prepareRun({ id: 'h1-max-r1', task: 'zz', cond: 'max' }, { dir: nobase, root, seeds })
@@ -461,7 +464,7 @@ test('withPublish publishes after every run that left results, finished or stopp
 // round's pin: a publish that failed earlier (network, machine stop) or a --rerun entry is pushed before work goes on.
 test('publishAtStart checks the sync first, then publishes every run with results and the pin; a network failure stops the batch', t => {
   const root = tempRoot(t)
-  const runs = plan({ tag: 'mo', conds: ['solo', 'lean'], tasks: ['h4'], reps: 1 })
+  const runs = plan({ tag: 'mo', conds: ['solo', 'max'], tasks: ['h4'], reps: 1 })
   mkdirSync(join(root, runs[1].id), { recursive: true })
   writeFileSync(join(root, 'preflight-mo.json'), '{}')
   const calls = []
@@ -485,12 +488,13 @@ test('publishAtStart checks the sync first, then publishes every run with result
   assert.throws(() => publishAtStart({ runs, results: root, folder, tag: 'mo', options, log: () => {} }, noEmail), { message: '$CLAUDE_CODE_USER_EMAIL is not set' })
 })
 
-test('checkConds refuses any setup but solo, lean, team and max, so a round never runs one initProblems cannot judge', () => {
-  assert.doesNotThrow(() => checkConds(['solo', 'lean', 'team', 'max']))
+test('checkConds refuses any setup but solo, team and max (lean included), so a round never runs one initProblems cannot judge', () => {
+  assert.doesNotThrow(() => checkConds(['solo', 'team', 'max']))
   assert.doesNotThrow(() => checkConds(['team']))
-  const message = 'a round runs solo, lean, team and max only, got "forced": pass --conds=solo,lean,team,max'
+  const message = 'a round runs solo, team and max only, got "forced": pass --conds=solo,team,max'
   assert.throws(() => checkConds(DEFAULT_CONDS), { name: 'RangeError', message }, 'the default setups include forced')
   assert.throws(() => checkConds(['solo', 'forced']), { name: 'RangeError', message })
+  assert.throws(() => checkConds(['solo', 'lean']), { name: 'RangeError', message: message.replace('"forced"', '"lean"') })
 })
 
 test('stopping the round mid-run stops the child with the kill its run was given, never the real killTree', async t => {

@@ -57,13 +57,13 @@ test('two sessions on one project are each told once', () => {
   const h = tempHome()
   recordMode(h, 's-a', 'balanced')
   recordMode(h, 's-b', 'balanced')
-  const dir = project('{"mode":"lean"}')
-  assert.equal(modeSwitch(event(dir, 's-a'), h), notice('balanced', 'lean'))
-  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('balanced', 'lean'))
+  const dir = project('{"mode":"max"}')
+  assert.equal(modeSwitch(event(dir, 's-a'), h), notice('balanced', 'max'))
+  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('balanced', 'max'))
   assert.equal(modeSwitch(event(dir, 's-a'), h), null)
   assert.equal(modeSwitch(event(dir, 's-b'), h), null)
-  assert.equal(recordText(h, 's-a'), '{"mode":"lean"}')
-  assert.equal(recordText(h, 's-b'), '{"mode":"lean"}')
+  assert.equal(recordText(h, 's-a'), '{"mode":"max"}')
+  assert.equal(recordText(h, 's-b'), '{"mode":"max"}')
 })
 
 test('a session with no record is recorded silently', () => {
@@ -103,21 +103,32 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
     assert.equal(recordText(h, 's1'), '{"mode":"max"}', text)
     assert.ok(isFresh(file), text)
   }
-  setMode(dir, '{"mode":"lean"}')
-  assert.equal(modeSwitch(e, h), notice('max', 'lean'))
+  setMode(dir, '{"mode":"balanced"}')
+  assert.equal(modeSwitch(e, h), notice('max', 'balanced'))
   setMode(dir, '{not json')
   assert.deepEqual(promptCheck(event(dir, 'new'), h), { notice: null, warnings: ['mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'] })
   assert.equal(existsSync(recordPath(h, 'new')), false)
 })
 
-test('a Lean record with .team as a file keeps the session in Lean mode', () => {
+test('a saved lean is Balanced: no notice for a Balanced session, one for a Max session, and never a warning', () => {
   const h = tempHome()
-  recordMode(h, 's1', 'lean')
+  recordMode(h, 's-a', 'balanced')
+  recordMode(h, 's-b', 'max')
+  const dir = project('{"mode":"lean"}')
+  assert.deepEqual(promptCheck(event(dir, 's-a'), h), { notice: null, warnings: [] })
+  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('max', 'balanced'))
+  assert.equal(recordText(h, 's-a'), '{"mode":"balanced"}')
+  assert.equal(recordText(h, 's-b'), '{"mode":"balanced"}')
+})
+
+test('a Max record with .team as a file keeps the session in Max mode', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'max')
   const dir = join(tempDir('ct-ups-'), 'with space')
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, '.team'), 'not a folder')
-  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [staysIn('.team is not a folder', 'lean')] })
-  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [staysIn('.team is not a folder', 'max')] })
+  assert.equal(recordText(h, 's1'), '{"mode":"max"}')
 })
 
 test('a Balanced record with an unknown mode and a bad autoInstallSkills names both problems', () => {
@@ -145,12 +156,12 @@ test('a broken record plus a broken mode file falls back to Balanced and reports
 test('a valid mode with a bad autoInstallSkills is announced and still warned', () => {
   const h = tempHome()
   recordMode(h, 's1', 'max')
-  const dir = project('{"mode":"lean","autoInstallSkills":"yes"}')
-  assert.deepEqual(promptCheck(event(dir), h), { notice: notice('max', 'lean'), warnings: [BAD_SKILLS] })
-  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+  const dir = project('{"mode":"balanced","autoInstallSkills":"yes"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: notice('max', 'balanced'), warnings: [BAD_SKILLS] })
+  assert.equal(recordText(h, 's1'), '{"mode":"balanced"}')
   assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [BAD_SKILLS] })
   assert.deepEqual(promptCheck(event(dir, 'fresh'), h), { notice: null, warnings: [BAD_SKILLS] })
-  assert.equal(recordText(h, 'fresh'), '{"mode":"lean"}')
+  assert.equal(recordText(h, 'fresh'), '{"mode":"balanced"}')
 })
 
 test('hook: a valid mode with a bad autoInstallSkills prints the notice and the warning', () => {

@@ -40,7 +40,7 @@ test('the README states the cost ranges from the mode labels, the round 17 label
   const readme = read('README.md')
   assert.ok(!STALE_COST_MULTIPLE.test(readme), 'no stale 3.6 multiple')
   const range = mode => MODE_LABELS[mode].match(/([\d.]+)–([\d.]+)×/).slice(1).join(' to ')
-  const needles = ['about 2.2 to 5.2 times', `about ${range('lean')} times in Lean`, `about ${range('max')} times in Max`, 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only']
+  const needles = ['about 2.2 to 5.2 times', `about ${range('max')} times in Max`, 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean, the third, was removed in 0.3.0']
   assertIncludes(readme, needles, 'README')
   assert.ok(!readme.includes('cleaner, better-tested and more robust'))
 })
@@ -58,7 +58,7 @@ test('the README describes the foundation skill, fresh sections and the guard, a
     'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', '24.7K', 'where the difference is large',
     'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'testing, docs, the security pass and advisors not counted', 'any saving in real use',
     // brief rules and the foundation trigger
-    "Max's security pass is unchanged", 'In Balanced and Lean, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
+    "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
     '0.2.3',
   ], 'README')
   assert.ok(!readme.includes('nor its figures') && !readme.includes('the saving in real use'), 'stale unmeasured wording is gone')

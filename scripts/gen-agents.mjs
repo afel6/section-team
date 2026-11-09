@@ -151,7 +151,7 @@ const QUALITY_GATE = [
   "   - Once all the code is in (yours and your helpers'), send your changed files to Agent `section-team:reviewer` with `run_in_background: false` (Opus; do not pass `model`). It grades the changed lines and ends with a GRADE block.",
   `   - ${PASS_RULE}`,
   '   - If it fails, give the fix list to a coder and have the reviewer grade again: at most 2 fix rounds.',
-  // Lean and Max job messages state their own gate (brief/gate-lean.md, gate-max.md); Balanced jobs use the defaults above.
+  // Max job messages state their own gate (brief/gate-max.md); Balanced jobs use the defaults above.
   '   - If the job states a mode gate, it replaces the numbers here and the reviewer\'s model: when it names a model (for example `model: "sonnet"`), pass that to the reviewer; if you have no Agent tool to run the gate, finish with `Status: ungraded` and say why.',
   '   - To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
   '   - A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',

@@ -41,11 +41,18 @@ test('readRecord gives null when the session has no record', () => {
 
 test('readRecord gives the mode recordMode saved', () => {
   const h = tempHome()
-  for (const mode of ['lean', 'balanced', 'max']) {
+  for (const mode of ['balanced', 'max']) {
     recordMode(h, 's1', mode)
     assert.equal(readRecord(h, 's1'), mode)
   }
   assert.equal(readRecord(h, 'other'), null)
+})
+
+test('a record from before 0.3.0 still reads as lean (callers run it as balanced), and lean cannot be recorded any more', () => {
+  const h = tempHome()
+  writeRecordText(h, 's1', '{"mode":"lean"}')
+  assert.equal(readRecord(h, 's1'), 'lean')
+  assert.throws(() => recordMode(h, 's2', 'lean'), /unknown mode/)
 })
 
 test('readRecord refuses a bad session id', () => {

@@ -2,8 +2,7 @@
 // and the gates they form (docs/specs/2026-11-01-mode-round-design.md, "Mode fidelity"). Reads roles as
 // score.mjs collectRolesFrom returns them; never touches the disk.
 import { senderOf } from '../hooks/lib/grade.mjs'
-import { GATES } from '../hooks/lib/mode.mjs'
-import { meetsMark, parseGrade, reviewerAnswer } from './gate-stats.mjs'
+import { ROUND_GATES, meetsMark, parseGrade, reviewerAnswer } from './gate-stats.mjs'
 
 export const HEADS = ['backend', 'frontend', 'database', 'devops', 'mobile', 'uiux', 'ai-llm', 'testing', 'security', 'docs']
 export const BUILDERS = HEADS.filter(head => !['testing', 'security', 'docs'].includes(head))
@@ -88,7 +87,7 @@ function gateOf(caller, calls, mode, isLast) {
     caller,
     reviews: calls.map(call => call.grade),
     fixRounds,
-    endsEarly: isLast && !passed.at(-1) && fixRounds < GATES[mode].fixRounds,
+    endsEarly: isLast && !passed.at(-1) && fixRounds < ROUND_GATES[mode].fixRounds,
     regradeAfterPass: passed.slice(0, -1).some(Boolean),
   }
 }

@@ -4,7 +4,7 @@
 // is pinned in place, at the round's version, with its SHA-256 and its npm package, so a fresh machine can install it
 // again. `claude` on PATH is never used there: the cloud environment relinks it to its own CLI at every session
 // start. Then one
-// run per setup (solo, lean, team, max), each in a run folder from prepareRun, on that copy with exactly the builders'
+// run per setup (solo, team, max), each in a run folder from prepareRun, on that copy with exactly the builders'
 // arguments and environment, proves from its init, its mode record and its answer that a run starts clean and in its
 // mode. Only a preflight without problems writes the round's pin, results/preflight-<round>.json.
 // Spec: docs/specs/2026-11-01-mode-round-design.md (Pinned CLI, Preflight).
@@ -27,7 +27,7 @@ import {
 import { required } from './section-memory.mjs'
 
 // The mode record each setup's session leaves; solo runs with section-team off, so it leaves none.
-const RECORD = { solo: null, lean: 'lean', team: 'balanced', max: 'max' }
+const RECORD = { solo: null, team: 'balanced', max: 'max' }
 const PROMPT = "Reply with exactly one word: YES if your context contains the text 'Automatic skill installs are on', otherwise NO."
 const RUN_TIMEOUT_MS = 300_000
 const VERSION_TIMEOUT_MS = 60_000

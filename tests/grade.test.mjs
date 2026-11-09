@@ -234,9 +234,8 @@ test('an item under the mode minimum is refused, naming the item, its score and 
   assert.equal(itemRule(itemBlock({ naming: 5.5 }), GATES.balanced), lowItem('naming', 5.5, 6))
 })
 
-test('an item exactly at the minimum passes, and Lean has no minimum', () => {
+test('an item exactly at the minimum passes, and no gate means no minimum', () => {
   assert.equal(itemRule(itemBlock(Object.fromEntries(ITEMS.map(name => [name, 6]))), GATES.balanced), null)
-  assert.equal(itemRule(itemBlock({ security: 5 }), GATES.lean), null)
   assert.equal(itemRule(itemBlock({ security: 5 }), undefined), null)
 })
 

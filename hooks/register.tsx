@@ -58,7 +58,7 @@ async function readModeText($: EngineInterface, root: string): Promise<string | 
 
 // The mode file as the hooks read it, a file it cannot read being Balanced with the hooks' problem line.
 const shownModeFile = ($: EngineInterface, root: string) => readModeText($, root).then(parseModeFile, unreadableModeFile)
-// What /team mode shows: the mode the hooks will use and the three to pick from.
+// What /team mode shows: the mode the hooks will use and the two to pick from.
 const describeMode = async ($: EngineInterface, ctx: Ctx) => modeSummary(await shownModeFile($, await projectRoot($, ctx)))
 
 // Saves the project's mode where the command hooks read it, keeping the skill setting already there. Returns the one line to show.
@@ -253,7 +253,7 @@ export const register: Register = on => {
   const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'team', description: "Show the Team Board, or set this project's mode: /team mode lean|balanced|max" })
+    await $.command.register({ name: 'team', description: "Show the Team Board, or set this project's mode: /team mode balanced|max" })
     await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
     resetCounts(ctx)

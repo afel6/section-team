@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { assembleBrief } from './lib/brief.mjs'
-import { DEFAULT_MODE, MODE_FILE, modeName, readMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, MODE_FILE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { modeRecordDir, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
@@ -29,10 +29,11 @@ const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run it
 
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
-function modeSection(mode, skills, problem) {
+function modeSection(mode, skills, problem, retired) {
   return [
     '## Mode',
     `- This project runs in ${modeName(mode)} mode (${mode === DEFAULT_MODE ? 'default' : `from ${MODE_FILE}`}).`,
+    ...(retired === undefined ? [] : [`- ${RETIRED_LINE}`]),
     `- Automatic skill installs: ${skills.on ? 'on' : 'off'} (${skills.from === null ? 'default' : `from ${skills.from}`}).`,
     `- ${UNGRADED_LINE}`,
     ...(problem === null ? [] : [`- ${problem}.`]),
@@ -40,14 +41,14 @@ function modeSection(mode, skills, problem) {
 }
 
 // The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, the plan line when a plan exists, then the Mode section.
-export function composeContext({ mode, autoInstallSkills, problem }, env, summary, hasPlan = false) {
+export function composeContext({ mode, autoInstallSkills, problem, retired }, env, summary, hasPlan = false) {
   const skills = skillSetting(autoInstallSkills, env)
   return [
     assembleBrief(mode),
     skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
     summary ? `Last team summary: ${summary}. Read it first.` : null,
     hasPlan ? PLAN_LINE : null,
-    modeSection(mode, skills, problem),
+    modeSection(mode, skills, problem, retired),
   ].filter(part => part !== null).join('\n\n')
 }
 

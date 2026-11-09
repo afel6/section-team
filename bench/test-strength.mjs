@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { CALIBRATION, NODE_TEST_PATTERNS, taskLayout } from './calibrate.mjs'
-import { NAME, RESULTS, ROUND_CONDS, SEEDS } from './run.mjs'
+import { NAME, RESULTS, SEEDS } from './run.mjs'
 import { hiddenEnv, isTestPath, sameAsSeed } from './score.mjs'
 import { required } from './section-memory.mjs'
 
@@ -143,11 +143,14 @@ function solutionDirOf(folder) {
   return typeof dir === 'string' ? { dir } : { reason: 'run.json unreadable' }
 }
 
+// The setups whose runs it reads: a round measured before 0.3.0 holds lean runs too.
+const READ_CONDS = ['solo', 'lean', 'team', 'max']
+
 // { [runId]: { task, cond, ...strength } } for every solo, lean, team and max run of those tasks in the round; log(id, row)
 // after each. A run without a readable run.json or solution folder gets an n/a row; only a results/ that cannot be
 // read stops it with one line, or a bug, named with its run.
 export function testStrength({ results = RESULTS, round, root, seeds, run, log = () => {} }) {
-  const runId = new RegExp(`^(${TASKS.join('|')})-(${ROUND_CONDS.join('|')})-${round}-r\\d+$`)
+  const runId = new RegExp(`^(${TASKS.join('|')})-(${READ_CONDS.join('|')})-${round}-r\\d+$`)
   let entries
   try {
     entries = readdirSync(results, { withFileTypes: true })

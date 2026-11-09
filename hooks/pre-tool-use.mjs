@@ -3,7 +3,7 @@ import nodePath from 'node:path'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
 import { gradeRule } from './lib/grade.mjs'
 import { headContextRule } from './lib/head-context.mjs'
-import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
 import { readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
@@ -25,7 +25,7 @@ export function isInMemory(target, id, cwd, path = nodePath) {
 const CANNOT_RUN = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
 const fixRounds = n => `${n} fix round${n === 1 ? '' : 's'}`
 const passRule = gate => `Pass: overall at least ${gate.passOverall}${gate.minItem === null ? '' : ` and no item under ${gate.minItem}`}.`
-// Lean names the reviewer's model; the other modes leave it to the reviewer's own file.
+// A gate that sets reviewerModel names it; none does now, so every mode leaves it to the reviewer's own file.
 const reviewerCall = gate => `\`run_in_background: false\` ${gate.reviewerModel === null ? '(do not pass `model`)' : `and \`model: "${gate.reviewerModel}"\``}`
 
 // The handback gate's two refusals, worded from one mode's GATES entry.
@@ -40,7 +40,7 @@ export function gateReasons(gate) {
 // Falling back is the rule here, not a lost error: user-prompt-submit reports a broken record on every prompt.
 function recordedMode(home, sessionId) {
   try {
-    return readRecord(home, sessionId)
+    return activeMode(readRecord(home, sessionId))
   } catch {
     return null
   }

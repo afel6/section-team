@@ -271,13 +271,6 @@ test('CLAUDE_PROJECT_DIR picks the project; no project dir means Balanced', () =
 
 test('the ungraded reason follows the mode', () => {
   const ungradedIn = mode => decide(handbackIn(projectWith(`{"mode":"${mode}"}`), UNGRADED_DONE), {})
-  const lean = ungradedIn('lean')
-  assert.match(lean, /no reviewer grade/)
-  assert.ok(lean.includes('Pass: overall at least 8.'), lean)
-  assert.ok(lean.includes('model: "sonnet"'), lean)
-  assert.ok(lean.includes('at most 1 fix round'), lean)
-  assert.ok(!lean.includes('at most 1 fix rounds'), lean)
-  assert.ok(!lean.includes('do not pass `model`'), lean)
   const balanced = ungradedIn('balanced')
   assert.match(balanced, /no reviewer grade/)
   assert.ok(balanced.includes('Pass: overall at least 8 and no item under 6.'), balanced)
@@ -303,8 +296,9 @@ test('every gate reason offers Status: ungraded; the failing reason keeps its pa
     assert.match(failing, /in all/)
   }
   const reason = decide(handbackIn(projectWith('{"mode":"lean"}'), DONE_AT('7/10 (reviewer)')), {})
-  assert.ok(reason.includes('model: "sonnet"'), reason)
-  assert.ok(reason.includes('at most 1 fix round in all'), reason)
+  assert.ok(reason.includes('(8/10)'), reason)
+  assert.ok(reason.includes('at most 2 fix rounds in all'), reason)
+  assert.doesNotMatch(reason, /sonnet/)
 })
 
 test('a bad mode file gives Balanced thresholds without throwing', () => {
@@ -391,13 +385,14 @@ test('a Max record keeps the Max gate when the project mode file is unusable', (
   }
 })
 
-test('a Lean record keeps the Lean gate when the project mode file is unusable', () => {
-  const home = homeWith('lean')
+test('a record from before 0.3.0 that says lean gets the Balanced gate when the project mode file is unusable', () => {
+  const home = homeWith('balanced')
+  writeFileSync(join(home, '.claude', 'section-team', 'modes', 's1.json'), '{"mode":"lean"}')
   for (const dir of brokenProjects()) {
     const reason = gateWith(dir, UNGRADED_DONE, home)
-    assert.ok(has(reason, 'model: "sonnet"'), reason)
-    assert.ok(has(reason, 'at most 1 fix round'), reason)
-    assert.ok(!has(reason, 'at most 1 fix rounds'), reason)
+    assert.ok(has(reason, 'Pass: overall at least 8 and no item under 6.'), reason)
+    assert.ok(has(reason, 'at most 2 fix rounds'), reason)
+    assert.ok(!has(reason, 'sonnet'), reason)
   }
 })
 

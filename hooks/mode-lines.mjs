@@ -2,7 +2,7 @@ import { assertMode, balancedBecause, MODE_FILE, MODE_LABELS, MODES, modeName, N
 
 // The words the mode picker and /team mode show. Pure: register.tsx does the reading and writing, since $ may not cross an import.
 
-const HOW_TO_SET = '/team mode lean|balanced|max'
+const HOW_TO_SET = '/team mode balanced|max'
 
 // What the strip's picker offers, in MODES order.
 export const MODE_OPTIONS = Object.freeze(MODES.map(value => Object.freeze({ value, label: MODE_LABELS[value] })))
@@ -44,7 +44,7 @@ export function saveFailedLine(error) {
 // The mode file as the hooks' readMode reports one it could not read: Balanced, with the same problem line.
 export const unreadableModeFile = error => balancedBecause(readReason({ code: codeOf(error) ?? undefined }))
 
-// What /team mode shows for a parsed mode file: the mode the hooks will use, its problem line when it has one, and the three modes.
+// What /team mode shows for a parsed mode file: the mode the hooks will use, its problem line when it has one, and the two modes.
 export function modeSummary({ mode, problem }) {
   const lines = [`section-team mode: ${modeName(mode)}`, ...(problem === null ? [] : [problem]), ...MODE_OPTIONS.map(o => o.label)]
   return [...lines, `Set it with ${HOW_TO_SET}`].join('\n')

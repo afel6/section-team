@@ -1,19 +1,23 @@
 // The modes a team can run in, cheapest first.
-export const MODES = Object.freeze(['lean', 'balanced', 'max'])
+export const MODES = Object.freeze(['balanced', 'max'])
+
+// The mode removed in 0.3.0: a saved one runs as Balanced and says so at session start.
+export const RETIRED_MODE = 'lean'
+// The mode to run for one a project or a session record saved: a retired mode runs as Balanced; null stays null.
+export const activeMode = mode => (mode === RETIRED_MODE ? DEFAULT_MODE : mode)
+export const RETIRED_LINE = 'Lean was removed in 0.3.0; this project runs Balanced until you pick a mode.'
 
 // The mode used when no mode file says otherwise.
 export const DEFAULT_MODE = 'balanced'
 
 // The review gate settings for each mode, keyed in MODES order.
 export const GATES = Object.freeze({
-  lean: Object.freeze({ passOverall: 8, minItem: null, fixRounds: 1, reviewerModel: 'sonnet', nearMiss: false }),
   balanced: Object.freeze({ passOverall: 8, minItem: 6, fixRounds: 2, reviewerModel: null, nearMiss: false }),
   max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 3, reviewerModel: null, nearMiss: true }),
 })
 
 // The picker label for each mode: usage against plain Claude Code in the 2026-11 mode round, single-area tasks to all tasks.
 export const MODE_LABELS = Object.freeze({
-  lean: 'Lean · ~1.4–2.6× usage (measured 2026-11)',
   balanced: 'Balanced · ~4.3–5.2× usage (measured 2026-11)',
   max: 'Max · ~7.5–9.7× usage (measured 2026-11)',
 })
@@ -51,6 +55,7 @@ export const balancedBecause = (reason, ending = BALANCED_ENDING) => ({
 function modeOf(data, ending) {
   if (data.mode === undefined) return { mode: DEFAULT_MODE, fault: null }
   if (MODES.includes(data.mode)) return { mode: data.mode, fault: null }
+  if (data.mode === RETIRED_MODE) return { mode: DEFAULT_MODE, fault: null, retired: RETIRED_MODE }
   return { mode: DEFAULT_MODE, fault: `unknown mode ${shown(data.mode)}, ${ending}` }
 }
 
@@ -61,7 +66,8 @@ function skillsOf(data) {
   return { autoInstallSkills: null, fault: 'autoInstallSkills must be true or false, so it is ignored' }
 }
 
-// The mode, the skill setting, one problem line (or null) and modeUsable from the text of a mode file (null when there is no file).
+// The mode, the skill setting, one problem line (or null) and modeUsable from the text of a mode file (null when there is no file);
+// a saved lean also gives retired: 'lean' and runs as Balanced with modeUsable true.
 // modeUsable is false when the file's mode could not be used (bad JSON, not an object, an unknown mode), so Balanced is a stand-in;
 // a bad autoInstallSkills alone leaves it true. ending replaces "so Balanced is used" after an unusable mode's reason.
 // Never throws for any file text; a value that is not a string or null throws a TypeError.
@@ -76,16 +82,17 @@ export function parseModeFile(text, ending = BALANCED_ENDING) {
     return balancedBecause('not valid JSON', ending)
   }
   if (!isPlainObject(data)) return balancedBecause('not a JSON object', ending)
-  const { mode, fault: modeFault } = modeOf(data, ending)
+  const { mode, fault: modeFault, retired } = modeOf(data, ending)
   const { autoInstallSkills, fault: skillsFault } = skillsOf(data)
   const faults = [modeFault, skillsFault].filter(fault => fault !== null)
   const problem = faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}`
-  return { mode, autoInstallSkills, problem, modeUsable: modeFault === null }
+  return { mode, autoInstallSkills, problem, modeUsable: modeFault === null, ...(retired === undefined ? {} : { retired }) }
 }
 
 // Throws one plain line unless mode is one of MODES.
 export function assertMode(mode) {
-  if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: pick lean, balanced or max`)
+  if (mode === RETIRED_MODE) throw new Error(`unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max`)
+  if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: pick balanced or max`)
 }
 
 // The display name of a mode: 'max' → 'Max'. Throws on an unknown mode.

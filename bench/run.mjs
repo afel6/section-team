@@ -7,9 +7,9 @@
 // A task with a folder in bench/seeds/<task>/ starts from that seed, committed as 'seed' after 'init'.
 // Team runs start with empty section memory because every agent since 0.2.0 has `memory: local`: a run's notes stay in its own
 // folder, and nothing touches the user's. Older plugin versions are refused (pluginVersionOf).
-// lean and max runs start with .team/mode.json set to their mode (see prepareRun).
+// max runs start with .team/mode.json set to max (see prepareRun).
 // Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
-// Usage: node bench/run.mjs --plugin=<absolute path of the worktree at the pinned ref> --tag=mo [--round=mo] [--plugin-ref=<git ref>] --conds=solo,lean,team,max
+// Usage: node bench/run.mjs --plugin=<absolute path of the worktree at the pinned ref> --tag=mo [--round=mo] [--plugin-ref=<git ref>] --conds=solo,team,max
 //          --tasks=h4,h5,h6 --reps=3 [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
 //          [id-substring ...]
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given; the ref is
@@ -60,7 +60,7 @@ const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the b
 // team   = plugin on, supervisor decides whether to delegate (Balanced mode: no mode file)
 // solo   = plugin off (the old way)
 // forced = plugin on, prompt asks the supervisor to delegate to sections
-// lean   = team, with the project's mode file set to lean
+// lean   = removed in 0.3.0: kept here so old results still read, and no new run can use it
 // max    = team, with the project's mode file set to max
 export const CONDITIONS = ['team', 'solo', 'forced', 'lean', 'max']
 // The setups of a round without --conds: the three from before the modes, so earlier rounds plan the same runs.
@@ -288,10 +288,10 @@ export function watchUserLists(one, { home, log = console.error } = {}) {
 }
 
 // initProblems judges these setups only, so a round runs no other (forced included); the preflight checks each.
-export const ROUND_CONDS = ['solo', 'lean', 'team', 'max']
+export const ROUND_CONDS = ['solo', 'team', 'max']
 export function checkConds(conds) {
   const other = conds.find(cond => !ROUND_CONDS.includes(cond))
-  if (other !== undefined) throw new RangeError(`a round runs solo, lean, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
+  if (other !== undefined) throw new RangeError(`a round runs solo, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
 }
 
 const taskFiles = task => (isStaged(task)
@@ -347,7 +347,10 @@ export function builderArgs(base, prompt, { sessionId, resume = false, installed
 export const runFolder = run => `${RUNS}/${run.task}-${createHash('sha256').update(run.id).digest('hex').slice(0, 8)}`
 
 // The mode file a setup's run folder starts with; team runs Balanced with no file, as before the modes.
-export const modeFileFor = base => (base === 'lean' || base === 'max' ? `${serializeMode(null, base)}\n` : null)
+export function modeFileFor(base) {
+  if (base === 'lean') throw new RangeError('lean was removed in 0.3.0: its old results still read, but no new run can use it')
+  return base === 'max' ? `${serializeMode(null, base)}\n` : null
+}
 
 // A fresh run folder (see freshRepo) with the setup's mode file, left uncommitted as when a user picks a mode.
 export function prepareRun(run, { dir, root, seeds = SEEDS } = {}) {
