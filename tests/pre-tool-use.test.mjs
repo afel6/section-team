@@ -590,10 +590,17 @@ test('in Max a done docs-only handback without a grade is refused with the ungra
   assert.equal(decide(handbackIn(projectWith(null), DOCS_ONLY('done', null)), {}), null)
 })
 
+test('in Max a done handback naming only an extensionless file or dotfile without a grade is refused', () => {
+  const max = projectWith('{"mode":"max"}')
+  for (const changed of ['Dockerfile', 'LICENSE', 'Makefile', '.gitignore', 'bin/run', 'edited Dockerfile and LICENSE']) {
+    assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), gateReasons(GATES.max).ungraded, changed)
+  }
+})
+
 test('in Max a graded docs handback passes at the pass mark and fails under it', () => {
   const max = projectWith('{"mode":"max"}')
   assert.equal(decide(handbackIn(max, DOCS_ONLY('done', '9/10 (reviewer, 0 fix rounds)')), {}), null)
-  assert.match(decide(handbackIn(max, DOCS_ONLY('done', '8/10 (reviewer, 1 fix round)')), {}), /under the pass mark (9/10)/)
+  assert.match(decide(handbackIn(max, DOCS_ONLY('done', '8/10 (reviewer, 1 fix round)')), {}), /under the pass mark \(9\/10\)/)
 })
 
 test('in Max partial, blocked and ungraded docs handbacks stay open, and a REPORT that changed no file needs no grade', () => {

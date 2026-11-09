@@ -48,7 +48,9 @@ export function changesCode(changed) {
 export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
 // Whether a REPORT's Changed line names any file at all, docs included (a gate with gradeAll grades those too).
-export const changesFiles = changed => typeof changed === 'string' && changed.match(PATH_LIKE) !== null
+// Besides dotted names it recognizes dotfiles (.gitignore), a path with a directory (bin/run) and well-known extensionless names.
+const EXTRA_FILE = /(?:^|[\s,;(])(?:\.[\w-][\w.-]*|(?!n\/a(?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
+export const changesFiles = changed => typeof changed === 'string' && (changed.match(PATH_LIKE) !== null || EXTRA_FILE.test(changed))
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
 const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
