@@ -153,6 +153,23 @@ test('max tiers add probing, near-miss copies, security and docs always', () => 
   assert.ok(!tiers.includes('Wake nobody'), 'tiers-max must not tell the supervisor to wake nobody')
 })
 
+const BUILDER_LINE = 'Wake the matching builder section; it writes the code, its tests and any README asked for, and runs its own gate.'
+
+test('every mode sends small and single-area jobs to a builder section, and nothing tells the supervisor to build', () => {
+  for (const mode of MODES) {
+    const tiers = lines(part(`tiers-${mode}`))
+    for (const label of ['Small task', 'Single-area task']) {
+      const line = tiers.find(l => l.includes(`${label}:`))
+      assert.ok(line !== undefined && line.startsWith(`- ${BUILDER_LINE}`), `${mode}: the ${label} line must open with the builder sentence`)
+    }
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes(BUILDER_LINE), mode)
+    assert.ok(!/(?<!not )\bbuild\b[^.\n]*\byourself\b/i.test(brief), `${mode}: a sentence still tells the supervisor to build`)
+    for (const old of ['Wake nobody', 'doing small work yourself', 'Wake no builder section']) assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
+    assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
+  }
+})
+
 test('every mode counts only builders toward the plan rule, and balanced runs security before the one cross-review', () => {
   for (const mode of MODES) {
     const plan = lines(part(`tiers-${mode}`)).find(line => line.startsWith('- 3 or more distinct builders'))
@@ -174,8 +191,8 @@ test('max tiers keep the balanced tier rules that do not depend on the mode', ()
   const shared = [
     'one kind of work (a CLI, an API, a library, a page, a schema)',
     'up to about 600 lines of new code',
-    'run the reviewer gate on your changed files',
-    'When unsure between this and waking sections for one area, do this.',
+    'runs its own gate',
+    'When unsure between this and multi-area work, do this.',
     'Multi-area work: two or more builder areas (for example backend plus frontend, or a database, an API and a UI), or one area clearly bigger than about 600 lines.',
     'Wake each needed builder',
     'Do not build multi-area work yourself, even when the plan is pre-approved.',
@@ -187,12 +204,9 @@ test('max tiers keep the balanced tier rules that do not depend on the mode', ()
       wholeLines: [advisor, plan],
       phrases: [
         'about 50 lines of new code or less',
-        'build it and its tests yourself',
-        'Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.',
+        'Tell it to give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.',
         'A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature.',
-        'build the code yourself (and any README it asks for)',
         "(give it the files, the behaviour to cover and the spec's edge cases, and ask it to probe every spec line)",
-        'run the reviewer gate on your own changed files before you call it done; testing gates its own test files.',
         'Wake no other builder section.',
       ],
     },
