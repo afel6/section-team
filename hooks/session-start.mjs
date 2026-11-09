@@ -70,7 +70,7 @@ function summaryPath(root) {
   return file === null ? null : relative(root, file).split(sep).join('/')
 }
 
-// The session context, and the one-line warnings for the user: the mode file's problem, then each failed side effect.
+// The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
 export function startContext(cwd, home = homedir(), env = process.env, sessionId) {
   const root = projectRoot(cwd)
@@ -85,7 +85,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
-  const warnings = [setting.problem, ...stepWarnings, summary.warning].filter(warning => warning !== null)
+  // A saved lean is told to the user as well as to the supervisor (the Mode section).
+  const retired = setting.retired === undefined ? null : RETIRED_LINE
+  const warnings = [setting.problem, retired, ...stepWarnings, summary.warning].filter(warning => warning !== null)
   return { context: composeContext(setting, env, summary.value, hasPlan), warnings }
 }
 

@@ -80,26 +80,27 @@ function splitGates(calls, { jobTimes }) {
   }, [])
 }
 
-function gateOf(caller, calls, mode, isLast) {
+function gateOf(caller, calls, mode, isLast, fixRoundCap) {
   const passed = calls.map(call => meetsMark(call.grade, mode))
   const fixRounds = calls.length - 1
   return {
     caller,
     reviews: calls.map(call => call.grade),
     fixRounds,
-    endsEarly: isLast && !passed.at(-1) && fixRounds < ROUND_GATES[mode].fixRounds,
+    endsEarly: isLast && !passed.at(-1) && fixRounds < fixRoundCap,
     regradeAfterPass: passed.slice(0, -1).some(Boolean),
   }
 }
 
 // Every caller's gates: [{ caller, reviews, fixRounds, endsEarly, regradeAfterPass }]. A review fails when it misses
-// the mode's mark; only a caller's last gate can end early, since any later call of that caller follows it.
-export function gates(roles, mode) {
+// the mode's mark; only a caller's last gate can end early, since any later call of that caller follows it. fixRoundCap
+// defaults to the mode's current cap; mode-check passes the cap of the plugin version the run used.
+export function gates(roles, mode, fixRoundCap = ROUND_GATES[mode].fixRounds) {
   const calls = reviewerCalls(roles)
   const callers = [...new Set(calls.map(call => call.caller))]
   return callers.flatMap(caller => {
     const jobTimes = caller === 'main' ? mainJobTimes(roles) : sectionJobTimes(roles, caller)
     const split = splitGates(calls.filter(call => call.caller === caller), { jobTimes })
-    return split.map((list, i) => gateOf(caller, list, mode, i === split.length - 1))
+    return split.map((list, i) => gateOf(caller, list, mode, i === split.length - 1, fixRoundCap))
   })
 }

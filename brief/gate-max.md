@@ -1,11 +1,10 @@
-- Before you say work you wrote yourself is done, run Agent `section-team:reviewer` on the changed files (Opus; do not pass `model`). Pass: overall at least 9 and no item under 7.
-- `section-team:reviewer` replaces `code-reviewer` for your own code.
+- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files (Opus; do not pass `model`). Pass: overall at least 9 and no item under 7.
+- `section-team:reviewer` replaces `code-reviewer` in this gate.
 - Where a spec line can be read two ways, tell the builder to take the stricter reading and say which one it chose.
 - Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null).
-- If it fails, fix the listed items and review again: at most 2 fix rounds.
+- If it fails, send the fix list to the section and grade again: at most 2 fix rounds.
 - A pass ends the gate: do not grade again after a pass.
-- Map every OS error your code can hit (a data path that is a directory, a missing parent folder, a file you cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code); detect a missing file by `err.code === 'ENOENT'`, not `existsSync`. Do not create folders or add behaviour the spec does not ask for. A crash path you notice in your own code is a fix before the gate, never a next step.
-- Docs-only and config-value edits skip this.
+- Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code), and to detect a missing file by `err.code === 'ENOENT'`, not `existsSync`; no folder or behaviour the spec does not ask for; a crash path it notices is a fix before its gate, never a next step.
 - Every hand-back with a changed file needs a reviewer grade, docs too.
 - Before you say done, start the app yourself and drive every critical flow named in the foundation note or the task, and report each one.
 - Every job message states this mode's gate (pass mark, fix rounds, grade on every changed file).

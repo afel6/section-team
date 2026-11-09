@@ -65,8 +65,8 @@ test('brief: single-area work up to about 600 lines goes to one builder section;
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
   assert.ok(brief.includes('Where a spec line can be read two ways, tell the builder to take the stricter reading and say which one it chose.'))
   assert.ok(brief.includes('probe every spec line'))
-  assert.ok(brief.includes('Map every OS error your code can hit (a data path that is a directory, a missing parent folder, a file you cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
-  assert.ok(brief.includes('A crash path you notice in your own code is a fix before the gate, never a next step.'))
+  assert.ok(brief.includes('Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
+  assert.ok(brief.includes('a crash path it notices is a fix before its gate, never a next step.'))
   assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill'))
@@ -84,11 +84,11 @@ test('brief: testing and docs do not count toward the 3-builder plan gate', () =
   assert.ok(brief.includes('testing, docs, the security pass and advisors not counted'))
 })
 
-test('the injected brief hands per-job skills, uses notes, gates its own code and describes the board commands', () => {
+test('the injected brief hands per-job skills, uses notes, gates ungraded work and describes the board commands', () => {
   const brief = buildContext(repo(), tempHome())
   assert.ok(brief.startsWith('[section-team supervisor]'))
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
-  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', '`section-team:reviewer` replaces `code-reviewer` for your own code.', PASS_RULE, '/chats', '/team']) {
+  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', '`section-team:reviewer` replaces `code-reviewer` in this gate.', PASS_RULE, '/chats', '/team']) {
     assert.ok(brief.includes(phrase), `brief lacks: ${phrase}`)
   }
   assert.ok(!brief.includes('opens automatically'))
@@ -319,7 +319,11 @@ test('a saved lean starts as Balanced with the one retired line, once, and nothi
   assert.ok(ctx.includes(`## Mode\n- This project runs in Balanced mode (default).\n- ${RETIRED_LINE}\n- Automatic skill installs:`))
   assert.ok(ctx.length < 10000)
   const result = startContext(withModeFile(repo(), '{"mode":"lean"}'), tempHome(), {})
-  assert.deepEqual(result.warnings, [])
+  assert.deepEqual(result.warnings, [RETIRED_LINE])
+  // The user sees it too: the hook shows warnings as its one systemMessage line.
+  const out = JSON.parse(run(startInput(withModeFile(repo(), '{"mode":"lean"}'))).stdout)
+  assert.equal(out.systemMessage, `section-team session-start: ${RETIRED_LINE}`)
+  assert.ok(out.hookSpecificOutput.additionalContext.includes(`- ${RETIRED_LINE}`))
 })
 
 test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKILLS, then off', () => {

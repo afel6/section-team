@@ -1,6 +1,6 @@
 // Mode fidelity: whether each Lean, Balanced and Max run of a round behaved as its mode (docs/specs/
 // 2026-11-01-mode-round-design.md, "Mode fidelity"): the mode record and .team/mode.json, the sections woken, the
-// reviewer's model, the gate rules and, for Max, the near-miss copies. Read-only over results/<id>/evidence/ and the
+// reviewer's model, the gate rules and, for Max before 0.3.0, the near-miss copies. Read-only over results/<id>/evidence/ and the
 // run folder. A gate's final grade is never a rule (gate-stats.mjs reports it); tier is reported, never a rule.
 // Usage: node bench/mode-check.mjs --round=mo   (writes results/mode-check-<round>.json and prints one line per run)
 import { createHash } from 'node:crypto'
@@ -117,9 +117,17 @@ function reviewerRules(roles, mode) {
   return off.length ? [`reviewer not on ${word}: ${listed(off.map(String))}`] : []
 }
 
-function gateRules(roles, mode) {
-  const max = ROUND_GATES[mode].fixRounds
-  return gates(roles, mode).flatMap(gate => [
+// Max before 0.3.0 (the mode round ran 0.2.1): 3 fix rounds and a near-miss copy. GATES holds 0.3.0's Max.
+const MAX_BEFORE_030 = Object.freeze({ ...ROUND_GATES.max, fixRounds: 3, nearMiss: true })
+
+// The gate a run's mode had in the plugin version its run.json records; a run.json without one is from before 0.3.0.
+export function gateFor(mode, pluginVersion) {
+  const before030 = typeof pluginVersion !== 'string' || /^0\.[0-2]\./.test(pluginVersion)
+  return mode === 'max' && before030 ? MAX_BEFORE_030 : ROUND_GATES[mode]
+}
+
+function gateRules(roles, mode, max) {
+  return gates(roles, mode, max).flatMap(gate => [
     ...(gate.endsEarly ? [`gate of ${gate.caller} ended early`] : []),
     ...(gate.fixRounds > max ? [`gate of ${gate.caller} had ${gate.fixRounds} fix rounds (at most ${max})`] : []),
     ...(gate.regradeAfterPass ? [`gate of ${gate.caller} graded again after a pass`] : []),
@@ -151,7 +159,7 @@ function testingWroteCopy(roles, runDir) {
     || toolUses(messages, ...SHELLS).some(use => namesNearMiss(String(use.input.command ?? ''))))
 }
 
-// Max: a copy stayed in .team/near-miss/ (or the testing section wrote one there), and none sits outside .team/.
+// Max before 0.3.0: a copy stayed in .team/near-miss/ (or the testing section wrote one there), and none sits outside .team/.
 function nearMissRules(roles, runDir) {
   const { copies, outside } = nearMissState(runDir)
   const made = copies > 0 || testingWroteCopy(roles, runDir)
@@ -169,20 +177,22 @@ const tierOf = woken => {
 const failedRow = line => ({ faithful: false, broken: [line], tier: null })
 
 // { faithful, broken, tier } for one run. Solo runs are always faithful; roles null (no evidence) is a no-data row.
-export function checkRun({ cond, task, roles, runDir, record }) {
+// pluginVersion is the section-team version from the run's run.json (undefined when it has none).
+export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
   if (setupOf(cond) === 'solo') return { faithful: true, broken: [], tier: null }
   if (roles === null) return failedRow('no data')
   const mode = modeOfCond(setupOf(cond))
   if (mode === null) throw new Error(`unknown setup "${cond}"`)
   const woken = wakeUps(roles)
+  const gate = gateFor(mode, pluginVersion)
   const broken = [
     ...recordRules(mode, record),
     ...modeFileRules(mode, runDir),
     ...(MULTI_AREA_TASKS.includes(task) ? multiAreaRules(roles, woken, runDir) : []),
     ...reviewerRules(roles, mode),
-    ...gateRules(roles, mode),
+    ...gateRules(roles, mode, gate.fixRounds),
     ...sectionRules(mode, task, woken),
-    ...(mode === 'max' ? nearMissRules(roles, runDir) : []),
+    ...(gate.nearMiss ? nearMissRules(roles, runDir) : []),
   ]
   return { faithful: broken.length === 0, broken, tier: tierOf(woken) }
 }
@@ -236,7 +246,7 @@ function runRow(folder, cond, task, readers) {
   if (session.roles === null) return failedRow('no data')
   const record = attempt(() => readers.record(folder, session.sid))
   if (record === FAILED) return unreadable('mode record')
-  const row = attempt(() => checkRun({ cond, task, roles: session.roles, runDir: run.dir, record }))
+  const row = attempt(() => checkRun({ cond, task, roles: session.roles, runDir: run.dir, record, pluginVersion: run.sectionTeam?.version }))
   return row === FAILED ? unreadable('run folder') : row
 }
 

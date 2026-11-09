@@ -146,6 +146,7 @@ test('max tiers add probing, security and docs always', () => {
   const tiers = part('tiers-max')
   for (const text of [
     'have the testing section probe it',
+    'ask it to probe every spec line). Code that takes user input',
     'user input or touches files or the network also gets a security section review',
     'the security section for a security pass',
     '(the one cross-review you ask for)',
@@ -234,7 +235,7 @@ test('max brief ends the gate with the job-message rule', () => {
 test('max mode rules are the two mode-specific blocks and nothing else', () => {
   const rules = modeRules('max')
   assert.ok(rules.startsWith('## When to wake sections\n'))
-  assert.ok(rules.includes('\n\n## Your own code\n'))
+  assert.ok(rules.includes('\n\n## Reviewer gate\n'))
   for (const text of ['overall at least 9', 'no item under 7', '2 fix rounds', 'two final reviews']) {
     assert.ok(rules.includes(text), `max rules lack "${text}"`)
   }
@@ -252,12 +253,29 @@ test('every line of the mode rules is a line of the assembled brief', () => {
 })
 
 test('max gates keep the balanced gate rules that do not depend on the mode', () => {
-  const shared = lines(part('gate-balanced')).filter(line => !line.includes('Pass:') && !line.includes('fix round'))
+  // Max grades every changed file, so Balanced's docs-only skip is not one of them.
+  const shared = lines(part('gate-balanced')).filter(line => !line.includes('Pass:') && !line.includes('fix round') && !line.startsWith('- Docs-only'))
   assert.ok(shared.length > 0)
   for (const mode of ['max']) {
     const own = new Set(lines(part(`gate-${mode}`)))
     for (const line of shared) assert.ok(own.has(line), `gate-${mode} lacks: ${line.slice(0, 60)}`)
   }
+})
+
+// p1 round: the supervisor building code itself drove its chat to 189K-205K. Its gate is the one it gives sections and runs on ungraded work.
+test('every mode tells the supervisor it writes no product code, tests or docs, and its gate is for sections', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.split('\n')[1].endsWith(' You write no product code, tests or docs yourself.'), mode)
+    assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files'), mode)
+    assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again: at most 2 fix rounds.'), mode)
+    assert.ok(brief.includes('- Tell each code builder to map every OS error its code can hit'), mode)
+    for (const old of ['Your own code', 'your own code', 'wrote yourself', 'fix the listed items', 'Map every OS error']) {
+      assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
+    }
+  }
+  assert.ok(!assembleBrief('max').includes('Docs-only'), 'max grades docs too, so it has no docs-only skip')
+  assert.ok(lines(part('gate-balanced')).includes('- Docs-only work skips this gate.'))
 })
 
 test('an unknown mode is refused with one friendly line', () => {
