@@ -76,9 +76,11 @@ The sandbox comes from the sandbox probe of 2026-11-02 (codex-cli 0.166.0-alpha.
 
 `codex.exe exec --ephemeral --ignore-user-config -m gpt-6.1-sol -c model_reasoning_effort="ultra" --disable memories -c windows.sandbox="unelevated" --skip-git-repo-check -C <case folder> -s read-only --json -o <log>.last.txt "<CODEX_PROMPT>"`
 
+On 2026-11-09 the Codex app had updated itself and removed the 0.166.0-alpha.5.1 binary that judged every earlier round, so `codexBin` below now points at codex-cli 0.167.0-alpha.3.2; the model, effort and sandbox are unchanged. A probe that day with the same flags ran `node --version` and was refused a write. The two-modes proof round (tm) is the first round judged on it.
+
 ```json
 {
-  "codexBin": "C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/22cfb1d302613eae/codex.exe",
+  "codexBin": "C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/f71a721e0e6193a9/codex.exe",
   "model": "gpt-6.1-sol",
   "effort": "ultra",
   "sandbox": "read-only"
