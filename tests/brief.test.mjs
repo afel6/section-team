@@ -109,7 +109,7 @@ test('max brief holds the three proof steps', () => {
   const brief = assembleBrief('max')
   for (const text of [
     'the security section for a security pass before the final review',
-    'run two final reviews, one after the other, each by a fresh testing section; never show the second the first's REPORT',
+    "run two final reviews, one after the other, each by a fresh testing section; never show the second the first's REPORT",
     'Before you say done, start the app yourself and drive every critical flow named in the foundation note or the task, and report each one.',
     'Every hand-back with a changed file needs a reviewer grade, docs too.',
   ]) assert.ok(brief.includes(text), `max brief lacks "${text}"`)
