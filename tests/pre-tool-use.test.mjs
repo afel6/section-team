@@ -592,7 +592,8 @@ test('in Max a done docs-only handback without a grade is refused with the ungra
 
 test('in Max a done handback naming only an extensionless file or dotfile without a grade is refused', () => {
   const max = projectWith('{"mode":"max"}')
-  for (const changed of ['Dockerfile', 'LICENSE', 'Makefile', '.gitignore', 'bin/run', 'edited Dockerfile and LICENSE', '`Dockerfile`', '`.gitignore`', 'AUTHORS', 'configure', '`AUTHORS`, `configure`']) {
+  for (const changed of ['Dockerfile', 'LICENSE', 'Makefile', '.gitignore', 'bin/run', 'edited Dockerfile and LICENSE', '`Dockerfile`', '`.gitignore`', 'AUTHORS', 'configure', '`AUTHORS`, `configure`',
+    'AUTHORS (added)', '`configure` (updated)', 'AUTHORS - added', '"configure": rewritten', 'updated the docs', 'no code changes; Dockerfile updated']) {
     assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), gateReasons(GATES.max).ungraded, changed)
   }
 })
@@ -607,6 +608,7 @@ test('in Max partial, blocked and ungraded docs handbacks stay open, and a REPOR
   const max = projectWith('{"mode":"max"}')
   for (const status of ['partial', 'blocked', 'ungraded']) assert.equal(decide(handbackIn(max, DOCS_ONLY(status, null)), {}), null, status)
   assert.equal(decide(handbackIn(max, REPORT_WITH('done', 'none', 'n/a (no code)')), {}), null)
-  for (const changed of ['n/a', 'nothing', 'no files', '`none`']) assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), null, changed)
-  assert.equal(decide(handbackIn(max, REPORT_WITH('done', 'updated the docs', null)), {}), null)
+  for (const changed of ['n/a', 'N/A (no code)', 'nothing', 'no files', 'no changes', '`none`', 'None.', '(none)', 'none (read-only)', 'unchanged', '-', '—']) {
+    assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), null, changed)
+  }
 })

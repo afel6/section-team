@@ -48,15 +48,11 @@ export function changesCode(changed) {
 export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
 // Whether a REPORT's Changed line names any file at all, docs included (a gate with gradeAll grades those too).
-// Besides dotted names it recognizes dotfiles (.gitignore), a path with a directory (bin/run) and well-known extensionless names.
-const EXTRA_FILE = /(?:^|[\s,;(`'"])(?:\.[\w-][\w.-]*|(?!n\/a(?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
-// A list item that is a single bare word (AUTHORS, `configure`) is an extensionless file name unless it is a no-change word.
-const NO_CHANGE_WORD = /^(?:n\/a|none|nothing|no|no-op|unchanged)$/i
-const bareWordFile = changed => changed.split(/\s*(?:,|;|and|&)\s*/i).some(item => {
-  const word = item.trim().replace(/^[`'"*_(]+|[`'"*_).]+$/g, '')
-  return /^[\w.-]+$/.test(word) && !NO_CHANGE_WORD.test(word)
-})
-export const changesFiles = changed => typeof changed === 'string' && (changed.match(PATH_LIKE) !== null || EXTRA_FILE.test(changed) || bareWordFile(changed))
+// The contract is `<files, or "none">`, so a line that does not open with a no-change value counts as files, however it is worded.
+const NO_CHANGE = /^[\s`'"*_(]*(?:(?:none|nothing|n\/a|no|unchanged)\b|[-—–]|$)/i
+// A no-change opener that still names a file counts too: a dotted name, a dotfile, a path with a directory or a well-known extensionless name.
+const EXTRA_FILE = /(?:^|[\s,;(`'"])(?:\.[\w-][\w.-]*|(?![nN]\/[aA](?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
+export const changesFiles = changed => typeof changed === 'string' && (!NO_CHANGE.test(changed) || changed.match(PATH_LIKE) !== null || EXTRA_FILE.test(changed))
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
 const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
