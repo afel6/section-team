@@ -110,7 +110,7 @@ test('max brief holds the three proof steps', () => {
   for (const text of [
     'the security section for a security pass before the final review',
     "run two final reviews, one after the other, each by a fresh testing section; never show the second the first's REPORT",
-    'Before you say done, start the app yourself and drive every critical flow named in the foundation note or the task, and report each one.',
+    'Before you say done, run yourself the one command a testing section hands back (ask every testing job for it: it starts the app, prints one PASS or FAIL line per critical flow named in the foundation note or the task, then stops the app), and report each flow; read no source file for this check.',
     'Every hand-back with a changed file needs a reviewer grade, docs too.',
   ]) assert.ok(brief.includes(text), `max brief lacks "${text}"`)
 })

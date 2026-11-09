@@ -159,7 +159,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
     'A pass ends the gate: apply its fixes of a few lines if you like, rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
-    'Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated, every spec line has a test. A fix after the gate costs far more than care now.',
+    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every spec line has a test. A fix after the gate costs far more than care now.",
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -250,7 +250,7 @@ test('a forwarded question is answered to the asker directly, not back through t
 })
 
 test('each section preloads at most one core skill and the rest become go-to mentions', () => {
-  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
+  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
   for (const s of ROSTER) {
     assert.ok(s.core.length <= 1, `${s.id} preloads more than one skill`)
     assert.deepEqual(s.core, CORE[s.id] ?? [], `${s.id} core`)
@@ -258,6 +258,28 @@ test('each section preloads at most one core skill and the rest become go-to men
     assert.deepEqual(frontSkills(text), s.core, `${s.id} frontmatter skills`)
     for (const skill of s.skills.filter(k => !s.core.includes(k))) assert.ok(text.includes(skill), `${s.id} lost go-to ${skill}`)
   }
+})
+
+// The CLI's bundled security-review runs `git log origin/HEAD...` as it loads, so a preload kills the section's start
+// in a project with no origin remote (both Max runs of the 2026-11-09 p1 round).
+test('no section preloads a skill that needs a git origin remote; security loads it only when one exists', () => {
+  const NEEDS_REMOTE = ['security-review']
+  for (const s of ROSTER) {
+    for (const skill of NEEDS_REMOTE) assert.ok(!frontSkills(agentFile(s.id)).includes(skill), `${s.id} preloads ${skill}`)
+  }
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('load security-review, or name it to a helper, only when `git merge-base HEAD origin/HEAD` succeeds, because it fails to load otherwise.'), `${id} guards security-review`)
+  assert.ok(agentFile('security').includes('When security-review cannot load (step 2), review the changed files directly.'))
+})
+
+// The 2026-11-09 p1 round: builders and the reviewer cited "validate input at boundaries" for a type check on the
+// project's own server replies that the spec never asked for, and lost a hidden test.
+test('the boundary rule is bounded by the spec in the house rules, the coder and the reviewer', () => {
+  const HOUSE = "validate outside input at boundaries (never replies from the project's own server beyond what the spec states, and never refuse input the spec accepts)"
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(HOUSE), `${id} bounded boundary rule`)
+  const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes("outside input (requests, files, env, outside services) validated at boundaries, including every check the spec states; a type check on the project's own server's replies beyond what the spec states, or a refusal of input the spec accepts, is a fix to remove"))
+  assert.ok(agentFile('testing').includes('When a job asks for it, hand back one command that starts the app, prints one PASS or FAIL line per critical flow, then stops the app and exits non-zero on any FAIL.'))
+  for (const id of [...BUILDER_IDS, 'coder', 'reviewer']) assert.ok(!/(?<!outside )input (is )?validated at boundaries|validate input at boundaries/.test(agentFile(id)), `${id} keeps an unbounded boundary rule`)
 })
 
 test('every REPORT has a Quality line between Tests and Coordination', () => {
@@ -317,9 +339,9 @@ test('advisors read the notes but get neither the reviewer nor the coder', () =>
 test('testing runs the final reviewer pass and sends fix lists to the owning sections', () => {
   assert.ok(agentFile('testing').includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
   assert.ok(agentFile('testing').includes('Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails.'))
-  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null, no type check on replies from the project's own server beyond what the spec states, no refusal where the spec says to decode or replace)."), `${id} literal spec values`)
   assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
-  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading of what your code must do and log the choice in `.team/notes/decisions.md`; never refuse input the spec accepts.'), `${id} stricter reading`)
   assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A failing fix list is the one message that may wake a builder. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))

@@ -63,7 +63,8 @@ test('brief: single-area work up to about 600 lines goes to one builder section;
   assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions).'))
   assert.ok(brief.includes('A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
-  assert.ok(brief.includes('Where a spec line can be read two ways, tell the builder to take the stricter reading and say which one it chose.'))
+  assert.ok(brief.includes('Builders carry the spec rules (the stricter reading of what the code must do, never a refusal of input the spec accepts, every value the spec names exact); a REPORT that breaks one is a failing item.'))
+  assert.ok(!brief.includes('tell the builder to take the stricter reading and say which one it chose'), 'the old unbounded stricter line is gone')
   assert.ok(brief.includes('probe every spec line'))
   assert.ok(brief.includes('Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
   assert.ok(brief.includes('a crash path it notices is a fix before its gate, never a next step.'))
@@ -75,7 +76,6 @@ test('brief: single-area work up to about 600 lines goes to one builder section;
   assert.ok(!brief.includes("Never install a suggested skill without the user's yes."))
   assert.ok(brief.includes('Tell it to give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
   assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.'))
-  assert.ok(brief.includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."))
   assert.ok(brief.includes('Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes.'))
 })
 

@@ -35,7 +35,7 @@ Balanced was ranked first in every judged group. Lean was barely ahead of solo. 
 - Access to the Claude 5 models: sections and the reviewer run on Opus 5.5, the coder helper on Sonnet 5.5, the scout helper on Haiku 5.5.
 - Node.js 22.3 or later (or 20.16 or later) for the hooks and tests, because they use `process.getBuiltinModule`. CI runs the hook tests on 20.16, 22.3 and 26, and everything on Linux, macOS and Windows on 26.
 - For headless runs (`claude -p`), set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. Otherwise `claude -p` stops background subagents 10 minutes after the last turn, which cut off the testing section's final review in a probe on Claude Code 2.1.296. The mode round ran this way, with a time limit on each run.
-- Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `security-review` (security), `claude-api` (ai-llm, ai-engineer), `web-design-guidelines` (uiux). Other skills a job names are loaded only if they are installed.
+- Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `claude-api` (ai-llm, ai-engineer), `web-design-guidelines` (uiux). Sections load `security-review` only when the branch shares history with an `origin/HEAD` ref (`git merge-base HEAD origin/HEAD` succeeds), because the skill runs `git diff origin/HEAD...` as it loads. Other skills a job names are loaded only if they are installed.
 
 ## Install
 In Claude Code 2.1.275 or later, one command installs it from this repo:
