@@ -164,7 +164,7 @@ test('every mode sends small and single-area jobs to a builder section, and noth
     }
     const brief = assembleBrief(mode)
     assert.ok(brief.includes(BUILDER_LINE), mode)
-    assert.ok(!/(?<!not )\bbuild\b[^.\n]*\byourself\b/i.test(brief), `${mode}: a sentence still tells the supervisor to build`)
+    assert.ok(!/(?<!not )\bbuild\b/i.test(brief), `${mode}: a sentence still tells the supervisor to build`)
     for (const old of ['Wake nobody', 'doing small work yourself', 'Wake no builder section']) assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
     assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
   }

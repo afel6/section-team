@@ -2,7 +2,7 @@
 - The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.
 - Near-miss copies live only in `.team/near-miss/` and stay there; swap one in only after every builder has reported, and always restore the original.
 - `section-team:reviewer` replaces `code-reviewer` for your own code.
-- Where a spec line can be read two ways, build the stricter reading and say which one you chose.
+- Where a spec line can be read two ways, tell the builder to take the stricter reading and say which one it chose.
 - Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null).
 - If it fails, fix the listed items and review again: at most 3 fix rounds. Then report the grade and what is left.
 - A pass ends the gate: do not grade again after a pass.

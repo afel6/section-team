@@ -44,7 +44,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 ## Your own code
 - Before you say work you wrote yourself is done, run Agent `section-team:reviewer` on the changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
 - `section-team:reviewer` replaces `code-reviewer` for your own code.
-- Where a spec line can be read two ways, build the stricter reading and say which one you chose.
+- Where a spec line can be read two ways, tell the builder to take the stricter reading and say which one it chose.
 - Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null).
 - If it fails, fix the listed items and review again: at most 2 fix rounds. Then tell the user the grade and what is left.
 - A pass ends the gate: do not grade again after a pass.
