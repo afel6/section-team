@@ -55,6 +55,8 @@ export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h
 // Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
+// Max gets twice the task's stage limit: its extra review rounds need the room.
+export const timeoutFor = (task, base) => TIMEOUT_MIN[task] * (base === 'max' ? 2 : 1)
 export { PLUGIN_KEY } from './clean-run.mjs'
 const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the building to the sections; do not build it yourself.\n'
 // team   = plugin on, supervisor decides whether to delegate (Balanced mode: no mode file)
@@ -566,7 +568,7 @@ async function stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, up
 // ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
-  const { spawn, kill = killTree, timeoutMs = TIMEOUT_MIN[run.task] * 60_000, home, dir, root, bench } = deps
+  const { spawn, kill = killTree, timeoutMs = timeoutFor(run.task, baseOf(run)) * 60_000, home, dir, root, bench } = deps
   required({ outDir, home, dir, root, spawn })
   archiveAttempt(outDir, projectDirFor(dir, home))
   mkdirSync(outDir, { recursive: true })

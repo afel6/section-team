@@ -12,7 +12,7 @@ import { BatchStop, EvidenceMissing, exitCodeOf, projectDirFor, recordAttempt } 
 import { FAKE_PID, endStreams, fakeClaude, git, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
   CONDITIONS, DEFAULT_CONDS, ROUND_CONDS, TASKS, TIMEOUT_MIN, builderArgs, builderEnv, checkConds, checkPin, checkRoundTag, checkVolumes, killTree,
-  freshRepo, modeFileFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, stopRunOnExit, syncBranchOf, taskProblems, userListing,
+  freshRepo, modeFileFor, timeoutFor, parseArgs, plan, prepareRun, publishAtStart, runAll, runFolder, runOne, spawnOptions, stopRunOnExit, syncBranchOf, taskProblems, userListing,
   watchUserLists, withPublish,
 } from './run.mjs'
 
@@ -731,4 +731,10 @@ test('checkPin on Linux compares the worktree path case for case', { skip: proce
   assert.doesNotThrow(() => checkPin('/root/section-team-v0.2.1/', pin))
   assert.throws(() => checkPin('/root/Section-Team-v0.2.1', pin),
     { message: '--plugin=/root/Section-Team-v0.2.1 is not the worktree the round pinned: pass --plugin=/root/section-team-v0.2.1' })
+})
+
+test('timeoutFor gives max twice the task limit and every other setup the plain limit', () => {
+  assert.equal(timeoutFor('p1', 'max'), 120)
+  assert.equal(timeoutFor('p1', 'team'), 60)
+  assert.equal(timeoutFor('p1', 'solo'), 60)
 })
