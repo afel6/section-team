@@ -7,7 +7,7 @@ import { assembleBrief } from '../hooks/lib/brief.mjs'
 const root = new URL('../', import.meta.url)
 const read = path => readFileSync(fileURLToPath(new URL(path, root)), 'utf8')
 const MODES = ['balanced', 'max']
-const FOUNDATION = '- A new platform or product with two or more builder areas: load the `section-team:foundation` skill before you wake anyone; it replaces the short plan below.'
+const FOUNDATION = '- When the work first spans two or more builder areas (a new platform, or a request that adds a second area to an existing product), load the section-team:foundation skill before you wake anyone; work inside the areas its note already covers does not load it again.'
 const SECURITY = ' Work touching auth, payments, uploads or secrets also wakes the security section.'
 const WHOLE_STACK = 'The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces'
 
@@ -27,10 +27,11 @@ test('the foundation skill has valid frontmatter and every required step heading
 
 test('the foundation skill triggers on a new multi-area platform, not on a count of builders', () => {
   const text = read('skills/foundation/SKILL.md')
-  const trigger = 'a new platform or product with two or more builder areas'
+  const trigger = 'work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product'
   assert.ok(text.match(/^description: (.+)$/m)[1].includes(trigger), 'description')
   assert.ok(text.split('# Foundation first\n\n')[1].split('\n')[0].includes(trigger), 'first paragraph')
   assert.ok(!text.includes('3 or more'))
+  assert.ok(text.includes('For an existing product, write the note from the current code and the new request.'))
 })
 
 test('the foundation skill says where .team/ is, and names the note and slice in each job, by full path in a worktree session', () => {

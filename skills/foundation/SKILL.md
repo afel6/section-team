@@ -1,15 +1,16 @@
 ---
 name: foundation
-description: Lay the foundation before building a new platform or product with two or more builder areas. For the supervisor only. Asks the user a few questions, writes a short frozen foundation note, gets the user's OK, then builds one verified slice at a time.
+description: Lay the foundation when work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product. For the supervisor only. Asks the user a few questions, writes a short frozen foundation note, gets the user's OK, then builds one verified slice at a time.
 ---
 # Foundation first
 
-For the supervisor, before waking any builder on a new platform or product with two or more builder areas. Do the steps in order. `.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.
+For the supervisor, before waking any builder when work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product. Do the steps in order. `.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.
 
 ## Ask
 Ask the user at most 5 questions whose answers change the build: users and scale, must-use stack, hosting, compliance, deadline. Choose sensible defaults for the rest and say which.
 
 ## Write the foundation note
+For an existing product, write the note from the current code and the new request.
 Write `.team/notes/foundation.md`, under 150 lines, with:
 - purpose and non-goals;
 - stack, with one reason each;
