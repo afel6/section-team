@@ -327,10 +327,8 @@ test('testing runs the final reviewer pass and sends fix lists to the owning sec
   assert.ok(testing.includes('let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade.'), 'testing final review takes the mode gate fix rounds')
 })
 
-test('testing names near-miss copies in .team/near-miss and restores the original even on a failed run', () => {
-  const testing = agentFile('testing')
-  for (const s of ['.team/near-miss/<n>-<original file name>', 'near-miss: <the one bug>', 'also when a test run fails']) assert.ok(testing.includes(s), s)
-  for (const id of BUILDER_IDS.filter(id => id !== 'testing')) assert.ok(!agentFile(id).includes('.team/near-miss'), `${id} must not get the near-miss rule`)
+test('no agent file mentions near-miss copies', () => {
+  for (const id of [...BUILDER_IDS, 'reviewer']) assert.ok(!agentFile(id).includes('near-miss'), `${id} still mentions near-miss`)
 })
 
 test('scout is a cheap read-only helper, not a section', () => {
@@ -375,6 +373,7 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   for (const item of RUBRIC_ITEMS) assert.ok(text.includes(`${item}:`), `rubric item ${item}`)
   assert.ok(text.includes("each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples"), 'reviewer grades near-miss tests')
   assert.ok(text.includes('If the request says another section writes the tests, score tests as n/a and leave it out of the overall.'), 'reviewer n/a tests')
+  assert.ok(text.includes('For docs or config, score only the items that apply and write n/a for the rest.'), 'reviewer n/a for docs and config')
   assert.ok(text.includes(PASS_RULE))
   assert.ok(text.includes('## GRADE'))
   assert.ok(text.includes('Grade only the changed lines and the functions around them.'))

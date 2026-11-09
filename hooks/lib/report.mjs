@@ -47,18 +47,22 @@ export function changesCode(changed) {
 // The reviewer's pass mark for the overall grade in the default mode; the generated PASS_RULE uses it too.
 export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
+// Whether a REPORT's Changed line names any file at all, docs included (a gate with gradeAll grades those too).
+export const changesFiles = changed => typeof changed === 'string' && changed.match(PATH_LIKE) !== null
+
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
 const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
-export const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
+// gradeAll: the mode grades every changed file, not only code.
+export const claimsDoneWithCode = (report, gradeAll = false) => !HONEST_STATUSES.includes(report.status) && (gradeAll ? changesFiles(report.changed) : changesCode(report.changed))
 
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
-export function needsGate(report) {
-  return claimsDoneWithCode(report) && report.quality === null
+export function needsGate(report, gradeAll = false) {
+  return claimsDoneWithCode(report, gradeAll) && report.quality === null
 }
 
 // A REPORT that claims done with a grade under the pass mark (the project mode's, Balanced's by default) skipped its fix rounds.
-export function failsGate(report, passOverall = PASS_OVERALL) {
-  return claimsDoneWithCode(report) && report.quality !== null && report.quality < passOverall
+export function failsGate(report, passOverall = PASS_OVERALL, gradeAll = false) {
+  return claimsDoneWithCode(report, gradeAll) && report.quality !== null && report.quality < passOverall
 }
 
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.

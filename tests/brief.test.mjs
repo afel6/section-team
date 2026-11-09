@@ -97,16 +97,22 @@ test('every mode brief is under 9000 characters', () => {
   }
 })
 
-test('max brief: pass mark 9, no item under 7, 3 fix rounds, near-miss copies', () => {
+test('max brief: pass mark 9, no item under 7, 2 fix rounds, no near-miss copies', () => {
   const brief = assembleBrief('max')
-  for (const text of ['overall at least 9', 'no item under 7', '3 fix rounds', 'near-miss']) {
+  for (const text of ['overall at least 9', 'no item under 7', '2 fix rounds']) {
     assert.ok(brief.includes(text), `max brief lacks "${text}"`)
   }
+  for (const text of ['near-miss', '3 fix rounds']) assert.ok(!brief.includes(text), `max brief still has "${text}"`)
 })
 
-test('max gate keeps near-miss copies in .team/near-miss, swapped in after builders and always restored', () => {
-  const gate = readFileSync(join(BRIEF_DIR, 'gate-max.md'), 'utf8')
-  for (const s of ['.team/near-miss/', 'after every builder has reported', 'always restore the original']) assert.ok(gate.includes(s), s)
+test('max brief holds the three proof steps', () => {
+  const brief = assembleBrief('max')
+  for (const text of [
+    'the security section for a security pass before the final review',
+    'run two final reviews, one after the other, each by a fresh testing section; never show the second the first's REPORT',
+    'Before you say done, start the app yourself and drive every critical flow named in the foundation note or the task, and report each one.',
+    'Every hand-back with a changed file needs a reviewer grade, docs too.',
+  ]) assert.ok(brief.includes(text), `max brief lacks "${text}"`)
 })
 
 test('the balanced brief does not mention .team/near-miss', () => {
@@ -136,15 +142,14 @@ test('each gate part states its mode\'s GATES values', () => {
   }
 })
 
-test('max tiers add probing, near-miss copies, security and docs always', () => {
+test('max tiers add probing, security and docs always', () => {
   const tiers = part('tiers-max')
   for (const text of [
     'have the testing section probe it',
-    'near-miss copies of the key functions (one plausible bug each)',
     'user input or touches files or the network also gets a security section review',
     'the security section for a security pass',
     '(the one cross-review you ask for)',
-    'near-miss copies and final verification',
+    'testing for tests, the security section',
     'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
   ]) {
@@ -230,7 +235,7 @@ test('max mode rules are the two mode-specific blocks and nothing else', () => {
   const rules = modeRules('max')
   assert.ok(rules.startsWith('## When to wake sections\n'))
   assert.ok(rules.includes('\n\n## Your own code\n'))
-  for (const text of ['near-miss', 'overall at least 9', 'no item under 7', '3 fix rounds']) {
+  for (const text of ['overall at least 9', 'no item under 7', '2 fix rounds', 'two final reviews']) {
     assert.ok(rules.includes(text), `max rules lack "${text}"`)
   }
   assert.ok(!rules.includes('## Sections'))

@@ -247,11 +247,11 @@ test('a section may not start a helper in the background on purpose, and an Agen
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder' })), /read-only helpers/)
 })
 
-test('in a Max project a done 8/10 handback is refused with 9/10 and 3 fix rounds; Balanced and no mode file let it through', () => {
+test('in a Max project a done 8/10 handback is refused with 9/10 and 2 fix rounds; Balanced and no mode file let it through', () => {
   const max = projectWith('{"mode":"max"}')
   const reason = decide(handbackIn(max, DONE_AT('8/10 (reviewer, 1 fix round)')), {})
   assert.match(reason, /under the pass mark \(9\/10\)/)
-  assert.ok(reason.includes('at most 3 fix rounds'), reason)
+  assert.ok(reason.includes('at most 2 fix rounds'), reason)
   assert.equal(decide(handbackIn(max, DONE_AT('9/10 (reviewer, 1 fix round)')), {}), null)
   assert.equal(decide(handbackIn(projectWith('{"mode":"balanced"}'), DONE_AT('8/10 (reviewer, 1 fix round)')), {}), null)
   assert.equal(decide(handbackIn(projectWith(null), DONE_AT('8/10 (reviewer, 1 fix round)')), {}), null)
@@ -282,7 +282,7 @@ test('the ungraded reason follows the mode', () => {
   assert.ok(max.includes('Pass: overall at least 9 and no item under 7.'), max)
   assert.ok(max.includes('do not pass `model`'), max)
   assert.doesNotMatch(max, /sonnet/)
-  assert.ok(max.includes('at most 3 fix rounds'), max)
+  assert.ok(max.includes('at most 2 fix rounds'), max)
 })
 
 test('every gate reason offers Status: ungraded; the failing reason keeps its partial ending', () => {
@@ -578,4 +578,27 @@ test('the spawned hook denies resuming a finished oversized head and stays silen
     assert.equal(allowed.status, 0)
     assert.equal(allowed.stdout, '')
   }
+})
+
+const DOCS_ONLY = (status, quality) => REPORT_WITH(status, 'README.md', quality)
+
+test('in Max a done docs-only handback without a grade is refused with the ungraded text; Balanced lets it through', () => {
+  const max = projectWith('{"mode":"max"}')
+  const refused = decide(handbackIn(max, DOCS_ONLY('done', 'n/a (no code)')), {})
+  assert.equal(refused, gateReasons(GATES.max).ungraded)
+  assert.equal(decide(handbackIn(projectWith('{"mode":"balanced"}'), DOCS_ONLY('done', 'n/a (no code)')), {}), null)
+  assert.equal(decide(handbackIn(projectWith(null), DOCS_ONLY('done', null)), {}), null)
+})
+
+test('in Max a graded docs handback passes at the pass mark and fails under it', () => {
+  const max = projectWith('{"mode":"max"}')
+  assert.equal(decide(handbackIn(max, DOCS_ONLY('done', '9/10 (reviewer, 0 fix rounds)')), {}), null)
+  assert.match(decide(handbackIn(max, DOCS_ONLY('done', '8/10 (reviewer, 1 fix round)')), {}), /under the pass mark (9/10)/)
+})
+
+test('in Max partial, blocked and ungraded docs handbacks stay open, and a REPORT that changed no file needs no grade', () => {
+  const max = projectWith('{"mode":"max"}')
+  for (const status of ['partial', 'blocked', 'ungraded']) assert.equal(decide(handbackIn(max, DOCS_ONLY(status, null)), {}), null, status)
+  assert.equal(decide(handbackIn(max, REPORT_WITH('done', 'none', 'n/a (no code)')), {}), null)
+  assert.equal(decide(handbackIn(max, REPORT_WITH('done', 'updated the docs', null)), {}), null)
 })

@@ -63,9 +63,10 @@ function handbackGate(id, e, env, home) {
   if (!block) return null
   const report = parseReport(block)
   const gate = projectGate(e, env, home)
-  if (needsGate(report)) return gateReasons(gate).ungraded
-  if (failsGate(report, gate.passOverall)) return gateReasons(gate).failing
-  return claimsDoneWithCode(report) ? gradeRule(e, report.quality, gate) : null
+  const gradeAll = gate.gradeAll === true
+  if (needsGate(report, gradeAll)) return gateReasons(gate).ungraded
+  if (failsGate(report, gate.passOverall, gradeAll)) return gateReasons(gate).failing
+  return claimsDoneWithCode(report, gradeAll) ? gradeRule(e, report.quality, gate) : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'

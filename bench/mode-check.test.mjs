@@ -129,16 +129,18 @@ test('max h5 run without a security wake-up is unfaithful', t => {
   assert.deepEqual(result.broken, ['security not woken'])
 })
 
-test('max gate failing after 3 fix rounds is faithful; after 2 with no later call it ended early', t => {
+test('max gate with 2 fix rounds is faithful, with 3 it is not, and after 1 with no later call it ended early', t => {
   const dir = maxDir(t)
-  const three = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 8]])]
-  assert.deepEqual(gates(three, 'max').map(({ caller, fixRounds, endsEarly, regradeAfterPass }) => ({ caller, fixRounds, endsEarly, regradeAfterPass })),
-    [{ caller: 'main', fixRounds: 3, endsEarly: false, regradeAfterPass: false }])
-  assert.equal(gates(three, 'max')[0].reviews.length, 4)
-  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: three, runDir: dir, record: 'max' }).broken, [])
-  const two = three.slice(0, -1)
-  assert.equal(gates(two, 'max')[0].endsEarly, true)
-  const result = checkRun({ cond: 'max-mo', task: 'h5', roles: two, runDir: dir, record: 'max' })
+  const twoRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5]])]
+  assert.deepEqual(gates(twoRounds, 'max').map(({ caller, fixRounds, endsEarly, regradeAfterPass }) => ({ caller, fixRounds, endsEarly, regradeAfterPass })),
+    [{ caller: 'main', fixRounds: 2, endsEarly: false, regradeAfterPass: false }])
+  assert.equal(gates(twoRounds, 'max')[0].reviews.length, 3)
+  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: twoRounds, runDir: dir, record: 'max' }).broken, [])
+  const threeRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 8]])]
+  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: threeRounds, runDir: dir, record: 'max' }).broken, ['gate of main had 3 fix rounds (at most 2)'])
+  const one = twoRounds.slice(0, -1)
+  assert.equal(gates(one, 'max')[0].endsEarly, true)
+  const result = checkRun({ cond: 'max-mo', task: 'h5', roles: one, runDir: dir, record: 'max' })
   assert.deepEqual(result.broken, ['gate of main ended early'])
   const later = [main_(wake(1, 'testing'), wake(2, 'security'), wake(8, 'backend')), ...reviews(null, [[5, 7], [10, 9.5]])]
   assert.deepEqual(gates(later, 'max').map(g => [g.fixRounds, g.endsEarly]), [[0, false], [0, false]])

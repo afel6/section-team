@@ -13,7 +13,7 @@ export const DEFAULT_MODE = 'balanced'
 // The review gate settings for each mode, keyed in MODES order.
 export const GATES = Object.freeze({
   balanced: Object.freeze({ passOverall: 8, minItem: 6, fixRounds: 2, reviewerModel: null, nearMiss: false }),
-  max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 3, reviewerModel: null, nearMiss: true }),
+  max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 2, reviewerModel: null, nearMiss: false, gradeAll: true }),
 })
 
 // The picker label for each mode: usage against plain Claude Code in the 2026-11 mode round, single-area tasks to all tasks.

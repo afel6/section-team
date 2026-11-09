@@ -36,7 +36,7 @@ test('modes, the default and the picker labels are exact', () => {
 test('gate values per mode are exact', () => {
   assert.equal(GATES.lean, undefined)
   assert.deepEqual(GATES.balanced, { passOverall: 8, minItem: 6, fixRounds: 2, reviewerModel: null, nearMiss: false })
-  assert.deepEqual(GATES.max, { passOverall: 9, minItem: 7, fixRounds: 3, reviewerModel: null, nearMiss: true })
+  assert.deepEqual(GATES.max, { passOverall: 9, minItem: 7, fixRounds: 2, reviewerModel: null, nearMiss: false, gradeAll: true })
   assert.deepEqual(Object.keys(GATES), [...MODES])
   assert.deepEqual(Object.keys(MODE_LABELS), [...MODES])
 })
