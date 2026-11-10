@@ -169,6 +169,33 @@
 - The leak scan found one tell, a `.team/notes` comment in one Max copy; left unedited, as in the mode round.
 - After the round, f7787b0 fixed the security start (`security-review` is no longer preloaded and loads only when `git merge-base HEAD origin/HEAD` succeeds) and the unstated checks (house rules, reviewer rubric, gate and supervisor lines), and Max's supervisor now runs the testing section's one flow command. Unmeasured: another round costs about $112.
 
+**Confirm round evidence (2026-11-10, plugin 29af0bb, round tag `tc`, the user's yes at about $104 to $112; same CLI, judge and orders):**
+
+| | Run 1 | Run 2 | Mean | Target | Result |
+|---|---|---|---|---|---|
+| Solo cost | $3.38 | $3.68 | $3.53 | | |
+| Solo hidden (of 264) | 264 | 264 | 264 | | |
+| Solo judged | 7, 7 | 7, 7 | 7.0 | | |
+| Balanced cost | $17.53 | $17.37 | 4.9× solo | ≤ 5× | met |
+| Balanced hidden | 264 | 261 | 262.5 | ≥ solo (264) | missed |
+| Balanced judged | 8, 8 | 8, 8 | 8.0 | ≥ solo + 1.5 (8.5) | missed |
+| Balanced longest stage | 34.4 min | 29.5 min | | ≤ 60 | met |
+| Balanced supervisor peak | 95K | 98K | | < 150K | met |
+| Max cost | $37.72 | $37.01 | 10.6× solo | reported | |
+| Max hidden | 261 | 261 | 261 | ≥ Balanced (262.5) | missed |
+| Max judged | 8, 9 | 9, 9 | 8.75 | ≥ Balanced + 0.25 (8.25) | met |
+| Max longest stage | 53.5 min | 44.5 min | | ≤ 120 | met |
+| Max supervisor peak | 137K | 139K | | < 150K | met |
+| `plan-advisor` at stage 2 | yes, yes (Balanced); yes, yes (Max) | | | every team run | met |
+| No high security finding in Max | security section ran in all 6 Max stages; no security hole judged | | | none | met |
+| User data | section notes still 137 files after every run | | | none read, moved or lost | met |
+
+- Ranked first: Max in all four cases, solo last in all four; the pair winner was the same in both orders.
+- Hidden failures: only "a body that is not a JSON object is 400" (stage 1 and both regressions) in Balanced run 2 and both Max runs, for the body `﻿{}`: `new TextDecoder('utf-8')` drops the byte order mark. The sections chose it on purpose, citing "never refuse input the spec accepts".
+- Judged defects: the configured URL's user:password dropped (from 1ddee6e's raw-path clause); a model deadline enforced by a timer only; a model call restarted on every concurrent edit and ended in 503 (Balanced run 1, from the outside-wait house rule) or answered from stale data (Max run 1); Node's own 417 and silent CONNECT left in place, with the testing probe marked todo (Balanced run 1); the login button re-enabled after the body; one startup check out of the spec's order; one test needing git history; one README claim the code does not keep.
+- The long hand-back refusal fired in every team run and sections handed back again short; stages 2 and 3 skipped the unchanged brief on resume.
+- After the round, root-cause workflow wf_d4b22838-5e3 and the fixes 27db531, 44f5d45 and 68ffecb (reviewed by Codex, Fable and a Node probe fact-check, then a Codex scoped re-review) changed the house rules, STRICTER, SPEC_LITERAL, the reviewer rubric, the backend, frontend and testing text and two brief lines. Unmeasured: another round costs about $110.
+
 ### Task 7: Report
 
 - [ ] **Step 1: Update PR 16's description.** Show the user the text first.

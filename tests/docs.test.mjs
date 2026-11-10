@@ -68,7 +68,7 @@ test('the README describes the foundation skill, fresh sections and the guard, a
   assert.deepEqual(claimSentences(claims), [], 'no saving or quality claim before the runs')
 })
 
-test('the README describes the saved request, the short hand-back, the resume brief and the Max flow command, as not measured', () => {
+test('the README describes the saved request, the short hand-back, the resume brief and the Max flow command, with the measured peak', () => {
   const readme = read('README.md')
   assertIncludes(readme, [
     "Before it says done, the supervisor runs the testing section's one command that prints a PASS or FAIL line per critical flow.",
@@ -77,9 +77,23 @@ test('the README describes the saved request, the short hand-back, the resume br
     'in a `-details.md` file there and keep at most 5 short lines above their REPORT',
     'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
     'A resumed session gets the brief again only when it changed since the session started.',
-    'Their effect on usage is not measured yet.',
+    "In the p1 confirm round the supervisor's chat peaked at 95K to 98K in Balanced and 137K to 139K in Max, down from 115K to 117K and 171K to 176K the round before.",
   ], 'README')
   assert.ok(!readme.includes('the supervisor starts the app itself and drives every critical flow'), 'the old Max flow sentence is gone')
+})
+
+test('the README records the p1 confirm round with its numbers and what is not measured', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    '**A p1 confirm round (0.3.0, 2026-11-10).**',
+    '| Plain Claude Code (solo) | $3.53 | 1.0 | 264 | 7.0 | 0 of 4 | 27 min | 149K to 152K |',
+    '| **Balanced (default)** | $17.45 | 4.9 | 262.5 | 8.0 | 0 of 4 | 34 min | 95K to 98K |',
+    '| Max | $37.37 | 10.6 | 261 | 8.75 | 4 of 4 | 54 min | 137K to 139K |',
+    'Missed: Balanced judged 1.0 above solo again, not 1.5',
+    "`new TextDecoder('utf-8')`, which drops a leading byte order mark",
+    "Commits 27db531 and 44f5d45 fix these in the sections' rules; not measured yet.",
+  ], 'README')
+  assert.ok(!readme.includes('Their effect on usage is not measured yet.'), 'the unmeasured-usage sentence is gone')
 })
 
 test('the README says the guard refuses only finished heads, and what each caller is told', () => {
