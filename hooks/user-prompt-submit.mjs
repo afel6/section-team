@@ -1,10 +1,10 @@
-import { existsSync, statSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
-import { modeRules } from './lib/brief.mjs'
+import { briefHash, modeRules } from './lib/brief.mjs'
 import { activeMode, modeName, readMode } from './lib/mode.mjs'
-import { assertSessionId, readRecord, recordMode } from './lib/mode-record.mjs'
-import { excludeFile, isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+import { assertSessionId, readRecord, recordBriefHash, recordMode } from './lib/mode-record.mjs'
+import { isIgnored, isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
@@ -50,27 +50,28 @@ function modeCheck(root, sessionId, home) {
   const read = attempt('mode record read', () => activeMode(readRecord(home, sessionId)))
   const decision = decide(read.value, readMode(root, keptModeEnding(read.value)))
   const saved = decision.keep === null ? { warning: null } : attempt('mode record', () => recordMode(home, sessionId, decision.keep))
-  const warnings = [read.warning, decision.warning, saved.warning].filter(warning => warning !== null)
-  return { notice: saved.warning === null ? decision.notice : null, warnings }
+  const notice = saved.warning === null ? decision.notice : null
+  // The start brief plus the notice is the new mode's brief, so a resume in that mode can leave it out and one in another mode cannot.
+  const briefSaved = notice === null ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, briefHash(decision.keep)))
+  const warnings = [read.warning, decision.warning, saved.warning, briefSaved.warning].filter(warning => warning !== null)
+  return { notice, warnings }
 }
 
 // Saves a long prompt word for word as .team/reports/<date>/<time>-user-request.md and returns that path relative to root,
-// with forward slashes; null when the prompt is short or not a string, outside git, without a .team/ folder, or when
-// .team/keep-in-git puts .team/ in git. Throws when the file cannot be written.
-export function saveRequest(root, prompt, inGit, now = new Date()) {
-  if (!isLong(prompt) || !inGit) return null
-  const team = join(root, '.team')
-  if (statSync(team, { throwIfNoEntry: false })?.isDirectory() !== true) return null
-  if (existsSync(join(team, 'keep-in-git'))) return null
+// with forward slashes; null when the prompt is short or not a string, when git does not ignore .team/reports (outside git,
+// with .team/keep-in-git, or before session-start excluded .team/), or without a .team/ folder. Throws when the file cannot be written.
+export function saveRequest(root, prompt, ignored, now = new Date()) {
+  if (!isLong(prompt) || !ignored) return null
+  if (statSync(join(root, '.team'), { throwIfNoEntry: false })?.isDirectory() !== true) return null
   return relative(root, writeReport(root, 'user-request', prompt, now)).split(sep).join('/')
 }
 
 // The mode check and the saved request: the notice and the pointer join with a blank line, and a failed save is one more warning.
-// git is asked whether the folder is in a repo only for a long prompt, so a short one costs no extra process.
+// git is asked whether it ignores the file only for a long prompt, so a short one costs no extra process.
 export function promptCheck({ cwd, session_id: sessionId, prompt }, home = homedir()) {
   const root = projectRoot(cwd)
   const mode = modeCheck(root, sessionId, home)
-  const request = attempt('request save', () => saveRequest(root, prompt, isLong(prompt) && excludeFile(cwd) !== null))
+  const request = attempt('request save', () => saveRequest(root, prompt, isLong(prompt) && isIgnored(root, '.team/reports/user-request.md')))
   const parts = [mode.notice, request.value === null ? null : pointerText(request.value)].filter(part => part !== null)
   const warnings = request.warning === null ? mode.warnings : [...mode.warnings, request.warning]
   return { notice: parts.length === 0 ? null : parts.join('\n\n'), warnings }

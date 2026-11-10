@@ -72,10 +72,10 @@ test('the README describes the saved request, the short hand-back, the resume br
   const readme = read('README.md')
   assertIncludes(readme, [
     "Before it says done, the supervisor runs the testing section's one command that prints a PASS or FAIL line per critical flow.",
-    'a pasted message of 3000 characters or more is saved word for word to `.team/reports/<date>/<time>-user-request.md` inside a git repo that already has `.team/` (not when `.team/keep-in-git` exists)',
+    'a pasted message of 3000 characters or more is saved word for word to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
     'so the supervisor points sections to it instead of re-typing it',
     'in a `-details.md` file there and keep at most 5 short lines above their REPORT',
-    'a builder hand-back with more than 1200 characters above its REPORT is refused',
+    'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
     'A resumed session gets the brief again only when it changed since the session started.',
     'Their effect on usage is not measured yet.',
   ], 'README')

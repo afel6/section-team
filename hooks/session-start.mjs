@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
-import { assembleBrief } from './lib/brief.mjs'
+import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
@@ -30,7 +29,6 @@ const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run it
 
 // The 2026-11-09 p1 round: each --resume re-sent the whole brief, which the resumed history already holds.
 const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still applies.'
-const briefHash = mode => createHash('sha256').update(assembleBrief(mode)).digest('hex')
 
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 

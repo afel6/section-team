@@ -6,8 +6,8 @@ import { dirname, join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
-import { recordMode } from '../hooks/lib/mode-record.mjs'
-import { modeRules } from '../hooks/lib/brief.mjs'
+import { readBriefHash, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
+import { briefHash, modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/user-prompt-submit.mjs', import.meta.url))
@@ -299,7 +299,13 @@ const gitInit = dir => {
   execFileSync('git', ['-C', dir, 'init', '-q'])
   return dir
 }
-const gitProject = text => gitInit(project(text))
+// session-start adds .team/ to .git/info/exclude; a saved request needs git to ignore it
+const excludeTeam = (dir, line = '.team/') => {
+  writeFileSync(join(dir, '.git', 'info', 'exclude'), `${line}
+`)
+  return dir
+}
+const gitProject = text => excludeTeam(gitInit(project(text)))
 const withPrompt = (dir, prompt, id = 's1') => ({ ...event(dir, id), prompt })
 const reportsOf = dir => join(dir, '.team', 'reports')
 
@@ -326,7 +332,7 @@ test('a long prompt is not saved without .team/, with .team/keep-in-git, or outs
   const noTeam = gitInit(tempDir('ct-ups-'))
   assert.deepEqual(promptCheck(withPrompt(noTeam, LONG), tempHome()), { notice: null, warnings: [] })
   assert.equal(existsSync(join(noTeam, '.team')), false)
-  const kept = gitProject()
+  const kept = excludeTeam(gitInit(project()), '.team/near-miss/')
   writeFileSync(join(kept, '.team', 'keep-in-git'), '')
   assert.deepEqual(promptCheck(withPrompt(kept, LONG), tempHome()), { notice: null, warnings: [] })
   assert.equal(existsSync(reportsOf(kept)), false)
@@ -334,6 +340,21 @@ test('a long prompt is not saved without .team/, with .team/keep-in-git, or outs
   assert.deepEqual(promptCheck(withPrompt(plain, LONG), tempHome()), { notice: null, warnings: [] })
   assert.equal(existsSync(reportsOf(plain)), false)
   assert.equal(saveRequest(gitProject(), LONG, false), null)
+})
+
+test('a long prompt is not saved in a git repo that does not ignore .team/', () => {
+  const open = gitInit(project())
+  assert.deepEqual(promptCheck(withPrompt(open, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(open)), false)
+})
+
+test("a mode notice records the new mode's brief hash, so a later resume in that mode leaves the brief out", () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'max')
+  recordBriefHash(h, 's1', briefHash('max'))
+  const r = promptCheck(event(project('{"mode":"balanced"}'), 's1'), h)
+  assert.ok(r.notice.startsWith('Mode is now Balanced (was Max)'), r.notice)
+  assert.equal(readBriefHash(h, 's1'), briefHash('balanced'))
 })
 
 test('after a mode change the notice comes first, then a blank line and the pointer', () => {

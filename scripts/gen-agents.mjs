@@ -191,7 +191,7 @@ function finalStep(s, isAdvisor) {
 
 const FINISH = 'Finish with exactly this block, filled in, and nothing after it:'
 // Builders only. The 2026-11-09 p1 round: hand-backs with long narratives above the REPORT filled the supervisor's context.
-// The handback hook refuses a builder hand-back with more than 1200 characters above its REPORT (HANDBACK_HEAD_MAX).
+// The handback hook refuses a builder hand-back that claims done with more than 1200 characters above its REPORT (HANDBACK_HEAD_MAX).
 const SHORT_HANDBACK = id => `Above the block write at most 5 short lines. Put longer output (probe logs, spec readings, flow output) in \`.team/reports/<YYYY-MM-DD>/<HHMMSS>-${id}-details.md\` and name it on the Next line; it is not a changed file, so keep it off the Changed line. Keep the verdict, a command the job asked for and one short line per optional finding in the block.`
 
 const numbered = steps => steps.map((text, i) => `${i + 1}. ${text}`)

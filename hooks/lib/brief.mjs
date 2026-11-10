@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,6 +33,9 @@ function slotAt(lines, marker) {
 }
 
 // The supervisor brief for a mode: core.md with each marker line replaced by that mode's part.
+// The sha256 hex of a mode's brief: a resume leaves out a brief whose hash the session already holds.
+export const briefHash = mode => createHash('sha256').update(assembleBrief(mode)).digest('hex')
+
 export function assembleBrief(mode, briefDir = BRIEF_DIR) {
   assertMode(mode)
   const filled = SLOTS.reduce(

@@ -49,8 +49,9 @@ const PATH_LIKE = /[\w./\\-]+\.[A-Za-z0-9]+/g
 const DOC_FILE = /\.(md|mdx|txt|rst|adoc)$/i
 
 // A path under .team/ (a note, a report, a -details.md file) is the team's own record, never a change to grade:
-// a separator or the line start, any folders ending in a slash, then .team/ and the rest of that path.
-const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[^\s,;()`'"]*[/\\])?\.team[/\\][^\s,;()`'"]*/g
+// a separator or the line start, any folders ending in a slash, then .team/ and the rest of that path, in path characters only,
+// so a code path joined to it by | < + & stays on the line.
+const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[\w.@~:/\\-]*[/\\])?\.team[/\\][\w.@~/\\-]*/g
 const withoutTeamPaths = changed => changed.replace(TEAM_PATH, ' ')
 
 // Whether a REPORT's Changed line names any file that is not a doc. Free text without file names counts as no code.
@@ -67,14 +68,12 @@ export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 const NO_CHANGE = /^[\s`'"*_(]*(?:(?:none|nothing|n\/a|no|unchanged)\b|[-—–]|$)/i
 // A no-change opener that still names a file counts too: a dotted name, a dotfile, a path with a directory or a well-known extensionless name.
 const EXTRA_FILE = /(?:^|[\s,;(`'"])(?:\.[\w-][\w.-]*|(?![nN]\/[aA](?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
-// What is left of a line that named only .team/ paths: separators and blank space.
-const ONLY_SEPARATORS = /^[\s,;()`'"]*$/
-// The .team/ paths are taken out first; the rest is read as before, so free text beside one still counts as a change.
+// A line that names a .team/ path is a file list, so only its other file names count, not the tags or words beside them.
 export function changesFiles(changed) {
   if (typeof changed !== 'string') return false
   const rest = withoutTeamPaths(changed)
-  if (rest !== changed && ONLY_SEPARATORS.test(rest)) return false
-  return !NO_CHANGE.test(rest) || rest.match(PATH_LIKE) !== null || EXTRA_FILE.test(rest)
+  const namesFile = rest.match(PATH_LIKE) !== null || EXTRA_FILE.test(rest)
+  return namesFile || (rest === changed && !NO_CHANGE.test(changed))
 }
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.

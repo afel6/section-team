@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { buildContext, composeContext, startContext } from '../hooks/session-start.mjs'
+import { promptCheck } from '../hooks/user-prompt-submit.mjs'
 import { assembleBrief } from '../hooks/lib/brief.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { MODES, RETIRED_LINE, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
@@ -568,6 +569,20 @@ test('without a usable session id or a source the full brief goes in and no brie
   const out = hookOut(run(startInput(repo(), { source: 'resume', session_id: undefined }), h))
   assert.ok(out.hookSpecificOutput.additionalContext.startsWith(MARKER))
   assert.match(out.systemMessage, /^section-team session-start: mode record failed: [^\n;]*session id[^\n;]*$/)
+})
+
+test("a mode switch mid-session, then a resume in the first mode, gives that mode's full brief again", () => {
+  const h = tempHome()
+  const dir = repo()
+  withModeFile(dir, '{"mode":"max"}')
+  start(dir, h, 'startup')
+  withModeFile(dir, '{"mode":"balanced"}')
+  assert.ok(promptCheck({ cwd: dir, session_id: 'sess-r' }, h).notice.startsWith('Mode is now Balanced (was Max)'))
+  assert.ok(start(dir, h, 'resume').context.startsWith(BRIEF_KEPT), 'the start brief plus the notice is the Balanced brief')
+  withModeFile(dir, '{"mode":"max"}')
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}
+
+`), 'back in Max')
 })
 
 test('hooks.json still runs the session-start hook on resume', () => {

@@ -135,9 +135,14 @@ test('a path under .team/ is the team\'s own record, never a changed file', () =
     assert.equal(changesFiles(changed), true, changed)
   }
   assert.equal(changesCode('src/my.team/a.mjs'), true)
-  // free text beside a .team/ path still names a change for a gate that grades every file (Max)
-  for (const changed of [`login handler and its tests, ${details}`, `${details}; the README intro`]) assert.equal(changesFiles(changed), true, changed)
-  for (const changed of [`none (${details})`, `nothing, ${details}`, ` , ${details} ,`]) assert.equal(changesFiles(changed), false, changed)
+  // a line that names .team/ paths counts only the other files it names: tags, connectors and notes beside them are no change
+  for (const changed of ['.team/notes/auth.md (new), .team/notes/INDEX.md', '.team/notes/a.md and .team/notes/b.md', '`.team/notes/api.md` (new), `.team/notes/INDEX.md` (one line)', `${details} — logged the spec reading`, `none (${details})`, ` , ${details} ,`]) assert.equal(changesFiles(changed), false, changed)
+  for (const changed of [`README.md (new), ${details}`, `${details}; Dockerfile`]) assert.equal(changesFiles(changed), true, changed)
+  // a code path joined to a .team/ path by a character no path holds still counts
+  for (const changed of [`${details}|src/server.mjs`, '.team/notes/d.md<br>src/server.mjs', 'docs/.team/x.md+src/server.mjs', 'src/server.mjs|lib/.team/x.md']) {
+    assert.equal(changesCode(changed), true, changed)
+    assert.equal(changesFiles(changed), true, changed)
+  }
 })
 
 test('reportHead: the trimmed text above the last REPORT heading, CRLF as LF; null without a heading', () => {

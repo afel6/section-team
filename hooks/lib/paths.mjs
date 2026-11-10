@@ -11,6 +11,16 @@ function git(cwd, args) {
   }
 }
 
+// Whether git ignores a path relative to cwd (check-ignore exits 0); false outside git or on any git error.
+export function isIgnored(cwd, path) {
+  try {
+    execFileSync('git', ['-C', cwd, 'check-ignore', '-q', path], { stdio: 'ignore', timeout: 5000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function projectRoot(cwd) {
   const common = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
   return common && /[\\/]\.git$/.test(common) ? resolve(dirname(common)) : resolve(cwd)
