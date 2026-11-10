@@ -342,10 +342,14 @@ test('a long prompt is not saved without .team/, with .team/keep-in-git, or outs
   assert.equal(saveRequest(gitProject(), LONG, false), null)
 })
 
-test('a long prompt is not saved in a git repo that does not ignore .team/', () => {
+test('a long prompt is not saved in a git repo that does not ignore .team/ itself', () => {
   const open = gitInit(project())
   assert.deepEqual(promptCheck(withPrompt(open, LONG), tempHome()), { notice: null, warnings: [] })
   assert.equal(existsSync(reportsOf(open)), false)
+  // a rule that ignores only some report files does not cover the dated file the request would go to
+  const partly = excludeTeam(gitInit(project()), '.team/reports/*.md')
+  assert.deepEqual(promptCheck(withPrompt(partly, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(partly)), false)
 })
 
 test("a mode notice records the new mode's brief hash, so a later resume in that mode leaves the brief out", () => {

@@ -58,7 +58,7 @@ function modeCheck(root, sessionId, home) {
 }
 
 // Saves a long prompt word for word as .team/reports/<date>/<time>-user-request.md and returns that path relative to root,
-// with forward slashes; null when the prompt is short or not a string, when git does not ignore .team/reports (outside git,
+// with forward slashes; null when the prompt is short or not a string, when git does not ignore the .team/ folder itself (outside git,
 // with .team/keep-in-git, or before session-start excluded .team/), or without a .team/ folder. Throws when the file cannot be written.
 export function saveRequest(root, prompt, ignored, now = new Date()) {
   if (!isLong(prompt) || !ignored) return null
@@ -67,11 +67,11 @@ export function saveRequest(root, prompt, ignored, now = new Date()) {
 }
 
 // The mode check and the saved request: the notice and the pointer join with a blank line, and a failed save is one more warning.
-// git is asked whether it ignores the file only for a long prompt, so a short one costs no extra process.
+// git is asked whether it ignores .team/ (so everything under it) only for a long prompt, so a short one costs no extra process.
 export function promptCheck({ cwd, session_id: sessionId, prompt }, home = homedir()) {
   const root = projectRoot(cwd)
   const mode = modeCheck(root, sessionId, home)
-  const request = attempt('request save', () => saveRequest(root, prompt, isLong(prompt) && isIgnored(root, '.team/reports/user-request.md')))
+  const request = attempt('request save', () => saveRequest(root, prompt, isLong(prompt) && isIgnored(root, '.team/')))
   const parts = [mode.notice, request.value === null ? null : pointerText(request.value)].filter(part => part !== null)
   const warnings = request.warning === null ? mode.warnings : [...mode.warnings, request.warning]
   return { notice: parts.length === 0 ? null : parts.join('\n\n'), warnings }

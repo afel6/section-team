@@ -50,8 +50,8 @@ const DOC_FILE = /\.(md|mdx|txt|rst|adoc)$/i
 
 // A path under .team/ (a note, a report, a -details.md file) is the team's own record, never a change to grade:
 // a separator or the line start, any folders ending in a slash, then .team/ and the rest of that path, in path characters only,
-// so a code path joined to it by | < + & stays on the line.
-const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[\w.@~:/\\-]*[/\\])?\.team[/\\][\w.@~/\\-]*/g
+// so a code path joined to it by | < + & stays on the line; letters and digits of any script count as path characters.
+const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[\p{L}\p{N}_.@~:/\\-]*[/\\])?\.team[/\\][\p{L}\p{N}_.@~/\\-]*/gu
 const withoutTeamPaths = changed => changed.replace(TEAM_PATH, ' ')
 
 // Whether a REPORT's Changed line names any file that is not a doc. Free text without file names counts as no code.
