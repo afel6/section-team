@@ -77,7 +77,7 @@ test('brief: single-area work up to about 600 lines goes to one builder section;
   assert.ok(!brief.includes('so do not ask'))
   assert.ok(!brief.includes("Never install a suggested skill without the user's yes."))
   assert.ok(brief.includes('Tell it to give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
-  assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, also in earlier code this task\'s spec says keeps working; a crash; a failing grade); list optional findings in your summary as next steps for the user.'))
+  assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, also in older code the spec still covers; a crash; a failing grade); list optional findings in your summary as next steps for the user.'))
   assert.ok(brief.includes('Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes.'))
 })
 

@@ -326,7 +326,7 @@ test('no lean brief part is left', () => {
 test('both mode briefs carry the round fix 3 wording', () => {
   for (const mode of ['balanced', 'max']) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.includes('also in earlier code this task'), mode)
+    assert.ok(brief.includes('also in older code the spec still covers'), mode)
     assert.ok(brief.includes('input refused or accepted only as the spec says'), mode)
     assert.ok(!brief.includes('never a refusal of input the spec accepts'), mode)
   }
