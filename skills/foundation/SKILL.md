@@ -16,6 +16,7 @@ Write `.team/notes/foundation.md`, under 150 lines, with:
 - stack, with one reason each;
 - data model;
 - API and interface contracts;
+- for each request that waits on an outside call, what it reads again before it writes;
 - auth and security needs;
 - build order as vertical slices, each with a check that proves it done;
 - test plan, including the critical end-to-end flows;

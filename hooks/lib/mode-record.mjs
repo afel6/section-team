@@ -11,9 +11,12 @@ export function modeRecordDir(home) {
   return `${home}/.claude/section-team/modes`
 }
 
+// Whether the session id can be a file name.
+export const isSessionId = sessionId => typeof sessionId === 'string' && SESSION_ID_PATTERN.test(sessionId)
+
 // Throws one line unless the session id can be a file name.
 export function assertSessionId(sessionId) {
-  if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) throw new Error('no usable session id (letters, digits, - and _ only)')
+  if (!isSessionId(sessionId)) throw new Error('no usable session id (letters, digits, - and _ only)')
 }
 
 // The file that keeps one session's mode. Throws one line on a bad session id, since the id becomes the file name.
@@ -30,14 +33,28 @@ export function recordMode(home, sessionId, mode) {
   writeFileSync(file, JSON.stringify({ mode }))
 }
 
+// The JSON in a record's text, or null when it is not JSON (each reader reports that as an invalid record).
+function jsonOrNull(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+// A record file's text, or null when it does not exist; another read error keeps its code.
+function recordText(file) {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null
+    throw err
+  }
+}
+
 // The mode in a record's text. Throws one line when the text is not a record recordMode could have written.
 function parseRecord(text) {
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch {
-    data = null // not JSON: reported just below as an invalid record
-  }
+  const data = jsonOrNull(text)
   if (data?.mode === RETIRED_MODE) return RETIRED_MODE // a record written before 0.3.0: callers run it with activeMode
   if (!MODES.includes(data?.mode)) throw new Error('mode record is not valid')
   return data.mode
@@ -46,13 +63,32 @@ function parseRecord(text) {
 // The mode the session last ran in (a record from before 0.3.0 may say lean: see activeMode), or null when it has no record yet (a session from before 0.2.0, or a record never written).
 // Throws one line on a bad session id or an invalid record; another read error keeps its code.
 export function readRecord(home, sessionId) {
-  const file = modeRecordFile(home, sessionId)
-  let text
-  try {
-    text = readFileSync(file, 'utf8')
-  } catch (err) {
-    if (err?.code === 'ENOENT') return null
-    throw err
-  }
-  return parseRecord(text)
+  const text = recordText(modeRecordFile(home, sessionId))
+  return text === null ? null : parseRecord(text)
+}
+
+// The sha256 hex of the brief a session was given, so a resume can leave out a brief that has not changed.
+const BRIEF_HASH_PATTERN = /^[0-9a-f]{64}$/
+
+// The file that keeps one session's brief hash, next to its mode record (pruneStatus prunes both). Throws one line on a bad session id.
+function briefRecordFile(home, sessionId) {
+  assertSessionId(sessionId)
+  return `${modeRecordDir(home)}/${sessionId}.brief.json`
+}
+
+// Saves the hash of the brief a session was given as {"brief":"<hex>"}. Throws one line on a bad session id.
+export function recordBriefHash(home, sessionId, hash) {
+  const file = briefRecordFile(home, sessionId)
+  mkdirSync(modeRecordDir(home), { recursive: true })
+  writeFileSync(file, JSON.stringify({ brief: hash }))
+}
+
+// The brief hash recordBriefHash saved, or null when the session has none.
+// Throws one line on a bad session id or an invalid record; another read error keeps its code.
+export function readBriefHash(home, sessionId) {
+  const text = recordText(briefRecordFile(home, sessionId))
+  if (text === null) return null
+  const brief = jsonOrNull(text)?.brief
+  if (typeof brief !== 'string' || !BRIEF_HASH_PATTERN.test(brief)) throw new Error('brief record is not valid')
+  return brief
 }

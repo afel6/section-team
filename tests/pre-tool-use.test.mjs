@@ -233,6 +233,25 @@ test('the handback gate lets graded, partial, blocked, docs-only, advisor and re
   assert.equal(decide(ev(undefined, 'SubagentHandback', { message: REPORT_WITH('done', 'src/api.mjs', null) })), null)
 })
 
+// The 2026-11-09 p1 round: 1.6–7.2K-character narratives above the REPORT filled the supervisor's context.
+const LONG_HEAD = 'section-team: your hand-back has more than 1200 characters above its REPORT block. Move the long part (probe logs, spec readings, flow output) to `.team/reports/<date>/<time>-<your id>-details.md`, name that file on the Next line, and hand back again with at most 5 short lines above the block.'
+const withHead = (agent_type, head, report) => ev(agent_type, 'SubagentHandback', { message: `${head}\n${report}` })
+const GRADED = REPORT_WITH('done', 'src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')
+
+test('a builder hand-back that claims done with more than 1200 characters above its REPORT is refused, before the grade checks', () => {
+  assert.equal(decide(withHead('section-team:testing', 'x'.repeat(1201), GRADED)), LONG_HEAD)
+  assert.equal(decide(withHead('section-team:backend', 'x'.repeat(1201), UNGRADED_DONE)), LONG_HEAD)
+  // partial, blocked and ungraded stay the honest ways out, so a long head never keeps a section from handing back
+  for (const status of ['partial', 'blocked', 'ungraded']) {
+    assert.equal(decide(withHead('section-team:backend', 'x'.repeat(5000), REPORT_WITH(status, 'src/api.mjs', null))), null, status)
+  }
+  assert.equal(decide(withHead('section-team:testing', 'x'.repeat(1200), GRADED)), null)
+  // Measured on LF text, trimmed: CRLF line ends and blank space around the head do not count.
+  assert.equal(decide(withHead('section-team:testing', `\r\n  ${'x'.repeat(600)}\r\n${'y'.repeat(599)}  \r\n`, GRADED)), null)
+  assert.equal(decide(withHead('section-team:ai-engineer', 'x'.repeat(5000), REPORT_WITH('done', 'none', 'n/a (no code)'))), null)
+  assert.equal(decide(ev('section-team:backend', 'SubagentHandback', { message: 'x'.repeat(5000) })), null)
+})
+
 test('a section may not start a helper in the background on purpose, and an Agent tool without that option is never blocked', () => {
   for (const who of ['section-team:testing', 'section-team:backend', 'section-team:ai-engineer']) {
     const helper = who === 'section-team:ai-engineer' ? 'section-team:scout' : 'section-team:coder'

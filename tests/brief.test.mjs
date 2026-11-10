@@ -110,9 +110,15 @@ test('max brief holds the three proof steps', () => {
   for (const text of [
     'the security section for a security pass before the final review',
     "run two final reviews, one after the other, each by a fresh testing section; never show the second the first's REPORT",
-    'Before you say done, run yourself the one command a testing section hands back (ask every testing job for it: it starts the app, prints one PASS or FAIL line per critical flow named in the foundation note or the task, then stops the app), and report each flow; read no source file for this check.',
+    'Before you say done, run yourself the one command a testing section hands back (ask every testing job for it: it starts the app, prints a PASS or FAIL line per critical flow in the foundation note or the task, then stops it), and report each flow; read no source file for this check.',
     'Every hand-back with a changed file needs a reviewer grade, docs too.',
   ]) assert.ok(brief.includes(text), `max brief lacks "${text}"`)
+})
+
+// The 2026-11-09 p1 round: a supervisor did a dead section's job itself.
+test('every brief tells the supervisor never to do a failed section\'s job', () => {
+  const line = '- A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text; never do its job yourself.'
+  for (const mode of MODES) assert.ok(lines(assembleBrief(mode)).includes(line), mode)
 })
 
 test('the balanced brief does not mention .team/near-miss', () => {

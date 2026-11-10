@@ -33,7 +33,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 - After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
 
 ## Failures
-- A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text.
+- A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text; never do its job yourself.
 - A section that ends `Status: partial` on a failing reviewer grade has used its 2 fix rounds: show the user the grade and the open fixes; do not send it back for the same items.
 
 ## Reviewer gate

@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { assembleBrief } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
-import { modeRecordDir, recordMode } from './lib/mode-record.mjs'
+import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
 
@@ -27,6 +28,10 @@ function skillSetting(autoInstallSkills, env) {
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
 const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode's gate before you call that work done."
 
+// The 2026-11-09 p1 round: each --resume re-sent the whole brief, which the resumed history already holds.
+const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still applies.'
+const briefHash = mode => createHash('sha256').update(assembleBrief(mode)).digest('hex')
+
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
 function modeSection(mode, skills, problem, retired) {
@@ -41,10 +46,11 @@ function modeSection(mode, skills, problem, retired) {
 }
 
 // The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, the plan line when a plan exists, then the Mode section.
-export function composeContext({ mode, autoInstallSkills, problem, retired }, env, summary, hasPlan = false) {
+// briefKept: the session already holds this brief (a resume), so one line stands in for it.
+export function composeContext({ mode, autoInstallSkills, problem, retired }, env, summary, hasPlan = false, { briefKept = false } = {}) {
   const skills = skillSetting(autoInstallSkills, env)
   return [
-    assembleBrief(mode),
+    briefKept ? BRIEF_KEPT_LINE : assembleBrief(mode),
     skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
     summary ? `Last team summary: ${summary}. Read it first.` : null,
     hasPlan ? PLAN_LINE : null,
@@ -70,9 +76,17 @@ function summaryPath(root) {
   return file === null ? null : relative(root, file).split(sep).join('/')
 }
 
+// On resume, whether the session's recorded brief hash is the hash of the brief for the project's current mode. A failed read means no, with its warning.
+// No usable session id means no and no warning: the mode record already says so.
+function briefStillHeld(source, home, sessionId, hash) {
+  if (source !== 'resume' || !isSessionId(sessionId)) return { value: false, warning: null }
+  return attempt('brief record read', () => readBriefHash(home, sessionId) === hash)
+}
+
 // The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
-export function startContext(cwd, home = homedir(), env = process.env, sessionId) {
+// source is the SessionStart source: on 'resume' an unchanged brief is left out; otherwise the full brief goes in and its hash is recorded.
+export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source } = {}) {
   const root = projectRoot(cwd)
   const setting = readMode(root)
   const steps = [
@@ -87,12 +101,16 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
   // A saved lean is told to the user as well as to the supervisor (the Mode section).
   const retired = setting.retired === undefined ? null : RETIRED_LINE
-  const warnings = [setting.problem, retired, ...stepWarnings, summary.warning].filter(warning => warning !== null)
-  return { context: composeContext(setting, env, summary.value, hasPlan), warnings }
+  const hash = briefHash(setting.mode)
+  const held = briefStillHeld(source, home, sessionId, hash)
+  const context = composeContext(setting, env, summary.value, hasPlan, { briefKept: held.value === true })
+  const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
+  const warnings = [setting.problem, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  return { context, warnings }
 }
 
-export function buildContext(cwd, home = homedir(), env = process.env, sessionId) {
-  return startContext(cwd, home, env, sessionId).context
+export function buildContext(cwd, home = homedir(), env = process.env, sessionId, options) {
+  return startContext(cwd, home, env, sessionId, options).context
 }
 
 const skipped = why => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: skipped: ${why}, so the team brief was not added` }))
@@ -101,7 +119,7 @@ async function main() {
   const input = await readStdinJson()
   const dir = projectDirOf(input)
   if (dir === null) return skipped(input === null ? 'the hook input is not JSON' : 'the hook input has no absolute cwd')
-  const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null)
+  const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null, { source: input?.source })
   const output = { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
   process.stdout.write(JSON.stringify(warnings.length === 0 ? output : { systemMessage: `${MESSAGE_PREFIX}: ${warnings.join('; ')}`, ...output }))
 }

@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import nodePath from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, reportHead, sectionIdFromType } from './lib/report.mjs'
 import { gradeRule } from './lib/grade.mjs'
 import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
@@ -55,13 +55,21 @@ function projectGate(e, env, home) {
   return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 
+// The 2026-11-09 p1 round: 1.6–7.2K-character narratives above builder REPORTs filled the supervisor's context.
+const HANDBACK_HEAD_MAX = 1200
+const LONG_HEAD_REASON = `section-team: your hand-back has more than ${HANDBACK_HEAD_MAX} characters above its REPORT block. Move the long part (probe logs, spec readings, flow output) to \`.team/reports/<date>/<time>-<your id>-details.md\`, name that file on the Next line, and hand back again with at most 5 short lines above the block.`
+
 // The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
 // claims a grade its own transcript does not back, or claims done while the reviewer scored an item under the mode's item minimum is refused.
+// A hand-back that claims done with a long text above its REPORT is refused first; partial, blocked and ungraded stay the
+// honest ways out, and one with no REPORT is not checked here.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
-  const block = extractReport(e.tool_input?.message)
+  const message = e.tool_input?.message
+  const block = extractReport(message)
   if (!block) return null
   const report = parseReport(block)
+  if (!HONEST_STATUSES.includes(report.status) && reportHead(message).length > HANDBACK_HEAD_MAX) return LONG_HEAD_REASON
   const gate = projectGate(e, env, home)
   const gradeAll = gate.gradeAll === true
   if (needsGate(report, gradeAll)) return gateReasons(gate).ungraded

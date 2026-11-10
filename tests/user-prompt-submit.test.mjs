@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { modeSwitch, promptCheck } from '../hooks/user-prompt-submit.mjs'
+import { modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 import { modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
@@ -289,6 +289,84 @@ for (const to of MODES) {
     })
   }
 }
+
+// --- a long pasted request is saved, so the supervisor points sections to it instead of re-typing it ---
+
+const LONG = `${'a'.repeat(2998)}é\n` // 3000 characters
+const POINTER = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+const SAVED_PATH = /`(\.team\/reports\/\d{4}-\d{2}-\d{2}\/\d{6}-user-request\.md)`/
+const gitInit = dir => {
+  execFileSync('git', ['-C', dir, 'init', '-q'])
+  return dir
+}
+const gitProject = text => gitInit(project(text))
+const withPrompt = (dir, prompt, id = 's1') => ({ ...event(dir, id), prompt })
+const reportsOf = dir => join(dir, '.team', 'reports')
+
+test('a 3000-character prompt in a git repo with .team/ is saved word for word and pointed to', () => {
+  const dir = gitProject()
+  const r = promptCheck(withPrompt(dir, LONG), tempHome())
+  assert.deepEqual(r.warnings, [])
+  const path = SAVED_PATH.exec(r.notice)?.[1]
+  assert.ok(path, r.notice)
+  assert.equal(r.notice, POINTER(path))
+  assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
+  assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request.md')
+  assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request-2.md')
+})
+
+test('a prompt under 3000 characters, or not a string, is not saved', () => {
+  const dir = gitProject()
+  assert.deepEqual(promptCheck(withPrompt(dir, LONG.slice(1)), tempHome()), { notice: null, warnings: [] })
+  for (const prompt of [undefined, null, 42, ['x'.repeat(3000)]]) assert.equal(saveRequest(dir, prompt, true), null, String(prompt))
+  assert.equal(existsSync(reportsOf(dir)), false)
+})
+
+test('a long prompt is not saved without .team/, with .team/keep-in-git, or outside git', () => {
+  const noTeam = gitInit(tempDir('ct-ups-'))
+  assert.deepEqual(promptCheck(withPrompt(noTeam, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(join(noTeam, '.team')), false)
+  const kept = gitProject()
+  writeFileSync(join(kept, '.team', 'keep-in-git'), '')
+  assert.deepEqual(promptCheck(withPrompt(kept, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(kept)), false)
+  const plain = project()
+  assert.deepEqual(promptCheck(withPrompt(plain, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(plain)), false)
+  assert.equal(saveRequest(gitProject(), LONG, false), null)
+})
+
+test('after a mode change the notice comes first, then a blank line and the pointer', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const r = promptCheck(withPrompt(gitProject('{"mode":"max"}'), LONG), h)
+  assert.deepEqual(r.warnings, [])
+  assert.equal(r.notice, `${notice('balanced', 'max')}\n\n${POINTER(SAVED_PATH.exec(r.notice)[1])}`)
+})
+
+test('an unwritable .team/reports gives one request save warning and the mode check still works', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const dir = gitProject('{"mode":"max"}')
+  writeFileSync(reportsOf(dir), 'a file where the reports folder should be')
+  const r = promptCheck(withPrompt(dir, LONG), h)
+  assert.equal(r.warnings.length, 1)
+  assert.match(r.warnings[0], /^request save failed: E[A-Z]+$/)
+  assert.equal(r.notice, notice('balanced', 'max'))
+  assert.equal(recordText(h, 's1'), '{"mode":"max"}')
+})
+
+test('hook: the prompt from the hook input is saved and pointed to', () => {
+  const h = tempHome()
+  const dir = gitProject()
+  const r = run(promptInput(dir, { prompt: LONG }), h)
+  assert.equal(r.status, 0)
+  assert.equal(r.stderr, '')
+  const out = JSON.parse(r.stdout)
+  const path = SAVED_PATH.exec(out.hookSpecificOutput.additionalContext)[1]
+  assert.deepEqual(out, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: POINTER(path) } })
+  assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
+})
 
 test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks

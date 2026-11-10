@@ -14,12 +14,22 @@ export function sectionIdFromType(type) {
 }
 
 const isFenceLine = line => /^[ \t]*(```|~~~)/.test(line)
+const toLf = text => text.replace(/\r\n?/g, '\n')
+// The contract ends the message with the report, so the last heading is the one that counts.
+const lastReportHeading = lf => [...lf.matchAll(/^[ \t]*#{1,6}[ \t]*REPORT\b.*$/gim)].at(-1)
+
+// The text above the last REPORT heading, in LF line ends and trimmed; null when there is no REPORT heading.
+export function reportHead(text) {
+  if (typeof text !== 'string') return null
+  const lf = toLf(text)
+  const heading = lastReportHeading(lf)
+  return heading ? lf.slice(0, heading.index).trim() : null
+}
 
 export function extractReport(text) {
   if (typeof text !== 'string') return null
-  const lf = text.replace(/\r\n?/g, '\n')
-  // The contract ends the message with the report, so the last heading is the one that counts.
-  const heading = [...lf.matchAll(/^[ \t]*#{1,6}[ \t]*REPORT\b.*$/gim)].at(-1)
+  const lf = toLf(text)
+  const heading = lastReportHeading(lf)
   if (!heading) return null
   let lines = lf.slice(heading.index).replace(/^[ \t]+/, '').split('\n')
   const fencesBefore = lf.slice(0, heading.index).split('\n').filter(isFenceLine).length
@@ -38,10 +48,15 @@ const FIELDS = {
 const PATH_LIKE = /[\w./\\-]+\.[A-Za-z0-9]+/g
 const DOC_FILE = /\.(md|mdx|txt|rst|adoc)$/i
 
+// A path under .team/ (a note, a report, a -details.md file) is the team's own record, never a change to grade:
+// a separator or the line start, any folders ending in a slash, then .team/ and the rest of that path.
+const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[^\s,;()`'"]*[/\\])?\.team[/\\][^\s,;()`'"]*/g
+const withoutTeamPaths = changed => changed.replace(TEAM_PATH, ' ')
+
 // Whether a REPORT's Changed line names any file that is not a doc. Free text without file names counts as no code.
 export function changesCode(changed) {
   if (typeof changed !== 'string') return false
-  return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
+  return (withoutTeamPaths(changed).match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
 }
 
 // The reviewer's pass mark for the overall grade in the default mode; the generated PASS_RULE uses it too.
@@ -52,10 +67,18 @@ export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 const NO_CHANGE = /^[\s`'"*_(]*(?:(?:none|nothing|n\/a|no|unchanged)\b|[-—–]|$)/i
 // A no-change opener that still names a file counts too: a dotted name, a dotfile, a path with a directory or a well-known extensionless name.
 const EXTRA_FILE = /(?:^|[\s,;(`'"])(?:\.[\w-][\w.-]*|(?![nN]\/[aA](?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
-export const changesFiles = changed => typeof changed === 'string' && (!NO_CHANGE.test(changed) || changed.match(PATH_LIKE) !== null || EXTRA_FILE.test(changed))
+// What is left of a line that named only .team/ paths: separators and blank space.
+const ONLY_SEPARATORS = /^[\s,;()`'"]*$/
+// The .team/ paths are taken out first; the rest is read as before, so free text beside one still counts as a change.
+export function changesFiles(changed) {
+  if (typeof changed !== 'string') return false
+  const rest = withoutTeamPaths(changed)
+  if (rest !== changed && ONLY_SEPARATORS.test(rest)) return false
+  return !NO_CHANGE.test(rest) || rest.match(PATH_LIKE) !== null || EXTRA_FILE.test(rest)
+}
 
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
-const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
+export const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
 // gradeAll: the mode grades every changed file, not only code.
 export const claimsDoneWithCode = (report, gradeAll = false) => !HONEST_STATUSES.includes(report.status) && (gradeAll ? changesFiles(report.changed) : changesCode(report.changed))
 

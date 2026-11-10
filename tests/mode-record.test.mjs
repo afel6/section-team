@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { modeRecordDir, modeRecordFile, readRecord, recordMode } from '../hooks/lib/mode-record.mjs'
+import { modeRecordDir, modeRecordFile, readBriefHash, readRecord, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
 
 const tempHome = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-home-')))
 const recordFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
@@ -85,4 +85,32 @@ test('the hooks share the mode-record module; session-start no longer exports th
   for (const name of ['recordMode', 'modeRecordFile', 'modeRecordDir']) {
     assert.equal(sessionStart[name], undefined, name)
   }
+})
+
+// The brief a session was given, kept as its sha256 so a resume can leave an unchanged brief out.
+const HASH = 'a'.repeat(64)
+const briefFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.brief.json`)
+
+test('recordBriefHash saves {"brief":"<hex>"} next to the mode record, and readBriefHash reads it back', () => {
+  const h = tempHome()
+  assert.equal(readBriefHash(h, 's1'), null)
+  recordBriefHash(h, 's1', HASH)
+  assert.equal(readFileSync(briefFile(h, 's1'), 'utf8'), `{"brief":"${HASH}"}`)
+  assert.equal(readBriefHash(h, 's1'), HASH)
+  assert.equal(readBriefHash(h, 'other'), null)
+})
+
+test('the brief record helpers refuse a bad session id, an invalid record, and keep any other read error', () => {
+  const h = tempHome()
+  for (const id of ['../x', 'a/b', '', null, undefined, 42]) {
+    assert.throws(() => recordBriefHash(h, id, HASH), /session id/, String(id))
+    assert.throws(() => readBriefHash(h, id), /session id/, String(id))
+  }
+  assert.equal(existsSync(join(h, '.claude')), false)
+  for (const text of ['{not json', '{"brief":"abc"}', `{"brief":"${'A'.repeat(64)}"}`, '{}', '[]']) {
+    writeRecordText(h, 's1.brief', text)
+    assert.throws(() => readBriefHash(h, 's1'), { message: 'brief record is not valid' }, text)
+  }
+  mkdirSync(briefFile(h, 's2'), { recursive: true })
+  assert.throws(() => readBriefHash(h, 's2'), err => err?.code === 'EISDIR')
 })

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
+import { sectionIdFromType, extractReport, parseReport, reportHead, SECTION_IDS, changesCode, changesFiles, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 
 const CLEAN = `Some work notes first.
@@ -122,6 +122,31 @@ test('changesCode: true only when the Changed line names a non-doc file', () => 
   assert.equal(changesCode('src/api.mjs, test/api.test.mjs'), true)
   assert.equal(changesCode('README.md and src\app.ts (new)'), true)
   assert.equal(changesCode('package.json'), true)
+})
+
+test('a path under .team/ is the team\'s own record, never a changed file', () => {
+  const details = '.team/reports/2026-11-10/120000-testing-details.md'
+  for (const changed of [details, `\`${details}\``, `./${details}`, '.team/notes/api.json', `${details}, .team/notes/decisions.md`]) {
+    assert.equal(changesCode(changed), false, changed)
+    assert.equal(changesFiles(changed), false, changed)
+  }
+  for (const changed of [`${details}, src/a.mjs`, `src/a.mjs, ${details}`, `src/a.mjs (${details} has the probe log)`]) {
+    assert.equal(changesCode(changed), true, changed)
+    assert.equal(changesFiles(changed), true, changed)
+  }
+  assert.equal(changesCode('src/my.team/a.mjs'), true)
+  // free text beside a .team/ path still names a change for a gate that grades every file (Max)
+  for (const changed of [`login handler and its tests, ${details}`, `${details}; the README intro`]) assert.equal(changesFiles(changed), true, changed)
+  for (const changed of [`none (${details})`, `nothing, ${details}`, ` , ${details} ,`]) assert.equal(changesFiles(changed), false, changed)
+})
+
+test('reportHead: the trimmed text above the last REPORT heading, CRLF as LF; null without a heading', () => {
+  assert.equal(reportHead(CLEAN), 'Some work notes first.')
+  assert.equal(reportHead('  one\r\ntwo  \r\n\r\n## REPORT · backend\r\nStatus: done\r\n'), 'one\ntwo')
+  assert.equal(reportHead('## REPORT · backend\nStatus: partial\n\nretrying\n\n## REPORT · backend\nStatus: done\n'), '## REPORT · backend\nStatus: partial\n\nretrying')
+  assert.equal(reportHead('## REPORT · backend\nStatus: done\n'), '')
+  assert.equal(reportHead('all done, no report'), null)
+  assert.equal(reportHead(undefined), null)
 })
 
 test('needsGate: changed code without a reviewer grade, unless the section is blocked', () => {

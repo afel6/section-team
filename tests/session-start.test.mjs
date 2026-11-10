@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { buildContext, composeContext, startContext } from '../hooks/session-start.mjs'
 import { assembleBrief } from '../hooks/lib/brief.mjs'
@@ -494,6 +495,85 @@ for (const mode of MODES) {
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }
+
+// --- resume: the history already holds the brief, so an unchanged one is left out ---
+
+const BRIEF_KEPT = 'Your team brief from the start of this session still applies.'
+const briefFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.brief.json`)
+const sha = text => createHash('sha256').update(text).digest('hex')
+const briefRecordOf = mode => JSON.stringify({ brief: sha(assembleBrief(mode)) })
+const start = (dir, home, source, id = 'sess-r') => startContext(dir, home, {}, id, { source })
+
+test('startup, clear and compact give the full brief and record its hash for the session', () => {
+  for (const source of ['startup', 'clear', 'compact']) {
+    const h = tempHome()
+    const { context, warnings } = start(withModeFile(repo(), '{"mode":"max"}'), h, source)
+    assert.ok(context.startsWith(`${assembleBrief('max')}\n\n`), source)
+    assert.deepEqual(warnings, [], source)
+    assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'), source)
+  }
+  const h = tempHome()
+  assert.equal(run(startInput(repo()), h).status, 0)
+  assert.equal(readFileSync(briefFile(h, 'test-session'), 'utf8'), briefRecordOf('balanced'))
+})
+
+test('resume with the hash of the current brief leaves the brief out and keeps the rest', () => {
+  const h = tempHome()
+  const dir = repo()
+  writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
+  const full = start(dir, h, 'startup').context
+  const resumed = start(dir, h, 'resume')
+  assert.deepEqual(resumed.warnings, [])
+  assert.equal(resumed.context, full.replace(assembleBrief('balanced'), BRIEF_KEPT))
+  assert.ok(resumed.context.startsWith(`${BRIEF_KEPT}\n\nLast team summary: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it first.\n\n## Mode\n- This project runs in Balanced mode (default).`))
+  assert.ok(!resumed.context.includes(MARKER))
+  const out = hookOut(run(startInput(dir, { source: 'resume', session_id: 'sess-r' }), h))
+  assert.equal(out.systemMessage, undefined)
+  assert.equal(out.hookSpecificOutput.additionalContext, startContext(dir, h, HOOK_ENV, 'sess-r', { source: 'resume' }).context)
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith(`${BRIEF_KEPT}\n\n`))
+})
+
+test('resume after a mode change, with no record or with another brief\'s hash gives the full brief and records the new hash', () => {
+  const h = tempHome()
+  const dir = repo()
+  const fresh = start(dir, h, 'resume')
+  assert.ok(fresh.context.startsWith(`${assembleBrief('balanced')}\n\n`), 'no record')
+  assert.deepEqual(fresh.warnings, [])
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('balanced'))
+  withModeFile(dir, '{"mode":"max"}')
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}\n\n`), 'mode changed')
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'))
+  writeFileSync(briefFile(h, 'sess-r'), JSON.stringify({ brief: sha('another brief') }))
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}\n\n`), 'another hash')
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'))
+  assert.ok(start(dir, h, 'resume').context.startsWith(BRIEF_KEPT), 'the recorded hash now matches')
+})
+
+test('resume with an unreadable brief record gives the full brief, one warning, and a fresh record', () => {
+  const h = tempHome()
+  const dir = repo()
+  mkdirSync(join(h, '.claude', 'section-team', 'modes'), { recursive: true })
+  writeFileSync(briefFile(h, 'sess-r'), '{not json')
+  const { context, warnings } = quietStderr(() => start(dir, h, 'resume')).value
+  assert.ok(context.startsWith(`${assembleBrief('balanced')}\n\n`))
+  assert.deepEqual(warnings, ['brief record read failed: brief record is not valid'])
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('balanced'))
+})
+
+test('without a usable session id or a source the full brief goes in and no brief is recorded', () => {
+  const h = tempHome()
+  assert.ok(buildContext(repo(), h, {}).startsWith(MARKER))
+  assert.ok(startContext(repo(), h, {}, undefined, { source: 'resume' }).context.startsWith(MARKER))
+  assert.equal(existsSync(join(h, '.claude', 'section-team', 'modes')), false)
+  const out = hookOut(run(startInput(repo(), { source: 'resume', session_id: undefined }), h))
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.match(out.systemMessage, /^section-team session-start: mode record failed: [^\n;]*session id[^\n;]*$/)
+})
+
+test('hooks.json still runs the session-start hook on resume', () => {
+  const hooks = JSON.parse(readFileSync(fileURLToPath(new URL('../hooks/hooks.json', import.meta.url)), 'utf8')).hooks
+  assert.equal(hooks.SessionStart[0].matcher, 'startup|resume|clear|compact')
+})
 
 test('the context tells the supervisor to read .team/notes/plan.md first, only when it exists', () => {
   const dir = repo()

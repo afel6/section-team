@@ -19,7 +19,7 @@ test('the foundation skill has valid frontmatter and every required step heading
   assert.ok(match[2].length > 40)
   const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
   assert.deepEqual([...text.matchAll(/^## (.+)$/gm)].map(m => m[1]), headings, 'headings missing or out of order')
-  const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts', 'auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
+  const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts;\n- for each request that waits on an outside call, what it reads again before it writes;\n- auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
   for (const needle of [...noteContents, 'wake nobody until they say OK', 'frozen', 'whole-stack verification', 'at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
     assert.ok(text.includes(needle), `missing ${needle}`)
   }

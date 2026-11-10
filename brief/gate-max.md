@@ -5,5 +5,5 @@
 - A pass ends the gate: do not grade again after a pass.
 - Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code), and to detect a missing file by `err.code === 'ENOENT'`, not `existsSync`; no folder or behaviour the spec does not ask for; a crash path it notices is a fix before its gate, never a next step.
 - Every hand-back with a changed file needs a reviewer grade, docs too.
-- Before you say done, run yourself the one command a testing section hands back (ask every testing job for it: it starts the app, prints one PASS or FAIL line per critical flow named in the foundation note or the task, then stops the app), and report each flow; read no source file for this check.
+- Before you say done, run yourself the one command a testing section hands back (ask every testing job for it: it starts the app, prints a PASS or FAIL line per critical flow in the foundation note or the task, then stops it), and report each flow; read no source file for this check.
 - Every job message states this mode's gate (pass mark, fix rounds, grade on every changed file).
