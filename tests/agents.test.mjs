@@ -465,7 +465,7 @@ test('round fix 3 text is in the agents that carry it and the old text is gone',
     assert.equal(f.includes('checkExpectation'), id === 'backend', id + ' B1 only in backend')
     assert.equal(f.includes('before applying an outcome'), id === 'frontend', id + ' F1 only in frontend')
   }
-  assert.ok(agentFile('backend').includes("server.on('checkExpectation', handler); on 'connect', run the handler on a new http.ServerResponse(req) given the socket by res.assignSocket(socket), with res.shouldKeepAlive = false, socket.on('error', () => socket.destroy()) and socket.end() on the reply's 'finish', else a client reset crashes the process and the socket never closes)."), 'B1')
+  assert.ok(agentFile('backend').includes("server.on('checkExpectation', handler); on 'connect' when the spec answers CONNECT as an ordinary request rather than opening a tunnel, run the handler on a new http.ServerResponse(req) given the socket by res.assignSocket(socket), with res.shouldKeepAlive = false, socket.on('error', () => socket.destroy()) and socket.end() on the reply's 'finish', else a client reset crashes the process and the socket never closes)."), 'B1')
   assert.ok(agentFile('frontend').includes('test with a fake fetch whose json() you resolve separately.'), 'F1')
   const rv = agentFile('reviewer')
   assert.ok(rv.includes('and so is a step the spec does not state (a stripped BOM, a trim, a case-fold) that lets through input its steps reject'), 'R1')
