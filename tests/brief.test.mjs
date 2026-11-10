@@ -322,3 +322,12 @@ test('part text is put in literally, so $&, $1, $$ and $\' survive', () => {
 test('no lean brief part is left', () => {
   for (const name of ['tiers-lean.md', 'gate-lean.md']) assert.equal(existsSync(join(BRIEF_DIR, name)), false, name)
 })
+
+test('both mode briefs carry the round fix 3 wording', () => {
+  for (const mode of ['balanced', 'max']) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes('also in earlier code this task'), mode)
+    assert.ok(brief.includes('input refused or accepted only as the spec says'), mode)
+    assert.ok(!brief.includes('never a refusal of input the spec accepts'), mode)
+  }
+})

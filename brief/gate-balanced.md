@@ -1,6 +1,6 @@
 - On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
 - `section-team:reviewer` replaces `code-reviewer` in this gate.
-- Builders carry the spec rules (the stricter reading of what the code must do, never a refusal of input the spec accepts, every value the spec names exact); a REPORT that breaks one is a failing item.
+- Builders carry the spec rules (the stricter reading of what the code must do, input refused or accepted only as the spec says, every value the spec names exact); a REPORT that breaks one is a failing item.
 - If it fails, send the fix list to the section and grade again: at most 2 fix rounds. Then tell the user the grade and what is left.
 - A pass ends the gate: do not grade again after a pass.
 - Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code), and to detect a missing file by `err.code === 'ENOENT'`, not `existsSync`; no folder or behaviour the spec does not ask for; a crash path it notices is a fix before its gate, never a next step.
