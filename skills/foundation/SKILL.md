@@ -18,7 +18,7 @@ Write `.team/notes/foundation.md`, under 150 lines, with:
 - API and interface contracts;
 - for each request that waits on an outside call, what it reads again before it writes;
 - auth and security needs;
-- build order as vertical slices, each with a check that proves it done;
+- build order as vertical slices, each with a check that proves it done, the sections it wakes (the security section for a slice that touches auth, payments, uploads or secrets) and whether it can be built beside another slice;
 - test plan, including the critical end-to-end flows;
 - quality targets that apply (performance, accessibility, recovery, operations), each with a number or a check;
 - deploy and migration rules;
@@ -39,6 +39,6 @@ After the OK the note is frozen. A change goes through you and is recorded in `.
 Keep `.team/notes/plan.md` as a short status table of the slices, updated after each job. A new chat reads it first, so the work survives across sessions.
 
 ## Build one slice at a time
-Wake the sections for one slice only. Each slice ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts. Each job message names the foundation note and the slice. In a worktree session, give the note's full path.
+Wake the sections for one slice only, or together for slices the note says can be built side by side (no shared files, contracts already in notes). Wake every section the note lists for the slice, the security section included. Each slice, or each set built side by side, ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts; for the last one that is the final review the brief asks for. Each job message names the foundation note and the slice. In a worktree session, give the note's full path.
 
 If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.

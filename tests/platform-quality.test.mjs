@@ -93,3 +93,12 @@ test('the plan advisor is named in the brief but not in any tier line', () => {
 test('every mode brief stays under 9000 characters with the plan advisor', () => {
   for (const mode of MODES) assert.ok(assembleBrief(mode).length < 9000, mode)
 })
+
+// Round tg: the skill said one slice at a time while the tiers run independent parts in parallel, and a multi-area job with auth woke no security section.
+test('the foundation note names the sections of each slice, and slices that share nothing may be built side by side', () => {
+  const text = read('skills/foundation/SKILL.md')
+  assert.ok(text.includes('- build order as vertical slices, each with a check that proves it done, the sections it wakes (the security section for a slice that touches auth, payments, uploads or secrets) and whether it can be built beside another slice;\n'))
+  const build = text.split('## Build one slice at a time\n')[1]
+  assert.ok(build.startsWith("Wake the sections for one slice only, or together for slices the note says can be built side by side (no shared files, contracts already in notes). Wake every section the note lists for the slice, the security section included. Each slice, or each set built side by side, ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts; for the last one that is the final review the brief asks for. Each job message names the foundation note and the slice."))
+  assert.ok(!text.includes('Wake the sections for one slice only. Each slice ends'))
+})
