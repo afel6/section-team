@@ -56,7 +56,7 @@ test('helpers keep their tools', () => {
   assert.equal(front(agentFile('reviewer')).tools, 'Read, Grep, Glob, Bash')
 })
 
-const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+const SHORT_OUTPUT = 'Keep tool output short: run tests with a reporter that ends with pass and fail totals (never a dots-only one, also in the test script you give the project) and read its last lines through `tail`; run the full suite once per change and take totals and coverage from that one run; pipe other long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
 
 test('builders and the coder keep tool output short; advisors, scout and reviewer do not carry the line', () => {
   for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(SHORT_OUTPUT), id)
@@ -81,6 +81,16 @@ test('testing goes through the supervisor only when a direct fix list is refused
   const testing = agentFile('testing')
   assert.ok(testing.includes('(by agent id; if that is refused or fails, through the supervisor)'))
   assert.ok(!testing.includes('(by agent id, else through the supervisor)'))
+})
+
+// Round tg: a dots-only reporter gave no totals (about 93 full-suite runs), probe scripts stayed outside the project, and two sections tried to stop every process of one name.
+test('round tg: test output ends with totals, scratch files stay in .team/tmp, and only own processes are stopped', () => {
+  const MCP = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
+  const TIDY = 'Scratch files (probe scripts, copies of the project, logs) go in `.team/tmp/` inside the project or in the system temp folder, never beside the project or in the home folder, and are removed before you hand back, with any folder made for them. Stop only the processes you started, by their PID, never by name (`taskkill /IM`, `pkill`, `killall`): other work runs on this machine.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(`${SHORT_OUTPUT}\n${MCP}\n${TIDY}\n`), `${id} tidy`)
+  assert.ok(agentFile('coder').includes(`${SHORT_OUTPUT}\n${TIDY}\n`), 'coder tidy')
+  for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes('Scratch files (probe scripts'), `${id} runs no commands`)
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(!agentFile(id).includes('quiet test reporter'), `${id} old reporter line`)
 })
 
 test('builders learn they have no project MCP tools, right after the short-output line; nobody else carries it', () => {
