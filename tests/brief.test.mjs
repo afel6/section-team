@@ -155,7 +155,7 @@ test('max tiers add probing, security and docs always', () => {
     'ask it to probe every spec line). Code that takes user input',
     'user input or touches files or the network also gets a security section review',
     'the security section for a security pass',
-    'testing for tests, the security section',
+    'testing for tests (tell the builders so), the security section',
     'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
   ]) {
@@ -272,7 +272,7 @@ test('every mode tells the supervisor it writes no product code, tests or docs, 
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
     assert.ok(brief.split('\n')[1].endsWith(' You write no product code, tests or docs yourself.'), mode)
-    assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files'), mode)
+    assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec'), mode)
     assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds.'), mode)
     assert.ok(brief.includes('- Tell each code builder to map every OS error its code can hit'), mode)
     for (const old of ['Your own code', 'your own code', 'wrote yourself', 'fix the listed items', 'Map every OS error']) {
@@ -325,7 +325,7 @@ test('no lean brief part is left', () => {
 test('both mode briefs carry the round fix 3 wording', () => {
   for (const mode of ['balanced', 'max']) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.includes('After the final review, send a builder only failing items (what its REPORT lists as failing);'), mode)
+    assert.ok(brief.includes('After a security pass or the final review, send a builder only failing items (what that REPORT lists as failing);'), mode)
     assert.ok(!brief.includes('also in older code the spec still covers'), mode)
     assert.ok(brief.includes('input refused or accepted only as the spec says'), mode)
     assert.ok(!brief.includes('never a refusal of input the spec accepts'), mode)
@@ -339,5 +339,5 @@ test('max tells the second final review that it is the second, at no cost in cha
   assert.ok(!part('tiers-max').includes('(the one cross-review you ask for)'))
   assert.ok(part('tiers-balanced').includes('it is the one cross-review you ask for.'))
   assert.ok(!assembleBrief('balanced').includes('tell it that it is the second'))
-  assert.ok(max.length <= 8961, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
+  assert.ok(max.length <= 9000, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
 })

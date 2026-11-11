@@ -1,4 +1,4 @@
-- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
+- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
 - `section-team:reviewer` replaces `code-reviewer` in this gate.
 - Builders carry the spec rules (the stricter reading of what the code must do, input refused or accepted only as the spec says, every value the spec names exact); a REPORT that breaks one is a failing item.
 - If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds. Then tell the user the grade and what is left.

@@ -42,7 +42,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 - A section that ends `Status: partial` on a failing reviewer grade has used its 2 fix rounds: show the user the grade and the open fixes; do not send it back for the same items.
 
 ## Reviewer gate
-- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
+- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec (Opus; do not pass `model`). It ends with a GRADE block. Pass: overall at least 8 and no item under 6.
 - `section-team:reviewer` replaces `code-reviewer` in this gate.
 - Builders carry the spec rules (the stricter reading of what the code must do, input refused or accepted only as the spec says, every value the spec names exact); a REPORT that breaks one is a failing item.
 - If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds. Then tell the user the grade and what is left.
@@ -52,7 +52,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 
 ## Rules that win inside section-team
 - For delegated work, wake sections. Do not spawn planner, code-reviewer, tdd-guide or other ECC agents yourself for section work. The one helper type you may spawn yourself is `section-team:reviewer`, for the reviewer gate.
-- For a multi-section task the testing section owns final review and verification: once the builders have reported, start a fresh one on the final-review job with each builder's changed files and agent id. The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back. Never tell a section to skip its gate. After the final review, send a builder only failing items (what its REPORT lists as failing); list optional findings in your summary as next steps for the user.
+- For a multi-section task the testing section owns final review and verification: once the builders have reported, start a fresh one on the final-review job with each builder's changed files and agent id. The final review runs the whole test suite, starts the app, and drives the critical flows through its real interfaces. Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes. Tell the other sections not to review each other's work; each one still runs its own reviewer gate before it hands back. Never tell a section to skip its gate. After a security pass or the final review, send a builder only failing items (what that REPORT lists as failing); list optional findings in your summary as next steps for the user.
 - Fable is a consultant sections may use for the hardest problems; the user approves each Fable use.
 
 ## Team Board
