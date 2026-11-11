@@ -10,6 +10,10 @@ const FLOOR_MB = 4096
 // The runner scans this often; a record touched within FRESH_SCANS intervals means a guard is running.
 export const INTERVAL_MS = 5000
 export const FRESH_SCANS = 3
+export const FRESH_MS = FRESH_SCANS * INTERVAL_MS
+// The longest one table may take. The runner touches its record before and after each table, so a scan this slow, plus the stops
+// after it, still ends well inside FRESH_MS and no second guard starts.
+export const SCAN_TIMEOUT_MS = FRESH_MS - INTERVAL_MS
 const WHOLE_MB = /^\d+$/
 
 const unsetLimit = (totalBytes, platform) =>

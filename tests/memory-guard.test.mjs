@@ -1,12 +1,12 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { MB, limitBytes, oversized, parseTable, rootAlive, sessionRoot, track } from '../hooks/lib/memory-guard.mjs'
-import { runGuard } from '../hooks/memory-guard.mjs'
+import { FRESH_MS, INTERVAL_MS, MB, SCAN_TIMEOUT_MS, limitBytes, oversized, parseTable, rootAlive, sessionRoot, track } from '../hooks/lib/memory-guard.mjs'
+import { heartbeat, runGuard } from '../hooks/memory-guard.mjs'
 
 const GB = 1024 * MB
 const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
@@ -230,6 +230,48 @@ test('runGuard ends when the record is removed', async () => {
   const f = fakes([[ROW_ROOT]], { touch: scan => scan < 3 })
   assert.equal(await runGuard({ ...f, ...GUARD }), 'record removed')
   assert.deepEqual(f.calls, [])
+})
+
+// A fake clock: every list takes the longest a scan may take, and every stop takes a second. The hook calls a record stale after FRESH_MS,
+// so a gap between two touches that reaches it would let a second guard start.
+test('a scan as slow as the timeout never leaves the record stale long enough for a second guard to start', async () => {
+  assert.ok(Number.isFinite(SCAN_TIMEOUT_MS) && SCAN_TIMEOUT_MS > 0, 'the scan timeout is a named constant')
+  let clock = 0
+  const touches = []
+  const f = fakes([[ROW_ROOT, row(400, 100, 4000, 'node.exe', 2 * GB)], [ROW_ROOT], [ROW_ROOT], GONE])
+  const list = f.list
+  f.list = async () => { clock += SCAN_TIMEOUT_MS; return list() }
+  f.kill = async () => { clock += 1000 }
+  f.sleep = async ms => { clock += ms }
+  f.touch = () => { touches.push(clock); return true }
+  assert.equal(await runGuard({ ...f, ...GUARD }), 'root gone')
+  const gaps = touches.slice(1).map((t, i) => t - touches[i])
+  assert.ok(Math.max(...gaps) < FRESH_MS, `touch gaps ${gaps} must stay under ${FRESH_MS} ms`)
+  assert.ok(FRESH_MS > SCAN_TIMEOUT_MS + INTERVAL_MS / 2, 'a slow scan still fits the freshness window')
+})
+
+test('a runner whose record was taken over during a slow scan stops nothing and exits', async () => {
+  let touches = 0
+  const f = fakes([[ROW_ROOT, row(400, 100, 4000, 'node.exe', 2 * GB)]], { touch: () => ++touches < 2 })
+  assert.equal(await runGuard({ ...f, ...GUARD }), 'record removed')
+  assert.deepEqual(f.calls, [], 'the superseded runner stopped nothing')
+})
+
+test('heartbeat touches the record only while it names this guard', () => {
+  const dir = tempDir()
+  const file = join(dir, 's.guard.json')
+  const old = new Date(Date.now() - 60 * 1000)
+  const write = text => { writeFileSync(file, text); utimesSync(file, old, old) }
+  write(JSON.stringify({ claim: 'mine', root: {} }))
+  assert.equal(heartbeat(file, 'mine'), true)
+  assert.ok(Date.now() - statSync(file).mtimeMs < 10 * 1000, 'touched')
+  for (const text of [JSON.stringify({ claim: 'theirs' }), '', '{"failed":{"at":1}}', 'not json']) {
+    write(text)
+    assert.equal(heartbeat(file, 'mine'), false, text)
+    assert.equal(statSync(file).mtimeMs, old.getTime(), `not touched: ${text}`)
+  }
+  rmSync(file)
+  assert.equal(heartbeat(file, 'mine'), false)
 })
 
 test('runGuard ends after 10 failed scans in a row and logs that once; a good scan resets the count', async () => {

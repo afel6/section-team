@@ -671,6 +671,7 @@ test("a builder's Bash call starts one guard, with the root, the limit and the l
   assert.deepEqual(record.root, { pid: 100, started: 1000, name: 'claude.exe', command: 'claude.exe --session' })
   assert.equal(record.limit, 12 * GUARD_GB)
   assert.equal(record.log, join(e.cwd, '.team', 'tmp', 'memory-guard.log'))
+  assert.match(record.claim, /^[0-9a-f-]{36}$/, 'the record names the guard it started')
   for (const tool of ['Bash', 'PowerShell']) ensureGuard(guardEvent({ tool_name: tool, cwd: e.cwd }), {}, deps)
   assert.equal(spawned.length, 1, 'a running guard is not started again')
 })
@@ -691,10 +692,12 @@ test('a fresh record starts nothing; a stale one is taken over by one caller onl
   assert.equal(fresh.listed.length, 0)
 
   const stale = guardDeps()
-  writeGuardRecord(stale.deps.home, { root: {} }, 60 * 1000)
+  writeGuardRecord(stale.deps.home, { root: {}, claim: 'old-guard' }, 60 * 1000)
   ensureGuard(guardEvent(), {}, stale.deps)
   ensureGuard(guardEvent(), {}, stale.deps)
   assert.equal(stale.spawned.length, 1)
+  const taken = readGuardRecord(stale.deps.home).claim
+  assert.ok(typeof taken === 'string' && taken !== 'old-guard', 'a takeover names the new guard, so the old one exits')
 
   // A second caller arrives while the first is taking over the same stale record: it does nothing.
   const raced = guardDeps()

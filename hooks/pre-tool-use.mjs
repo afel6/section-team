@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir, totalmem } from 'node:os'
 import nodePath from 'node:path'
@@ -7,7 +8,7 @@ import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, cla
 import { gradeRule } from './lib/grade.mjs'
 import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
-import { FRESH_SCANS, INTERVAL_MS, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
+import { FRESH_MS, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
 import { isSessionId, modeRecordDir, readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
@@ -117,7 +118,6 @@ export function decide(e, env = process.env, home = homedir()) {
 // The session memory guard. The first Bash or PowerShell call by a section (not an advisor) claims the session's record and starts
 // one detached runner (memory-guard.mjs); the runner touches the record on every scan, so a fresh record means one is running.
 const GUARD_TOOLS = new Set(['Bash', 'PowerShell'])
-const FRESH_MS = FRESH_SCANS * INTERVAL_MS
 const RETRY_MS = 10 * 60 * 1000
 const LIST_TIMEOUT_MS = 4000
 const LIST_BUFFER = 64 * MB
@@ -184,7 +184,8 @@ function startGuard(fd, record, e, env, deps, limit) {
     if (dir === null) throw new Error('no project folder for its log')
     const root = sessionRoot(deps.list(), deps.pid)
     if (root === null) throw new Error('no claude or node process above this hook')
-    writeSync(fd, JSON.stringify({ root, limit, log: nodePath.join(projectRoot(dir), ...GUARD_LOG) }))
+    // The claim names this guard: a runner whose record names another (a takeover) exits.
+    writeSync(fd, JSON.stringify({ root, limit, log: nodePath.join(projectRoot(dir), ...GUARD_LOG), claim: randomUUID() }))
     closeSync(fd)
     fd = null
     deps.spawn(record)

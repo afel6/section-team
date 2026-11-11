@@ -1,17 +1,16 @@
 // The session memory guard's runner: started detached by the PreToolUse hook with its record file, it scans the process table every
 // few seconds and stops any process the session started that holds more memory than the limit. It exits when the session's root is gone,
-// when its record file is removed, or after too many failed scans.
+// when its record file is removed or names another guard, or after too many failed scans.
 import { execFile, spawn } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute } from 'node:path'
 import { createInterface } from 'node:readline'
-import { INTERVAL_MS, MB, listerCommand, oversized, parseTable, rootAlive, track } from './lib/memory-guard.mjs'
+import { INTERVAL_MS, MB, SCAN_TIMEOUT_MS, listerCommand, oversized, parseTable, rootAlive, track } from './lib/memory-guard.mjs'
 import { isMainModule, lineOf } from './lib/paths.mjs'
 
 const ROOT_GONE_SCANS = 2
 const MAX_FAILED_SCANS = 10
 const COMMAND_CLIP = 400
-const SCAN_TIMEOUT_MS = 30 * 1000
 const LIST_BUFFER = 64 * MB
 const EFFECTS = ['list', 'kill', 'log', 'sleep', 'touch', 'state', 'limit', 'own']
 
@@ -49,8 +48,11 @@ export async function runGuard(args) {
   let gone = 0
   let failed = 0
   for (;;) {
+    // Touched before and after each table, so even a table that takes SCAN_TIMEOUT_MS leaves the record fresh, and a runner whose
+    // record another guard took over meanwhile stops nothing.
     if (!(await touch())) return 'record removed'
     const { table, error } = await scan(list)
+    if (!(await touch())) return 'record removed'
     if (error) {
       failed += 1
       if (failed >= MAX_FAILED_SCANS) {
@@ -106,12 +108,24 @@ function readGuardRecord(file) {
   const root = record?.root
   const valid = Number.isSafeInteger(root?.pid) && ['number', 'string'].includes(typeof root.started)
     && Number.isSafeInteger(record.limit) && record.limit > 0 && typeof record.log === 'string' && isAbsolute(record.log)
+    && typeof record.claim === 'string' && record.claim !== ''
   if (!valid) throw new Error('the guard record is not valid')
   return record
 }
 
-// The heartbeat: false once the record file is gone.
-function touchRecord(file) {
+// The record's claim, or null when it is gone or names no guard (a failed start, or a new claimer still writing it).
+function claimOf(file) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))?.claim ?? null
+  } catch (err) {
+    if (err.code === 'ENOENT' || err instanceof SyntaxError) return null
+    throw err
+  }
+}
+
+// The heartbeat: touches the record while it names this guard; false once it is gone or another guard has taken it over.
+export function heartbeat(file, claim) {
+  if (claimOf(file) !== claim) return false
   try {
     const now = new Date()
     utimesSync(file, now, now)
@@ -127,14 +141,19 @@ function appendLog(file, line) {
   appendFileSync(file, `${line}\n`)
 }
 
-// A guard that stopped on failed scans says so in its record, so the hook does not start another for 10 minutes.
-function recordFailure(file, problem) {
-  if (touchRecord(file)) writeFileSync(file, JSON.stringify({ failed: { at: Date.now(), problem } }))
+// A guard that stopped on failed scans says so in its record, so the hook does not start another for 10 minutes; never in a record
+// another guard has taken over.
+function recordFailure(file, problem, claim) {
+  if (heartbeat(file, claim)) writeFileSync(file, JSON.stringify({ failed: { at: Date.now(), problem } }))
 }
+
+// This guard's claim once its record is read; before that, the record is still the one the hook wrote for it.
+let ownClaim = null
 
 async function main() {
   const file = process.argv[2]
   const record = readGuardRecord(file)
+  ownClaim = record.claim
   const command = listerCommand(process.platform)
   const lister = process.platform === 'win32' ? powershellLister(command) : psLister(command, process.platform)
   const reason = await runGuard({
@@ -142,12 +161,12 @@ async function main() {
     kill: pid => process.kill(pid, 'SIGKILL'),
     log: line => appendLog(record.log, line),
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
-    touch: () => touchRecord(file),
+    touch: () => heartbeat(file, record.claim),
     state: { root: record.root, tracked: [] },
     limit: record.limit,
     own: [process.pid, lister.pid].filter(Number.isSafeInteger),
   })
-  if (reason === 'failed') recordFailure(file, 'the process list failed 10 times in a row')
+  if (reason === 'failed') recordFailure(file, 'the process list failed 10 times in a row', record.claim)
   lister.close()
 }
 
@@ -155,7 +174,8 @@ if (isMainModule(import.meta.url)) {
   // Detached with no output: a guard that cannot run says so in its record, where the hook reads it.
   main().then(() => process.exit(0), err => {
     try {
-      recordFailure(process.argv[2], lineOf(err))
+      const file = process.argv[2]
+      recordFailure(file, lineOf(err), ownClaim ?? claimOf(file))
     } finally {
       process.exit(1)
     }
