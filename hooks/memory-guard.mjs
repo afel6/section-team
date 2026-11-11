@@ -101,14 +101,21 @@ function psLister(command, platform) {
   return { pid: undefined, list, close: () => {} }
 }
 
-// The record the hook wrote: the root, the limit and the log file. Throws one line when it is not one.
+const isClaim = claim => typeof claim === 'string' && claim !== ''
+
+// This guard's claim once its record is read; until then a failure is written nowhere.
+let ownClaim = null
+
+// The record the hook wrote: the root, the limit and the log file. Throws one line when it is not one. Its claim is kept first, so a
+// record the runner cannot use still takes its failure, and no other file ever does.
 function readGuardRecord(file) {
   if (typeof file !== 'string' || !isAbsolute(file) || !file.endsWith('.guard.json')) throw new Error('no guard record given')
   const record = JSON.parse(readFileSync(file, 'utf8'))
+  if (isClaim(record?.claim)) ownClaim = record.claim
   const root = record?.root
   const valid = Number.isSafeInteger(root?.pid) && ['number', 'string'].includes(typeof root.started)
     && Number.isSafeInteger(record.limit) && record.limit > 0 && typeof record.log === 'string' && isAbsolute(record.log)
-    && typeof record.claim === 'string' && record.claim !== ''
+    && isClaim(record.claim)
   if (!valid) throw new Error('the guard record is not valid')
   return record
 }
@@ -123,9 +130,10 @@ function claimOf(file) {
   }
 }
 
-// The heartbeat: touches the record while it names this guard; false once it is gone or another guard has taken it over.
+// The heartbeat: touches the record while it names this guard; false once it is gone or another guard has taken it over, and always
+// false without a claim.
 export function heartbeat(file, claim) {
-  if (claimOf(file) !== claim) return false
+  if (!isClaim(claim) || claimOf(file) !== claim) return false
   try {
     const now = new Date()
     utimesSync(file, now, now)
@@ -147,13 +155,9 @@ function recordFailure(file, problem, claim) {
   if (heartbeat(file, claim)) writeFileSync(file, JSON.stringify({ failed: { at: Date.now(), problem } }))
 }
 
-// This guard's claim once its record is read; before that, the record is still the one the hook wrote for it.
-let ownClaim = null
-
 async function main() {
   const file = process.argv[2]
   const record = readGuardRecord(file)
-  ownClaim = record.claim
   const command = listerCommand(process.platform)
   const lister = process.platform === 'win32' ? powershellLister(command) : psLister(command, process.platform)
   const reason = await runGuard({
@@ -174,8 +178,7 @@ if (isMainModule(import.meta.url)) {
   // Detached with no output: a guard that cannot run says so in its record, where the hook reads it.
   main().then(() => process.exit(0), err => {
     try {
-      const file = process.argv[2]
-      recordFailure(file, lineOf(err), ownClaim ?? claimOf(file))
+      recordFailure(process.argv[2], lineOf(err), ownClaim)
     } finally {
       process.exit(1)
     }

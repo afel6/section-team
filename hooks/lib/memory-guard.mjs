@@ -118,7 +118,8 @@ const sameProcess = (a, b) => a.pid === b.pid && a.started === b.started
 export const rootAlive = (table, root) => table.some(r => sameProcess(r, root))
 
 // The new state: every row whose parent chain reaches the root or a process already tracked (started no earlier than that parent),
-// plus every tracked process still listed with the same start time, after its parent exits too.
+// plus every tracked process still listed with the same start time, after its parent exits too. A root that is gone adopts nothing:
+// its pid may already name another process.
 export function track(state, table) {
   const key = p => `${p.pid}:${p.started}`
   const children = new Map()
@@ -126,7 +127,7 @@ export function track(state, table) {
   const listed = new Set(table.map(key))
   const kept = state.tracked.filter(t => listed.has(key(t)))
   const known = new Set([key(state.root), ...kept.map(key)])
-  const queue = [state.root, ...kept]
+  const queue = [...(listed.has(key(state.root)) ? [state.root] : []), ...kept]
   const added = []
   for (let i = 0; i < queue.length; i++) {
     for (const child of children.get(queue[i].pid) ?? []) {

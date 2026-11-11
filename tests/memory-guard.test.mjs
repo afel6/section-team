@@ -1,6 +1,6 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -153,6 +153,14 @@ test('track: a later child, grandchild and orphan stay tracked; a reused pid wit
   assert.equal(state.tracked.find(t => t.pid === 400).started, 9000)
 })
 
+// claude.exe 100 has exited and pid 100 now names an unrelated process with a big child: neither is the session's.
+const REUSED_ROOT = [row(100, 50, 7000, 'other.exe'), row(450, 100, 7100, 'node.exe', 2 * GB)]
+
+test("track: a root whose pid now names another process adopts none of that process's children", () => {
+  const state = track({ root: ROOT, tracked: [] }, [ROW_ROOT])
+  assert.deepEqual(trackedPids(track(state, REUSED_ROOT)), [])
+})
+
 test('oversized: only tracked rows over the limit, never the root, the guard or its lister', () => {
   const big = 2 * GB
   const table = [
@@ -226,6 +234,12 @@ test('runGuard ends after two scans with the root showing another start time, no
   assert.equal(lists, 3)
 })
 
+test('runGuard never stops a child of a process that took the root pid, in the scan that finds the root gone', async () => {
+  const f = fakes([[ROW_ROOT], REUSED_ROOT, REUSED_ROOT])
+  assert.equal(await runGuard({ ...f, ...GUARD }), 'root gone')
+  assert.deepEqual(f.calls, [])
+})
+
 test('runGuard ends when the record is removed', async () => {
   const f = fakes([[ROW_ROOT]], { touch: scan => scan < 3 })
   assert.equal(await runGuard({ ...f, ...GUARD }), 'record removed')
@@ -274,6 +288,46 @@ test('heartbeat touches the record only while it names this guard', () => {
   assert.equal(heartbeat(file, 'mine'), false)
 })
 
+test('heartbeat without a claim of its own touches nothing, even a file that names no guard', () => {
+  const dir = tempDir()
+  const file = join(dir, 's.guard.json')
+  const old = new Date(Date.now() - 60 * 1000)
+  for (const text of [JSON.stringify({ root: {} }), '', '{"failed":{"at":1}}', 'not json']) {
+    for (const claim of [null, undefined, '']) {
+      writeFileSync(file, text)
+      utimesSync(file, old, old)
+      assert.equal(heartbeat(file, claim), false, `${text} ${claim}`)
+      assert.equal(statSync(file).mtimeMs, old.getTime(), `not touched: ${text} ${claim}`)
+    }
+  }
+})
+
+// Every way to start or stop a process throws, so a module that tried would fail the run.
+const BLOCK = "import cp from 'node:child_process'; import { syncBuiltinESMExports } from 'node:module'; for (const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']) cp[k] = () => { throw new Error('started ' + k) }; process.kill = () => { throw new Error('kill') }; syncBuiltinESMExports()"
+const BLOCK_IMPORT = `data:text/javascript,${encodeURIComponent(BLOCK)}`
+const RUNNER = join(import.meta.dirname, '..', 'hooks', 'memory-guard.mjs')
+
+test('a runner that cannot use what it was given writes no file but a record that names it', () => {
+  const dir = tempDir()
+  const keep = {
+    'notes.txt': 'keep me',
+    'config.json': '{"a":1}',
+    // A new claimer has opened this record and is still listing: the runner must not write its failure there.
+    'claimed.guard.json': '',
+    'half-written.guard.json': JSON.stringify({ root: {}, claim: 'another-guard' }).slice(0, -1),
+  }
+  for (const [name, text] of Object.entries(keep)) writeFileSync(join(dir, name), text)
+  // A record the hook wrote for this runner, with a limit it cannot use: its failure goes there, so the hook waits 10 minutes.
+  const own = join(dir, 'own.guard.json')
+  writeFileSync(own, JSON.stringify({ root: { pid: 1, started: 1 }, limit: 1e300, log: join(dir, 'x.log'), claim: 'mine' }))
+  for (const name of [...Object.keys(keep), 'own.guard.json']) {
+    const run = spawnSync(process.execPath, ['--import', BLOCK_IMPORT, RUNNER, join(dir, name)], { cwd: dir, encoding: 'utf8', timeout: 20000 })
+    assert.equal(run.status, 1, `${name}: ${run.stderr}`)
+  }
+  for (const [name, text] of Object.entries(keep)) assert.equal(readFileSync(join(dir, name), 'utf8'), text, name)
+  assert.ok(JSON.parse(readFileSync(own, 'utf8')).failed, 'the runner recorded its own failure')
+})
+
 test('runGuard ends after 10 failed scans in a row and logs that once; a good scan resets the count', async () => {
   const fail = new Error('lister broke')
   const f = fakes([...Array(9).fill(fail), [ROW_ROOT], ...Array(10).fill(fail)])
@@ -294,11 +348,9 @@ test('runGuard needs every effect: a missing one throws before any scan', async 
 test('importing either module starts nothing: no spawn, no kill, no file written', () => {
   const home = tempDir()
   const cwd = tempDir()
-  // Every way to start or stop a process throws, so an import that tried would fail the run.
-  const block = "import cp from 'node:child_process'; import { syncBuiltinESMExports } from 'node:module'; for (const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']) cp[k] = () => { throw new Error('started ' + k) }; process.kill = () => { throw new Error('kill') }; syncBuiltinESMExports()"
   const lib = pathToFileURL(join(import.meta.dirname, '..', 'hooks', 'lib', 'memory-guard.mjs')).href
-  const runner = pathToFileURL(join(import.meta.dirname, '..', 'hooks', 'memory-guard.mjs')).href
-  const run = spawnSync(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(block)}`, '--input-type=module', '-e', `await import(${JSON.stringify(lib)}); await import(${JSON.stringify(runner)})`], {
+  const runner = pathToFileURL(RUNNER).href
+  const run = spawnSync(process.execPath, ['--import', BLOCK_IMPORT, '--input-type=module', '-e', `await import(${JSON.stringify(lib)}); await import(${JSON.stringify(runner)})`], {
     cwd, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 20000,
   })
   assert.equal(run.status, 0, run.stderr)
