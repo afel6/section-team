@@ -284,7 +284,7 @@ test('the boundary rule is bounded by the spec in the house rules, the coder and
 
 // The 2026-11-09 p1 round: ids above 2^53 failed reads, and requests trusted data read before an outside wait.
 test('the house rules cover data other tools write and data read before an outside wait, in every section and the coder', () => {
-  const STORED = " data other tools can write (a shared database, a file) may hold any value its store allows: read and reply with every such value without failing or dropping it (in JavaScript, read integer columns that can pass 2^53, such as ids, as BigInt); a request that reads data, waits on an outside call that changes nothing outside (a model, a lookup) and then writes or replies from that data checks again, in the transaction that writes, that the user still has access and the data still exists: if not, it writes nothing and replies as the spec says for a missing one, because access is decided when the write happens and a write for something deleted fits no one-at-a-time order; if only the content it sent has changed and the spec names no reply for that, the answer is still used: a change is not a failed call, and it adds no attempt and no failure to those the spec lists; a time limit the spec sets on an outside call is enforced twice: a timer that aborts the call and stays set until the whole reply body is read, and the elapsed time on a monotonic clock (performance.now() in JavaScript) since the attempt began, checked again when the reply completes;"
+  const STORED = " data other tools can write (a shared database, a file) may hold any value its store allows: read and reply with every such value without failing or dropping it (in JavaScript, read integer columns that can pass 2^53, such as ids, as BigInt); a request that reads data, waits on an outside call that changes nothing outside (a model, a lookup) and then writes or replies from that data checks again, in the transaction that writes, that the user still has access and the data still exists: if not, it writes nothing and replies as the spec says for a missing one, because access is decided when the write happens and a write for something deleted fits no one-at-a-time order; if only the content it sent has changed and the spec names no reply for that, the answer is still used: a change is not a failed call, and it adds no attempt and no failure to those the spec lists; where the spec gives a request one time (one clock reading), every later step uses that reading, the re-check after a wait, the write and each retry included, never a fresh one; a time limit the spec sets on an outside call is enforced twice: a timer that aborts the call and stays set until the whole reply body is read, and the elapsed time on a monotonic clock (performance.now() in JavaScript) since the attempt began, checked again when the reply completes;"
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(`lets through input its steps reject);${STORED} handle errors explicitly`), `${id} stored values and outside waits`)
 })
 
@@ -492,6 +492,24 @@ test('round tf: after an outside wait a request re-checks access and existence a
   assert.ok(te.includes("delete the data it read, delete the user and end the session (each time the reply is the spec's for a missing one, nothing is written or shown for what is gone and nothing crashes), then edit what it sent (the answer is still used unless the spec names a reply for that, with no added attempt or failure);"), 'testing probe')
   assert.ok(!te.includes('match some one-at-a-time order'), 'old probe text')
   assert.ok(agentFile('reviewer').includes('(content that changed meanwhile is not a failure and the answer is still used, unless the spec names a reply for that)'), 'reviewer')
+})
+
+// Round tg: an advisor's design took a fresh clock for the re-check and the supervisor told the builder to follow it; a builder handed back a spec line as impossible.
+test('round tg: one clock reading per request; the spec and the rules outrank advice; advisors keep the spec', () => {
+  const CLOCK = 'it adds no attempt and no failure to those the spec lists; where the spec gives a request one time (one clock reading), every later step uses that reading, the re-check after a wait, the write and each retry included, never a fresh one; a time limit the spec sets on an outside call is enforced twice'
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(CLOCK), `${id} clock reading`)
+  const OUTRANK = 'test that case. The spec and the rules in this file outrank a design note, advice and the wording of a job message: where one of those differs, build to the spec and the rules unless the message says the user decided it, and log the difference in `.team/notes/decisions.md`.'
+  const LIMIT = "Never hand back a spec line as impossible from memory: look the limit up in the platform's documentation (the event, option or lower-level API that covers the case) and try it; if the limit stands, say what you tried and finish with `Status: partial`, not `done`. Treat every value the spec names as exact"
+  for (const id of BUILDER_IDS) {
+    assert.ok(agentFile(id).includes(OUTRANK), `${id} spec outranks advice`)
+    assert.ok(agentFile(id).includes(LIMIT), `${id} no limit from memory`)
+  }
+  const ADVICE = "Your REPORT's Quality line is always `n/a (no code)`. Your advice keeps the spec and the house rules above: every value, step and order the spec names stays exactly as given (a URL sent as configured, one clock reading per request where the spec gives one), you name the spec line behind each choice, and you leave the choice of library call to the builder unless you have checked that call against that line."
+  for (const id of ADVISOR_IDS) {
+    assert.ok(agentFile(id).includes(ADVICE), `${id} advice keeps the spec`)
+    assert.ok(!agentFile(id).includes('outrank a design note'), `${id} has no builder rule`)
+  }
+  for (const id of BUILDER_IDS) assert.ok(!agentFile(id).includes('Your advice keeps the spec'), `${id} is no advisor`)
 })
 
 // Round tf: shipped test files carried '(testing section)' and 'Final review probes', and names such as probes-*, final-*, final2-*.
