@@ -194,7 +194,34 @@
 - Hidden failures: only "a body that is not a JSON object is 400" (stage 1 and both regressions) in Balanced run 2 and both Max runs, for the body `﻿{}`: `new TextDecoder('utf-8')` drops the byte order mark. The sections chose it on purpose, citing "never refuse input the spec accepts".
 - Judged defects: the configured URL's user:password dropped (from 1ddee6e's raw-path clause); a model deadline enforced by a timer only; a model call restarted on every concurrent edit and ended in 503 (Balanced run 1, from the outside-wait house rule) or answered from stale data (Max run 1); Node's own 417 and silent CONNECT left in place, with the testing probe marked todo (Balanced run 1); the login button re-enabled after the body; one startup check out of the spec's order; one test needing git history; one README claim the code does not keep.
 - The long hand-back refusal fired in every team run and sections handed back again short; stages 2 and 3 skipped the unchanged brief on resume.
-- After the round, root-cause workflow wf_d4b22838-5e3 and the fixes 27db531, 44f5d45 and 68ffecb (reviewed by Codex, Fable and a Node probe fact-check, then a Codex scoped re-review) changed the house rules, STRICTER, SPEC_LITERAL, the reviewer rubric, the backend, frontend and testing text and two brief lines. Unmeasured: another round costs about $110.
+- After the round, root-cause workflow wf_d4b22838-5e3 and the fixes 27db531, 44f5d45 and 68ffecb (reviewed by Codex, Fable and a Node probe fact-check, then a Codex scoped re-review) changed the house rules, STRICTER, SPEC_LITERAL, the reviewer rubric, the backend, frontend and testing text and two brief lines. The measure round below tests them.
+
+**Measure round evidence (2026-11-11, plugin 874ad3f, round tag `tf`, the user's yes at about $110; same CLI version, judge and orders; Fable as a second blind judge):**
+
+| | Run 1 | Run 2 | Mean | Target | Result |
+|---|---|---|---|---|---|
+| Solo cost | $4.30 | $3.76 | $4.03 | | |
+| Solo hidden (of 264) | 264 | 264 | 264 | | |
+| Solo judged (Codex; Fable) | 7, 7; 7, 7 | 7, 7; 7, 7 | 7.0; 7.0 | | |
+| Balanced cost | $19.66 | $18.24 | 4.7× solo | ≤ 5× | met |
+| Balanced hidden | 264 | 264 | 264 | ≥ solo (264) | met |
+| Balanced judged (Codex; Fable) | 8, 9; 9, 9 | 8, 9; 9, 9 | 8.5; 9.0 | ≥ solo + 1.5 (8.5) | met |
+| Balanced longest stage | 43.1 min | 25.1 min | | ≤ 60 | met |
+| Balanced supervisor peak | 104K | 99K | | < 150K | met |
+| Max cost | $34.60 | $31.32 | 8.2× solo | reported | |
+| Max hidden | 264 | 264 | 264 | ≥ Balanced (264) | met |
+| Max judged (Codex; Fable) | 9, 8; 8, 9 | 9, 8; 8, 8 | 8.5; 8.25 | ≥ Balanced + 0.25 (8.75) | missed |
+| Max longest stage | 44.4 min | 51.8 min | | ≤ 120 | met |
+| Max supervisor peak | 116K | 123K | | < 150K | met |
+| `plan-advisor` at stage 2 | yes, yes (Balanced); yes, yes (Max) | | | every team run | met |
+| No high security finding in Max | security section ran in all 6 Max stages; none judged | | | none | met |
+| User data | section notes still 137 files after every run | | | none read, moved or lost | met |
+
+- Ranked first by Codex: Max in both pairs in one order, Balanced in both in the other; by Fable: Balanced in three cases, Max in one. Solo last everywhere.
+- Hidden: 264 in all six runs; the byte order mark test passes in every team run.
+- The judges split on one rule: Balanced retried a model call when the ticket changed during it (house rule R13); both Max supervisors removed the retry in a fix round, and Max run 2 removed the access re-check with it. Codex marked the retry down and the stale answer once; Fable marked the retry down in every Balanced case. Other confirmed defects: a report filter counting rows of a user that does not exist (both Balanced runs), a synchronous driver lock wait that blocks every other request (three of four team runs), every read under a write lock (Max run 1), login skipping the hash for an unknown name (both Balanced runs), unexpected 500s not logged, and process words in shipped test files and names (both Max runs).
+- After the round, Fable planned the fixes (24 defects confirmed in code), Sonnet and Haiku applied them by complexity, and Fable reviewed them with Node probes; ruling R18 replaced R13. Commit 77edf80; unmeasured.
+- The Codex app moved its CLI binary (same 0.167.0-alpha.3.2) between cases 2 and 3; the run sheet follows it.
 
 ### Task 7: Report
 

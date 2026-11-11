@@ -77,7 +77,7 @@ test('the README describes the saved request, the short hand-back, the resume br
     'in a `-details.md` file there and keep at most 5 short lines above their REPORT',
     'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
     'A resumed session gets the brief again only when it changed since the session started.',
-    "In the p1 confirm round the supervisor's chat peaked at 95K to 98K in Balanced and 137K to 139K in Max, down from 115K to 117K and 171K to 176K the round before.",
+    "In the p1 measure round the supervisor's chat peaked at 99K to 104K in Balanced and 116K to 123K in Max, against 158K to 168K for solo.",
   ], 'README')
   assert.ok(!readme.includes('the supervisor starts the app itself and drives every critical flow'), 'the old Max flow sentence is gone')
 })
@@ -91,9 +91,23 @@ test('the README records the p1 confirm round with its numbers and what is not m
     '| Max | $37.37 | 10.6 | 261 | 8.75 | 4 of 4 | 54 min | 137K to 139K |',
     'Missed: Balanced judged 1.0 above solo again, not 1.5',
     "`new TextDecoder('utf-8')`, which drops a leading byte order mark",
-    "Commits 27db531 and 44f5d45 fix these in the sections' rules; not measured yet.",
+    "Commits 27db531, 44f5d45 and 68ffecb fix these in the sections' rules; the measure round below tests them.",
   ], 'README')
   assert.ok(!readme.includes('Their effect on usage is not measured yet.'), 'the unmeasured-usage sentence is gone')
+})
+
+test('the README records the p1 measure round with both judges and what is not measured', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    '**A p1 measure round (0.3.0, 2026-11-11).**',
+    '| Plain Claude Code (solo) | $4.03 | 1.0 | 264 | 7.0 | 7.0 | 0 of 4 | 8 min | 158K to 168K |',
+    '| **Balanced (default)** | $18.95 | 4.7 | 264 | 8.5 | 9.0 | 2 of 4 | 43 min | 99K to 104K |',
+    '| Max | $32.96 | 8.2 | 264 | 8.5 | 8.25 | 2 of 4 | 52 min | 116K to 123K |',
+    'Missed: Max judged level with Balanced by Codex and 0.75 below it by Fable, not 0.25 above.',
+    'Commit 77edf80 keeps the answer after such a call',
+    'not measured yet.',
+  ], 'README')
+  assert.ok(!readme.includes("fix these in the sections' rules; not measured yet."), 'the confirm round fixes are measured now')
 })
 
 test('the README says the guard refuses only finished heads, and what each caller is told', () => {

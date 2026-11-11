@@ -69,9 +69,9 @@ test('sheetValues reads the json block', () => {
   assert.deepEqual(sheetValues(sheetWith({}) + '\n```json\n{ "model": "later block" }\n```\n'), VALUES)
   for (const sandbox of ['workspace-write', 'danger-full-access']) assert.equal(sheetValues(sheetWith({ sandbox })).sandbox, sandbox)
   const sheet = readFileSync(SHEET, 'utf8')
-  // The frozen sheet holds the sandbox probe's result (read-only); codexBin moved to 0.167.0-alpha.3.2 on 2026-11-09.
+  // The frozen sheet holds the sandbox probe's result (read-only); codexBin moved to 0.167.0-alpha.3.2 on 2026-11-09, and to its new app folder on 2026-11-11.
   const frozen = sheetValues(sheet)
-  assert.deepEqual(frozen, { ...VALUES, codexBin: 'C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/f71a721e0e6193a9/codex.exe' })
+  assert.deepEqual(frozen, { ...VALUES, codexBin: 'C:/Users/Asus/AppData/Local/OpenAI/Codex/bin/5449c1f0f26f1f98/codex.exe' })
   assert.equal(sheet.split(/\r?\n/)[0], 'Freeze: tag mo-freeze-cloud')
   // The sheet's command line is codexArgs with placeholders for the paths and the prompt.
   const args = codexArgs({ caseDir: '<case folder>', ...frozen, lastMessage: '<log>.last.txt' })
