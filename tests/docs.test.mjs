@@ -130,6 +130,17 @@ test('the README says the guard refuses only finished heads, and what each calle
   ], 'guard line')
 })
 
+// Real use, 2026-11-11: one process took all the memory of the machine three times; the plugin's guard stops such a run.
+test('the README describes the memory guard under Use: what it stops, the limit, the variable, the log, the default and how to turn it off', () => {
+  const use = read('README.md').split('\n## Use\n')[1].split('\n## ')[0]
+  const guard = use.split('**Memory guard.**')[1]?.split('\n')[0]
+  assert.ok(guard, 'no Memory guard entry under Use')
+  assertIncludes(guard, [
+    'every 5 seconds', "the session's MCP servers", '75% of physical memory, never under 4096 MB', '`SECTION_TEAM_MEMORY_LIMIT_MB`', '`0` turns it off',
+    '`.team/tmp/memory-guard.log`', 'on by default on Windows only',
+  ], 'memory guard entry')
+})
+
 test('CONTRIBUTING makes no claim, explains --plugin-ref and lists the foundation skill and the new hook helpers', () => {
   const text = read('CONTRIBUTING.md')
   assert.deepEqual(claimSentences(text), [], 'no saving or quality claim in CONTRIBUTING')

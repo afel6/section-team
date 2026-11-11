@@ -1,10 +1,14 @@
-import { homedir } from 'node:os'
+import { execFileSync, spawn } from 'node:child_process'
+import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
+import { homedir, totalmem } from 'node:os'
 import nodePath from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, reportHead, sectionIdFromType } from './lib/report.mjs'
 import { gradeRule } from './lib/grade.mjs'
 import { headContextRule } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
-import { readRecord } from './lib/mode-record.mjs'
+import { FRESH_SCANS, INTERVAL_MS, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
+import { isSessionId, modeRecordDir, readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team pre-tool-use'
@@ -110,16 +114,142 @@ export function decide(e, env = process.env, home = homedir()) {
   return handbackGate(id, e, env, home) ?? advisorRule(id, e, env) ?? foregroundRule(e)
 }
 
+// The session memory guard. The first Bash or PowerShell call by a section (not an advisor) claims the session's record and starts
+// one detached runner (memory-guard.mjs); the runner touches the record on every scan, so a fresh record means one is running.
+const GUARD_TOOLS = new Set(['Bash', 'PowerShell'])
+const FRESH_MS = FRESH_SCANS * INTERVAL_MS
+const RETRY_MS = 10 * 60 * 1000
+const LIST_TIMEOUT_MS = 4000
+const LIST_BUFFER = 64 * MB
+const RUNNER = fileURLToPath(new URL('./memory-guard.mjs', import.meta.url))
+const GUARD_LOG = ['.team', 'tmp', 'memory-guard.log']
+const GUARD_SUFFIX = '.guard.json'
+
+const wantsGuard = e => GUARD_TOOLS.has(e?.tool_name) && typeof e.agent_type === 'string' && e.agent_type.startsWith(PREFIX)
+  && !ADVISOR_IDS.includes(e.agent_type.slice(PREFIX.length)) && isSessionId(e.session_id)
+
+const mtimeOrNull = file => {
+  try {
+    return statSync(file).mtimeMs
+  } catch (err) {
+    if (err.code === 'ENOENT') return null
+    throw err
+  }
+}
+
+// A new file opened for writing, or null when it already exists.
+const openNew = file => {
+  try {
+    return openSync(file, 'wx')
+  } catch (err) {
+    if (err.code === 'EEXIST') return null
+    throw err
+  }
+}
+
+// A failed start written less than RETRY_MS ago; an unreadable record is no failure.
+function recentFailure(record, now) {
+  try {
+    const at = JSON.parse(readFileSync(record, 'utf8'))?.failed?.at
+    return Number.isFinite(at) && now - at < RETRY_MS
+  } catch {
+    return false
+  }
+}
+
+// An open descriptor on the session's record when this caller wins it, else null. A stale record is taken over by the one caller that
+// creates the takeover file named for that record's modified time; the modes folder's weekly prune removes it.
+function claim(record, now) {
+  mkdirSync(nodePath.dirname(record), { recursive: true })
+  const fd = openNew(record)
+  if (fd !== null) return fd
+  const mtime = mtimeOrNull(record)
+  if (mtime === null) return openNew(record)
+  if (now - mtime < FRESH_MS || recentFailure(record, now)) return null
+  const lock = openNew(`${record.slice(0, -GUARD_SUFFIX.length)}.guard-takeover-${Math.trunc(mtime)}.json`)
+  if (lock === null) return null
+  closeSync(lock)
+  try {
+    unlinkSync(record)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+  return openNew(record)
+}
+
+// Finds the root, writes the record and starts the runner; a failure goes into the record (the hook does not try again for RETRY_MS).
+function startGuard(fd, record, e, env, deps, limit) {
+  try {
+    const dir = projectDirOf(e, env)
+    if (dir === null) throw new Error('no project folder for its log')
+    const root = sessionRoot(deps.list(), deps.pid)
+    if (root === null) throw new Error('no claude or node process above this hook')
+    writeSync(fd, JSON.stringify({ root, limit, log: nodePath.join(projectRoot(dir), ...GUARD_LOG) }))
+    closeSync(fd)
+    fd = null
+    deps.spawn(record)
+    return null
+  } catch (err) {
+    if (fd !== null) closeSync(fd)
+    writeFileSync(record, JSON.stringify({ failed: { at: deps.now(), problem: lineOf(err) } }))
+    return `memory guard not started, tried again in 10 minutes: ${lineOf(err)}`
+  }
+}
+
+// Starts the session's memory guard when this call should and none runs; never denies. deps carries every effect: home (the record folder's home),
+// platform, totalBytes, now, pid (this hook's), list (the process table) and spawn (starts the runner on a record file).
+// Returns one line for the user, or null.
+export function ensureGuard(e, env, deps) {
+  if (!wantsGuard(e)) return null
+  const { bytes, problem } = limitBytes(env, deps.totalBytes, deps.platform)
+  if (bytes === null) return null
+  const record = nodePath.join(modeRecordDir(deps.home), `${e.session_id}${GUARD_SUFFIX}`)
+  const mtime = mtimeOrNull(record)
+  if (mtime !== null && deps.now() - mtime < FRESH_MS) return null
+  const fd = claim(record, deps.now())
+  if (fd === null) return null
+  return startGuard(fd, record, e, env, deps, bytes) ?? problem
+}
+
+function listOnce(platform) {
+  const { file, args, env } = listerCommand(platform)
+  const out = execFileSync(file, args, { input: '\n', encoding: 'utf8', timeout: LIST_TIMEOUT_MS, windowsHide: true, env: { ...process.env, ...env }, maxBuffer: LIST_BUFFER, stdio: ['pipe', 'pipe', 'ignore'] })
+  return parseTable(platform, out)
+}
+
+// The runner outlives this hook: detached, no shared output, its folder the record's.
+function spawnRunner(record) {
+  const child = spawn(process.execPath, [RUNNER, record], { detached: true, stdio: 'ignore', windowsHide: true, cwd: nodePath.dirname(record) })
+  child.once('error', err => writeFileSync(record, JSON.stringify({ failed: { at: Date.now(), problem: lineOf(err) } })))
+  child.unref()
+}
+
+const realGuardDeps = () => ({
+  home: homedir(), platform: process.platform, totalBytes: totalmem(), now: Date.now, pid: process.pid,
+  list: () => listOnce(process.platform), spawn: spawnRunner,
+})
+
+function guardNotice(e) {
+  try {
+    return ensureGuard(e, process.env, realGuardDeps())
+  } catch (err) {
+    return `memory guard not started: ${lineOf(err)}`
+  }
+}
+
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
 
 // A hook that cannot check says so in one line and denies nothing.
 async function main() {
   const e = await readStdinJson()
   if (typeof e !== 'object' || e === null || Array.isArray(e)) return notice('the hook input is not a JSON object, so no rule was checked')
+  const guard = guardNotice(e)
   const reason = decide(e)
-  if (reason) {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }))
+  const out = {
+    ...(guard ? { systemMessage: `${MESSAGE_PREFIX}: ${guard}` } : {}),
+    ...(reason ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } } : {}),
   }
+  if (guard || reason) process.stdout.write(JSON.stringify(out))
 }
 
 if (isMainModule(import.meta.url)) {
