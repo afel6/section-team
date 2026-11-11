@@ -157,9 +157,9 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     PASS_RULE,
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
-    'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its fixes of a few lines if you like (a doc sentence the code contradicts is never left: fix the sentence, or the code when the spec states that sentence), rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
-    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test. A fix after the gate costs far more than care now.",
+    'To grade again, start a new foreground reviewer call and put the earlier GRADE block and what you changed for each fix into its request, so it checks those fixes and does not start over. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
+    'A pass ends the gate: apply its fixes of a few lines if you like (two kinds are never left: a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where you add the test), rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
+    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds. A fix after the gate costs far more than care now.",
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -181,7 +181,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
 test('house rules carry the friendly-errors rule; the reviewer fails a user-triggerable stack trace; testing probes I/O and startup failures', () => {
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace);'), `${id} friendly errors`)
   const reviewer = agentFile('reviewer')
-  assert.ok(reviewer.includes('List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes, and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence).\n\nEnd your answer with exactly this block, filled in:'), 'reviewer fix-list cap')
+  assert.ok(reviewer.includes('List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes, and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence), and any spec line whose tests a wrong implementation you can name would still pass (the fix is the test).\n\nEnd your answer with exactly this block, filled in:'), 'reviewer fix-list cap')
   assert.ok(reviewer.includes('user-facing errors stay friendly and leak nothing'), 'reviewer errors item')
   assert.ok(reviewer.includes('Rethrowing to the runtime is not handling: a stack trace a user can trigger (a bad env value, a data path that is a directory, a missing parent folder, a port in use) scores errors under 6.'), 'reviewer stack-trace threshold')
   assert.ok(agentFile('testing').includes('Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace.'), 'testing I/O probes')
@@ -460,7 +460,7 @@ test('round fix 3 text is in the agents that carry it and the old text is gone',
     assert.ok(f.includes('send a configured URL as given, path and query byte for byte and user:password included'), id + ' L1 head')
     assert.ok(!f.includes('pass host, port and the raw path'), id + ' old L1')
     assert.ok(f.includes("keep a leading BOM: buffer.toString('utf8') or new TextDecoder('utf-8', { ignoreBOM: true })"), id + ' L2')
-    assert.ok(f.includes('(a doc sentence the code contradicts is never left: fix the sentence, or the code when the spec states that sentence)'), id + ' Q1')
+    assert.ok(f.includes('(two kinds are never left: a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where you add the test)'), id + ' Q1')
     assert.equal(f.includes('checkExpectation'), id === 'backend', id + ' B1 only in backend')
     assert.equal(f.includes('before applying an outcome'), id === 'frontend', id + ' F1 only in frontend')
   }
@@ -516,7 +516,7 @@ test('round tg: one clock reading per request; the spec and the rules outrank ad
 test('shipped files carry no process words: house rules, the reviewer and the testing section say so', () => {
   const HOUSE = 'names, comments and docs in shipped files say what the product does, never how the work was done: no word for a team section, a review, a probe or a fix round, and nothing that points into `.team/`;'
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(`no console.log in shipped code; ${HOUSE} write tests first`), `${id} no process words`)
-  assert.ok(agentFile('reviewer').includes('\n- leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code, and no name, comment or doc line that tells how the work was done instead of what the code does (a team section, a review, a probe, a fix round, a `.team/` path; a test file named for the step that wrote it).\n'), 'leftovers item')
+  assert.ok(agentFile('reviewer').includes('\n- leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code, and no name, comment or doc line that tells how the work was done instead of what the code does (a team section, a review, a probe, a fix round, a `.team/` path; a test file named for the step that wrote it). No parameter, export or branch in shipped code that only a test sets, no doc list or count (test files, totals) the folder no longer matches, and no scratch file or empty folder left in the project.\n'), 'leftovers item')
   assert.ok(agentFile('testing').includes('never file it as optional. Put each test in a test file named for the feature it covers; no file name, test name or comment says it came from a probe, a review or a section. Give each spec requirement a test'), 'testing names tests by feature')
 })
 
@@ -541,4 +541,19 @@ test('backend checks a secret in equal time and logs unexpected errors; the revi
   assert.ok(backend.includes('A check of a secret does the same work for an unknown name as for a wrong secret (verify against a fixed dummy hash), so timing does not tell which names exist.'), 'equal-time check')
   assert.ok(backend.includes('An unexpected error a server turns into a reply also goes to stderr as one line with no user data or secret, unless the spec limits what is written there.'), 'stderr line')
   assert.ok(agentFile('reviewer').includes(' A check of a secret that does less work for an unknown name than for a wrong secret is a fix.\n'), 'reviewer')
+})
+
+// Round tg: a later grade failed code for doing what an earlier grade asked, a reviewer asked for a test-only parameter, and test gaps the reviewer named shipped as optional.
+test('round tg: the reviewer keeps re-grades consistent, asks for nothing the spec does not state, and reads a whole product when asked', () => {
+  const rv = agentFile('reviewer')
+  assert.ok(rv.includes('For docs or config, score only the items that apply and write n/a for the rest.\nEvery fix you list names the spec line or the rule above that it serves. Never ask for a check, a refusal or behaviour the spec does not state, and never for a parameter, export or branch in shipped code that only a test would set: ask for a test through the real interface, or of a smaller unit.\nWhen the request carries an earlier GRADE block, this is a re-grade: check each fix on that list and every line changed since that grade, and nothing else. Keep an earlier score unless the code under it changed, and never fail code for doing what an earlier fix asked. A new point that breaks no spec line and crashes nothing is listed as `(optional)` and lowers no score.\nWhen the request asks for a whole-product review, read the named files as one codebase instead of changed lines: logic written twice across files, one name used for two things, a number with no name, a step, a refusal, a failure or a file the spec does not state, a doc sentence, list or count the code does not keep, a test case or test helper written twice. Each one is a fix with its file:line, and the item it falls under is scored for it.\n\nBash is only for'), 'reviewer rules')
+  assert.ok(rv.includes('\n- duplication: no copy-pasted logic that should be one shared function, in tests too: a case another test already covers, or a second copy of a helper or stand-in the test folder has, is a fix.\n'), 'duplication item')
+  assert.ok(rv.includes('a test file named for the step that wrote it). No parameter, export or branch in shipped code that only a test sets, no doc list or count (test files, totals) the folder no longer matches, and no scratch file or empty folder left in the project.\n'), 'leftovers item')
+  assert.ok(rv.includes(', and any spec line whose tests a wrong implementation you can name would still pass (the fix is the test).\n\nEnd your answer'), 'pass list')
+  for (const id of BUILDER_IDS) {
+    const f = agentFile(id)
+    assert.ok(f.includes('   - To grade again, start a new foreground reviewer call and put the earlier GRADE block and what you changed for each fix into its request, so it checks those fixes and does not start over. Never SendMessage'), `${id} re-grade request`)
+    assert.ok(f.includes('and a spec line whose tests a named wrong implementation would pass, where you add the test), rerun the tests, and do not grade again.'), `${id} test gap never left`)
+    assert.ok(f.includes('every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds. A fix after'), `${id} walk`)
+  }
 })
