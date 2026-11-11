@@ -155,7 +155,6 @@ test('max tiers add probing, security and docs always', () => {
     'ask it to probe every spec line). Code that takes user input',
     'user input or touches files or the network also gets a security section review',
     'the security section for a security pass',
-    '(the one cross-review you ask for)',
     'testing for tests, the security section',
     'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
@@ -330,4 +329,14 @@ test('both mode briefs carry the round fix 3 wording', () => {
     assert.ok(brief.includes('input refused or accepted only as the spec says'), mode)
     assert.ok(!brief.includes('never a refusal of input the spec accepts'), mode)
   }
+})
+
+// Round tg: the second final review repeated the first one's flows; the 35 characters that tell it apart are paid for by the cross-review aside.
+test('max tells the second final review that it is the second, at no cost in characters', () => {
+  const max = assembleBrief('max')
+  assert.ok(max.includes("each by a fresh testing section; never show the second the first's REPORT, and tell it that it is the second. Do not build multi-area work yourself"))
+  assert.ok(!part('tiers-max').includes('(the one cross-review you ask for)'))
+  assert.ok(part('tiers-balanced').includes('it is the one cross-review you ask for.'))
+  assert.ok(!assembleBrief('balanced').includes('tell it that it is the second'))
+  assert.ok(max.length <= 8961, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
 })
