@@ -17,7 +17,7 @@ test('the foundation skill has valid frontmatter and every required step heading
   assert.ok(match, 'frontmatter with name then description')
   assert.equal(match[1], 'foundation')
   assert.ok(match[2].length > 40)
-  const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
+  const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build slices one at a time, or side by side when they share nothing']
   assert.deepEqual([...text.matchAll(/^## (.+)$/gm)].map(m => m[1]), headings, 'headings missing or out of order')
   const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts;\n- for each request that waits on an outside call, what it reads again before it writes;\n- auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
   for (const needle of [...noteContents, 'wake nobody until they say OK', 'frozen', 'whole-stack verification', 'at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
@@ -37,12 +37,12 @@ test('the foundation skill triggers on a new multi-area platform, not on a count
 test('the foundation skill says where .team/ is, and names the note and slice in each job, by full path in a worktree session', () => {
   const text = read('skills/foundation/SKILL.md')
   assert.ok(text.includes('`.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.'))
-  const build = text.split('## Build one slice at a time\n')[1]
+  const build = text.split('## Build slices one at a time, or side by side when they share nothing\n')[1]
   assert.ok(build.includes('Each job message names the foundation note and the slice. In a worktree session, give the note\'s full path.'))
 })
 
 test('the supervisor creates a missing repo itself and keeps both .team/ and section memory out of its first commit', () => {
-  const build = read('skills/foundation/SKILL.md').split('## Build one slice at a time\n')[1]
+  const build = read('skills/foundation/SKILL.md').split('## Build slices one at a time, or side by side when they share nothing\n')[1]
   assert.ok(build.includes('If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.'))
 })
 
@@ -98,7 +98,9 @@ test('every mode brief stays under 9000 characters with the plan advisor', () =>
 test('the foundation note names the sections of each slice, and slices that share nothing may be built side by side', () => {
   const text = read('skills/foundation/SKILL.md')
   assert.ok(text.includes('- build order as vertical slices, each with a check that proves it done, the sections it wakes (the security section for a slice that touches auth, payments, uploads or secrets) and whether it can be built beside another slice;\n'))
-  const build = text.split('## Build one slice at a time\n')[1]
+  const build = text.split('## Build slices one at a time, or side by side when they share nothing\n')[1]
   assert.ok(build.startsWith("Wake the sections for one slice only, or together for slices the note says can be built side by side (no shared files, contracts already in notes). Wake every section the note lists for the slice, the security section included. Each slice, or each set built side by side, ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts; for the last one that is the final review the brief asks for. Each job message names the foundation note and the slice."))
   assert.ok(!text.includes('Wake the sections for one slice only. Each slice ends'))
+  assert.ok(text.match(/^description: (.+)$/m)[1].endsWith('then builds verified slices, one at a time or side by side when they share nothing.'), 'description')
+  assert.ok(!text.includes('one verified slice at a time'), 'old description')
 })

@@ -110,6 +110,16 @@ test('the README records the p1 measure round with both judges and what is not m
   assert.ok(!readme.includes("fix these in the sections' rules; not measured yet."), 'the confirm round fixes are measured now')
 })
 
+// Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
+test('the README says the second Max final review reads the code, and slices that share nothing are built side by side', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    "(the second is not shown the first's REPORT; it reads the code against the spec instead of probing again)",
+    'then builds one slice at a time, or slices that share nothing side by side, with a whole-stack check after each',
+  ], 'README')
+  assert.ok(!readme.includes('then builds one slice at a time with a whole-stack check after each'), 'old foundation line')
+})
+
 test('the README says the guard refuses only finished heads, and what each caller is told', () => {
   const guard = read('README.md').split('**Context guard.**')[1].split('\n')[0]
   assert.ok(!guard.includes('Any message') && !guard.includes('not to each other'), 'a working head still takes messages')

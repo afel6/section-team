@@ -1,6 +1,6 @@
 ---
 name: foundation
-description: Lay the foundation when work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product. For the supervisor only. Asks the user a few questions, writes a short frozen foundation note, gets the user's OK, then builds one verified slice at a time.
+description: Lay the foundation when work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product. For the supervisor only. Asks the user a few questions, writes a short frozen foundation note, gets the user's OK, then builds verified slices, one at a time or side by side when they share nothing.
 ---
 # Foundation first
 
@@ -38,7 +38,7 @@ After the OK the note is frozen. A change goes through you and is recorded in `.
 ## Keep the plan
 Keep `.team/notes/plan.md` as a short status table of the slices, updated after each job. A new chat reads it first, so the work survives across sessions.
 
-## Build one slice at a time
+## Build slices one at a time, or side by side when they share nothing
 Wake the sections for one slice only, or together for slices the note says can be built side by side (no shared files, contracts already in notes). Wake every section the note lists for the slice, the security section included. Each slice, or each set built side by side, ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts; for the last one that is the final review the brief asks for. Each job message names the foundation note and the slice. In a worktree session, give the note's full path.
 
 If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.
