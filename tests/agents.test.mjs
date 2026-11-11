@@ -568,3 +568,14 @@ test('round tg: testing reads the code for what probes miss, asks for one whole-
   assert.ok(te.includes('send a request with each method and with a made-up one (CONNECT included:'), 'made-up method')
   for (const id of BUILDER_IDS.filter(id => id !== 'testing')) assert.ok(!agentFile(id).includes('Probes miss what does not show'), `${id} has no read-through`)
 })
+
+// Round tg: every builder wrote the code before its tests, the same reply cases were tested in 3 to 4 files, and the security pass wrote a test file in every stage.
+test('round tg: tests come first, reuse what exists, and a security pass adds a test only for a fix', () => {
+  const TESTS = 'write tests first for new behaviour and aim for 80% coverage; before you add a test, look at the tests that exist: reuse their helpers and stand-ins, put the case in the file that covers that feature, and write no case an existing test already fails on; conventional commit messages if you commit.'
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(TESTS), `${id} reuses tests`)
+  const FIRST = '   - Tests first: when you build new behaviour, a coder writes its tests from the spec lines and your planned interfaces (file names, signatures) before the code exists: launch it in the same message as the coders that write the code, or before you write the code yourself, and expect those tests to fail until the code lands. Never brief the tests of code you are about to build as checks of code already written.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(FIRST), `${id} tests first`)
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('Tests first:'), `${id} hands out no code`)
+  const PASS = "review the changed files directly. In a security pass over other sections' code, report what you checked and what you found. Fix a finding of a few lines yourself, test first: the test fails before the fix and goes in the test file that covers that feature. A larger fix goes to `main` as a failing fix list for the section that owns the file. Write no other tests: covering the spec belongs to the builders and the testing section. A pass that changes no file needs no grade."
+  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes(PASS), id === 'security', `${id} security pass`)
+})
