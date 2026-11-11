@@ -1,7 +1,9 @@
 import { homedir } from 'node:os'
 import nodePath from 'node:path'
-import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, PREFIX, extractReport, failsGate, needsGate, parseReport, sectionIdFromType } from './lib/report.mjs'
-import { DEFAULT_MODE, GATES, readMode } from './lib/mode.mjs'
+import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, reportHead, sectionIdFromType } from './lib/report.mjs'
+import { gradeRule } from './lib/grade.mjs'
+import { headContextRule } from './lib/head-context.mjs'
+import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
 import { readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
 
@@ -23,7 +25,7 @@ export function isInMemory(target, id, cwd, path = nodePath) {
 const CANNOT_RUN = 'If the gate truly cannot run, hand back with `Status: ungraded` and say why.'
 const fixRounds = n => `${n} fix round${n === 1 ? '' : 's'}`
 const passRule = gate => `Pass: overall at least ${gate.passOverall}${gate.minItem === null ? '' : ` and no item under ${gate.minItem}`}.`
-// Lean names the reviewer's model; the other modes leave it to the reviewer's own file.
+// A gate that sets reviewerModel names it; none does now, so every mode leaves it to the reviewer's own file.
 const reviewerCall = gate => `\`run_in_background: false\` ${gate.reviewerModel === null ? '(do not pass `model`)' : `and \`model: "${gate.reviewerModel}"\``}`
 
 // The handback gate's two refusals, worded from one mode's GATES entry.
@@ -38,7 +40,7 @@ export function gateReasons(gate) {
 // Falling back is the rule here, not a lost error: user-prompt-submit reports a broken record on every prompt.
 function recordedMode(home, sessionId) {
   try {
-    return readRecord(home, sessionId)
+    return activeMode(readRecord(home, sessionId))
   } catch {
     return null
   }
@@ -53,15 +55,26 @@ function projectGate(e, env, home) {
   return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 
-// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, or claims done under the mode's pass mark, is refused.
+// The 2026-11-09 p1 round: 1.6–7.2K-character narratives above builder REPORTs filled the supervisor's context.
+const HANDBACK_HEAD_MAX = 1200
+const LONG_HEAD_REASON = `section-team: your hand-back has more than ${HANDBACK_HEAD_MAX} characters above its REPORT block. Move the long part (probe logs, spec readings, flow output) to \`.team/reports/<date>/<time>-<your id>-details.md\`, name that file on the Next line, and hand back again with at most 5 short lines above the block.`
+
+// The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
+// claims a grade its own transcript does not back, or claims done while the reviewer scored an item under the mode's item minimum is refused.
+// A hand-back that claims done with a long text above its REPORT is refused first; partial, blocked and ungraded stay the
+// honest ways out, and one with no REPORT is not checked here.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
-  const block = extractReport(e.tool_input?.message)
+  const message = e.tool_input?.message
+  const block = extractReport(message)
   if (!block) return null
   const report = parseReport(block)
+  if (!HONEST_STATUSES.includes(report.status) && reportHead(message).length > HANDBACK_HEAD_MAX) return LONG_HEAD_REASON
   const gate = projectGate(e, env, home)
-  if (needsGate(report)) return gateReasons(gate).ungraded
-  return failsGate(report, gate.passOverall) ? gateReasons(gate).failing : null
+  const gradeAll = gate.gradeAll === true
+  if (needsGate(report, gradeAll)) return gateReasons(gate).ungraded
+  if (failsGate(report, gate.passOverall, gradeAll)) return gateReasons(gate).failing
+  return claimsDoneWithCode(report, gradeAll) ? gradeRule(e, report.quality, gate) : null
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
@@ -89,6 +102,8 @@ function advisorRule(id, e, env) {
 
 // home is where the session mode records live; tests pass a temp folder.
 export function decide(e, env = process.env, home = homedir()) {
+  // Before the agent_type test: a supervisor's call has no agent_type, and the rule words its refusal for either caller.
+  if (e?.tool_name === 'SendMessage') return headContextRule(e)
   if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
   const id = sectionIdFromType(e.agent_type)
   if (!id) return null

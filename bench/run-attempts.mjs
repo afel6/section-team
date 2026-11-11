@@ -1,13 +1,12 @@
 // Attempts of one benchmark run (spec: docs/specs/2026-11-01-mode-round-design.md, "Attempts and reruns" and "Evidence"):
 // earlier attempts are archived, never deleted; each attempt's ending is classified; API failures and void runs stop the
 // batch (the round after the capped reruns); counted runs get a run.json with their evidence copied beside it.
-// results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop and harness-bug rerun of the
-// run, across attempts; only the CAPPED kinds count toward the cap.
+// results/<id>/attempts.json lists every capped failure, usage limit, missing-evidence stop, failed stage copy and
+// harness-bug rerun of the run, across attempts; only the CAPPED kinds count toward the cap.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { PLUGIN_KEY, childEnv, effortProblems, envNames, initOf, initProblems, resultOf } from './clean-run.mjs'
-import { renameRetry } from './section-memory.mjs'
+import { renameRetry, required } from './section-memory.mjs'
 
 // The frozen match rules: a usage or rate limit waits for the next usage window; any other API failure is capped.
 export const LIMIT = /usage limit|rate limit|rate_limit_error|(?:hit|reached) your (?:[a-z]+ )*limit|out of (?:extra usage|usage credits)/i
@@ -54,11 +53,16 @@ export const exitCodeOf = err => (err instanceof BatchStop || err instanceof Rou
 
 // The setup (solo, lean, team, max or forced), without the round tag.
 export const baseOf = run => run.base ?? run.cond
+// What keeps a run's init from counting, by its setup and its batch's ctx ({ pin, pluginDir, pluginVersion }).
+export const runInitProblems = (messages, run, ctx) => initProblems(initOf(messages), { setup: baseOf(run), pin: ctx.pin, pluginDir: ctx.pluginDir, pluginVersion: ctx.pluginVersion })
 const json = value => `${JSON.stringify(value, null, 2)}\n`
 export const firstLine = text => String(text ?? '').split(/\r?\n/)[0].slice(0, 200)
 
-// Claude Code's project folder for a run folder: transcripts and auto-memory.
-export const projectDirFor = (runDir, home = homedir()) => join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+// Claude Code's project folder for a run folder: transcripts and auto-memory. archiveAttempt moves it, so home has no default.
+export function projectDirFor(runDir, home) {
+  required({ home })
+  return join(home, '.claude', 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+}
 
 // The number the next attempt folder gets: one more than the attempt folders there are.
 export const nextAttempt = outDir => (existsSync(outDir) ? readdirSync(outDir).filter(name => ATTEMPT.test(name)).length : 0) + 1
@@ -122,7 +126,7 @@ export const filesAt = path => (statSync(path).isFile()
 // Copies this session's transcript, its subagent folder and its mode record into outDir/evidence/, laid out so that
 // collectRolesFrom and readRecord read the evidence folder as they read a project folder and a home. Checks before
 // copying anything, so a stop leaves no partial evidence. Returns the copied files.
-export function copyEvidence({ runDir, sessionId, outDir, base, home = homedir(), bestEffort = false }) {
+export function copyEvidence({ runDir, sessionId, outDir, base, home, bestEffort = false }) {
   if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) throw new TypeError(`copyEvidence needs a plain session id, got "${sessionId}"`)
   const project = projectDirFor(runDir, home)
   const evidence = join(outDir, 'evidence')
@@ -160,8 +164,9 @@ function runRecord({ run, dir, info, sessionId, attempt, kind, result, ctx, init
 }
 
 // Ends one attempt: a run.json for a counted run, otherwise void.json and/or an attempts entry and a BatchStop or RoundStop.
-// env is the child environment the attempt ran with (run.json records its names).
-export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, pin, ctx, evidenceTexts, write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
+// env is the child environment the attempt ran with (run.json records its names). extraReasons void it too: what only
+// the caller can see, such as a second stage that resumed as another session.
+export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, ctx, evidenceTexts, extraReasons = [], write = writeFileSync, env = childEnv(process.env, { pluginDir: ctx.pluginDir }) }) {
   const kind = classifyEnd({ messages, timedOut: info.timedOut, exitCode: info.exitCode })
   const result = resultOf(messages)
   const entry = { attempt, sessionId, at: new Date().toISOString() }
@@ -176,7 +181,7 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
   }
   const init = initOf(messages)
-  const reasons = [...initProblems(init, { setup: baseOf(run), pin, pluginDir: ctx.pluginDir }), ...effortProblems(evidenceTexts)]
+  const reasons = [...runInitProblems(messages, run, ctx), ...effortProblems(evidenceTexts), ...extraReasons]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
     const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))

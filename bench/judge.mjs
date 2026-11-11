@@ -21,18 +21,22 @@ import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { judgeDirFor } from './anonymize.mjs'
+import { anonymizeCommand, judgeDirFor, stagesAskedOf } from './anonymize.mjs'
 import {
   childEnv, cleanSettings, commonArgs, compacted, effortProblems, initOf, initProblems, installedPluginKeys, outputMessages, readPin, resultOf,
 } from './clean-run.mjs'
 import { classifyEnd, filesAt, firstLine, projectDirFor } from './run-attempts.mjs'
-import { NAME, RESULTS, killTree, parseArgs } from './run.mjs'
+import { NAME, RESULTS, killTree, parseArgs, promptFile } from './run.mjs'
+import { required } from './section-memory.mjs'
+import { stageCountOf } from './stages.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 // No rm or mktemp: the harness makes and deletes each judge's folder. node and npm stay because judges run the
 // solutions' tests. That runs untrusted code on this machine, with this shell's environment (claude needs it to
 // sign in), so run judging from a shell with no extra tokens set. The builder runs already ran the same code here.
 export const ALLOWED = 'Read,Glob,Grep,Bash(node *),Bash(npm *),Bash(ls *),Bash(cat *)'
+const ORDINALS = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth']
+const LATER_PROMPT = stage => `Once that was finished, the solutions were given this ${ORDINALS[stage]} request, in the same session:`
 const SEED_NOTE = 'SEED/ is the repo before the change; judge only what each solution changed and whether it broke anything'
 const SCORE_FIELDS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability', 'overall']
 const USAGE = 'usage: node bench/judge.mjs --round=<name> --per-pair=<n> [--limit=<n>]'
@@ -266,12 +270,23 @@ export async function runJobs(jobs, { rows, call, check, files, log }) {
 
 export const subfolders = dir => readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
 
+// What a group's judges are told the task was, Opus and outside judges alike: a task's prompt as the builder got it, and
+// a staged task's later prompts after it, each behind a line saying which request it was. stages: how many prompts the
+// pair's runs were asked for (--stages), all of them by default.
+export function taskTextOf(bench, pair, stages) {
+  const task = pair.split('-')[0]
+  const count = stageCountOf(task)
+  const asked = stages ?? count
+  if (!Number.isInteger(asked) || asked < 1 || asked > count) throw new RangeError(`${pair}: ${stages} stages asked for, but ${task} has 1 to ${count}`)
+  const read = stage => readFileSync(join(bench, 'tasks', promptFile(task, stage)), 'utf8')
+  return Array.from({ length: asked }, (_, i) => (i === 0 ? read(1) : `${LATER_PROMPT(i + 1)}\n\n${read(i + 1)}`)).join('\n\n')
+}
+
 export function prepareJob(job, judgeDir, template) {
   const source = join(judgeDir, job.pair)
   const labels = subfolders(source).filter(name => /^[A-Z]$/.test(name))
   if (labels.length === 0) throw new Error(`no solution folders in ${source}`)
-  const task = readFileSync(join(BENCH, 'tasks', `${job.pair.split('-')[0]}.md`), 'utf8')
-  const prompt = fillPrompt(template, { labels, task, seed: existsSync(join(source, 'SEED')) })
+  const prompt = fillPrompt(template, { labels, task: taskTextOf(BENCH, job.pair, stagesAskedOf(judgeDir, job.pair)), seed: existsSync(join(source, 'SEED')) })
   return { ...job, source, labels, prompt, swap: mirrorSwap(job.judge, labels) }
 }
 
@@ -388,7 +403,8 @@ function keepTranscript({ cwd, sessionId, home, files, job, attempt, timedOut = 
 // A usage or rate limit, another API error or a session with no result is not the judge's fault: it stops judging
 // and uses no attempt, as it stops a batch of runs. runClaude reports no exit code, so a missing result reads as
 // 'no-result' (exitCode 0), never 'crash'.
-export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn = nodeSpawn, kill = killTree, timeoutMs = JUDGE_TIMEOUT_MS, log }) {
+export function judgeCall({ pin, installedKeys, files, env = process.env, home = homedir(), spawn, kill = killTree, timeoutMs = JUDGE_TIMEOUT_MS, log }) {
+  required({ spawn })
   const { binary, pluginDir } = pin
   const childEnvironment = childEnv(env, { pluginDir })
   return (job, attempt) => withCopy(job.source, async cwd => {
@@ -409,7 +425,7 @@ export function judgeCall({ pin, installedKeys, files, env = process.env, home =
 
 function readKey(results, round) {
   const path = join(results, `blind-key-${round}.json`)
-  if (!existsSync(path)) throw new Error(`missing ${path}: run node bench/anonymize.mjs --round=${round} first`)
+  if (!existsSync(path)) throw new Error(`missing ${path}: run ${anonymizeCommand(round)} first`)
   const key = readJson(path)
   if (typeof key !== 'object' || key === null || Array.isArray(key)) throw new Error(`${path} is not a blind key (one object per group)`)
   return key
@@ -434,7 +450,7 @@ async function main() {
   const jobs = planned.filter(job => pending.has(jobKey(job))).slice(0, limit)
   console.log(`${jobs.length} judge job(s) to run`)
   const log = line => console.log(`${new Date().toISOString()} ${line}`)
-  const call = judgeCall({ pin, installedKeys: installedPluginKeys(), files, log })
+  const call = judgeCall({ pin, installedKeys: installedPluginKeys(), files, spawn: nodeSpawn, log })
   let leftOutNow
   try {
     leftOutNow = await runJobs(jobs, { rows, call, check: judgeCheck(pin), files, log })

@@ -1,4 +1,4 @@
-// Test strength (h5, h6): the share of a task's frozen near-miss versions that a solution's OWN tests catch
+// Test strength (h5, h6, h7): the share of a task's frozen near-miss versions that a solution's OWN tests catch
 // (docs/specs/2026-11-01-mode-round-design.md, "Secondary measures"). Each solution test file runs alone, with
 // `node --test <file>`, score.mjs's hidden-test env and a 300 s limit, in a temp folder built from the seed (if the task
 // has one), then the reference without its own test files, then the solution's test files. A file that passes there
@@ -10,11 +10,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { CALIBRATION, NODE_TEST_PATTERNS, taskLayout } from './calibrate.mjs'
-import { NAME, RESULTS, ROUND_CONDS, SEEDS } from './run.mjs'
+import { NAME, RESULTS, SEEDS } from './run.mjs'
 import { hiddenEnv, isTestPath, sameAsSeed } from './score.mjs'
+import { required } from './section-memory.mjs'
 
 export const TIME_LIMIT_MS = 300_000
-const TASKS = ['h5', 'h6']
+const TASKS = ['h5', 'h6', 'h7']
 // Node 26 reads every `node --test <file>` argument as a glob, so a path holding one of these could run another file
 // or none: [ ] * ? { }, and the extglobs +( and @(, with which Node 26.2 runs no test and still exits 0.
 const GLOB_CHARS = /[[\]*?{}]|[+@]\(/
@@ -142,11 +143,14 @@ function solutionDirOf(folder) {
   return typeof dir === 'string' ? { dir } : { reason: 'run.json unreadable' }
 }
 
-// { [runId]: { task, cond, ...strength } } for every solo, lean, team and max run of h5 and h6 in the round; log(id, row)
+// The setups whose runs it reads: a round measured before 0.3.0 holds lean runs too.
+const READ_CONDS = ['solo', 'lean', 'team', 'max']
+
+// { [runId]: { task, cond, ...strength } } for every solo, lean, team and max run of those tasks in the round; log(id, row)
 // after each. A run without a readable run.json or solution folder gets an n/a row; only a results/ that cannot be
 // read stops it with one line, or a bug, named with its run.
 export function testStrength({ results = RESULTS, round, root, seeds, run, log = () => {} }) {
-  const runId = new RegExp(`^(${TASKS.join('|')})-(${ROUND_CONDS.join('|')})-${round}-r\\d+$`)
+  const runId = new RegExp(`^(${TASKS.join('|')})-(${READ_CONDS.join('|')})-${round}-r\\d+$`)
   let entries
   try {
     entries = readdirSync(results, { withFileTypes: true })
@@ -173,7 +177,8 @@ const lineOf = (id, row) => {
   return `${id}  ${measure}  valid ${row.valid.length}/${row.files.length}${skipped}`
 }
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, root, seeds, run } = {}) {
+export function main(argv = process.argv.slice(2), { results, root, seeds, run } = {}) {
+  required({ results })
   const round = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(round)) {
     console.error('usage: node bench/test-strength.mjs --round=<tag>   (letters and digits only)')
@@ -189,4 +194,4 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, root, se
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS })

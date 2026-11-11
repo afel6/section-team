@@ -3,12 +3,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ROSTER, render, renderAll, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
+import { ROSTER, RELAY, render, renderAll, renderHelper, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
 const AGENTS = new URL('../agents/', import.meta.url)
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
+const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
 const front = text => Object.fromEntries(text.split('---')[1].trim().split('\n').filter(l => /^\w/.test(l)).map(l => [l.split(':')[0], l.slice(l.indexOf(':') + 1).trim()]))
 
 test('roster matches the section ids', () => {
@@ -30,17 +31,68 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
   }
 })
 
-test('advisors cannot use shell tools; builders have no tools allowlist', () => {
-  for (const s of ROSTER) {
-    const fm = front(render(s))
-    const id = s.id
-    if (ADVISOR_IDS.includes(id)) {
-      assert.ok(fm.tools, `${id} needs a tools allowlist`)
-      for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!fm.tools.includes(banned), `${id} has ${banned}`)
-    } else {
-      assert.equal(fm.tools, undefined, `${id} should inherit tools`)
-    }
+test('advisors cannot use shell tools, and their allowlist is unchanged', () => {
+  for (const id of ADVISOR_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit', id)
+    for (const banned of ['Bash', 'PowerShell', 'NotebookEdit']) assert.ok(!tools.includes(banned), `${id} has ${banned}`)
   }
+})
+
+const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
+
+test('every builder has the base tool list, and only four have browser entries', () => {
+  for (const id of BUILDER_IDS) {
+    const { tools } = front(agentFile(id))
+    assert.equal(tools, BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS, id)
+  }
+})
+
+test('helpers keep their tools', () => {
+  assert.equal(front(agentFile('scout')).tools, 'Read, Grep, Glob, Skill')
+  assert.equal(front(agentFile('coder')).tools, 'Read, Write, Edit, Bash, PowerShell, Grep, Glob, Skill')
+  assert.equal(front(agentFile('reviewer')).tools, 'Read, Grep, Glob, Bash')
+})
+
+const SHORT_OUTPUT = 'Keep tool output short: use a quiet test reporter, pipe long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+
+test('builders and the coder keep tool output short; advisors, scout and reviewer do not carry the line', () => {
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(SHORT_OUTPUT), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes(SHORT_OUTPUT), id)
+})
+
+test('sections ask a sibling only while it works, ask main once it has handed back, and never wake a section', () => {
+  const sentence = 'Ask a sibling a question only while it is working; if it has handed back, ask `main`. Never wake a section yourself.'
+  assert.ok(RELAY.includes(sentence))
+  for (const s of ROSTER) assert.ok(agentFile(s.id).includes(sentence), s.id)
+})
+
+test('no builder keeps the old sibling sentence, and only the security section has the review exception', () => {
+  const exception = "do not review other sections' work. The security pass the job assigns is the exception. You still run your own reviewer gate before you finish."
+  for (const id of BUILDER_IDS) {
+    assert.ok(!agentFile(id).includes('Message a sibling only while it is working'), id)
+    assert.equal(agentFile(id).includes(exception), id === 'security', id)
+  }
+})
+
+test('testing goes through the supervisor only when a direct fix list is refused or fails', () => {
+  const testing = agentFile('testing')
+  assert.ok(testing.includes('(by agent id; if that is refused or fails, through the supervisor)'))
+  assert.ok(!testing.includes('(by agent id, else through the supervisor)'))
+})
+
+test('builders learn they have no project MCP tools, right after the short-output line; nobody else carries it', () => {
+  const line = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(`${SHORT_OUTPUT}\n${line}`), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes(line), id)
+})
+
+test('builders treat the approved foundation note as frozen; advisors write no notes', () => {
+  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.'
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(line), id)
+  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes(line), id)
 })
 
 test('committed files match the generator', () => {
@@ -76,8 +128,6 @@ test('testing owns the final review; other builders keep the separate-review lin
   assert.ok(!frontend.includes('skip a separate full review pass'), 'frontend.md still has the ambiguous skip line')
 })
 
-const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
-
 test('every section head skips the global CLAUDE.md, carries the house rules and knows the scout; builders also know the coder', () => {
   for (const s of ROSTER) {
     const text = agentFile(s.id)
@@ -108,7 +158,8 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its quick fixes if you like, but do not grade again after a pass. A later job that changes code gets its own grade.',
+    'A pass ends the gate: apply its fixes of a few lines if you like (a doc sentence the code contradicts is never left: fix the sentence, or the code when the spec states that sentence), rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
+    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test. A fix after the gate costs far more than care now.",
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -120,13 +171,17 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     for (const sentence of sentences) assert.ok(text.includes(sentence), `${id} lacks: ${sentence}`)
     assert.ok(text.includes('\n7. Write notes for anything other sections depend on'), `${id}: step 7 is no longer the notes step the plan step points to`)
     assert.ok(!text.includes("Once your helpers' code is in"), `${id} still gates only the helpers' code`)
+    assert.ok(!text.includes('A later job that changes code gets its own grade.'), `${id} keeps the old after-a-pass line`)
+    assert.ok(text.indexOf('Before your first grade') < text.indexOf("send your changed files to Agent `section-team:reviewer`"), `${id} walks its code after the grade`)
   }
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('write its note now'), `${id} is read-only and writes no notes`)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes('Before your first grade'), `${id} has no gate to run`)
 })
 
 test('house rules carry the friendly-errors rule; the reviewer fails a user-triggerable stack trace; testing probes I/O and startup failures', () => {
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('handle errors explicitly and never swallow them; user-facing errors stay friendly and leak nothing (one line, no stack trace);'), `${id} friendly errors`)
   const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes('List at most 5 fixes, most important first. On a pass, list only what breaks a stated requirement or crashes, and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence).\n\nEnd your answer with exactly this block, filled in:'), 'reviewer fix-list cap')
   assert.ok(reviewer.includes('user-facing errors stay friendly and leak nothing'), 'reviewer errors item')
   assert.ok(reviewer.includes('Rethrowing to the runtime is not handling: a stack trace a user can trigger (a bad env value, a data path that is a directory, a missing parent folder, a port in use) scores errors under 6.'), 'reviewer stack-trace threshold')
   assert.ok(agentFile('testing').includes('Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace.'), 'testing I/O probes')
@@ -195,13 +250,59 @@ test('a forwarded question is answered to the asker directly, not back through t
 })
 
 test('each section preloads at most one core skill and the rest become go-to mentions', () => {
-  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], security: ['security-review'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
+  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
   for (const s of ROSTER) {
     assert.ok(s.core.length <= 1, `${s.id} preloads more than one skill`)
     assert.deepEqual(s.core, CORE[s.id] ?? [], `${s.id} core`)
     const text = agentFile(s.id)
     assert.deepEqual(frontSkills(text), s.core, `${s.id} frontmatter skills`)
     for (const skill of s.skills.filter(k => !s.core.includes(k))) assert.ok(text.includes(skill), `${s.id} lost go-to ${skill}`)
+  }
+})
+
+// The CLI's bundled security-review runs `git log origin/HEAD...` as it loads, so a preload kills the section's start
+// in a project with no origin remote (both Max runs of the 2026-11-09 p1 round).
+test('no section preloads a skill that needs a git origin remote; security loads it only when one exists', () => {
+  const NEEDS_REMOTE = ['security-review']
+  for (const s of ROSTER) {
+    for (const skill of NEEDS_REMOTE) assert.ok(!frontSkills(agentFile(s.id)).includes(skill), `${s.id} preloads ${skill}`)
+  }
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('load security-review, or name it to a helper, only when `git merge-base HEAD origin/HEAD` succeeds, because it fails to load otherwise.'), `${id} guards security-review`)
+  assert.ok(agentFile('security').includes('When security-review cannot load (step 2), review the changed files directly.'))
+})
+
+// The 2026-11-09 p1 round: builders and the reviewer cited "validate input at boundaries" for a type check on the
+// project's own server replies that the spec never asked for, and lost a hidden test.
+test('the boundary rule is bounded by the spec in the house rules, the coder and the reviewer', () => {
+  const HOUSE = "validate outside input at boundaries (never replies from the project's own server beyond what the spec states; never refuse input the spec accepts, and add no step the spec does not state, such as stripping a BOM, trimming or case-folding, that lets through input its steps reject)"
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(HOUSE), `${id} bounded boundary rule`)
+  const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes("outside input (requests, files, env, outside services) validated at boundaries, including every check the spec states; a type check on the project's own server's replies beyond what the spec states, or a refusal of input the spec accepts, is a fix to remove, and so is a step the spec does not state (a stripped BOM, a trim, a case-fold) that lets through input its steps reject; so is a size cap that adds a failure where the spec lists when something fails; a stored value its store allows that makes a read fail is a fix; user-facing errors stay friendly"))
+  assert.ok(agentFile('testing').includes('When a job asks for it, hand back one command that starts the app, prints one PASS or FAIL line per critical flow, then stops the app and exits non-zero on any FAIL.'))
+  for (const id of [...BUILDER_IDS, 'coder', 'reviewer']) assert.ok(!/(?<!outside )input (is )?validated at boundaries|validate input at boundaries/.test(agentFile(id)), `${id} keeps an unbounded boundary rule`)
+})
+
+// The 2026-11-09 p1 round: ids above 2^53 failed reads, and requests trusted data read before an outside wait.
+test('the house rules cover data other tools write and data read before an outside wait, in every section and the coder', () => {
+  const STORED = " data other tools can write (a shared database, a file) may hold any value its store allows: read and reply with every such value without failing or dropping it (in JavaScript, read integer columns that can pass 2^53, such as ids, as BigInt); a request that reads data, waits on an outside call that changes nothing outside (a model, a lookup) and then writes or replies from that data checks again, in the transaction that writes, that the user still has access and the data still exists: if not, it writes nothing and replies as the spec says for a missing one, because access is decided when the write happens and a write for something deleted fits no one-at-a-time order; if only the content it sent has changed and the spec names no reply for that, the answer is still used: a change is not a failed call, and it adds no attempt and no failure to those the spec lists; a time limit the spec sets on an outside call is enforced twice: a timer that aborts the call and stays set until the whole reply body is read, and the elapsed time on a monotonic clock (performance.now() in JavaScript) since the attempt began, checked again when the reply completes;"
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(`lets through input its steps reject);${STORED} handle errors explicitly`), `${id} stored values and outside waits`)
+})
+
+test('the reviewer rubric fails an unstated size cap, a failing read of a stored value, a test against the spec and trust across an outside wait', () => {
+  const reviewer = agentFile('reviewer')
+  assert.ok(reviewer.includes('\n- tests: new behaviour has tests, written first, and coverage is about 80% or better; each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. A test that asserts behaviour a spec line contradicts is a fix, and so is a test that needs this checkout\'s own git history or .team/ contents (a source export or a shallow clone has neither): keep what it needs, such as a data file an older version made, as a fixture file in the test folder; a test that builds its own temporary repo or state is fine.\n'), 'tests item')
+  assert.ok(reviewer.includes('\n- security: no hardcoded secrets, no injection or unsafe handling of user input, and no access or existence check made before an outside wait (a model or network call) and trusted after it: the code that writes or replies makes it again (content that changed meanwhile is not a failure and the answer is still used, unless the spec names a reply for that). A check of a secret that does less work for an unknown name than for a wrong secret is a fix.\n'), 'security item')
+})
+
+test('builders keep at most 5 short lines above the REPORT and put long output in a details file; advisors keep the plain last step', () => {
+  for (const id of BUILDER_IDS) {
+    const step = `Above the block write at most 5 short lines. Put longer output (probe logs, spec readings, flow output) in \`.team/reports/<YYYY-MM-DD>/<HHMMSS>-${id}-details.md\` and name it on the Next line; it is not a changed file, so keep it off the Changed line. Keep the verdict, a command the job asked for and one short line per optional finding in the block. Finish with exactly this block, filled in, and nothing after it:\n\n## REPORT · ${id} · `
+    assert.ok(agentFile(id).includes(`. ${step}`), `${id} short hand-back`)
+  }
+  for (const id of ADVISOR_IDS) {
+    const text = agentFile(id)
+    assert.ok(text.includes(`. Finish with exactly this block, filled in, and nothing after it:\n\n## REPORT · ${id} · `), `${id} plain last step`)
+    assert.ok(!text.includes('Above the block write'), `${id} has no details-file step`)
   }
 })
 
@@ -242,6 +343,14 @@ test('every builder lets a stated mode gate replace its numbers and reviewer mod
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('If the job states a mode gate'), `${id} is read-only and has no gate`)
 })
 
+test('a builder is not told to skip the gate for config files, which the handback hook counts as code', () => {
+  for (const id of BUILDER_IDS) {
+    const text = agentFile(id)
+    assert.ok(!text.includes('config values'), id)
+    assert.ok(text.includes('Quality gate (skip it when the job changed no code, for example docs only; a config file on your Changed line still needs a grade):'), id)
+  }
+})
+
 test('advisors read the notes but get neither the reviewer nor the coder', () => {
   for (const id of ADVISOR_IDS) {
     const text = agentFile(id)
@@ -254,20 +363,19 @@ test('advisors read the notes but get neither the reviewer nor the coder', () =>
 test('testing runs the final reviewer pass and sends fix lists to the owning sections', () => {
   assert.ok(agentFile('testing').includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
   assert.ok(agentFile('testing').includes('Assert every value the spec names with exact equality, never a prefix or a pattern, so an extended or normalized value fails.'))
-  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."), `${id} literal spec values`)
-  assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. Every probe that breaks the spec becomes a test and goes on its owner's fix list."))
-  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading and log the choice in `.team/notes/decisions.md`.'), `${id} stricter reading`)
-  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given; send a configured URL as given, path and query byte for byte and user:password included: new URL(), fetch and http.request(urlString) drop dot segments, and fetch refuses a URL with user:password, so pass `{ ...urlToHttpOptions(url), path: <raw path and query> }` to http.request or https.request, which keeps the user:password as auth (if its decoding throws on a bad escape, send them undecoded)), and add no rule the spec does not state (no extra reserved path, no accepted null, no size cap where the spec lists when something fails, no type check on replies from the project's own server beyond what the spec states, no refusal where the spec says to decode or replace); where the spec itself says to decode bytes as UTF-8 and then parse them, keep a leading BOM: buffer.toString('utf8') or new TextDecoder('utf-8', { ignoreBOM: true }), adding fatal: true only where the spec refuses bad bytes, because a default TextDecoder and fetch's text() and json() drop the BOM (with fetch, decode await res.arrayBuffer() that way)."), `${id} literal spec values`)
+  assert.ok(agentFile('testing').includes("Probe the code against the spec line by line before you grade it: for each line try its boundaries, empty and null values, non-ASCII and control characters (CR or LF in anything that reaches a header, a leading BOM in a body the spec decodes as UTF-8 before parsing), and missing, empty or invalid environment values. Also probe filesystem and startup failures: the data path is a directory, its parent folder is missing, the port is already in use. For each, assert the exact exit code and a single stderr line with no stack trace. For the routes and outside calls this job's changes touch, also probe shared state and the runtime: from a second database connection insert rows holding each column's extremes the store allows (the largest integer, empty and longest text) and rows that point at a row that does not exist, and read them through every route that returns or counts them; lock the store from a second connection and time the replies (a request that does not need what is locked is answered at once, and a wait the spec bounds ends at its limit, not later, allowing a small margin); hold each outside call open with a stand-in you release by hand (in a page, resolve fetch() and its json() separately), and meanwhile, one at a time, delete the data it read, delete the user and end the session (each time the reply is the spec's for a missing one, nothing is written or shown for what is gone and nothing crashes), then edit what it sent (the answer is still used unless the spec names a reply for that, with no added attempt or failure); send a request with each method (CONNECT included: fetch refuses it, and http.request gives its reply only to req.on('connect'), the body in head and then on the socket; also reset a CONNECT connection before its reply and check the server stays up) and with an unknown Expect header and check it gets the reply the spec's check order gives; where the spec lists when an outside call fails, send a large valid reply (a few MB); probe a configured URL with dot segments and with user:password (check the exact Authorization header it sends), because a library's normalization is the plausible wrong implementation. Every probe that breaks the spec becomes a test and goes on its owner's failing fix list, also in code older than this job when a spec line you were given still requires the behaviour (a line such as 'everything else keeps working' carries every earlier requirement forward): never mark such a test todo or skip, and never file it as optional."))
+  assert.ok(agentFile('testing').includes('Changed files are where to start, not the limit. In a final review, judge each reading logged in `.team/notes/decisions.md` against the spec text again, and never loosen a test or probe to fit the code. Report what you found.'), 'testing re-judges logged readings')
+  for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes('Where a spec line can be read two ways, build or test the stricter reading of what your code must do and log the choice in `.team/notes/decisions.md`. The stricter reading refuses no input the spec accepts and lets through no input its stated steps reject. When a reply\'s body cannot be parsed, the spec\'s rule for an unparsable body wins over its rule for that status; test that case.'), `${id} stricter reading`)
+  assert.ok(agentFile('testing').includes('Message a builder only with a failing fix list it must act on. A failing fix list is the one message that may wake a builder. A passing verdict and optional findings (nits, suggestions) go in your REPORT, not to the builders: a message wakes a section that has already handed back.'))
   const testing = agentFile('testing')
   assert.ok(testing.includes("run the reviewer over every section's changed files"))
   assert.ok(testing.includes('send each owning section its part of the fix list'))
   assert.ok(testing.includes('let the owner fix it with its own coders, and grade again, at most 2 fix rounds; if the job states a mode gate, its fix-round count replaces this cap. If it still fails, finish with `Status: partial` and the grade.'), 'testing final review takes the mode gate fix rounds')
 })
 
-test('testing names near-miss copies in .team/near-miss and restores the original even on a failed run', () => {
-  const testing = agentFile('testing')
-  for (const s of ['.team/near-miss/<n>-<original file name>', 'near-miss: <the one bug>', 'also when a test run fails']) assert.ok(testing.includes(s), s)
-  for (const id of BUILDER_IDS.filter(id => id !== 'testing')) assert.ok(!agentFile(id).includes('.team/near-miss'), `${id} must not get the near-miss rule`)
+test('no agent file mentions near-miss copies', () => {
+  for (const id of [...BUILDER_IDS, 'reviewer']) assert.ok(!agentFile(id).includes('near-miss'), `${id} still mentions near-miss`)
 })
 
 test('scout is a cheap read-only helper, not a section', () => {
@@ -312,6 +420,7 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   for (const item of RUBRIC_ITEMS) assert.ok(text.includes(`${item}:`), `rubric item ${item}`)
   assert.ok(text.includes("each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples"), 'reviewer grades near-miss tests')
   assert.ok(text.includes('If the request says another section writes the tests, score tests as n/a and leave it out of the overall.'), 'reviewer n/a tests')
+  assert.ok(text.includes('For docs or config, score only the items that apply and write n/a for the rest.'), 'reviewer n/a for docs and config')
   assert.ok(text.includes(PASS_RULE))
   assert.ok(text.includes('## GRADE'))
   assert.ok(text.includes('Grade only the changed lines and the functions around them.'))
@@ -320,4 +429,98 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(text.includes("Where the project's own rules differ from the house rules, the project's rules win."))
   assert.ok(text.includes('Score each item 1–10:'))
   assert.ok(!text.includes('0–10'))
+})
+
+
+test('plan-advisor is a read-only advisor that returns at most 8 fixes with reasons', () => {
+  const text = agentFile('plan-advisor')
+  assert.equal(front(text).tools, 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage, Agent, Write, Edit')
+  assert.ok(ADVISOR_IDS.includes('plan-advisor'))
+  assert.match(text, /at most 8 fixes/)
+  assert.match(text, /with its reason/)
+  // The spec's "What it checks" list.
+  for (const check of ['a wrong build order', 'security, AI and data risks', 'which sections and skills each slice needs', 'whether each quality target is a number or a check']) {
+    assert.ok(text.includes(check), `plan-advisor lacks: ${check}`)
+  }
+})
+
+// Round fix 3 (p1 confirm round): new pins, one assert per edit, plus the old texts gone.
+test('round fix 3 text is in the agents that carry it and the old text is gone', () => {
+  const ALL = [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']
+  for (const id of ALL) {
+    const f = agentFile(id)
+    assert.ok(f.includes('add no step the spec does not state, such as stripping a BOM, trimming or case-folding, that lets through input its steps reject'), id + ' H1')
+    assert.ok(f.includes('a timer that aborts the call and stays set until the whole reply body is read, and the elapsed time on a monotonic clock (performance.now() in JavaScript) since the attempt began, checked again when the reply completes'), id + ' H2 timer')
+    assert.ok(!f.includes('a bounded number of times'), id + ' old re-call text')
+  }
+  for (const id of BUILDER_IDS) {
+    const f = agentFile(id)
+    assert.ok(f.includes('The stricter reading refuses no input the spec accepts and lets through no input its stated steps reject'), id + ' S1')
+    assert.ok(f.includes('pass `{ ...urlToHttpOptions(url), path: <raw path and query> }` to http.request or https.request'), id + ' L1')
+    assert.ok(f.includes('send a configured URL as given, path and query byte for byte and user:password included'), id + ' L1 head')
+    assert.ok(!f.includes('pass host, port and the raw path'), id + ' old L1')
+    assert.ok(f.includes("keep a leading BOM: buffer.toString('utf8') or new TextDecoder('utf-8', { ignoreBOM: true })"), id + ' L2')
+    assert.ok(f.includes('(a doc sentence the code contradicts is never left: fix the sentence, or the code when the spec states that sentence)'), id + ' Q1')
+    assert.equal(f.includes('checkExpectation'), id === 'backend', id + ' B1 only in backend')
+    assert.equal(f.includes('before applying an outcome'), id === 'frontend', id + ' F1 only in frontend')
+  }
+  assert.ok(agentFile('backend').includes("server.on('checkExpectation', handler); on 'connect' when the spec answers CONNECT as an ordinary request rather than opening a tunnel, run the handler on a new http.ServerResponse(req) given the socket by res.assignSocket(socket), with res.shouldKeepAlive = false, socket.on('error', () => socket.destroy()) and socket.end() on the reply's 'finish', else a client reset crashes the process and the socket never closes)."), 'B1')
+  assert.ok(agentFile('frontend').includes('test with a fake fetch whose json() you resolve separately.'), 'F1')
+  const rv = agentFile('reviewer')
+  assert.ok(rv.includes('and so is a step the spec does not state (a stripped BOM, a trim, a case-fold) that lets through input its steps reject'), 'R1')
+  assert.ok(rv.includes("When the spec orders steps and two of them fail, the message of the step it puts first wins: running a later step's check earlier, so that its message wins, is a fix."), 'R2')
+  assert.ok(rv.includes('and so is a test that needs this checkout\'s own git history or .team/ contents (a source export or a shallow clone has neither)'), 'R3')
+  assert.ok(rv.includes('and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence)'), 'R4')
+  const te = agentFile('testing')
+  assert.ok(te.includes('a leading BOM in a body the spec decodes as UTF-8 before parsing)'), 'T1')
+  assert.ok(te.includes('(in a page, resolve fetch() and its json() separately)'), 'T2')
+  assert.ok(te.includes("(CONNECT included: fetch refuses it, and http.request gives its reply only to req.on('connect'), the body in head and then on the socket; also reset a CONNECT connection before its reply and check the server stays up)"), 'T3')
+  assert.ok(te.includes('with user:password (check the exact Authorization header it sends)'), 'T4')
+  assert.ok(te.includes("goes on its owner's failing fix list, also in code older than this job when a spec line you were given still requires the behaviour"), 'T5')
+  assert.ok(te.includes('never mark such a test todo or skip, and never file it as optional.'), 'T5 tail')
+})
+
+// Round tf: both judges marked the retry on a changed input down, and both Max supervisors spent a fix round removing it.
+test('round tf: after an outside wait a request re-checks access and existence and keeps the answer', () => {
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) {
+    const f = agentFile(id)
+    assert.ok(f.includes('checks again, in the transaction that writes, that the user still has access and the data still exists: if not, it writes nothing and replies as the spec says for a missing one'), id + ' re-check')
+    assert.ok(f.includes('if only the content it sent has changed and the spec names no reply for that, the answer is still used: a change is not a failed call, and it adds no attempt and no failure to those the spec lists;'), id + ' answer kept')
+    assert.ok(!/counts as failed|is never repeated|the old answer is not used/.test(f), id + ' old retry text')
+  }
+  const te = agentFile('testing')
+  assert.ok(te.includes("delete the data it read, delete the user and end the session (each time the reply is the spec's for a missing one, nothing is written or shown for what is gone and nothing crashes), then edit what it sent (the answer is still used unless the spec names a reply for that, with no added attempt or failure);"), 'testing probe')
+  assert.ok(!te.includes('match some one-at-a-time order'), 'old probe text')
+  assert.ok(agentFile('reviewer').includes('(content that changed meanwhile is not a failure and the answer is still used, unless the spec names a reply for that)'), 'reviewer')
+})
+
+// Round tf: shipped test files carried '(testing section)' and 'Final review probes', and names such as probes-*, final-*, final2-*.
+test('shipped files carry no process words: house rules, the reviewer and the testing section say so', () => {
+  const HOUSE = 'names, comments and docs in shipped files say what the product does, never how the work was done: no word for a team section, a review, a probe or a fix round, and nothing that points into `.team/`;'
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(`no console.log in shipped code; ${HOUSE} write tests first`), `${id} no process words`)
+  assert.ok(agentFile('reviewer').includes('\n- leftovers: no console.log, debug code, commented-out code or stray TODOs in shipped code, and no name, comment or doc line that tells how the work was done instead of what the code does (a team section, a review, a probe, a fix round, a `.team/` path; a test file named for the step that wrote it).\n'), 'leftovers item')
+  assert.ok(agentFile('testing').includes('never file it as optional. Put each test in a test file named for the feature it covers; no file name, test name or comment says it came from a probe, a review or a section. Give each spec requirement a test'), 'testing names tests by feature')
+})
+
+test('no benchmark words in any agent text', () => {
+  const BAD = /\bticket|\baudit\b|MODEL_URL|ADMIN_PASSWORD|database busy|model call failed/
+  for (const s of ROSTER) assert.ok(!BAD.test(render(s, {})), s.id)
+  for (const h of HELPER_AGENTS) assert.ok(!BAD.test(renderHelper(h)), h.id)
+})
+
+// Round tf: a synchronous driver timeout blocked the event loop in three of four team runs; a filter counted rows that point at a missing row in both Balanced runs.
+test('backend and database keep a bounded wait off the serving thread; testing times a locked store and inserts dangling rows', () => {
+  const WAIT = 'A wait the spec bounds (a locked store, a busy resource) never blocks the thread that answers other requests: give a synchronous driver a timeout of 0 and retry the refused step on a timer (the whole transaction when it had already read), with the values the request already took (its clock reading), until the limit on a monotonic clock, so other requests are answered meanwhile and the reply comes at the limit, not later; a request that only reads takes no write lock.'
+  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes(WAIT), id === 'backend' || id === 'database', `${id} bounded wait`)
+  const te = agentFile('testing')
+  assert.ok(te.includes('and rows that point at a row that does not exist, and read them through every route that returns or counts them;'), 'dangling rows')
+  assert.ok(te.includes('lock the store from a second connection and time the replies (a request that does not need what is locked is answered at once, and a wait the spec bounds ends at its limit, not later, allowing a small margin);'), 'lock probe')
+})
+
+// Round tf: Balanced stage 1 is a single-area job with no security pass, and both Balanced runs skipped the hash for an unknown user.
+test('backend checks a secret in equal time and logs unexpected errors; the reviewer fails an unequal check', () => {
+  const backend = agentFile('backend')
+  assert.ok(backend.includes('A check of a secret does the same work for an unknown name as for a wrong secret (verify against a fixed dummy hash), so timing does not tell which names exist.'), 'equal-time check')
+  assert.ok(backend.includes('An unexpected error a server turns into a reply also goes to stderr as one line with no user data or secret, unless the spec limits what is written there.'), 'stderr line')
+  assert.ok(agentFile('reviewer').includes(' A check of a secret that does less work for an unknown name than for a wrong secret is a fix.\n'), 'reviewer')
 })

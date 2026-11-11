@@ -27,9 +27,10 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
 import { readBars } from './bars-common.mjs'
-import { judgeDirFor } from './anonymize.mjs'
-import { checkLeakScan, fillPrompt, parseVerdict, subfolders } from './judge.mjs'
+import { judgeDirFor, stagesAskedOf } from './anonymize.mjs'
+import { checkLeakScan, fillPrompt, parseVerdict, subfolders, taskTextOf } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
+import { required } from './section-memory.mjs'
 
 const BENCH = dirname(fileURLToPath(import.meta.url))
 const USAGE = 'usage: node bench/external-judge.mjs prepare --round=<r> --out=<d> | import --round=<r> --out=<d> --as=<n> | copy --from=<d> --to=<d> | rebuild-heldout --out=<d> | check --as=<n>'
@@ -167,8 +168,6 @@ function readJson(path) {
   }
 }
 
-const taskTextOf = (bench, pair) => readFileSync(join(bench, 'tasks', `${pair.split('-')[0]}.md`), 'utf8')
-
 // Every group's labels and task text, read before anything is copied: each group must hold the same 2 to 4 solutions.
 function checkPairs(judgeDir, pairs, bench) {
   const labelsOf = pair => subfolders(join(judgeDir, pair)).filter(name => /^[A-Z]$/.test(name))
@@ -179,7 +178,7 @@ function checkPairs(judgeDir, pairs, bench) {
   const tasks = Object.fromEntries(pairs.map(pair => {
     const own = labelsOf(pair)
     if (own.join() !== labels.join()) throw new Error(`${pair} has solutions ${own.join(', ') || 'none'}, but ${pairs[0]} has ${labels.join(', ')}: every group needs the same`)
-    return [pair, taskTextOf(bench, pair)]
+    return [pair, taskTextOf(bench, pair, stagesAskedOf(judgeDir, pair))]
   }))
   return { labels, tasks }
 }
@@ -197,7 +196,8 @@ export function externalOptions(argv) {
 }
 
 // Returns the number of cases written.
-export function prepare({ round, out, results = RESULTS, judgeDir = judgeDirFor(round), bench = BENCH, log = console.log }) {
+export function prepare({ round, out, results, judgeDir = judgeDirFor(round), bench = BENCH, log = console.log } = {}) {
+  required({ results })
   const keyPath = join(results, `external-key-${round}.json`)
   if (existsSync(keyPath)) throw new Error(`${keyPath} exists: round ${round} was already prepared; delete it to start over`)
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ${round} first`)
@@ -229,7 +229,8 @@ function refuseBeforeCheck({ round, as, results, outside }) {
 // Reads everything first, writes verdicts only when every case is usable and the order holds, and never over an
 // existing round. The usable count goes to outside-usable-<as>.json on every import, so a refused import still says
 // how far it got. outside: the bars config's outside judges (read from bench/bars-mo.json when not given).
-export function importRound({ round, out, as, results = RESULTS, outside, log = console.log }) {
+export function importRound({ round, out, as, results, outside, log = console.log } = {}) {
+  required({ results })
   const targets = [join(results, `judge-${as}.json`), join(results, `blind-key-${as}.json`)]
   const taken = targets.find(existsSync)
   if (taken) throw new Error(`${taken}: importing as round ${as} would overwrite it; pick another --as`)
@@ -270,11 +271,12 @@ export function copyCaseSet({ from, to }) {
 // A fresh copy of the held-out case set for one outside judge: the same cases, pairs and letters as
 // results/external-key-ho.json, and JUDGE.md as c5ba259 wrote it from the frozen prompt. The earlier case sets are
 // never read. Returns the number of cases written.
-export function rebuildHeldOut({ results = RESULTS, judgeDir = judgeDirFor('ho'), out, bench = BENCH }) {
+export function rebuildHeldOut({ results, judgeDir = judgeDirFor('ho'), out, bench = BENCH }) {
+  required({ results })
   const cases = readJson(join(results, 'external-key-ho.json'))
   if (!existsSync(judgeDir)) throw new Error(`no folder ${judgeDir}: anonymize round ho first`)
   const template = relabel(readFileSync(join(bench, 'data', 'heldout', 'judge-prompt-ho.md'), 'utf8'))
-  const tasks = Object.fromEntries(cases.map(c => [c.pair, taskTextOf(bench, c.pair)]))
+  const tasks = Object.fromEntries(cases.map(c => [c.pair, taskTextOf(bench, c.pair, stagesAskedOf(judgeDir, c.pair))]))
   writeCases({ judgeDir, out, cases, judgeText: (c, seed) => fillPrompt(template, { labels: ['A', 'B'], task: tasks[c.pair], seed }) + HAND_IN })
   return cases.length
 }
@@ -284,7 +286,8 @@ const round2 = n => Math.round(n * 100) / 100
 // c5ba259's held-out rule for an imported judge: the gap is the mean over the held-out pairs of team-ho minus solo-ho
 // quality, from judgeScores on the judge's own verdicts and key alone (never summary.json); same counts the pairs where
 // pairWinners agrees with the round's Opus judges.
-export function outsideCheck({ results = RESULTS, as }) {
+export function outsideCheck({ results, as }) {
+  required({ results })
   const keyPath = join(results, `blind-key-${as}.json`)
   const rows = readJson(join(results, `judge-${as}.json`))
   const key = readJson(keyPath)
@@ -306,7 +309,8 @@ export function outsideCheck({ results = RESULTS, as }) {
 }
 
 // The held-out check is recorded once, before any mode-round verdict of the same judge is imported, and never rewritten.
-export function recordCheck({ results = RESULTS, as, outside }) {
+export function recordCheck({ results, as, outside }) {
+  required({ results })
   const path = join(results, `outside-check-ho-${as}.json`)
   if (existsSync(path)) throw new Error(`${path} exists: the held-out check is recorded once`)
   const judge = outsideJudgesOf(outside).find(entry => entry.heldOut === as)
@@ -320,12 +324,12 @@ export function recordCheck({ results = RESULTS, as, outside }) {
 
 function main(options) {
   const { command } = options
-  if (command === 'prepare') prepare(options)
-  else if (command === 'import') importRound(options)
+  if (command === 'prepare') prepare({ ...options, results: RESULTS })
+  else if (command === 'import') importRound({ ...options, results: RESULTS })
   else if (command === 'copy') console.log(`${copyCaseSet(options)} cases copied to ${options.to}`)
-  else if (command === 'rebuild-heldout') console.log(`${rebuildHeldOut(options)} held-out cases in ${options.out}`)
+  else if (command === 'rebuild-heldout') console.log(`${rebuildHeldOut({ ...options, results: RESULTS })} held-out cases in ${options.out}`)
   else if (command === 'check') {
-    const { gap, same, pairs, passed } = recordCheck(options)
+    const { gap, same, pairs, passed } = recordCheck({ ...options, results: RESULTS })
     console.log(`Held-out check for ${options.as}: gap ${gap >= 0 ? '+' : ''}${gap.toFixed(2)}, same winner ${same} of ${pairs}: ${passed ? 'passed' : 'not passed'}.`)
   }
 }

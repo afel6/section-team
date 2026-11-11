@@ -4,17 +4,19 @@ import { cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { buildContext, composeContext } from '../hooks/session-start.mjs'
+import { buildContext, composeContext, startContext } from '../hooks/session-start.mjs'
+import { promptCheck } from '../hooks/user-prompt-submit.mjs'
 import { assembleBrief } from '../hooks/lib/brief.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
-import { MODES, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
+import { MODES, RETIRED_LINE, parseModeFile, readMode } from '../hooks/lib/mode.mjs'
 import { writeReport, excludeFile } from '../hooks/lib/paths.mjs'
 import { PASS_RULE } from '../scripts/gen-agents.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/session-start.mjs', import.meta.url))
 const SPIKES = fileURLToPath(new URL('../docs/v3-spikes.md', import.meta.url))
-const FIXTURE = readFileSync(new URL('./fixtures/supervisor-v0.1.1.md', import.meta.url), 'utf8').trim()
+const FIXTURE = readFileSync(new URL('./fixtures/supervisor-balanced.md', import.meta.url), 'utf8').trim()
 const MARKER = '[section-team supervisor]'
 const UNGRADED_LINE = 'A section REPORT with `Status: ungraded` could not run its reviewer gate: run `section-team:reviewer` on its changed files with this mode\'s gate before you call that work done.'
 const { CLAUDE_PROJECT_DIR: _ignored, ...HOOK_ENV } = process.env
@@ -52,43 +54,43 @@ test('brief starts with the marker and fits the limit', () => {
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
 })
 
-test('brief: single-area work up to about 600 lines is built by the supervisor and gated; multi-area work wakes builders plus testing', () => {
+test('brief: single-area work up to about 600 lines goes to one builder section; multi-area work wakes builders, then one testing section', () => {
   const brief = assembleBrief('balanced')
   assert.ok(brief.includes('Single-area task'))
   assert.ok(brief.includes('about 600 lines'))
-  assert.ok(brief.includes('build the code yourself'))
-  assert.ok(brief.includes('wake only the testing section to write and run the tests'))
-  assert.ok(brief.includes('then run the reviewer gate on your own changed files'))
+  assert.ok(brief.includes('Wake the matching builder section; it writes the code, its tests and any README asked for, and runs its own gate.'))
   assert.ok(brief.includes('Multi-area work'))
-  assert.ok(brief.includes('plus the testing section'))
-  assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions): build it and its tests yourself, then run the reviewer gate'))
+  assert.ok(brief.includes('wake one testing section, which fills the test gaps and does the final review in one job'))
+  assert.ok(!brief.includes('plus the testing section for tests and final verification'))
+  assert.ok(brief.includes('Small task: about 50 lines of new code or less (one or two small functions).'))
   assert.ok(brief.includes('A feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never a small task; input checks that throw do not make a function a feature'))
   assert.ok(!brief.includes('Do not build bigger tasks yourself'))
-  assert.ok(brief.includes('Where a spec line can be read two ways, build the stricter reading and say which one you chose.'))
+  assert.ok(brief.includes('Builders carry the spec rules (the stricter reading of what the code must do, input refused or accepted only as the spec says, every value the spec names exact); a REPORT that breaks one is a failing item.'))
+  assert.ok(!brief.includes('tell the builder to take the stricter reading and say which one it chose'), 'the old unbounded stricter line is gone')
   assert.ok(brief.includes('probe every spec line'))
-  assert.ok(brief.includes('Map every OS error your code can hit (a data path that is a directory, a missing parent folder, a file you cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
-  assert.ok(brief.includes('A crash path you notice in your own code is a fix before the gate, never a next step.'))
+  assert.ok(brief.includes('Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit'))
+  assert.ok(brief.includes('a crash path it notices is a fix before its gate, never a next step.'))
   assert.ok(brief.includes('A pass ends the gate: do not grade again after a pass.'))
   assert.ok(brief.includes('A REPORT may name a `Suggested skill:`.'))
   assert.ok(brief.includes('List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill'))
+  assert.ok(brief.includes('and give it to the section that asked. add-skill finds a missing one.'))
   assert.ok(!brief.includes('so do not ask'))
   assert.ok(!brief.includes("Never install a suggested skill without the user's yes."))
-  assert.ok(brief.includes('Give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
-  assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, a crash, a failing grade); list optional findings in your summary as next steps for the user.'))
-  assert.ok(brief.includes("Treat every value the spec names as exact (a header value, status code, field, path or format): send exactly that value, never extend it (no `; charset=utf-8` after `application/json`) or normalize it (redirect to the stored URL as given), and add no rule the spec does not state (no extra reserved path, no accepted null)."))
+  assert.ok(brief.includes('Tell it to give each spec requirement a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples.'))
+  assert.ok(brief.includes('After the final review, send a builder only failing items (a spec violation, also in older code the spec still covers; a crash; a failing grade); list optional findings in your summary as next steps for the user.'))
   assert.ok(brief.includes('Its verdict and any optional findings come back to you in its REPORT; only failing fix lists go to the builders. Do not ask it to send builders a verdict or optional notes.'))
 })
 
 test('brief: testing and docs do not count toward the 3-builder plan gate', () => {
   const brief = assembleBrief('balanced')
-  assert.ok(brief.includes('testing, docs and advisors not counted'))
+  assert.ok(brief.includes('testing, docs, the security pass and advisors not counted'))
 })
 
-test('the injected brief hands per-job skills, uses notes, gates its own code and describes the board commands', () => {
+test('the injected brief hands per-job skills, uses notes, gates ungraded work and describes the board commands', () => {
   const brief = buildContext(repo(), tempHome())
   assert.ok(brief.startsWith('[section-team supervisor]'))
   assert.ok(brief.length < 10000, `brief is ${brief.length} chars`)
-  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', '`section-team:reviewer` replaces `code-reviewer` for your own code.', PASS_RULE, '/chats', '/team']) {
+  for (const phrase of ['Skills for this job:', 'at most 4', '`.team/notes/`', 'Do not relay anything that belongs in a note.', '`section-team:reviewer`', '`section-team:reviewer` replaces `code-reviewer` in this gate.', PASS_RULE, '/chats', '/team']) {
     assert.ok(brief.includes(phrase), `brief lacks: ${phrase}`)
   }
   assert.ok(!brief.includes('opens automatically'))
@@ -109,7 +111,7 @@ test('context names the latest summary and excludes .team/', () => {
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const context = buildContext(dir, tempHome())
   assert.ok(context.startsWith('[section-team supervisor]'))
-  assert.ok(context.includes('\n\nLast team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it before new team work.\n\n'))
+  assert.ok(context.includes('\n\nLast team summary: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it first.\n\n'))
   assert.ok(!context.includes(dir))
   assert.ok(readFileSync(excludeFile(dir), 'utf8').includes('.team/'))
 })
@@ -119,7 +121,7 @@ test('a session in a subfolder names the summary relative to the project root', 
   writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
   const sub = join(dir, 'src')
   mkdirSync(sub)
-  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary for this project: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
+  assert.ok(buildContext(sub, tempHome(), {}).includes('Last team summary: .team/reports/2026-10-12/090000-supervisor-summary.md.'))
 })
 
 test('hook prints SessionStart additionalContext', () => {
@@ -294,19 +296,36 @@ test('a Max mode file at the repo root applies to a session started in a subfold
   assert.ok(ctx.includes('## Mode\n- This project runs in Max mode (from .team/mode.json).'))
 })
 
-test('without a mode file the context is the v0.1.1 brief plus a Balanced mode section', () => {
+test('without a mode file the context is the Balanced brief plus a Balanced mode section', () => {
   assert.equal(
     buildContext(repo(), tempHome(), {}),
     `${FIXTURE}\n\n## Mode\n- This project runs in Balanced mode (default).\n- Automatic skill installs: off (default).\n- ${UNGRADED_LINE}`,
   )
 })
 
-test('a Lean mode file gives the Lean brief and says where the mode came from', () => {
-  const ctx = contextFor('{"mode":"lean"}', {})
-  assert.ok(ctx.startsWith(`${assembleBrief('lean')}\n\n`))
-  assert.ok(ctx.includes('- This project runs in Lean mode (from .team/mode.json).'))
+test('a Max mode file gives the Max brief and says where the mode came from', () => {
+  const ctx = contextFor('{"mode":"max"}', {})
+  assert.ok(ctx.startsWith(`${assembleBrief('max')}\n\n`))
+  assert.ok(ctx.includes('- This project runs in Max mode (from .team/mode.json).'))
+  assert.ok(!ctx.includes(RETIRED_LINE))
   // Balanced is the default mode, so an explicit {"mode":"balanced"} reads the same as no file.
   assert.ok(contextFor('{"mode":"balanced"}', {}).includes('- This project runs in Balanced mode (default).'))
+})
+
+test('a saved lean starts as Balanced with the one retired line, once, and nothing else changes', () => {
+  const ctx = contextFor('{"mode":"lean"}', {})
+  assert.ok(ctx.startsWith(`${assembleBrief('balanced')}\n\n`))
+  assert.ok(ctx.includes('- This project runs in Balanced mode (default).'))
+  assert.equal(RETIRED_LINE, 'Lean was removed in 0.3.0; this project runs Balanced until you pick a mode.')
+  assert.equal(ctx.split(RETIRED_LINE).length, 2)
+  assert.ok(ctx.includes(`## Mode\n- This project runs in Balanced mode (default).\n- ${RETIRED_LINE}\n- Automatic skill installs:`))
+  assert.ok(ctx.length < 10000)
+  const result = startContext(withModeFile(repo(), '{"mode":"lean"}'), tempHome(), {})
+  assert.deepEqual(result.warnings, [RETIRED_LINE])
+  // The user sees it too: the hook shows warnings as its one systemMessage line.
+  const out = JSON.parse(run(startInput(withModeFile(repo(), '{"mode":"lean"}'))).stdout)
+  assert.equal(out.systemMessage, `section-team session-start: ${RETIRED_LINE}`)
+  assert.ok(out.hookSpecificOutput.additionalContext.includes(`- ${RETIRED_LINE}`))
 })
 
 test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKILLS, then off', () => {
@@ -317,10 +336,10 @@ test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.ok(envOn.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(envOn.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
   const fileOn = contextFor('{"autoInstallSkills":true}', {})
-  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json), which replaces asking first'))
+  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json): install'))
   assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
   assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
-  assert.ok(contextFor('{"mode":"lean"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.ok(contextFor('{"mode":"max"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(contextFor(null, {}).includes('- Automatic skill installs: off (default).'))
   const fileOffEnvOn = contextFor('{"autoInstallSkills":false}', ENV_ON)
   assert.ok(fileOffEnvOn.includes('- Automatic skill installs: off (from .team/mode.json).'))
@@ -358,8 +377,8 @@ test('the mode is recorded per session, only when the hook knows the session id'
   const h2 = tempHome()
   buildContext(repo(), h2, {})
   assert.equal(existsSync(join(h2, '.claude', 'section-team', 'modes')), false)
-  recordMode(h, 's2', 'lean')
-  assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"lean"}')
+  recordMode(h, 's2', 'balanced')
+  assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"balanced"}')
   recordMode(h, 's2', 'max')
   assert.equal(readFileSync(recordFile(h, 's2'), 'utf8'), '{"mode":"max"}')
 })
@@ -443,9 +462,10 @@ test('hook: an error outside the side effects (no brief files) gives one systemM
 
 test('composeContext builds the same text as buildContext, and puts the summary before the Mode section', () => {
   const dir = withModeFile(repo(), '{"mode":"lean","autoInstallSkills":true}')
+  assert.ok(readMode(dir).retired === 'lean')
   assert.equal(buildContext(dir, tempHome(), {}), composeContext(readMode(dir), {}, null))
   const withSummary = composeContext({ mode: 'max', autoInstallSkills: null, problem: null }, {}, 'S')
-  assert.ok(withSummary.includes('\n\nLast team summary for this project: S. Read it before new team work.\n\n## Mode\n'))
+  assert.ok(withSummary.includes('\n\nLast team summary: S. Read it first.\n\n## Mode\n'))
 })
 
 for (const mode of MODES) {
@@ -471,8 +491,131 @@ for (const mode of MODES) {
     // The longest relative path latestSummary can give: the latest time of day and the highest same-second suffix.
     const summary = '.team/reports/2026-10-12/235959-supervisor-summary-999.md'
     assert.equal(summary.length, 57)
-    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary)
-    for (const part of ['Automatic skill installs are on', summary, '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
+    const ctx = composeContext({ mode, autoInstallSkills: null, problem }, ENV_ON, summary, true)
+    for (const part of ['Automatic skill installs are on', summary, '`.team/notes/plan.md` exists', '## Mode', problem, UNGRADED_LINE]) assert.ok(ctx.includes(part), `lacks: ${part}`)
     assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
   })
 }
+
+// --- resume: the history already holds the brief, so an unchanged one is left out ---
+
+const BRIEF_KEPT = 'Your team brief from the start of this session still applies.'
+const briefFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.brief.json`)
+const sha = text => createHash('sha256').update(text).digest('hex')
+const briefRecordOf = mode => JSON.stringify({ brief: sha(assembleBrief(mode)) })
+const start = (dir, home, source, id = 'sess-r') => startContext(dir, home, {}, id, { source })
+
+test('startup, clear and compact give the full brief and record its hash for the session', () => {
+  for (const source of ['startup', 'clear', 'compact']) {
+    const h = tempHome()
+    const { context, warnings } = start(withModeFile(repo(), '{"mode":"max"}'), h, source)
+    assert.ok(context.startsWith(`${assembleBrief('max')}\n\n`), source)
+    assert.deepEqual(warnings, [], source)
+    assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'), source)
+  }
+  const h = tempHome()
+  assert.equal(run(startInput(repo()), h).status, 0)
+  assert.equal(readFileSync(briefFile(h, 'test-session'), 'utf8'), briefRecordOf('balanced'))
+})
+
+test('resume with the hash of the current brief leaves the brief out and keeps the rest', () => {
+  const h = tempHome()
+  const dir = repo()
+  writeReport(dir, 'supervisor-summary', 'x', new Date(2026, 9, 12, 9, 0, 0))
+  const full = start(dir, h, 'startup').context
+  const resumed = start(dir, h, 'resume')
+  assert.deepEqual(resumed.warnings, [])
+  assert.equal(resumed.context, full.replace(assembleBrief('balanced'), BRIEF_KEPT))
+  assert.ok(resumed.context.startsWith(`${BRIEF_KEPT}\n\nLast team summary: .team/reports/2026-10-12/090000-supervisor-summary.md. Read it first.\n\n## Mode\n- This project runs in Balanced mode (default).`))
+  assert.ok(!resumed.context.includes(MARKER))
+  const out = hookOut(run(startInput(dir, { source: 'resume', session_id: 'sess-r' }), h))
+  assert.equal(out.systemMessage, undefined)
+  assert.equal(out.hookSpecificOutput.additionalContext, startContext(dir, h, HOOK_ENV, 'sess-r', { source: 'resume' }).context)
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith(`${BRIEF_KEPT}\n\n`))
+})
+
+test('resume after a mode change, with no record or with another brief\'s hash gives the full brief and records the new hash', () => {
+  const h = tempHome()
+  const dir = repo()
+  const fresh = start(dir, h, 'resume')
+  assert.ok(fresh.context.startsWith(`${assembleBrief('balanced')}\n\n`), 'no record')
+  assert.deepEqual(fresh.warnings, [])
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('balanced'))
+  withModeFile(dir, '{"mode":"max"}')
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}\n\n`), 'mode changed')
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'))
+  writeFileSync(briefFile(h, 'sess-r'), JSON.stringify({ brief: sha('another brief') }))
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}\n\n`), 'another hash')
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('max'))
+  assert.ok(start(dir, h, 'resume').context.startsWith(BRIEF_KEPT), 'the recorded hash now matches')
+})
+
+test('resume with an unreadable brief record gives the full brief, one warning, and a fresh record', () => {
+  const h = tempHome()
+  const dir = repo()
+  mkdirSync(join(h, '.claude', 'section-team', 'modes'), { recursive: true })
+  writeFileSync(briefFile(h, 'sess-r'), '{not json')
+  const { context, warnings } = quietStderr(() => start(dir, h, 'resume')).value
+  assert.ok(context.startsWith(`${assembleBrief('balanced')}\n\n`))
+  assert.deepEqual(warnings, ['brief record read failed: brief record is not valid'])
+  assert.equal(readFileSync(briefFile(h, 'sess-r'), 'utf8'), briefRecordOf('balanced'))
+})
+
+test('without a usable session id or a source the full brief goes in and no brief is recorded', () => {
+  const h = tempHome()
+  assert.ok(buildContext(repo(), h, {}).startsWith(MARKER))
+  assert.ok(startContext(repo(), h, {}, undefined, { source: 'resume' }).context.startsWith(MARKER))
+  assert.equal(existsSync(join(h, '.claude', 'section-team', 'modes')), false)
+  const out = hookOut(run(startInput(repo(), { source: 'resume', session_id: undefined }), h))
+  assert.ok(out.hookSpecificOutput.additionalContext.startsWith(MARKER))
+  assert.match(out.systemMessage, /^section-team session-start: mode record failed: [^\n;]*session id[^\n;]*$/)
+})
+
+test("a mode switch mid-session, then a resume in the first mode, gives that mode's full brief again", () => {
+  const h = tempHome()
+  const dir = repo()
+  withModeFile(dir, '{"mode":"max"}')
+  start(dir, h, 'startup')
+  withModeFile(dir, '{"mode":"balanced"}')
+  assert.ok(promptCheck({ cwd: dir, session_id: 'sess-r' }, h).notice.startsWith('Mode is now Balanced (was Max)'))
+  assert.ok(start(dir, h, 'resume').context.startsWith(BRIEF_KEPT), 'the start brief plus the notice is the Balanced brief')
+  withModeFile(dir, '{"mode":"max"}')
+  assert.ok(start(dir, h, 'resume').context.startsWith(`${assembleBrief('max')}
+
+`), 'back in Max')
+})
+
+test('hooks.json still runs the session-start hook on resume', () => {
+  const hooks = JSON.parse(readFileSync(fileURLToPath(new URL('../hooks/hooks.json', import.meta.url)), 'utf8')).hooks
+  assert.equal(hooks.SessionStart[0].matcher, 'startup|resume|clear|compact')
+})
+
+test('the context tells the supervisor to read .team/notes/plan.md first, only when it exists', () => {
+  const dir = repo()
+  assert.ok(!buildContext(dir, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const context = buildContext(dir, tempHome(), {})
+  assert.ok(context.includes('`.team/notes/plan.md` exists: read it first.'))
+  assert.ok(context.indexOf('plan.md') < context.indexOf('## Mode'))
+})
+
+test('a worktree session finds the plan in the main checkout, and is told that is where .team/ lives', () => {
+  const dir = repo()
+  const worktree = join(dir, '..', 'wt')
+  execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', worktree])
+  assert.ok(!buildContext(worktree, tempHome(), {}).includes('.team/notes/plan.md'))
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  assert.ok(buildContext(worktree, tempHome(), {}).includes('`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'))
+})
+
+test('a session started in a subfolder finds plan.md at the repo root', () => {
+  const dir = repo()
+  mkdirSync(join(dir, '.team', 'notes'), { recursive: true })
+  writeFileSync(join(dir, '.team', 'notes', 'plan.md'), '| slice | status |')
+  const sub = join(dir, 'src', 'deep')
+  mkdirSync(sub, { recursive: true })
+  assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
+})

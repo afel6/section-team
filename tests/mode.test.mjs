@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_MODE, GATES, MODES, MODE_FILE, MODE_LABELS, balancedBecause, modeName, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
+import { DEFAULT_MODE, GATES, MODES, MODE_FILE, MODE_LABELS, activeMode, assertMode, balancedBecause, modeName, parseModeFile, readMode, serializeMode, writeMode } from '../hooks/lib/mode.mjs'
 
 const tempDir = () => {
   const dir = join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-'))), 'with space')
@@ -23,10 +23,9 @@ const BALANCED = { mode: 'balanced', autoInstallSkills: null, problem: null, mod
 const nonAscii = text => [...text].filter(c => c.codePointAt(0) > 127).map(c => c.codePointAt(0))
 
 test('modes, the default and the picker labels are exact', () => {
-  assert.deepEqual(MODES, ['lean', 'balanced', 'max'])
+  assert.deepEqual(MODES, ['balanced', 'max'])
   assert.equal(DEFAULT_MODE, 'balanced')
   assert.deepEqual(MODE_LABELS, {
-    lean: 'Lean · ~1.4–2.6× usage (measured 2026-11)',
     balanced: 'Balanced · ~4.3–5.2× usage (measured 2026-11)',
     max: 'Max · ~7.5–9.7× usage (measured 2026-11)',
   })
@@ -35,9 +34,9 @@ test('modes, the default and the picker labels are exact', () => {
 })
 
 test('gate values per mode are exact', () => {
-  assert.deepEqual(GATES.lean, { passOverall: 8, minItem: null, fixRounds: 1, reviewerModel: 'sonnet', nearMiss: false })
+  assert.equal(GATES.lean, undefined)
   assert.deepEqual(GATES.balanced, { passOverall: 8, minItem: 6, fixRounds: 2, reviewerModel: null, nearMiss: false })
-  assert.deepEqual(GATES.max, { passOverall: 9, minItem: 7, fixRounds: 3, reviewerModel: null, nearMiss: true })
+  assert.deepEqual(GATES.max, { passOverall: 9, minItem: 7, fixRounds: 2, reviewerModel: null, nearMiss: false, gradeAll: true })
   assert.deepEqual(Object.keys(GATES), [...MODES])
   assert.deepEqual(Object.keys(MODE_LABELS), [...MODES])
 })
@@ -68,13 +67,13 @@ test('a value that is neither text nor null is a caller bug, not a bad file', ()
 
 test('a good file gives its mode and skill setting', () => {
   assert.deepEqual(parseModeFile('{"mode":"max","autoInstallSkills":false}'), { mode: 'max', autoInstallSkills: false, problem: null, modeUsable: true })
-  assert.deepEqual(parseModeFile('{"mode": "lean", "autoInstallSkills": true}'), { mode: 'lean', autoInstallSkills: true, problem: null, modeUsable: true })
+  assert.deepEqual(parseModeFile('{"mode": "balanced", "autoInstallSkills": true}'), { mode: 'balanced', autoInstallSkills: true, problem: null, modeUsable: true })
   assert.deepEqual(parseModeFile('{}'), BALANCED)
 })
 
 test('a byte order mark and a trailing newline from a Windows editor are accepted', () => {
-  const text = String.fromCodePoint(0xfeff) + '{"mode":"lean"}\r\n'
-  assert.deepEqual(parseModeFile(text), { mode: 'lean', autoInstallSkills: null, problem: null, modeUsable: true })
+  const text = String.fromCodePoint(0xfeff) + '{"mode":"max"}\r\n'
+  assert.deepEqual(parseModeFile(text), { mode: 'max', autoInstallSkills: null, problem: null, modeUsable: true })
 })
 
 test('an unknown mode falls back to balanced and names the value', () => {
@@ -145,21 +144,21 @@ test('a long or odd mode value is not copied into the problem line', () => {
 })
 
 test('serializing keeps the skill setting and writes compact JSON', () => {
-  assert.deepEqual(JSON.parse(serializeMode('{"autoInstallSkills":true}', 'lean')), { mode: 'lean', autoInstallSkills: true })
+  assert.deepEqual(JSON.parse(serializeMode('{"autoInstallSkills":true}', 'balanced')), { mode: 'balanced', autoInstallSkills: true })
   assert.equal(serializeMode(null, 'max'), '{"mode":"max"}')
-  assert.equal(serializeMode('{"mode":"lean","autoInstallSkills":false}', 'max'), '{"mode":"max","autoInstallSkills":false}')
+  assert.equal(serializeMode('{"mode":"balanced","autoInstallSkills":false}', 'max'), '{"mode":"max","autoInstallSkills":false}')
 })
 
 test('serializing replaces a broken or invalid previous file', () => {
-  assert.equal(serializeMode('{"mode":', 'lean'), '{"mode":"lean"}')
-  assert.equal(serializeMode('{"autoInstallSkills":"yes","extra":1}', 'lean'), '{"mode":"lean"}')
+  assert.equal(serializeMode('{"mode":', 'balanced'), '{"mode":"balanced"}')
+  assert.equal(serializeMode('{"autoInstallSkills":"yes","extra":1}', 'balanced'), '{"mode":"balanced"}')
 })
 
 test('serializing an unknown mode throws one plain line', () => {
   assert.throws(() => serializeMode(null, 'fast'), /unknown mode/)
-  assert.throws(() => serializeMode(null, 'fast'), { message: 'unknown mode "fast": pick lean, balanced or max' })
+  assert.throws(() => serializeMode(null, 'fast'), { message: 'unknown mode "fast": pick balanced or max' })
   for (const bad of [undefined, null, 'Max', '', 'x\ny']) {
-    assert.throws(() => serializeMode(null, bad), err => /^unknown mode[^\n]*: pick lean, balanced or max$/.test(err.message), String(bad))
+    assert.throws(() => serializeMode(null, bad), err => /^unknown mode[^\n]*: pick balanced or max$/.test(err.message), String(bad))
   }
 })
 
@@ -179,7 +178,7 @@ test('writeMode then readMode round-trips, creating .team and leaving no temp fi
 })
 
 test('writeMode keeps the skill setting already in the file and replaces the mode', () => {
-  const root = withModeFile('{"mode":"lean","autoInstallSkills":true}')
+  const root = withModeFile('{"mode":"max","autoInstallSkills":true}')
   writeMode(root, 'balanced')
   assert.deepEqual(readMode(root), { mode: 'balanced', autoInstallSkills: true, problem: null, modeUsable: true })
   assert.deepEqual(readdirSync(teamDir(root)), ['mode.json'])
@@ -196,7 +195,7 @@ test('readMode reports a hand-edited bad file', () => {
 
 test('writeMode with an unknown mode throws and writes nothing', () => {
   const root = tempDir()
-  assert.throws(() => writeMode(root, 'turbo'), { message: 'unknown mode "turbo": pick lean, balanced or max' })
+  assert.throws(() => writeMode(root, 'turbo'), { message: 'unknown mode "turbo": pick balanced or max' })
   assert.equal(existsSync(teamDir(root)), false)
 })
 
@@ -211,7 +210,7 @@ test('a .team that is a file blocks the write with one plain line, and readMode 
 })
 
 test('a read-only mode file or folder fails the write in one line, keeps the old mode and leaves no temp file', { skip: process.getuid?.() === 0 && 'root ignores file permissions' }, () => {
-  const root = withModeFile('{"mode":"lean"}')
+  const root = withModeFile('{"mode":"max"}')
   // Windows refuses to replace a read-only file, after the temp file is written; POSIX refuses to create a file in a read-only folder.
   const windows = process.platform === 'win32'
   const locked = windows ? modeFile(root) : teamDir(root)
@@ -219,7 +218,7 @@ test('a read-only mode file or folder fails the write in one line, keeps the old
   try {
     assert.throws(() => writeMode(root, 'max'), err => /^could not save \.team\/mode\.json: [^\n]+$/.test(err.message))
     assert.deepEqual(readdirSync(teamDir(root)), ['mode.json'])
-    assert.deepEqual(readMode(root), { mode: 'lean', autoInstallSkills: null, problem: null, modeUsable: true })
+    assert.deepEqual(readMode(root), { mode: 'max', autoInstallSkills: null, problem: null, modeUsable: true })
   } finally {
     chmodSync(locked, windows ? 0o644 : 0o755)
   }
@@ -231,13 +230,12 @@ test('a mode.json that is a folder is reported on read, fails the write in one l
   assert.deepEqual(readMode(root), {
     mode: 'balanced', autoInstallSkills: null, problem: '.team/mode.json: could not be read (EISDIR), so Balanced is used', modeUsable: false,
   })
-  assert.throws(() => writeMode(root, 'lean'), err => /^could not save \.team\/mode\.json: [^\n]+$/.test(err.message))
+  assert.throws(() => writeMode(root, 'balanced'), err => /^could not save \.team\/mode\.json: [^\n]+$/.test(err.message))
   assert.deepEqual(readdirSync(teamDir(root)), ['mode.json'])
 })
 
 test('the mode file path and the display names are exact', () => {
   assert.equal(MODE_FILE, '.team/mode.json')
-  assert.equal(modeName('lean'), 'Lean')
   assert.equal(modeName('balanced'), 'Balanced')
   assert.equal(modeName('max'), 'Max')
   for (const bad of ['turbo', '', undefined, 'Max']) {
@@ -254,10 +252,10 @@ test('an ending replaces the Balanced clause after the reason of an unusable fil
 })
 
 test('an ending applies to an unknown mode and the skill-setting note keeps its own clause', () => {
-  const lean = 'so this session stays in Lean mode'
+  const kept = 'so this session stays in Max mode'
   assert.deepEqual(
-    parseModeFile('{"mode":"turbo","autoInstallSkills":"yes"}', lean),
-    fallback(`.team/mode.json: unknown mode "turbo", ${lean}; autoInstallSkills must be true or false, so it is ignored`),
+    parseModeFile('{"mode":"turbo","autoInstallSkills":"yes"}', kept),
+    fallback(`.team/mode.json: unknown mode "turbo", ${kept}; autoInstallSkills must be true or false, so it is ignored`),
   )
 })
 
@@ -278,4 +276,29 @@ test('readMode passes the ending to its stand-in problems and leaves the no-file
   assert.deepEqual(readMode(blocked, MAX_END), fallback(`.team/mode.json: .team is not a folder, ${MAX_END}`))
   assert.deepEqual(readMode(withModeFile('{"mode":'), MAX_END), fallback(`.team/mode.json: not valid JSON, ${MAX_END}`))
   assert.deepEqual(readMode(tempDir(), MAX_END), BALANCED)
+})
+
+const LEAN_GONE = 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max'
+
+test('a saved lean runs as balanced and says it was retired', () => {
+  const expected = { mode: 'balanced', autoInstallSkills: null, problem: null, modeUsable: true, retired: 'lean' }
+  assert.deepEqual(parseModeFile('{"mode":"lean"}'), expected)
+  assert.deepEqual(parseModeFile('{"mode":"lean","autoInstallSkills":true}'), { ...expected, autoInstallSkills: true })
+  assert.deepEqual(readMode(withModeFile('{"mode":"lean"}')), expected)
+})
+
+test('activeMode runs a retired lean as balanced and leaves the rest alone', () => {
+  assert.equal(activeMode('lean'), 'balanced')
+  for (const mode of [...MODES, null]) assert.equal(activeMode(mode), mode)
+})
+
+test('lean is refused when it is picked, and writing a mode replaces a saved lean', () => {
+  assert.throws(() => assertMode('lean'), { message: LEAN_GONE })
+  assert.throws(() => modeName('lean'), { message: LEAN_GONE })
+  assert.throws(() => serializeMode(null, 'lean'), { message: LEAN_GONE })
+  const root = withModeFile('{"mode":"lean","autoInstallSkills":true}')
+  assert.throws(() => writeMode(root, 'lean'), { message: LEAN_GONE })
+  assert.equal(readFileSync(modeFile(root), 'utf8'), '{"mode":"lean","autoInstallSkills":true}')
+  writeMode(root, 'max')
+  assert.deepEqual(readMode(root), { mode: 'max', autoInstallSkills: true, problem: null, modeUsable: true })
 })

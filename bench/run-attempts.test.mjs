@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { BENCH_MODEL, PLUGIN_KEY, childEnv, envNames } from './clean-run.mjs'
 import {
-  API_FAILURE, BatchStop, LIMIT, RoundStop, archiveAttempt, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor,
+  API_FAILURE, BatchStop, LIMIT, RoundStop, archiveAttempt, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, nextAttempt, pendingRuns, projectDirFor, runInitProblems,
   recordAttempt,
 } from './run-attempts.mjs'
 
@@ -38,7 +38,7 @@ const PIN = {
   binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', version: '2.1.296', apiKeySource: 'none', builtins: BUILTINS.map(p => p.source),
   pluginDir: PLUGIN_DIR, setups: { solo: SOLO_LISTS, lean: TEAM_LISTS, team: TEAM_LISTS, max: TEAM_LISTS },
 }
-const CTX = { pin: PIN, installedKeys: ['a@market'], pluginDir: PLUGIN_DIR, pluginCommit: 'c0ffee1' }
+const CTX = { pin: PIN, installedKeys: ['a@market'], pluginDir: PLUGIN_DIR, pluginVersion: '0.2.1', pluginCommit: 'c0ffee1' }
 const LEAN = { id: 'h4-lean-mo-r1', task: 'h4', cond: 'lean-mo', base: 'lean', rep: 1 }
 const SOLO = { id: 'h4-solo-mo-r1', task: 'h4', cond: 'solo-mo', base: 'solo', rep: 1 }
 const RUN_DIR = 'C:/Users/Asus/bench-runs/h4-0123abcd'
@@ -56,8 +56,16 @@ const INFO = { exitCode: 0, timedOut: false, wallMs: 61_000, startedAt: '2026-11
 
 // finishAttempt for one lean attempt into outDir, with any arguments replaced.
 const finish = (outDir, fields = {}) => finishAttempt({
-  run: LEAN, outDir, dir: RUN_DIR, sessionId: 'sid-1', attempt: 1, info: INFO, messages: [init(), result()], pin: PIN, ctx: CTX,
+  run: LEAN, outDir, dir: RUN_DIR, sessionId: 'sid-1', attempt: 1, info: INFO, messages: [init(), result()], ctx: CTX,
   evidenceTexts: MEDIUM, env: ENV, ...fields,
+})
+
+test('runInitProblems judges a run\'s init by its setup, its batch\'s pin and the plugin under test', () => {
+  assert.deepEqual(runInitProblems([init(), result()], LEAN, CTX), [])
+  assert.deepEqual(runInitProblems([init({ model: 'claude-haiku-5-5' })], LEAN, CTX), [`model claude-haiku-5-5, expected ${BENCH_MODEL}`])
+  assert.deepEqual(runInitProblems([result()], LEAN, CTX), ['no init message'])
+  assert.deepEqual(runInitProblems([init()], LEAN, { ...CTX, pluginVersion: '0.2.3' }), ['section-team version 0.2.1, expected 0.2.3'])
+  assert.deepEqual(runInitProblems([init(SOLO_LISTS)], SOLO, CTX), ['section-team loaded in solo'])
 })
 
 test('LIMIT and API_FAILURE are the frozen match rules', () => {
@@ -419,4 +427,14 @@ test('pendingRuns keeps the round stopped while a run has used its capped reruns
     return true
   })
   assert.deepEqual(pendingRuns(runs, { results, rerun: ['h4-b-mo-r1'], reason: 'fix 0a1b2c3', at: 'T' }).map(r => r.id), ['h4-b-mo-r1'])
+})
+
+test('finishAttempt voids a run on the extra reasons its caller found, recorded like any other; none changes nothing', t => {
+  const outDir = join(tempRoot(t), 'results', 'h7-lean-mo-r1')
+  mkdirSync(outDir, { recursive: true })
+  const line = 'stage 2 ran as session other, not sid-1'
+  assert.throws(() => finish(outDir, { extraReasons: [line] }), err => err instanceof BatchStop && err.reason.includes(line))
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'void.json'), 'utf8')).reasons, [line])
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+  assert.equal(finish(outDir, { extraReasons: [] }).kind, 'ok')
 })

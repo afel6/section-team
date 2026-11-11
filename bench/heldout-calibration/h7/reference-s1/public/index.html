@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parts store</title>
+</head>
+<body>
+<h1>Parts store</h1>
+<form id="part-form" novalidate>
+  <label for="sku">SKU</label>
+  <input type="text" id="sku">
+  <label for="name">Name</label>
+  <input type="text" id="name">
+  <button type="submit" id="add">Add</button>
+</form>
+<label for="search">Search</label>
+<input type="search" id="search">
+<ul id="part-list"></ul>
+<button type="button" id="more" disabled>Load more</button>
+<p id="error" role="alert"></p>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, wakeUps } from './mode-check.mjs'
 
+const checkRunAt = checkRun
+
 // Fixtures copy the real transcript shapes (held-out team runs, 2026-10-31): line timestamps, Agent and SendMessage
 // tool_use inputs, queued_command attachments, SubagentHandback answers, and roles as collectRolesFrom returns them.
 const T0 = Date.parse('2026-11-03T10:00:00.000Z')
@@ -129,16 +131,19 @@ test('max h5 run without a security wake-up is unfaithful', t => {
   assert.deepEqual(result.broken, ['security not woken'])
 })
 
-test('max gate failing after 3 fix rounds is faithful; after 2 with no later call it ended early', t => {
+test('a 0.3.0 max gate with 2 fix rounds is faithful, with 3 it is not, and after 1 with no later call it ended early', t => {
   const dir = maxDir(t)
-  const three = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 8]])]
-  assert.deepEqual(gates(three, 'max').map(({ caller, fixRounds, endsEarly, regradeAfterPass }) => ({ caller, fixRounds, endsEarly, regradeAfterPass })),
-    [{ caller: 'main', fixRounds: 3, endsEarly: false, regradeAfterPass: false }])
-  assert.equal(gates(three, 'max')[0].reviews.length, 4)
-  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: three, runDir: dir, record: 'max' }).broken, [])
-  const two = three.slice(0, -1)
-  assert.equal(gates(two, 'max')[0].endsEarly, true)
-  const result = checkRun({ cond: 'max-mo', task: 'h5', roles: two, runDir: dir, record: 'max' })
+  const checkRun = run => checkRunAt({ ...run, pluginVersion: '0.3.0' })
+  const twoRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5]])]
+  assert.deepEqual(gates(twoRounds, 'max').map(({ caller, fixRounds, endsEarly, regradeAfterPass }) => ({ caller, fixRounds, endsEarly, regradeAfterPass })),
+    [{ caller: 'main', fixRounds: 2, endsEarly: false, regradeAfterPass: false }])
+  assert.equal(gates(twoRounds, 'max')[0].reviews.length, 3)
+  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: twoRounds, runDir: dir, record: 'max' }).broken, [])
+  const threeRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 8]])]
+  assert.deepEqual(checkRun({ cond: 'max-mo', task: 'h5', roles: threeRounds, runDir: dir, record: 'max' }).broken, ['gate of main had 3 fix rounds (at most 2)'])
+  const one = twoRounds.slice(0, -1)
+  assert.equal(gates(one, 'max')[0].endsEarly, true)
+  const result = checkRun({ cond: 'max-mo', task: 'h5', roles: one, runDir: dir, record: 'max' })
   assert.deepEqual(result.broken, ['gate of main ended early'])
   const later = [main_(wake(1, 'testing'), wake(2, 'security'), wake(8, 'backend')), ...reviews(null, [[5, 7], [10, 9.5]])]
   assert.deepEqual(gates(later, 'max').map(g => [g.fixRounds, g.endsEarly]), [[0, false], [0, false]])
@@ -164,6 +169,41 @@ test('a re-grade after a pass is unfaithful', t => {
   assert.equal(gates(roles, 'lean')[0].regradeAfterPass, true)
   const result = checkRun({ cond: 'lean-mo', task: 'h5', roles, runDir: runDir(t, modeFile('lean')), record: 'lean' })
   assert.deepEqual(result.broken, ['gate of main graded again after a pass'])
+})
+
+// A pass ends the gate for a section and for main alike: a second grade with no new job between the calls is a re-grade,
+// whatever was edited in between.
+const graded = (between, helper = []) => [
+  main_(wake(0, 'testing')),
+  section('testing', 't1', [userLine(1, 'job'), wake(3, 'reviewer'), ...between, wake(9, 'reviewer')]),
+  ...helper,
+  ...reviews('t1', [[4, 9], [10, 9]]),
+]
+const shapeOf = list => list.map(g => [g.caller, g.reviews.length, g.fixRounds, g.regradeAfterPass])
+
+test('a section that edits code after a pass and grades again graded again after a pass', t => {
+  const ways = {
+    'its own Edit': graded([write(6, 'src/app.mjs', 'Edit')]),
+    'its own Write': graded([write(6, 'src/app.mjs')]),
+    'its coder': graded([], [section('coder', 'c1', [userLine(5, 'fix'), write(6, 'src/app.mjs')], 't1')]),
+    'nothing between': graded([]),
+    'a note and memory only': graded([write(6, '.team/notes/api.md'), write(7, '.claude/agent-memory-local/section-team-testing/MEMORY.md', 'Edit')]),
+    'an edit before the pass': [main_(wake(0, 'testing')), section('testing', 't1', [userLine(1, 'job'), write(2, 'src/app.mjs'), wake(3, 'reviewer'), wake(9, 'reviewer')]), ...reviews('t1', [[4, 9], [10, 9]])],
+  }
+  for (const [name, roles] of Object.entries(ways)) {
+    assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['t1', 2, 1, true]], name)
+    assert.ok(checkRun({ cond: 'team-mo', task: 'h6', roles, runDir: runDir(t), record: 'balanced' }).broken.includes('gate of t1 graded again after a pass'), name)
+  }
+})
+
+test('an edit after a failing grade stays in the gate as a fix round', () => {
+  const roles = [main_(wake(0, 'testing')), section('testing', 't1', [userLine(1, 'job'), write(6, 'src/app.mjs', 'Edit')]), ...reviews('t1', [[4, 7], [10, 9]])]
+  assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['t1', 2, 1, false]])
+})
+
+test('main\'s own edit after a pass does not excuse its re-grade: its brief says a pass ends the gate', () => {
+  const roles = [main_(wake(2, 'reviewer'), write(5, 'src/app.mjs', 'Edit'), wake(8, 'reviewer')), ...reviews(null, [[3, 9], [9, 9]])]
+  assert.deepEqual(shapeOf(gates(roles, 'balanced')), [['main', 2, 1, true]])
 })
 
 test('a queued_command from main between two section reviewer calls starts a new gate; the section\'s own reviewer hand-back does not; a skill-load user line does not', () => {
@@ -214,6 +254,40 @@ test('max run with a near-miss copy left in src is unfaithful', t => {
   assert.deepEqual(nearMissState(dir), { copies: 1, outside: ['src/range.mjs'] })
   const result = checkRun({ cond: 'max-mo', task: 'h5', roles: maxH5(), runDir: dir, record: 'max' })
   assert.deepEqual(result, { faithful: false, broken: ['near-miss copy outside .team/: src/range.mjs'], tier: 'single' })
+})
+
+// 0.3.0 dropped the near-miss copies and cut Max to 2 fix rounds; the mode round's Max runs (0.2.1) keep their own gate.
+test('a 0.3.0 max run needs no near-miss copy; a run from before 0.3.0 keeps 3 fix rounds and its copy', t => {
+  const bare = runDir(t, modeFile('max'))
+  const now = run => checkRun({ cond: 'max-p2', task: 'h5', record: 'max', pluginVersion: '0.3.0', ...run })
+  assert.deepEqual(now({ roles: maxH5(), runDir: bare }), { faithful: true, broken: [], tier: 'single' })
+  assert.deepEqual(now({ roles: maxH5(), runDir: runDir(t, { ...modeFile('max'), 'src/mutant.mjs': 'x' }) }).broken, [])
+  const threeRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 9.5]])]
+  const fourRounds = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5], [40, 8], [50, 9.5]])]
+  const failsAfterTwo = [main_(wake(1, 'testing'), wake(2, 'security')), ...reviews(null, [[10, 7], [20, 8], [30, 8.5]])]
+  for (const pluginVersion of ['0.2.1', undefined]) {
+    const old = run => checkRun({ cond: 'max-mo', task: 'h5', record: 'max', runDir: maxDir(t), pluginVersion, ...run }).broken
+    assert.deepEqual(old({ roles: threeRounds }), [], `${pluginVersion}: 3 fix rounds were allowed`)
+    assert.deepEqual(old({ roles: fourRounds }), ['gate of main had 4 fix rounds (at most 3)'])
+    assert.deepEqual(old({ roles: failsAfterTwo }), ['gate of main ended early'])
+    assert.deepEqual(old({ roles: maxH5(), runDir: bare }), ['no near-miss copy in .team/near-miss/'])
+  }
+  assert.deepEqual(now({ roles: threeRounds, runDir: bare }).broken, ['gate of main had 3 fix rounds (at most 2)'])
+  assert.deepEqual(now({ roles: failsAfterTwo, runDir: bare }).broken, [])
+})
+
+test("modeCheck takes each run's gate from the plugin version its run.json records", t => {
+  const results = runDir(t)
+  const bare = runDir(t, modeFile('max'))
+  writeRun(results, 'h5-max-p2-r1', { dir: bare, roles: maxH5(), record: 'max', version: '0.3.0' })
+  writeRun(results, 'h5-max-p2-r2', { dir: bare, roles: maxH5(), record: 'max', version: '0.2.3' })
+  writeRun(results, 'h5-max-p2-r3', { dir: bare, roles: maxH5(), record: 'max' })
+  const rows = modeCheck({ results, round: 'p2' })
+  assert.deepEqual(Object.fromEntries(Object.entries(rows).map(([id, row]) => [id, row.broken])), {
+    'h5-max-p2-r1': [],
+    'h5-max-p2-r2': ['no near-miss copy in .team/near-miss/'],
+    'h5-max-p2-r3': ['no near-miss copy in .team/near-miss/'],
+  })
 })
 
 test('nearMissState finds copies by bytes, path words and first line, outside .team/, .git/ and node_modules/', t => {
@@ -344,12 +418,13 @@ test('a run with no evidence is a no-data row', () => {
 const jsonl = lines => lines.map(line => JSON.stringify(line)).join('\n') + '\n'
 
 // results/<id>/ with run.json and, when roles are given, evidence/ laid out as copyEvidence writes it.
-function writeRun(results, id, { dir, roles, record }) {
+function writeRun(results, id, { dir, roles, record, version }) {
   const [task, cond] = [id.split('-')[0], id.split('-').slice(1, 3).join('-')]
   const out = join(results, id)
   const sid = `${id}-0000-sid`
   mkdirSync(out, { recursive: true })
-  writeFileSync(join(out, 'run.json'), JSON.stringify({ id, task, cond, dir }))
+  const sectionTeam = version === undefined ? {} : { sectionTeam: { path: 'C:/plugin', version } }
+  writeFileSync(join(out, 'run.json'), JSON.stringify({ id, task, cond, dir, ...sectionTeam }))
   writeFileSync(join(out, 'session.json'), JSON.stringify({ sessionId: sid, attempt: 1 }))
   if (!roles) return
   const evidence = join(out, 'evidence')
@@ -461,4 +536,23 @@ test('main refuses a round that is not letters and digits', t => {
   process.exitCode = before
   assert.equal(exitCode, 1)
   assert.match(errors[0], /usage: node bench\/mode-check\.mjs --round=<tag>/)
+})
+
+test('h7 is held to the rules of h4, the other multi-area task', t => {
+  const dir = runDir(t)
+  const check = roles => checkRun({ cond: 'team-mo', task: 'h7', roles, runDir: dir, record: 'balanced' })
+  assert.deepEqual(check(teamH4(dir)), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'docs'])).broken, ['testing not woken'])
+  assert.deepEqual(check(teamH4(dir, [], ['backend', 'testing', 'docs'])).broken, ['main did not wake frontend'])
+  assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'])
+})
+
+test('a round under any tag is checked: the setup comes from the part before the tag', t => {
+  const dir = runDir(t)
+  assert.deepEqual(checkRun({ cond: 'team-sm', task: 'h7', roles: teamH4(dir), runDir: dir, record: 'balanced' }), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(checkRun({ cond: 'solo-sm', task: 'h7', roles: null, runDir: null, record: null }), { faithful: true, broken: [], tier: null })
+  assert.throws(() => checkRun({ cond: 'forced-sm', task: 'h7', roles: [], runDir: null, record: null }), /unknown setup "forced-sm"/)
+  const results = runDir(t)
+  writeRun(results, 'h7-team-sm-r1', { dir, roles: teamH4(dir), record: 'balanced' })
+  assert.deepEqual(modeCheck({ results, round: 'sm' }), { 'h7-team-sm-r1': { cond: 'team-sm', task: 'h7', faithful: true, broken: [], tier: 'multi' } })
 })

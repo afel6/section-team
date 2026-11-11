@@ -7,12 +7,15 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { shortModel } from '../hooks/board-model.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
+import { anonymizeCommand } from './anonymize.mjs'
 import { RESULTS, parseArgs } from './run.mjs'
 
 export const DIMS = ['correctness', 'codeQuality', 'tests', 'robustnessSecurity', 'docsUsability']
-const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'all']
+const TASK_ORDER = ['easy', 'medium', 'hard', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'all']
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const round = (n, d = 2) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d)
+// No values is no percentage: 100 * null would read as 0.
+const meanPct = xs => (xs.length ? round(100 * mean(xs), 1) : null)
 
 export function judgeScores(judgeRows, key) {
   // → { '<task>-<cond>-r<rep>': { quality: 1–10 mean over dims and judges, overall, wins (ranked 1st), losses (ranked last), rankPoints } }
@@ -69,9 +72,52 @@ export function loadJudged(results, roundTag) {
   const judgePath = join(results, `judge${suffix}.json`)
   const keyPath = join(results, `blind-key${suffix}.json`)
   if (!existsSync(judgePath)) return {}
-  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run node bench/anonymize.mjs${roundTag ? ` --round=${roundTag}` : ''} first`)
+  if (!existsSync(keyPath)) throw new Error(`missing ${keyPath}: run ${roundTag ? anonymizeCommand(roundTag) : 'node bench/anonymize.mjs'} first`)
   return judgeScores(JSON.parse(readFileSync(judgePath, 'utf8')), JSON.parse(readFileSync(keyPath, 'utf8')))
 }
+
+// One report row. A two-stage task's primary measure is hiddenFail; incompleteRuns counts the runs where that is only what
+// was seen before a set was cut. A two-stage run's tokens and model usage are its last stage's alone (see runCost in
+// score.mjs), so they stay out of tokensM, outputK and opusSharePct, and a two-stage task shows none.
+function tableRow(key, rs) {
+  const [task, cond] = key.split('|')
+  const singleStage = rs.filter(r => !r.stage2)
+  return {
+    task, cond, runs: rs.length,
+    costUSD: round(mean(rs.map(r => r.costUSD ?? 0))),
+    tokensM: round(mean(singleStage.map(r => (r.tokens?.total ?? 0) / 1e6))),
+    outputK: round(mean(singleStage.map(r => (r.tokens?.output ?? 0) / 1e3)), 1),
+    minutes: round(mean(rs.map(r => (r.wallMs ?? 0) / 60000)), 1),
+    hiddenPassPct: round(100 * mean(rs.map(r => r.hidden?.rate ?? 0)), 1),
+    hiddenFail: round(mean(rs.map(r => r.hidden?.fail ?? 0))),
+    incompleteRuns: rs.filter(r => r.hidden?.incomplete?.length).length,
+    ownTestsPassPct: round(100 * mean(rs.map(r => (r.own?.passed ? 1 : 0))), 0),
+    judgeQuality: round(mean(rs.map(r => r.judge?.quality).filter(x => x !== null && x !== undefined)), 2),
+    judgeWins: rs.reduce((a, r) => a + (r.judge?.wins ?? 0), 0),
+    judgeLosses: rs.reduce((a, r) => a + (r.judge?.losses ?? 0), 0),
+    judgeRankPoints: rs.reduce((a, r) => a + (r.judge?.rankPoints ?? 0), 0),
+    agentSpawns: round(mean(rs.map(r => r.agentSpawns ?? 0)), 1),
+    opusSharePct: meanPct(singleStage.map(opusShare).filter(x => x !== null)),
+    grade: round(mean(rs.map(r => r.grade.total)), 1),
+    timeouts: rs.filter(r => r.timedOut).length,
+  }
+}
+
+// A row per task and setup, and one per setup over all tasks.
+export function reportTable(graded) {
+  const groups = {}
+  for (const r of graded) for (const k of [`${r.task}|${r.cond}`, `all|${r.cond}`]) (groups[k] ??= []).push(r)
+  return Object.entries(groups).map(([k, rs]) => tableRow(k, rs))
+    .sort((a, b) => TASK_ORDER.indexOf(a.task) - TASK_ORDER.indexOf(b.task) || a.cond.localeCompare(b.cond))
+}
+
+const REPORT_COLUMNS = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'hiddenFail', 'incompleteRuns', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'opusSharePct', 'grade', 'timeouts']
+
+export const reportMarkdown = table => [
+  `| ${REPORT_COLUMNS.join(' | ')} |`,
+  `|${REPORT_COLUMNS.map(() => '---').join('|')}|`,
+  ...table.map(row => `| ${REPORT_COLUMNS.map(c => row[c] ?? '–').join(' | ')} |`),
+].join('\n')
 
 function main() {
   // --round=v2 reads judge-v2.json / blind-key-v2.json; without it, the first round's files.
@@ -79,32 +125,9 @@ function main() {
   const rows = JSON.parse(readFileSync(join(RESULTS, 'summary.json'), 'utf8'))
   const suffix = roundTag ? `-${roundTag}` : ''
   const graded = composite(rows, loadJudged(RESULTS, roundTag))
-  const groups = {}
-  for (const r of graded) for (const k of [`${r.task}|${r.cond}`, `all|${r.cond}`]) (groups[k] ??= []).push(r)
-  const table = Object.entries(groups).map(([k, rs]) => {
-    const [task, cond] = k.split('|')
-    return {
-      task, cond, runs: rs.length,
-      costUSD: round(mean(rs.map(r => r.costUSD ?? 0))),
-      tokensM: round(mean(rs.map(r => (r.tokens?.total ?? 0) / 1e6))),
-      outputK: round(mean(rs.map(r => (r.tokens?.output ?? 0) / 1e3)), 1),
-      minutes: round(mean(rs.map(r => (r.wallMs ?? 0) / 60000)), 1),
-      hiddenPassPct: round(100 * mean(rs.map(r => r.hidden?.rate ?? 0)), 1),
-      ownTestsPassPct: round(100 * mean(rs.map(r => (r.own?.passed ? 1 : 0))), 0),
-      judgeQuality: round(mean(rs.map(r => r.judge?.quality).filter(x => x !== null && x !== undefined)), 2),
-      judgeWins: rs.reduce((a, r) => a + (r.judge?.wins ?? 0), 0),
-      judgeLosses: rs.reduce((a, r) => a + (r.judge?.losses ?? 0), 0),
-      judgeRankPoints: rs.reduce((a, r) => a + (r.judge?.rankPoints ?? 0), 0),
-      agentSpawns: round(mean(rs.map(r => r.agentSpawns ?? 0)), 1),
-      opusSharePct: round(100 * mean(rs.map(opusShare).filter(x => x !== null)), 1),
-      grade: round(mean(rs.map(r => r.grade.total)), 1),
-      timeouts: rs.filter(r => r.timedOut).length,
-    }
-  }).sort((a, b) => TASK_ORDER.indexOf(a.task) - TASK_ORDER.indexOf(b.task) || a.cond.localeCompare(b.cond))
+  const table = reportTable(graded)
   writeFileSync(join(RESULTS, `report-data${suffix}.json`), JSON.stringify({ table, runs: graded }, null, 2) + '\n')
-  const cols = ['task', 'cond', 'runs', 'costUSD', 'tokensM', 'outputK', 'minutes', 'hiddenPassPct', 'ownTestsPassPct', 'judgeQuality', 'judgeWins', 'judgeLosses', 'judgeRankPoints', 'agentSpawns', 'opusSharePct', 'grade', 'timeouts']
-  console.log(`| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`)
-  for (const row of table) console.log(`| ${cols.map(c => row[c] ?? '–').join(' | ')} |`)
+  console.log(reportMarkdown(table))
 }
 
 // One plain line and exit 1 on any failure; a missing input names the step that makes it.

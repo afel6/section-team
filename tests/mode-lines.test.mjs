@@ -23,18 +23,19 @@ test("a mode file that cannot be read is Balanced with the hooks' own problem li
   assert.deepEqual(unreadableModeFile(notAFolder()), because('.team is not a folder'))
   assert.deepEqual(unreadableModeFile(new Error("section-team: $.fs.read: EPERM: operation not permitted, open 'C:\\p\\.team\\mode.json'")), because('could not be read (EPERM)'))
   assert.deepEqual(unreadableModeFile(new Error("refused at 'C:\\p'")), because('could not be read (unknown error)'))
-  assert.equal(modeHint('lean'), 'section-team mode: Lean · /team mode lean|balanced|max')
+  assert.equal(modeHint('balanced'), 'section-team mode: Balanced · /team mode balanced|max')
 })
 
 test('only an unknown mode gets a line, and an odd one is not echoed', () => {
-  for (const mode of ['lean', 'balanced', 'max']) assert.equal(unknownModeLine(mode), null)
-  assert.equal(unknownModeLine('turbo'), 'unknown mode "turbo": pick lean, balanced or max')
-  assert.equal(unknownModeLine('max extra'), 'unknown mode (not shown): pick lean, balanced or max')
+  for (const mode of ['balanced', 'max']) assert.equal(unknownModeLine(mode), null)
+  assert.equal(unknownModeLine('lean'), 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max')
+  assert.equal(unknownModeLine('turbo'), 'unknown mode "turbo": pick balanced or max')
+  assert.equal(unknownModeLine('max extra'), 'unknown mode (not shown): pick balanced or max')
   assert.equal(savedLine('max'), 'section-team mode: Max (applies from your next message)')
 })
 
-test('the picker offers the three modes in order with their labels, and the summary lists them', () => {
-  assert.deepEqual(MODE_OPTIONS, [{ value: 'lean', label: MODE_LABELS.lean }, { value: 'balanced', label: MODE_LABELS.balanced }, { value: 'max', label: MODE_LABELS.max }])
-  assert.equal(modeSummary({ mode: 'lean', problem: null }).split('\n')[0], 'section-team mode: Lean')
-  assert.equal(modeSummary({ mode: 'balanced', problem: null }).split('\n').length, 5)
+test('the picker offers the two modes in order with their labels, and the summary lists them', () => {
+  assert.deepEqual(MODE_OPTIONS, [{ value: 'balanced', label: MODE_LABELS.balanced }, { value: 'max', label: MODE_LABELS.max }])
+  assert.equal(modeSummary({ mode: 'max', problem: null }).split('\n')[0], 'section-team mode: Max')
+  assert.equal(modeSummary({ mode: 'balanced', problem: null }).split('\n').length, 4)
 })

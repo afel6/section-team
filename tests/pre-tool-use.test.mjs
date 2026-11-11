@@ -1,7 +1,7 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, posix, resolve, win32 } from 'node:path'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -48,6 +48,13 @@ test('advisors may write only inside their own memory folder in the project', ()
   assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(PROJECT, 'src', 'a.ts') })), /memory folder/)
   assert.match(decide(ev('section-team:ai-engineer', 'Write', { file_path: join(LOCAL, 'section-team-data-scientist', 'x.md') })), /memory folder/)
   assert.match(decide(ev('section-team:data-scientist', 'Write', {})), /memory folder/)
+})
+
+test('plan-advisor is read-only: Bash refused, Write only inside its memory folder', () => {
+  assert.match(decide(ev('section-team:plan-advisor', 'Bash')), /read-only/)
+  assert.equal(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(LOCAL, 'section-team-plan-advisor', 'x.md') })), null)
+  assert.match(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(PROJECT, '.team', 'notes', 'foundation.md') })), /memory folder/)
+  assert.match(decide(ev('section-team:plan-advisor', 'Write', { file_path: join(LOCAL, 'section-team-ai-engineer', 'x.md') })), /memory folder/)
 })
 
 test('advisors may only spawn read-only helper types', () => {
@@ -226,6 +233,25 @@ test('the handback gate lets graded, partial, blocked, docs-only, advisor and re
   assert.equal(decide(ev(undefined, 'SubagentHandback', { message: REPORT_WITH('done', 'src/api.mjs', null) })), null)
 })
 
+// The 2026-11-09 p1 round: 1.6–7.2K-character narratives above the REPORT filled the supervisor's context.
+const LONG_HEAD = 'section-team: your hand-back has more than 1200 characters above its REPORT block. Move the long part (probe logs, spec readings, flow output) to `.team/reports/<date>/<time>-<your id>-details.md`, name that file on the Next line, and hand back again with at most 5 short lines above the block.'
+const withHead = (agent_type, head, report) => ev(agent_type, 'SubagentHandback', { message: `${head}\n${report}` })
+const GRADED = REPORT_WITH('done', 'src/api.mjs', '8.5/10 (reviewer, 1 fix rounds)')
+
+test('a builder hand-back that claims done with more than 1200 characters above its REPORT is refused, before the grade checks', () => {
+  assert.equal(decide(withHead('section-team:testing', 'x'.repeat(1201), GRADED)), LONG_HEAD)
+  assert.equal(decide(withHead('section-team:backend', 'x'.repeat(1201), UNGRADED_DONE)), LONG_HEAD)
+  // partial, blocked and ungraded stay the honest ways out, so a long head never keeps a section from handing back
+  for (const status of ['partial', 'blocked', 'ungraded']) {
+    assert.equal(decide(withHead('section-team:backend', 'x'.repeat(5000), REPORT_WITH(status, 'src/api.mjs', null))), null, status)
+  }
+  assert.equal(decide(withHead('section-team:testing', 'x'.repeat(1200), GRADED)), null)
+  // Measured on LF text, trimmed: CRLF line ends and blank space around the head do not count.
+  assert.equal(decide(withHead('section-team:testing', `\r\n  ${'x'.repeat(600)}\r\n${'y'.repeat(599)}  \r\n`, GRADED)), null)
+  assert.equal(decide(withHead('section-team:ai-engineer', 'x'.repeat(5000), REPORT_WITH('done', 'none', 'n/a (no code)'))), null)
+  assert.equal(decide(ev('section-team:backend', 'SubagentHandback', { message: 'x'.repeat(5000) })), null)
+})
+
 test('a section may not start a helper in the background on purpose, and an Agent tool without that option is never blocked', () => {
   for (const who of ['section-team:testing', 'section-team:backend', 'section-team:ai-engineer']) {
     const helper = who === 'section-team:ai-engineer' ? 'section-team:scout' : 'section-team:coder'
@@ -240,11 +266,11 @@ test('a section may not start a helper in the background on purpose, and an Agen
   assert.match(decide(ev('section-team:ai-engineer', 'Agent', { subagent_type: 'section-team:coder' })), /read-only helpers/)
 })
 
-test('in a Max project a done 8/10 handback is refused with 9/10 and 3 fix rounds; Balanced and no mode file let it through', () => {
+test('in a Max project a done 8/10 handback is refused with 9/10 and 2 fix rounds; Balanced and no mode file let it through', () => {
   const max = projectWith('{"mode":"max"}')
   const reason = decide(handbackIn(max, DONE_AT('8/10 (reviewer, 1 fix round)')), {})
   assert.match(reason, /under the pass mark \(9\/10\)/)
-  assert.ok(reason.includes('at most 3 fix rounds'), reason)
+  assert.ok(reason.includes('at most 2 fix rounds'), reason)
   assert.equal(decide(handbackIn(max, DONE_AT('9/10 (reviewer, 1 fix round)')), {}), null)
   assert.equal(decide(handbackIn(projectWith('{"mode":"balanced"}'), DONE_AT('8/10 (reviewer, 1 fix round)')), {}), null)
   assert.equal(decide(handbackIn(projectWith(null), DONE_AT('8/10 (reviewer, 1 fix round)')), {}), null)
@@ -264,13 +290,6 @@ test('CLAUDE_PROJECT_DIR picks the project; no project dir means Balanced', () =
 
 test('the ungraded reason follows the mode', () => {
   const ungradedIn = mode => decide(handbackIn(projectWith(`{"mode":"${mode}"}`), UNGRADED_DONE), {})
-  const lean = ungradedIn('lean')
-  assert.match(lean, /no reviewer grade/)
-  assert.ok(lean.includes('Pass: overall at least 8.'), lean)
-  assert.ok(lean.includes('model: "sonnet"'), lean)
-  assert.ok(lean.includes('at most 1 fix round'), lean)
-  assert.ok(!lean.includes('at most 1 fix rounds'), lean)
-  assert.ok(!lean.includes('do not pass `model`'), lean)
   const balanced = ungradedIn('balanced')
   assert.match(balanced, /no reviewer grade/)
   assert.ok(balanced.includes('Pass: overall at least 8 and no item under 6.'), balanced)
@@ -282,7 +301,7 @@ test('the ungraded reason follows the mode', () => {
   assert.ok(max.includes('Pass: overall at least 9 and no item under 7.'), max)
   assert.ok(max.includes('do not pass `model`'), max)
   assert.doesNotMatch(max, /sonnet/)
-  assert.ok(max.includes('at most 3 fix rounds'), max)
+  assert.ok(max.includes('at most 2 fix rounds'), max)
 })
 
 test('every gate reason offers Status: ungraded; the failing reason keeps its partial ending', () => {
@@ -296,8 +315,9 @@ test('every gate reason offers Status: ungraded; the failing reason keeps its pa
     assert.match(failing, /in all/)
   }
   const reason = decide(handbackIn(projectWith('{"mode":"lean"}'), DONE_AT('7/10 (reviewer)')), {})
-  assert.ok(reason.includes('model: "sonnet"'), reason)
-  assert.ok(reason.includes('at most 1 fix round in all'), reason)
+  assert.ok(reason.includes('(8/10)'), reason)
+  assert.ok(reason.includes('at most 2 fix rounds in all'), reason)
+  assert.doesNotMatch(reason, /sonnet/)
 })
 
 test('a bad mode file gives Balanced thresholds without throwing', () => {
@@ -379,18 +399,19 @@ test('a Max record keeps the Max gate when the project mode file is unusable', (
   for (const dir of brokenProjects()) {
     const reason = gateWith(dir, DONE_AT('8/10 (reviewer, 1 fix round)'), home)
     assert.ok(has(reason, '(9/10)'), reason)
-    assert.ok(has(reason, 'at most 3 fix rounds'), reason)
+    assert.ok(has(reason, 'at most 2 fix rounds'), reason)
     assert.equal(gateWith(dir, DONE_AT('9/10 (reviewer, 1 fix round)'), home), null)
   }
 })
 
-test('a Lean record keeps the Lean gate when the project mode file is unusable', () => {
-  const home = homeWith('lean')
+test('a record from before 0.3.0 that says lean gets the Balanced gate when the project mode file is unusable', () => {
+  const home = homeWith('balanced')
+  writeFileSync(join(home, '.claude', 'section-team', 'modes', 's1.json'), '{"mode":"lean"}')
   for (const dir of brokenProjects()) {
     const reason = gateWith(dir, UNGRADED_DONE, home)
-    assert.ok(has(reason, 'model: "sonnet"'), reason)
-    assert.ok(has(reason, 'at most 1 fix round'), reason)
-    assert.ok(!has(reason, 'at most 1 fix rounds'), reason)
+    assert.ok(has(reason, 'Pass: overall at least 8 and no item under 6.'), reason)
+    assert.ok(has(reason, 'at most 2 fix rounds'), reason)
+    assert.ok(!has(reason, 'sonnet'), reason)
   }
 })
 
@@ -455,4 +476,158 @@ test('the spawned hook gates on the session record when the project mode file is
   const out = JSON.parse(run.stdout)
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
   assert.ok(has(out.hookSpecificOutput.permissionDecisionReason, '(9/10)'), out.hookSpecificOutput.permissionDecisionReason)
+})
+
+// The resume guard: a supervisor's SendMessage has no agent_type, so decide must check it first.
+const OVER_USAGE = { input_tokens: 1, cache_read_input_tokens: 450000, cache_creation_input_tokens: 0 }
+const finalText = [{ type: 'text', text: 'All done.' }]
+const OVER_LIMIT = JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: finalText, usage: OVER_USAGE } })
+const UNDER_LIMIT = JSON.stringify({ type: 'assistant', message: { stop_reason: 'end_turn', content: finalText, usage: { input_tokens: 5000 } } })
+const OVER_LIMIT_WORKING = [
+  JSON.stringify({ type: 'assistant', message: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'toolu_w', name: 'Read', input: {} }], usage: OVER_USAGE } }),
+  JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_w', content: 'ok' }] } }),
+].join('\n')
+const sendMessageTo = (agentType, jsonl) => {
+  const dir = tempDir()
+  const subagents = join(dir, 'sid-1', 'subagents')
+  mkdirSync(subagents, { recursive: true })
+  writeFileSync(join(subagents, 'agent-a1.jsonl'), `${jsonl}\n`)
+  writeFileSync(join(subagents, 'agent-a1.meta.json'), JSON.stringify({ agentType }))
+  return { tool_name: 'SendMessage', tool_input: { to: 'a1', message: 'next job' }, session_id: 'sid-1', transcript_path: join(dir, 'sid-1.jsonl') }
+}
+
+test('hooks.json runs the guard on SendMessage and keeps the tools it already matched', () => {
+  const [entry] = JSON.parse(readFileSync(fileURLToPath(new URL('../hooks/hooks.json', import.meta.url)), 'utf8')).hooks.PreToolUse
+  const matcher = new RegExp(`^(${entry.matcher})$`)
+  for (const tool of ['SendMessage', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell', 'Agent', 'SubagentHandback']) assert.match(tool, matcher)
+})
+
+test('a SendMessage to a finished oversized builder head is refused, in the words each caller needs', () => {
+  const e = sendMessageTo('section-team:backend', OVER_LIMIT)
+  const fromSupervisor = decide(e)
+  assert.match(fromSupervisor, /the backend section has finished at 450K tokens/)
+  assert.match(fromSupervisor, /Start a fresh Agent call for this work/)
+  const fromSection = decide({ ...e, agent_type: 'section-team:frontend' })
+  assert.match(fromSection, /the backend section has finished at 450K tokens/)
+  assert.match(fromSection, /SendMessage `main` with your request/)
+  assert.doesNotMatch(fromSection, /Start a fresh Agent call/)
+})
+
+test('a SendMessage to an oversized head still working is allowed, from the supervisor and from a section', () => {
+  const e = sendMessageTo('section-team:backend', OVER_LIMIT_WORKING)
+  assert.equal(decide(e), null)
+  assert.equal(decide({ ...e, agent_type: 'section-team:frontend' }), null)
+})
+
+test('a SendMessage to a reviewer, or to a head under the limit, is allowed', () => {
+  const reviewer = sendMessageTo('section-team:reviewer', OVER_LIMIT)
+  assert.equal(decide(reviewer), null)
+  assert.equal(decide({ ...reviewer, agent_type: 'section-team:ai-engineer' }), null)
+  assert.equal(decide(sendMessageTo('section-team:backend', UNDER_LIMIT)), null)
+})
+
+// The grade check: a section's REPORT against the reviewer's answer in its own transcript.
+const reviewerCall = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_r', name: 'Agent', input: { subagent_type: 'section-team:reviewer', prompt: 'grade it' } }] } }
+const readCall = { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_x', name: 'Read', input: { file_path: 'a.mjs' } }] } }
+const resultOf = text => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_r', content: [{ type: 'text', text }] }] } })
+const gradeSaid = n => `  ## GRADE\n  Overall: ${n}/10\n  Verdict: pass\n`
+const REVIEW_FORMS = {
+  tool_result: n => [reviewerCall, resultOf(`${gradeSaid(n)}agentId: ar1 (use SendMessage)`)],
+  attachment: n => [reviewerCall, resultOf('The report was delivered as a message.\nagentId: ar1 (use SendMessage)'), { type: 'attachment', attachment: { type: 'queued_command', prompt: `<agent-message from="ar1">\n${gradeSaid(n)}</agent-message>` } }],
+}
+const gradedHandback = (entries, report, agent_type = 'section-team:backend') => {
+  const dir = tempDir()
+  const subagents = join(dir, 'sid-1', 'subagents')
+  mkdirSync(subagents, { recursive: true })
+  writeFileSync(join(subagents, 'agent-s1.jsonl'), `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`)
+  return { ...handbackIn(projectWith(null), report), agent_type, agent_id: 's1', session_id: 'sid-1', transcript_path: join(dir, 'sid-1.jsonl') }
+}
+
+for (const [form, said] of Object.entries(REVIEW_FORMS)) {
+  test(`the handback gate checks the REPORT's grade against a reviewer answer in a ${form}`, () => {
+    assert.equal(decide(gradedHandback(said(9), DONE_AT('9/10 (reviewer, 0 fix rounds)')), {}, tempDir()), null)
+    assert.equal(decide(gradedHandback(said(9), DONE_AT('8.5/10 (reviewer, 0 fix rounds)')), {}, tempDir()), null)
+    assert.equal(decide(gradedHandback(said(8), DONE_AT('9/10 (reviewer, 0 fix rounds)')), {}, tempDir()), "section-team: your REPORT says 9/10, but the reviewer said 8/10. Report the reviewer's grade.")
+  })
+}
+
+test('a graded REPORT with no reviewer call in the transcript is refused', () => {
+  assert.equal(decide(gradedHandback([readCall], DONE_AT('9/10 (reviewer)')), {}, tempDir()), 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.')
+})
+
+test('the existing gate checks come first, so a low or missing grade keeps its own refusal', () => {
+  assert.match(decide(gradedHandback([readCall], DONE_AT('7/10 (reviewer)')), {}, tempDir()), /under the pass mark/)
+  assert.match(decide(gradedHandback([readCall], UNGRADED_DONE), {}, tempDir()), /no reviewer grade/)
+})
+
+test('partial, blocked, ungraded, docs-only and advisor handbacks are not checked against the transcript', () => {
+  const lying = '9/10 (reviewer, 0 fix rounds)'
+  for (const entries of [[readCall], REVIEW_FORMS.tool_result(5), REVIEW_FORMS.attachment(5)]) {
+    for (const status of ['partial', 'blocked', 'ungraded — no Agent tool']) assert.equal(decide(gradedHandback(entries, REPORT_WITH(status, 'src/api.mjs', lying)), {}, tempDir()), null, status)
+    assert.equal(decide(gradedHandback(entries, REPORT_WITH('done', 'README.md', lying)), {}, tempDir()), null, 'docs only')
+    assert.equal(decide(gradedHandback(entries, DONE_AT(lying), 'section-team:ai-engineer'), {}, tempDir()), null, 'advisor')
+  }
+})
+
+test('a graded handback whose transcript cannot be found allows', () => {
+  const e = gradedHandback([readCall], DONE_AT('9/10 (reviewer)'))
+  assert.equal(decide({ ...e, agent_id: undefined }, {}, tempDir()), null)
+  assert.equal(decide({ ...e, agent_id: 'nobody' }, {}, tempDir()), null)
+})
+
+test('the spawned hook denies a grade above the reviewer and stays silent on an honest one', () => {
+  const refused = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(8), DONE_AT('9/10 (reviewer)'))))
+  assert.equal(refused.status, 0)
+  const out = JSON.parse(refused.stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /your REPORT says 9\/10, but the reviewer said 8\/10/)
+  const honest = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(9), DONE_AT('9/10 (reviewer)'))))
+  assert.equal(honest.status, 0)
+  assert.equal(honest.stdout, '')
+})
+
+test('the spawned hook denies resuming a finished oversized head and stays silent otherwise', () => {
+  const refused = spawnHook(JSON.stringify(sendMessageTo('section-team:backend', OVER_LIMIT)))
+  assert.equal(refused.status, 0)
+  const out = JSON.parse(refused.stdout).hookSpecificOutput
+  assert.equal(out.permissionDecision, 'deny')
+  assert.match(out.permissionDecisionReason, /the backend section has finished at 450K tokens/)
+  for (const input of [sendMessageTo('section-team:backend', '{not json'), sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
+    const allowed = spawnHook(JSON.stringify(input))
+    assert.equal(allowed.status, 0)
+    assert.equal(allowed.stdout, '')
+  }
+})
+
+const DOCS_ONLY = (status, quality) => REPORT_WITH(status, 'README.md', quality)
+
+test('in Max a done docs-only handback without a grade is refused with the ungraded text; Balanced lets it through', () => {
+  const max = projectWith('{"mode":"max"}')
+  const refused = decide(handbackIn(max, DOCS_ONLY('done', 'n/a (no code)')), {})
+  assert.equal(refused, gateReasons(GATES.max).ungraded)
+  assert.equal(decide(handbackIn(projectWith('{"mode":"balanced"}'), DOCS_ONLY('done', 'n/a (no code)')), {}), null)
+  assert.equal(decide(handbackIn(projectWith(null), DOCS_ONLY('done', null)), {}), null)
+})
+
+test('in Max a done handback naming only an extensionless file or dotfile without a grade is refused', () => {
+  const max = projectWith('{"mode":"max"}')
+  for (const changed of ['Dockerfile', 'LICENSE', 'Makefile', '.gitignore', 'bin/run', 'edited Dockerfile and LICENSE', '`Dockerfile`', '`.gitignore`', 'AUTHORS', 'configure', '`AUTHORS`, `configure`',
+    'AUTHORS (added)', '`configure` (updated)', 'AUTHORS - added', '"configure": rewritten', 'updated the docs', 'no code changes; Dockerfile updated']) {
+    assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), gateReasons(GATES.max).ungraded, changed)
+  }
+})
+
+test('in Max a graded docs handback passes at the pass mark and fails under it', () => {
+  const max = projectWith('{"mode":"max"}')
+  assert.equal(decide(handbackIn(max, DOCS_ONLY('done', '9/10 (reviewer, 0 fix rounds)')), {}), null)
+  assert.match(decide(handbackIn(max, DOCS_ONLY('done', '8/10 (reviewer, 1 fix round)')), {}), /under the pass mark \(9\/10\)/)
+})
+
+test('in Max partial, blocked and ungraded docs handbacks stay open, and a REPORT that changed no file needs no grade', () => {
+  const max = projectWith('{"mode":"max"}')
+  for (const status of ['partial', 'blocked', 'ungraded']) assert.equal(decide(handbackIn(max, DOCS_ONLY(status, null)), {}), null, status)
+  assert.equal(decide(handbackIn(max, REPORT_WITH('done', 'none', 'n/a (no code)')), {}), null)
+  for (const changed of ['n/a', 'N/A (no code)', 'nothing', 'no files', 'no changes', '`none`', 'None.', '(none)', 'none (read-only)', 'unchanged', '-', '—']) {
+    assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), null, changed)
+  }
 })

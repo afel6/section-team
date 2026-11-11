@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sectionIdFromType, extractReport, parseReport, SECTION_IDS, changesCode, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
+import { sectionIdFromType, extractReport, parseReport, reportHead, SECTION_IDS, changesCode, changesFiles, needsGate, failsGate, PASS_OVERALL } from '../hooks/lib/report.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 
 const CLEAN = `Some work notes first.
@@ -23,10 +23,11 @@ test('section id comes only from section-team: prefixed types', () => {
   assert.equal(sectionIdFromType('section-team:nope'), null)
   assert.equal(sectionIdFromType('section-team:'), null)
   assert.equal(sectionIdFromType('section-team:data-scientist'), 'data-scientist')
+  assert.equal(sectionIdFromType('section-team:plan-advisor'), 'plan-advisor')
   assert.equal(sectionIdFromType('general-purpose'), null)
   assert.equal(sectionIdFromType(''), null)
   assert.equal(sectionIdFromType(undefined), null)
-  assert.equal(SECTION_IDS.length, 12)
+  assert.equal(SECTION_IDS.length, 13)
 })
 
 test('the scout, coder and reviewer helpers are not sections', () => {
@@ -121,6 +122,36 @@ test('changesCode: true only when the Changed line names a non-doc file', () => 
   assert.equal(changesCode('src/api.mjs, test/api.test.mjs'), true)
   assert.equal(changesCode('README.md and src\app.ts (new)'), true)
   assert.equal(changesCode('package.json'), true)
+})
+
+test('a path under .team/ is the team\'s own record, never a changed file', () => {
+  const details = '.team/reports/2026-11-10/120000-testing-details.md'
+  for (const changed of [details, `\`${details}\``, `./${details}`, '.team/notes/api.json', `${details}, .team/notes/decisions.md`]) {
+    assert.equal(changesCode(changed), false, changed)
+    assert.equal(changesFiles(changed), false, changed)
+  }
+  for (const changed of [`${details}, src/a.mjs`, `src/a.mjs, ${details}`, `src/a.mjs (${details} has the probe log)`]) {
+    assert.equal(changesCode(changed), true, changed)
+    assert.equal(changesFiles(changed), true, changed)
+  }
+  assert.equal(changesCode('src/my.team/a.mjs'), true)
+  // a line that names .team/ paths counts only the other files it names: tags, connectors and notes beside them are no change
+  for (const changed of ['.team/notes/auth.md (new), .team/notes/INDEX.md', '.team/notes/a.md and .team/notes/b.md', '`.team/notes/api.md` (new), `.team/notes/INDEX.md` (one line)', `${details} — logged the spec reading`, `none (${details})`, ` , ${details} ,`, '.team/notes/café-menu.md', '.team/notes/会议.md, .team/notes/INDEX.md']) assert.equal(changesFiles(changed), false, changed)
+  for (const changed of [`README.md (new), ${details}`, `${details}; Dockerfile`]) assert.equal(changesFiles(changed), true, changed)
+  // a code path joined to a .team/ path by a character no path holds still counts
+  for (const changed of [`${details}|src/server.mjs`, '.team/notes/d.md<br>src/server.mjs', 'docs/.team/x.md+src/server.mjs', 'src/server.mjs|lib/.team/x.md']) {
+    assert.equal(changesCode(changed), true, changed)
+    assert.equal(changesFiles(changed), true, changed)
+  }
+})
+
+test('reportHead: the trimmed text above the last REPORT heading, CRLF as LF; null without a heading', () => {
+  assert.equal(reportHead(CLEAN), 'Some work notes first.')
+  assert.equal(reportHead('  one\r\ntwo  \r\n\r\n## REPORT · backend\r\nStatus: done\r\n'), 'one\ntwo')
+  assert.equal(reportHead('## REPORT · backend\nStatus: partial\n\nretrying\n\n## REPORT · backend\nStatus: done\n'), '## REPORT · backend\nStatus: partial\n\nretrying')
+  assert.equal(reportHead('## REPORT · backend\nStatus: done\n'), '')
+  assert.equal(reportHead('all done, no report'), null)
+  assert.equal(reportHead(undefined), null)
 })
 
 test('needsGate: changed code without a reviewer grade, unless the section is blocked', () => {

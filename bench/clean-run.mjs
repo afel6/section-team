@@ -13,9 +13,11 @@ export { isUnder } from './os-paths.mjs'
 export const PLUGIN_KEY = 'section-team@inline'
 export const BENCH_MODEL = 'claude-opus-5-5'
 export const BENCH_EFFORT = 'medium'
+// The tag a round pins when no --plugin-ref is passed (run.mjs, cloud-sync.mjs). A builder's expected version is its manifest's.
 export const SECTION_TEAM_VERSION = '0.2.1'
 // The CLI version the round runs (spec: Pinned CLI); the cloud machine's in-place pin must be this version.
 export const ROUND_CLI_VERSION = '2.1.296'
+export const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 // The user's own checkout: no round run may load anything from it.
 export const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
 // On Linux (the cloud machine) the user's checkout is the one running the harness: its plugin files are not the pinned
@@ -37,6 +39,22 @@ const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
 
 function requirePluginDir(pluginDir, caller) {
   if (typeof pluginDir !== 'string' || pluginDir === '') throw new TypeError(`${caller} needs a pluginDir`)
+}
+
+// The version the plugin under test says it is, so one harness can measure 0.2.2 and 0.2.3. Read once per batch, at the
+// boundary, before any paid run; one line naming the manifest when it is missing or invalid.
+export function pluginVersionOf(pluginDir) {
+  const path = join(pluginDir, '.claude-plugin', 'plugin.json')
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (err) {
+    throw new Error(`cannot read the plugin version from ${path} (${err.code ?? err.name})`, { cause: err })
+  }
+  if (typeof manifest?.version !== 'string' || !VERSION_PATTERN.test(manifest.version)) throw new Error(`cannot read the plugin version from ${path} (no version)`)
+  // Before 0.2.0 sections had `memory: user`, and the harness no longer moves the user's notes out of their way.
+  if (/^0\.[01]\./.test(manifest.version)) throw new Error(`section-team ${manifest.version} keeps section memory in ~/.claude/agent-memory, where a run would read and write your real notes: the harness runs 0.2.0 or later`)
+  return manifest.version
 }
 
 // The round's switches, set both in the child environment and in --settings. They are added after the strip, so the
@@ -85,9 +103,10 @@ export function cleanSettings({ installedKeys, sectionTeam, pluginDir } = {}) {
   }
 }
 
-export function commonArgs({ sessionId } = {}) {
+// A resume names the session it continues with --resume: --session-id would ask for a new session of that id.
+export function commonArgs({ sessionId, resume = false } = {}) {
   if (typeof sessionId !== 'string' || sessionId === '') throw new TypeError('commonArgs needs a sessionId')
-  return ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', '--session-id', sessionId]
+  return ['--model', BENCH_MODEL, '--effort', BENCH_EFFORT, '--verbose', '--strict-mcp-config', resume ? '--resume' : '--session-id', sessionId]
 }
 
 // undefined when the text is not JSON: callers expect cut-off and non-JSON lines and skip them.
@@ -123,24 +142,24 @@ function setProblems(label, actual, expected) {
   return [`${label} differ from the pin (extra: ${extra.join(', ') || 'none'}; missing: ${missing.join(', ') || 'none'})`]
 }
 
-// Builders load exactly one section-team, from the plugin dir itself, at the round's version.
-function loadedOnceProblems(entries, pluginDir) {
+// Builders load exactly one section-team, from the plugin dir itself, at the version its manifest says.
+function loadedOnceProblems(entries, { pluginDir, pluginVersion }) {
   if (entries.length !== 1) return [`expected 1 section-team plugin, found ${entries.length}`]
   const [{ path, version }] = entries
   return [
     ...(isAbsolutePath(path) && samePath(path, pluginDir) ? [] : [`section-team path ${path}, expected ${pluginDir}`]),
-    ...(version === SECTION_TEAM_VERSION ? [] : [`section-team version ${version}, expected ${SECTION_TEAM_VERSION}`]),
+    ...(version === pluginVersion ? [] : [`section-team version ${version}, expected ${pluginVersion}`]),
   ]
 }
 
 // Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec).
-function sectionTeamProblems(plugins, setup, pluginDir) {
+function sectionTeamProblems(plugins, setup, plugin) {
   const entries = plugins.filter(p => p?.source === PLUGIN_KEY)
   const fromLive = liveCheckouts().flatMap(dir => {
     const live = plugins.filter(p => isUnder(p?.path, dir))
     return live.length > 0 ? [`loaded from the live checkout ${dir}: ${live.map(p => p.source).join(', ')}`] : []
   })
-  if (BUILDERS.includes(setup)) return [...loadedOnceProblems(entries, pluginDir), ...fromLive]
+  if (BUILDERS.includes(setup)) return [...loadedOnceProblems(entries, plugin), ...fromLive]
   return [...(entries.length > 0 ? [`section-team loaded in ${setup}`] : []), ...fromLive]
 }
 
@@ -175,15 +194,18 @@ function versionProblems(init, pin) {
 }
 
 // One line per failed rule; empty when the init matches the setup and the pin.
-export function initProblems(init, { setup, pin, pluginDir } = {}) {
+export function initProblems(init, { setup, pin, pluginDir, pluginVersion } = {}) {
   if (!SETUPS.includes(setup)) throw new RangeError(`initProblems takes a setup of ${SETUPS.join(', ')}, got "${setup}"`)
   if (!isObject(pin)) throw new TypeError('initProblems needs a pin')
-  if (BUILDERS.includes(setup)) requirePluginDir(pluginDir, 'initProblems')
+  if (BUILDERS.includes(setup)) {
+    requirePluginDir(pluginDir, 'initProblems')
+    if (typeof pluginVersion !== 'string' || pluginVersion === '') throw new TypeError('initProblems needs a pluginVersion')
+  }
   if (!init) return ['no init message']
   const plugins = listOr(init.plugins, [])
   return [
     ...(Array.isArray(init.plugins) ? [] : ['the init has no plugins list']),
-    ...sectionTeamProblems(plugins, setup, pluginDir),
+    ...sectionTeamProblems(plugins, setup, { pluginDir, pluginVersion }),
     ...otherPluginProblems(plugins, pin),
     ...mcpProblems(init.mcp_servers),
     ...listProblems(init, setup, pin),

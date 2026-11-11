@@ -1,15 +1,12 @@
-// Keeps the user's section-team agent memory out of the benchmark. Section agents load their memory from
-// <config>/agent-memory/section-team-<id>/, so a team run would otherwise see notes from the user's own work
-// (including notes about the benchmark tasks) and from earlier team runs. A round moves the user's folders into a
-// backup, gives every team run empty section memory, files each run's new notes under its results folder, and moves
-// the user's folders back at the end. Nothing is ever deleted: every step is a rename.
+// Puts back section memory an older harness moved aside. Before 0.2.0 sections loaded memory from ~/.claude/agent-memory, so a
+// round moved the user's folders into a backup; every agent now has `memory: local`, so nothing moves them any more, and only
+// this way back remains (node bench/run.mjs --restore-memory). Nothing is ever deleted: every step is a rename.
 // The backup holds manifest.json { names, pid, startedAt }: the names are the user's folders, written before any move,
 // so a restore can always tell the user's folders from run notes, however often it is run and wherever it stopped.
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 
-// Runs get CLAUDE_* stripped (clean-run.mjs childEnv), so their memory is under ~/.claude whatever CLAUDE_CONFIG_DIR says.
 export const MEMORY_ROOT = join(homedir(), '.claude', 'agent-memory')
 export const MEMORY_BACKUP = join(homedir(), 'bench-section-memory-backup')
 const MANIFEST = 'manifest.json'
@@ -23,10 +20,19 @@ const sectionFolders = dir => existsSync(dir)
   ? readdirSync(dir, { withFileTypes: true }).filter(e => (e.isDirectory() || e.isSymbolicLink()) && SECTION.test(e.name)).map(e => e.name).sort()
   : []
 
+// What moves, deletes or pushes real data names its target, with no default: a caller that forgets throws here
+// instead of reaching the user's folders. A test once lost the user's notes through a default (no-real-data.test.mjs).
+export function required(named) {
+  for (const [name, value] of Object.entries(named)) {
+    if (value === undefined || value === null) throw new TypeError(`${name} is required`)
+  }
+}
+
 const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 
 // Windows briefly locks a folder after a process exits (antivirus, the indexer): retry before giving up.
 export function renameRetry(from, to, { rename = renameSync, wait = sleep } = {}) {
+  required({ from, to })
   for (let attempt = 1; ; attempt++) {
     try {
       return rename(from, to)
@@ -44,7 +50,10 @@ function moveAll(names, from, to, rename) {
 }
 
 // True when both paths sit on the same volume, so a rename between them cannot fail with EXDEV.
-export const sameVolume = (a, b) => statSync(a).dev === statSync(b).dev
+export function sameVolume(a, b) {
+  required({ a, b })
+  return statSync(a).dev === statSync(b).dev
+}
 
 const isAlive = pid => {
   try {
@@ -67,51 +76,12 @@ function readManifest(backup) {
   }
 }
 
-function writeManifest(backup, manifest) {
-  const path = join(backup, MANIFEST)
-  writeFileSync(`${path}.tmp`, JSON.stringify(manifest))
-  renameSync(`${path}.tmp`, path)
-}
-
-// Moves the user's section folders into backup and returns their names. Refuses while an earlier backup exists.
-// If a move fails, the folders already moved are put back before the error is thrown.
-export function backupSectionMemory({ root = MEMORY_ROOT, backup = MEMORY_BACKUP, pid = process.pid, rename = renameSync } = {}) {
-  mkdirSync(dirname(backup), { recursive: true })
-  try {
-    mkdirSync(backup)
-  } catch (err) {
-    if (err.code !== 'EEXIST') throw err
-    throw new Error(`${backup} holds your section memory from an earlier round: run node bench/run.mjs --restore-memory first`)
-  }
-  const names = sectionFolders(root)
-  writeManifest(backup, { names, pid, startedAt: new Date().toISOString() })
-  try {
-    return moveAll(names, root, backup, rename)
-  } catch (err) {
-    // No run has started, so root holds only the user's folders: the rollback files nothing as run notes.
-    try {
-      restoreSectionMemory({ root, backup, leftovers: `${backup}-leftover-${Date.now()}`, force: true, rename })
-    } catch (rollbackErr) {
-      throw new Error(`could not move your section memory aside (${err.code ?? err.message}) nor back (${rollbackErr.code ?? rollbackErr.message}): run node bench/run.mjs --restore-memory`, { cause: err })
-    }
-    throw new Error(`could not move your section memory aside (${err.code ?? err.message}); it is back in ${root}`, { cause: err })
-  }
-}
-
-// Files the notes a team run wrote under <into>/section-memory/ (-2, -3 … on a rerun), so the next team run starts empty.
-export function stashRunMemory({ root = MEMORY_ROOT, into, rename = renameSync }) {
-  const names = sectionFolders(root)
-  if (names.length === 0) return []
-  let target = join(into, 'section-memory')
-  for (let n = 2; existsSync(target); n++) target = join(into, `section-memory-${n}`)
-  return moveAll(names, root, target, rename)
-}
-
 // Puts the user's folders back: every folder still in the backup returns to root, and any section folder in root
 // that is not the user's (a run note, or a run's folder of the same name as one still in the backup) is filed
 // under leftovers first. Safe to run again after it stopped half way. Refuses while the round that made the
 // backup is still running, unless force.
-export function restoreSectionMemory({ root = MEMORY_ROOT, backup = MEMORY_BACKUP, leftovers, force = false, alive = isAlive, rename = renameSync }) {
+export function restoreSectionMemory({ root, backup, leftovers, force = false, alive = isAlive, rename = renameSync } = {}) {
+  required({ root, backup, leftovers })
   if (!existsSync(backup)) throw new Error(`no backup at ${backup}: nothing to restore`)
   const manifest = readManifest(backup)
   if (!force && manifest.pid && manifest.pid !== process.pid && alive(manifest.pid)) {

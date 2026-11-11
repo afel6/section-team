@@ -335,9 +335,10 @@ const saveInMode = modeFileText => {
 }
 
 test('a saved REPORT names the mode of its project', () => {
-  assert.equal(saveInMode('{"mode": "lean"}'), stamped(REPORT, 'lean'))
+  assert.equal(saveInMode('{"mode": "balanced"}'), stamped(REPORT, 'balanced'))
   assert.equal(saveInMode('{"mode": "max"}'), stamped(REPORT, 'max'))
-  assert.equal(saveInMode('{"mode": "lean", "autoInstallSkills": "yes"}'), stamped(REPORT, 'lean'))
+  assert.equal(saveInMode('{"mode": "max", "autoInstallSkills": "yes"}'), stamped(REPORT, 'max'))
+  assert.equal(saveInMode('{"mode": "lean"}'), stamped(REPORT, 'balanced'))
 })
 
 test('a broken mode file still saves the REPORT, with the mode unknown', () => {

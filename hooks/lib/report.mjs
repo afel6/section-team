@@ -2,7 +2,7 @@ import { DEFAULT_MODE, GATES } from './mode.mjs'
 
 export const PREFIX = 'section-team:'
 export const BUILDER_IDS = ['frontend', 'backend', 'database', 'testing', 'security', 'devops', 'uiux', 'docs', 'ai-llm', 'mobile']
-export const ADVISOR_IDS = ['ai-engineer', 'data-scientist']
+export const ADVISOR_IDS = ['ai-engineer', 'data-scientist', 'plan-advisor']
 export const SECTION_IDS = [...BUILDER_IDS, ...ADVISOR_IDS]
 export const ADVISOR_HELPERS = ['section-team:scout', 'architect', 'planner', 'code-explorer'] // scout is read-only (Read, Grep, Glob, Skill; no write or shell tools)
 
@@ -14,12 +14,22 @@ export function sectionIdFromType(type) {
 }
 
 const isFenceLine = line => /^[ \t]*(```|~~~)/.test(line)
+const toLf = text => text.replace(/\r\n?/g, '\n')
+// The contract ends the message with the report, so the last heading is the one that counts.
+const lastReportHeading = lf => [...lf.matchAll(/^[ \t]*#{1,6}[ \t]*REPORT\b.*$/gim)].at(-1)
+
+// The text above the last REPORT heading, in LF line ends and trimmed; null when there is no REPORT heading.
+export function reportHead(text) {
+  if (typeof text !== 'string') return null
+  const lf = toLf(text)
+  const heading = lastReportHeading(lf)
+  return heading ? lf.slice(0, heading.index).trim() : null
+}
 
 export function extractReport(text) {
   if (typeof text !== 'string') return null
-  const lf = text.replace(/\r\n?/g, '\n')
-  // The contract ends the message with the report, so the last heading is the one that counts.
-  const heading = [...lf.matchAll(/^[ \t]*#{1,6}[ \t]*REPORT\b.*$/gim)].at(-1)
+  const lf = toLf(text)
+  const heading = lastReportHeading(lf)
   if (!heading) return null
   let lines = lf.slice(heading.index).replace(/^[ \t]+/, '').split('\n')
   const fencesBefore = lf.slice(0, heading.index).split('\n').filter(isFenceLine).length
@@ -38,27 +48,47 @@ const FIELDS = {
 const PATH_LIKE = /[\w./\\-]+\.[A-Za-z0-9]+/g
 const DOC_FILE = /\.(md|mdx|txt|rst|adoc)$/i
 
+// A path under .team/ (a note, a report, a -details.md file) is the team's own record, never a change to grade:
+// a separator or the line start, any folders ending in a slash, then .team/ and the rest of that path, in path characters only,
+// so a code path joined to it by | < + & stays on the line; letters and digits of any script count as path characters.
+const TEAM_PATH = /(?:^|[\s,;(`'"])(?:[\p{L}\p{N}_.@~:/\\-]*[/\\])?\.team[/\\][\p{L}\p{N}_.@~/\\-]*/gu
+const withoutTeamPaths = changed => changed.replace(TEAM_PATH, ' ')
+
 // Whether a REPORT's Changed line names any file that is not a doc. Free text without file names counts as no code.
 export function changesCode(changed) {
   if (typeof changed !== 'string') return false
-  return (changed.match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
+  return (withoutTeamPaths(changed).match(PATH_LIKE) ?? []).some(path => !DOC_FILE.test(path))
 }
 
 // The reviewer's pass mark for the overall grade in the default mode; the generated PASS_RULE uses it too.
 export const PASS_OVERALL = GATES[DEFAULT_MODE].passOverall
 
+// Whether a REPORT's Changed line names any file at all, docs included (a gate with gradeAll grades those too).
+// The contract is `<files, or "none">`, so a line that does not open with a no-change value counts as files, however it is worded.
+const NO_CHANGE = /^[\s`'"*_(]*(?:(?:none|nothing|n\/a|no|unchanged)\b|[-—–]|$)/i
+// A no-change opener that still names a file counts too: a dotted name, a dotfile, a path with a directory or a well-known extensionless name.
+const EXTRA_FILE = /(?:^|[\s,;(`'"])(?:\.[\w-][\w.-]*|(?![nN]\/[aA](?![\w-]))[\w.-]+[/\\][\w./\\-]+|(?:Dockerfile|Makefile|LICENSE|LICENCE|Procfile|Gemfile|Rakefile|Jenkinsfile|Vagrantfile|CODEOWNERS|NOTICE|COPYING)(?![\w-]))/
+// A line that names a .team/ path is a file list, so only its other file names count, not the tags or words beside them.
+export function changesFiles(changed) {
+  if (typeof changed !== 'string') return false
+  const rest = withoutTeamPaths(changed)
+  const namesFile = rest.match(PATH_LIKE) !== null || EXTRA_FILE.test(rest)
+  return namesFile || (rest === changed && !NO_CHANGE.test(changed))
+}
+
 // partial, blocked and ungraded are the honest ways out, so a section can never be stuck at the gate.
-const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
-const claimsDoneWithCode = report => !HONEST_STATUSES.includes(report.status) && changesCode(report.changed)
+export const HONEST_STATUSES = ['blocked', 'partial', 'ungraded']
+// gradeAll: the mode grades every changed file, not only code.
+export const claimsDoneWithCode = (report, gradeAll = false) => !HONEST_STATUSES.includes(report.status) && (gradeAll ? changesFiles(report.changed) : changesCode(report.changed))
 
 // A parsed REPORT that changed code but carries no reviewer grade must go through the gate first.
-export function needsGate(report) {
-  return claimsDoneWithCode(report) && report.quality === null
+export function needsGate(report, gradeAll = false) {
+  return claimsDoneWithCode(report, gradeAll) && report.quality === null
 }
 
 // A REPORT that claims done with a grade under the pass mark (the project mode's, Balanced's by default) skipped its fix rounds.
-export function failsGate(report, passOverall = PASS_OVERALL) {
-  return claimsDoneWithCode(report) && report.quality !== null && report.quality < passOverall
+export function failsGate(report, passOverall = PASS_OVERALL, gradeAll = false) {
+  return claimsDoneWithCode(report, gradeAll) && report.quality !== null && report.quality < passOverall
 }
 
 // quality: the reviewer's overall grade as a number, or null for "n/a (no code)" and a missing line.

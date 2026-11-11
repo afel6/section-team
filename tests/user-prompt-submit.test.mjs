@@ -3,11 +3,11 @@ import assert from 'node:assert/strict'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { modeSwitch, promptCheck } from '../hooks/user-prompt-submit.mjs'
-import { recordMode } from '../hooks/lib/mode-record.mjs'
-import { modeRules } from '../hooks/lib/brief.mjs'
+import { modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
+import { readBriefHash, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
+import { briefHash, modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../hooks/user-prompt-submit.mjs', import.meta.url))
@@ -29,7 +29,7 @@ const project = text => {
 const setMode = (dir, text) => writeFileSync(join(dir, '.team', 'mode.json'), text)
 const recordPath = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.json`)
 const recordText = (home, id) => readFileSync(recordPath(home, id), 'utf8')
-const REPLACES_LINE = "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate."
+const REPLACES_LINE = "These sections replace the ones with the same headings in your brief; your next job message to a section states this mode's gate."
 const notice = (from, to) => `Mode is now ${modeName(to)} (was ${modeName(from)}). From your next step on:\n${REPLACES_LINE}\n\n${modeRules(to)}`
 const staysIn = (reason, mode) => `mode switch check skipped: .team/mode.json: ${reason}, so this session stays in ${modeName(mode)} mode`
 const run = (input, home, script = SCRIPT) => spawnSync(process.execPath, [script], { input, encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home } })
@@ -46,8 +46,8 @@ test('a switch from Balanced to Max is announced once with the Max rules and rec
   recordMode(h, 's1', 'balanced')
   const e = event(project('{"mode":"max"}'))
   const text = modeSwitch(e, h)
-  assert.equal(text, 'Mode is now Max (was Balanced). From your next step on:\nThese sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode\'s gate.\n\n' + modeRules('max'))
-  assert.equal(text.split('\n')[1], "These sections replace the ones with the same headings in your brief; your next job message to a section woken earlier states this mode's gate.")
+  assert.equal(text, 'Mode is now Max (was Balanced). From your next step on:\nThese sections replace the ones with the same headings in your brief; your next job message to a section states this mode\'s gate.\n\n' + modeRules('max'))
+  assert.equal(text.split('\n')[1], "These sections replace the ones with the same headings in your brief; your next job message to a section states this mode's gate.")
   assert.equal(recordText(h, 's1'), '{"mode":"max"}')
   assert.equal(modeSwitch(e, h), null)
   assert.deepEqual(promptCheck(e, h), { notice: null, warnings: [] })
@@ -57,13 +57,13 @@ test('two sessions on one project are each told once', () => {
   const h = tempHome()
   recordMode(h, 's-a', 'balanced')
   recordMode(h, 's-b', 'balanced')
-  const dir = project('{"mode":"lean"}')
-  assert.equal(modeSwitch(event(dir, 's-a'), h), notice('balanced', 'lean'))
-  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('balanced', 'lean'))
+  const dir = project('{"mode":"max"}')
+  assert.equal(modeSwitch(event(dir, 's-a'), h), notice('balanced', 'max'))
+  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('balanced', 'max'))
   assert.equal(modeSwitch(event(dir, 's-a'), h), null)
   assert.equal(modeSwitch(event(dir, 's-b'), h), null)
-  assert.equal(recordText(h, 's-a'), '{"mode":"lean"}')
-  assert.equal(recordText(h, 's-b'), '{"mode":"lean"}')
+  assert.equal(recordText(h, 's-a'), '{"mode":"max"}')
+  assert.equal(recordText(h, 's-b'), '{"mode":"max"}')
 })
 
 test('a session with no record is recorded silently', () => {
@@ -103,21 +103,32 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
     assert.equal(recordText(h, 's1'), '{"mode":"max"}', text)
     assert.ok(isFresh(file), text)
   }
-  setMode(dir, '{"mode":"lean"}')
-  assert.equal(modeSwitch(e, h), notice('max', 'lean'))
+  setMode(dir, '{"mode":"balanced"}')
+  assert.equal(modeSwitch(e, h), notice('max', 'balanced'))
   setMode(dir, '{not json')
   assert.deepEqual(promptCheck(event(dir, 'new'), h), { notice: null, warnings: ['mode switch check skipped: .team/mode.json: not valid JSON, so Balanced is used'] })
   assert.equal(existsSync(recordPath(h, 'new')), false)
 })
 
-test('a Lean record with .team as a file keeps the session in Lean mode', () => {
+test('a saved lean is Balanced: no notice for a Balanced session, one for a Max session, and never a warning', () => {
   const h = tempHome()
-  recordMode(h, 's1', 'lean')
+  recordMode(h, 's-a', 'balanced')
+  recordMode(h, 's-b', 'max')
+  const dir = project('{"mode":"lean"}')
+  assert.deepEqual(promptCheck(event(dir, 's-a'), h), { notice: null, warnings: [] })
+  assert.equal(modeSwitch(event(dir, 's-b'), h), notice('max', 'balanced'))
+  assert.equal(recordText(h, 's-a'), '{"mode":"balanced"}')
+  assert.equal(recordText(h, 's-b'), '{"mode":"balanced"}')
+})
+
+test('a Max record with .team as a file keeps the session in Max mode', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'max')
   const dir = join(tempDir('ct-ups-'), 'with space')
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, '.team'), 'not a folder')
-  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [staysIn('.team is not a folder', 'lean')] })
-  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [staysIn('.team is not a folder', 'max')] })
+  assert.equal(recordText(h, 's1'), '{"mode":"max"}')
 })
 
 test('a Balanced record with an unknown mode and a bad autoInstallSkills names both problems', () => {
@@ -145,12 +156,12 @@ test('a broken record plus a broken mode file falls back to Balanced and reports
 test('a valid mode with a bad autoInstallSkills is announced and still warned', () => {
   const h = tempHome()
   recordMode(h, 's1', 'max')
-  const dir = project('{"mode":"lean","autoInstallSkills":"yes"}')
-  assert.deepEqual(promptCheck(event(dir), h), { notice: notice('max', 'lean'), warnings: [BAD_SKILLS] })
-  assert.equal(recordText(h, 's1'), '{"mode":"lean"}')
+  const dir = project('{"mode":"balanced","autoInstallSkills":"yes"}')
+  assert.deepEqual(promptCheck(event(dir), h), { notice: notice('max', 'balanced'), warnings: [BAD_SKILLS] })
+  assert.equal(recordText(h, 's1'), '{"mode":"balanced"}')
   assert.deepEqual(promptCheck(event(dir), h), { notice: null, warnings: [BAD_SKILLS] })
   assert.deepEqual(promptCheck(event(dir, 'fresh'), h), { notice: null, warnings: [BAD_SKILLS] })
-  assert.equal(recordText(h, 'fresh'), '{"mode":"lean"}')
+  assert.equal(recordText(h, 'fresh'), '{"mode":"balanced"}')
 })
 
 test('hook: a valid mode with a bad autoInstallSkills prints the notice and the warning', () => {
@@ -278,6 +289,109 @@ for (const to of MODES) {
     })
   }
 }
+
+// --- a long pasted request is saved, so the supervisor points sections to it instead of re-typing it ---
+
+const LONG = `${'a'.repeat(2998)}é\n` // 3000 characters
+const POINTER = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+const SAVED_PATH = /`(\.team\/reports\/\d{4}-\d{2}-\d{2}\/\d{6}-user-request\.md)`/
+const gitInit = dir => {
+  execFileSync('git', ['-C', dir, 'init', '-q'])
+  return dir
+}
+// session-start adds .team/ to .git/info/exclude; a saved request needs git to ignore it
+const excludeTeam = (dir, line = '.team/') => {
+  writeFileSync(join(dir, '.git', 'info', 'exclude'), `${line}
+`)
+  return dir
+}
+const gitProject = text => excludeTeam(gitInit(project(text)))
+const withPrompt = (dir, prompt, id = 's1') => ({ ...event(dir, id), prompt })
+const reportsOf = dir => join(dir, '.team', 'reports')
+
+test('a 3000-character prompt in a git repo with .team/ is saved word for word and pointed to', () => {
+  const dir = gitProject()
+  const r = promptCheck(withPrompt(dir, LONG), tempHome())
+  assert.deepEqual(r.warnings, [])
+  const path = SAVED_PATH.exec(r.notice)?.[1]
+  assert.ok(path, r.notice)
+  assert.equal(r.notice, POINTER(path))
+  assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
+  assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request.md')
+  assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request-2.md')
+})
+
+test('a prompt under 3000 characters, or not a string, is not saved', () => {
+  const dir = gitProject()
+  assert.deepEqual(promptCheck(withPrompt(dir, LONG.slice(1)), tempHome()), { notice: null, warnings: [] })
+  for (const prompt of [undefined, null, 42, ['x'.repeat(3000)]]) assert.equal(saveRequest(dir, prompt, true), null, String(prompt))
+  assert.equal(existsSync(reportsOf(dir)), false)
+})
+
+test('a long prompt is not saved without .team/, with .team/keep-in-git, or outside git', () => {
+  const noTeam = gitInit(tempDir('ct-ups-'))
+  assert.deepEqual(promptCheck(withPrompt(noTeam, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(join(noTeam, '.team')), false)
+  const kept = excludeTeam(gitInit(project()), '.team/near-miss/')
+  writeFileSync(join(kept, '.team', 'keep-in-git'), '')
+  assert.deepEqual(promptCheck(withPrompt(kept, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(kept)), false)
+  const plain = project()
+  assert.deepEqual(promptCheck(withPrompt(plain, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(plain)), false)
+  assert.equal(saveRequest(gitProject(), LONG, false), null)
+})
+
+test('a long prompt is not saved in a git repo that does not ignore .team/ itself', () => {
+  const open = gitInit(project())
+  assert.deepEqual(promptCheck(withPrompt(open, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(open)), false)
+  // a rule that ignores only some report files does not cover the dated file the request would go to
+  const partly = excludeTeam(gitInit(project()), '.team/reports/*.md')
+  assert.deepEqual(promptCheck(withPrompt(partly, LONG), tempHome()), { notice: null, warnings: [] })
+  assert.equal(existsSync(reportsOf(partly)), false)
+})
+
+test("a mode notice records the new mode's brief hash, so a later resume in that mode leaves the brief out", () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'max')
+  recordBriefHash(h, 's1', briefHash('max'))
+  const r = promptCheck(event(project('{"mode":"balanced"}'), 's1'), h)
+  assert.ok(r.notice.startsWith('Mode is now Balanced (was Max)'), r.notice)
+  assert.equal(readBriefHash(h, 's1'), briefHash('balanced'))
+})
+
+test('after a mode change the notice comes first, then a blank line and the pointer', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const r = promptCheck(withPrompt(gitProject('{"mode":"max"}'), LONG), h)
+  assert.deepEqual(r.warnings, [])
+  assert.equal(r.notice, `${notice('balanced', 'max')}\n\n${POINTER(SAVED_PATH.exec(r.notice)[1])}`)
+})
+
+test('an unwritable .team/reports gives one request save warning and the mode check still works', () => {
+  const h = tempHome()
+  recordMode(h, 's1', 'balanced')
+  const dir = gitProject('{"mode":"max"}')
+  writeFileSync(reportsOf(dir), 'a file where the reports folder should be')
+  const r = promptCheck(withPrompt(dir, LONG), h)
+  assert.equal(r.warnings.length, 1)
+  assert.match(r.warnings[0], /^request save failed: E[A-Z]+$/)
+  assert.equal(r.notice, notice('balanced', 'max'))
+  assert.equal(recordText(h, 's1'), '{"mode":"max"}')
+})
+
+test('hook: the prompt from the hook input is saved and pointed to', () => {
+  const h = tempHome()
+  const dir = gitProject()
+  const r = run(promptInput(dir, { prompt: LONG }), h)
+  assert.equal(r.status, 0)
+  assert.equal(r.stderr, '')
+  const out = JSON.parse(r.stdout)
+  const path = SAVED_PATH.exec(out.hookSpecificOutput.additionalContext)[1]
+  assert.deepEqual(out, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: POINTER(path) } })
+  assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
+})
 
 test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks

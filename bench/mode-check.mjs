@@ -1,24 +1,27 @@
 // Mode fidelity: whether each Lean, Balanced and Max run of a round behaved as its mode (docs/specs/
 // 2026-11-01-mode-round-design.md, "Mode fidelity"): the mode record and .team/mode.json, the sections woken, the
-// reviewer's model, the gate rules and, for Max, the near-miss copies. Read-only over results/<id>/evidence/ and the
+// reviewer's model, the gate rules and, for Max before 0.3.0, the near-miss copies. Read-only over results/<id>/evidence/ and the
 // run folder. A gate's final grade is never a rule (gate-stats.mjs reports it); tier is reported, never a rule.
 // Usage: node bench/mode-check.mjs --round=mo   (writes results/mode-check-<round>.json and prints one line per run)
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, sep } from 'node:path'
-import { GATES, parseModeFile } from '../hooks/lib/mode.mjs'
+import { parseModeFile } from '../hooks/lib/mode.mjs'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
-import { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
+import { ROUND_GATES, modeOfCond } from './gate-stats.mjs'
+import { BUILDERS, FILE_WRITERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
 import { insideFolder } from './os-paths.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
+import { required } from './section-memory.mjs'
 
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
-export const MODE_OF = { 'lean-mo': 'lean', 'team-mo': 'balanced', 'max-mo': 'max' }
-const SOLO = 'solo-mo'
+// The setup in a run's condition, the part before its round tag ('team-mo' is team).
+const setupOf = cond => /^(solo|lean|team|max)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
 const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
 const SMALL_TASKS = ['h5', 'h6']
+const MULTI_AREA_TASKS = ['h4', 'h7']
 const NEAR_MISS = '.team/near-miss/'
 const toPosix = path => path.split(sep).join('/').replaceAll('\\', '/')
 
@@ -74,13 +77,12 @@ function modeFileRules(mode, runDir) {
   if (mode === 'balanced') return text === null ? [] : ['.team/mode.json present (a team run has none)']
   if (text === null) return [`.team/mode.json missing (${mode} expected)`]
   const parsed = parseModeFile(text)
-  const named = parsed.modeUsable ? parsed.mode : 'nothing usable'
+  const named = parsed.modeUsable ? parsed.retired ?? parsed.mode : 'nothing usable' // a lean run's file still says lean
   return named === mode ? [] : [`.team/mode.json says ${named}, not ${mode}`]
 }
 
 const recordRules = (mode, record) => (record === mode ? [] : [`mode record is ${record ?? 'missing'}, not ${mode}`])
 
-const FILE_WRITERS = ['Write', 'Edit', 'MultiEdit']
 const SHELLS = ['Bash', 'PowerShell']
 
 // A tool's file_path as a runDir-relative posix path, or null when it lies outside runDir (or is runDir itself).
@@ -100,8 +102,8 @@ function mainWrites(roles, runDir) {
   return [...new Set(inside)].filter(rel => !allowed(rel))
 }
 
-// h4, every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
-function h4Rules(roles, woken, runDir) {
+// h4 and h7, every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
+function multiAreaRules(roles, woken, runDir) {
   const byMain = new Set(woken.filter(w => w.caller === 'main').map(w => w.section))
   const missing = ['backend', 'frontend'].filter(head => !byMain.has(head)).map(head => `main did not wake ${head}`)
   const docs = woken.some(w => w.section === 'docs') ? [] : ['docs not woken']
@@ -115,9 +117,17 @@ function reviewerRules(roles, mode) {
   return off.length ? [`reviewer not on ${word}: ${listed(off.map(String))}`] : []
 }
 
-function gateRules(roles, mode) {
-  const max = GATES[mode].fixRounds
-  return gates(roles, mode).flatMap(gate => [
+// Max before 0.3.0 (the mode round ran 0.2.1): 3 fix rounds and a near-miss copy. GATES holds 0.3.0's Max.
+const MAX_BEFORE_030 = Object.freeze({ ...ROUND_GATES.max, fixRounds: 3, nearMiss: true })
+
+// The gate a run's mode had in the plugin version its run.json records; a run.json without one is from before 0.3.0.
+export function gateFor(mode, pluginVersion) {
+  const before030 = typeof pluginVersion !== 'string' || /^0\.[0-2]\./.test(pluginVersion)
+  return mode === 'max' && before030 ? MAX_BEFORE_030 : ROUND_GATES[mode]
+}
+
+function gateRules(roles, mode, max) {
+  return gates(roles, mode, max).flatMap(gate => [
     ...(gate.endsEarly ? [`gate of ${gate.caller} ended early`] : []),
     ...(gate.fixRounds > max ? [`gate of ${gate.caller} had ${gate.fixRounds} fix rounds (at most ${max})`] : []),
     ...(gate.regradeAfterPass ? [`gate of ${gate.caller} graded again after a pass`] : []),
@@ -128,8 +138,8 @@ function gateRules(roles, mode) {
 function sectionPlan(mode, task) {
   const small = SMALL_TASKS.includes(task)
   if (mode === 'max') return { need: ['testing', 'security'], only: small ? ['testing', 'security'] : null }
-  if (mode === 'balanced') return { need: task === 'h4' || small ? ['testing'] : [], only: small ? ['testing'] : null }
-  return { need: task === 'h4' ? ['testing'] : [], only: small ? [] : null }
+  if (mode === 'balanced') return { need: MULTI_AREA_TASKS.includes(task) || small ? ['testing'] : [], only: small ? ['testing'] : null }
+  return { need: MULTI_AREA_TASKS.includes(task) ? ['testing'] : [], only: small ? [] : null }
 }
 
 function sectionRules(mode, task, woken) {
@@ -149,7 +159,7 @@ function testingWroteCopy(roles, runDir) {
     || toolUses(messages, ...SHELLS).some(use => namesNearMiss(String(use.input.command ?? ''))))
 }
 
-// Max: a copy stayed in .team/near-miss/ (or the testing section wrote one there), and none sits outside .team/.
+// Max before 0.3.0: a copy stayed in .team/near-miss/ (or the testing section wrote one there), and none sits outside .team/.
 function nearMissRules(roles, runDir) {
   const { copies, outside } = nearMissState(runDir)
   const made = copies > 0 || testingWroteCopy(roles, runDir)
@@ -167,20 +177,22 @@ const tierOf = woken => {
 const failedRow = line => ({ faithful: false, broken: [line], tier: null })
 
 // { faithful, broken, tier } for one run. Solo runs are always faithful; roles null (no evidence) is a no-data row.
-export function checkRun({ cond, task, roles, runDir, record }) {
-  if (cond === SOLO) return { faithful: true, broken: [], tier: null }
+// pluginVersion is the section-team version from the run's run.json (undefined when it has none).
+export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
+  if (setupOf(cond) === 'solo') return { faithful: true, broken: [], tier: null }
   if (roles === null) return failedRow('no data')
-  if (!Object.hasOwn(MODE_OF, cond)) throw new Error(`unknown setup "${cond}"`)
-  const mode = MODE_OF[cond]
+  const mode = modeOfCond(setupOf(cond))
+  if (mode === null) throw new Error(`unknown setup "${cond}"`)
   const woken = wakeUps(roles)
+  const gate = gateFor(mode, pluginVersion)
   const broken = [
     ...recordRules(mode, record),
     ...modeFileRules(mode, runDir),
-    ...(task === 'h4' ? h4Rules(roles, woken, runDir) : []),
+    ...(MULTI_AREA_TASKS.includes(task) ? multiAreaRules(roles, woken, runDir) : []),
     ...reviewerRules(roles, mode),
-    ...gateRules(roles, mode),
+    ...gateRules(roles, mode, gate.fixRounds),
     ...sectionRules(mode, task, woken),
-    ...(mode === 'max' ? nearMissRules(roles, runDir) : []),
+    ...(gate.nearMiss ? nearMissRules(roles, runDir) : []),
   ]
   return { faithful: broken.length === 0, broken, tier: tierOf(woken) }
 }
@@ -222,7 +234,7 @@ const READERS = Object.freeze({ session: sessionOf, record: (folder, sid) => rea
 // One run's row: every run of the round gets one. No run.json, run folder or evidence is a no-data row; a file that
 // does not parse or cannot be read names itself (run.json, session, mode record, run folder).
 function runRow(folder, cond, task, readers) {
-  if (cond === SOLO) return checkRun({ cond, task, roles: null, runDir: null, record: null })
+  if (setupOf(cond) === 'solo') return checkRun({ cond, task, roles: null, runDir: null, record: null })
   const run = attempt(() => readRunJson(folder))
   if (run === undefined) return failedRow('no data')
   if (run === FAILED || typeof run?.dir !== 'string') return unreadable('run.json')
@@ -234,7 +246,7 @@ function runRow(folder, cond, task, readers) {
   if (session.roles === null) return failedRow('no data')
   const record = attempt(() => readers.record(folder, session.sid))
   if (record === FAILED) return unreadable('mode record')
-  const row = attempt(() => checkRun({ cond, task, roles: session.roles, runDir: run.dir, record }))
+  const row = attempt(() => checkRun({ cond, task, roles: session.roles, runDir: run.dir, record, pluginVersion: run.sectionTeam?.version }))
   return row === FAILED ? unreadable('run folder') : row
 }
 
@@ -263,7 +275,8 @@ export function modeCheck({ results = RESULTS, round, readers = {} }) {
 
 const lineOf = (id, row) => `${id}  ${row.faithful ? 'faithful' : 'not faithful'}  tier ${row.tier ?? '–'}${row.broken.length ? `  ${row.broken.join('; ')}` : ''}`
 
-export function main(argv = process.argv.slice(2), { results = RESULTS, readers } = {}) {
+export function main(argv = process.argv.slice(2), { results, readers } = {}) {
+  required({ results })
   const round = argv.find(a => a.startsWith('--round='))?.slice(8) ?? ''
   if (!NAME.test(round)) {
     console.error('usage: node bench/mode-check.mjs --round=<tag>   (letters and digits only)')
@@ -280,4 +293,4 @@ export function main(argv = process.argv.slice(2), { results = RESULTS, readers 
   }
 }
 
-if (isMainModule(import.meta.url)) main()
+if (isMainModule(import.meta.url)) main(process.argv.slice(2), { results: RESULTS })
