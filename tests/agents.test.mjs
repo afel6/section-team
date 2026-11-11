@@ -87,11 +87,18 @@ test('testing goes through the supervisor only when a direct fix list is refused
 // Round tg: a dots-only reporter gave no totals (about 93 full-suite runs), probe scripts stayed outside the project, and two sections tried to stop every process of one name.
 test('round tg: test output ends with totals, scratch files stay in .team/tmp, and only own processes are stopped', () => {
   const MCP = 'Your tools include no project MCP servers (a database console, a cloud API): for one of those, use its CLI through Bash, or ask `main` to run the call.'
-  const TIDY = 'Scratch files (probe scripts, logs) go in a folder of your own under `.team/tmp/` (your section id, or your head\'s) and copies of the project in the system temp folder, never beside the project or in the home folder; remove them, and each folder you made once it is empty, before you hand back. Stop only the processes you started, by their PID, never by name (`taskkill /IM`, `pkill`, `killall`): other work runs on this machine.'
+  const TIDY = 'Scratch files (probe scripts, logs) go in a folder of your own under `.team/tmp/` (your section id, or your head\'s) and copies of the project in the system temp folder, never beside the project or in the home folder; remove them, and each folder you made once it is empty, before you hand back. Stop only the processes you started, by their PID, never by name (`taskkill /IM`, `pkill`, `killall`): other work runs on this machine. Other sections run tests on these same files, so never change a product file in place only to watch a test fail (a mutation check): make that change in a copy of the project in the system temp folder, or reason it through without running it. Give every test run a limit that stops it from outside: run it through Bash as `timeout <seconds> <command>` where the system has that command (in PowerShell `timeout` only pauses), set to a few times its usual run time, or a few minutes for a file you have not run yet. The per-test timeout of a test runner cannot stop a loop that never yields.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).includes(`${SHORT_OUTPUT}\n${MCP}\n${TIDY}\n`), `${id} tidy`)
   assert.ok(agentFile('coder').includes(`${SHORT_OUTPUT}\n${TIDY}\n`), 'coder tidy')
   for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes('Scratch files (probe scripts'), `${id} runs no commands`)
   for (const id of [...BUILDER_IDS, 'coder']) assert.ok(!agentFile(id).includes('quiet test reporter'), `${id} old reporter line`)
+})
+
+// Real use, 2026-11-11: sections changed product files in place to watch a test fail and ran DOM tests with no time limit; one process took all the memory of the machine three times.
+test('builders and the coder keep runs bounded: no mutation check in place, a limit from outside on every test run', () => {
+  const BOUNDED = ' other work runs on this machine. Other sections run tests on these same files, so never change a product file in place only to watch a test fail (a mutation check): make that change in a copy of the project in the system temp folder, or reason it through without running it. Give every test run a limit that stops it from outside: run it through Bash as `timeout <seconds> <command>` where the system has that command (in PowerShell `timeout` only pauses), set to a few times its usual run time, or a few minutes for a file you have not run yet. The per-test timeout of a test runner cannot stop a loop that never yields.'
+  for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(BOUNDED), `${id} bounded runs`)
+  for (const id of [...ADVISOR_IDS, 'scout', 'reviewer']) assert.ok(!agentFile(id).includes('a mutation check'), `${id} has no run rule`)
 })
 
 test('builders learn they have no project MCP tools, right after the short-output line; nobody else carries it', () => {
