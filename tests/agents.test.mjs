@@ -589,3 +589,10 @@ test('round tg: tests come first, reuse what exists, and a security pass adds a 
   const PASS = "review the changed files directly. In a security pass over other sections' code, report what you checked and what you found. Fix a finding of a few lines yourself, test first: the test fails before the fix and goes in the test file that covers that feature. A larger fix goes to `main` as a failing fix list for the section that owns the file. Write no other tests: covering the spec belongs to the builders and the testing section. A pass that changes no file needs no grade."
   for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes(PASS), id === 'security', `${id} security pass`)
 })
+
+// Round tg: a builder handed back "the spec's reply cannot be given" for a method node:http refuses itself.
+test('round tg: backend answers a request node:http would refuse itself', () => {
+  const backend = agentFile('backend')
+  assert.ok(backend.includes("(an unknown Expect: a bare 417; CONNECT: the socket closes with no reply; a method it does not know or a broken request line: a bare 400): where the spec says how every request is answered, send those through your handler too (on 'clientError' a handler given (err, socket) answers the last: err.code, such as HPE_INVALID_METHOD, and err.rawPacket say what was sent, and it writes the reply to the socket by hand and ends it; server.on('checkExpectation', handler);"), 'clientError')
+  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('clientError'), id === 'backend', `${id} clientError only in backend`)
+})
