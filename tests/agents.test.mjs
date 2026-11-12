@@ -271,7 +271,7 @@ test('a forwarded question is answered to the asker directly, not back through t
 })
 
 test('each section preloads at most one core skill and the rest become go-to mentions', () => {
-  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], 'ai-llm': ['claude-api'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
+  const CORE = { frontend: ['frontend-design:frontend-design'], testing: ['tdd-workflow'], 'ai-engineer': ['claude-api'], uiux: ['web-design-guidelines'] }
   for (const s of ROSTER) {
     assert.ok(s.core.length <= 1, `${s.id} preloads more than one skill`)
     assert.deepEqual(s.core, CORE[s.id] ?? [], `${s.id} core`)
@@ -279,6 +279,15 @@ test('each section preloads at most one core skill and the rest become go-to men
     assert.deepEqual(frontSkills(text), s.core, `${s.id} frontmatter skills`)
     for (const skill of s.skills.filter(k => !s.core.includes(k))) assert.ok(text.includes(skill), `${s.id} lost go-to ${skill}`)
   }
+})
+
+test('ai-llm loads claude-api only when the job calls Claude: no preload, claude-api a go-to skill, the role says when to load it', () => {
+  const text = agentFile('ai-llm')
+  assert.ok(!text.split('---')[1].split('\n').some(l => l.startsWith('skills:')), 'ai-llm frontmatter has a skills line')
+  const goTo = text.split('\n').find(l => l.includes('Go-to skills')) ?? ''
+  assert.ok(goTo.includes('claude-api'), 'ai-llm does not name claude-api among its go-to skills')
+  const role = 'The claude-api skill is large, and a loaded skill is re-sent on every later turn: load it before you design or write a call to Claude or the Anthropic SDK (your memory of that API is out of date), and leave it unloaded on a job that calls another provider or a model behind a plain HTTP endpoint, also when the job names it for prompt-writing guidance only: that is the one exception to loading the skills a job names.'
+  assert.ok(text.includes(role), 'ai-llm role lacks the claude-api loading rule')
 })
 
 // The CLI's bundled security-review runs `git log origin/HEAD...` as it loads, so a preload kills the section's start
