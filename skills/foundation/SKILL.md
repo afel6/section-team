@@ -33,7 +33,7 @@ Wake `section-team:plan-advisor` (Agent call, `run_in_background: false`) on `.t
 Show the note to the user and wake nobody until they say OK. Ask here whether sections may commit after each job, because the user's rules may forbid commits otherwise.
 
 ## Freeze it
-After the OK the note is frozen. A change goes through you and is recorded in `.team/notes/decisions.md`. A change to the frozen note wakes `section-team:plan-advisor` again on the changed note before the change is used.
+After the OK the note is frozen. A change goes through you and is recorded in `.team/notes/decisions.md`. A change to the frozen note wakes `section-team:plan-advisor` again on the changed note before the change is used. A later job that builds inside the areas the note covers and changes nothing the note states (a feature added to one area) is no change to the note: record its design in `.team/notes/decisions.md`, leave the note as it is, and wake no plan advisor for it.
 
 ## Keep the plan
 Keep `.team/notes/plan.md` as a short status table of the slices, updated after each job. A new chat reads it first, so the work survives across sessions.

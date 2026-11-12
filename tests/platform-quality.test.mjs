@@ -104,3 +104,10 @@ test('the foundation note names the sections of each slice, and slices that shar
   assert.ok(text.match(/^description: (.+)$/m)[1].endsWith('then builds verified slices, one at a time or side by side when they share nothing.'), 'description')
   assert.ok(!text.includes('one verified slice at a time'), 'old description')
 })
+
+// Round tg: a later job inside the note's areas changed the frozen note and woke plan-advisor again, adding about 8K of context to a backend-only job.
+test('a later job inside the note areas records its design and leaves the frozen note alone', () => {
+  const freeze = read('skills/foundation/SKILL.md').split('## Freeze it\n')[1].split('\n## ')[0]
+  const LATER = 'A later job that builds inside the areas the note covers and changes nothing the note states (a feature added to one area) is no change to the note: record its design in `.team/notes/decisions.md`, leave the note as it is, and wake no plan advisor for it.'
+  assert.ok(freeze.includes(`A change to the frozen note wakes \`section-team:plan-advisor\` again on the changed note before the change is used. ${LATER}`), 'freeze sentence')
+})
