@@ -238,19 +238,33 @@ function guardNotice(e) {
   }
 }
 
+// A builder's scratch folder, .team/tmp/<id>/, made where a relative path in its command resolves: the event's cwd when absolute
+// (in a worktree session, the worktree), else the project dir. No git call, since this runs on every tool call; never throws or denies.
+export function ensureScratch(e, env = process.env) {
+  try {
+    const id = sectionIdFromType(e?.agent_type)
+    if (!BUILDER_IDS.includes(id)) return null
+    const base = typeof e.cwd === 'string' && nodePath.isAbsolute(e.cwd) ? e.cwd : projectDirOf(e, env)
+    if (base !== null) mkdirSync(nodePath.join(base, '.team', 'tmp', id), { recursive: true })
+    return null
+  } catch (err) {
+    return `scratch folder not made: ${lineOf(err)}`
+  }
+}
+
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
 
 // A hook that cannot check says so in one line and denies nothing.
 async function main() {
   const e = await readStdinJson()
   if (typeof e !== 'object' || e === null || Array.isArray(e)) return notice('the hook input is not a JSON object, so no rule was checked')
-  const guard = guardNotice(e)
+  const notes = [guardNotice(e), ensureScratch(e)].filter(Boolean).join('; ')
   const reason = decide(e)
   const out = {
-    ...(guard ? { systemMessage: `${MESSAGE_PREFIX}: ${guard}` } : {}),
+    ...(notes ? { systemMessage: `${MESSAGE_PREFIX}: ${notes}` } : {}),
     ...(reason ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } } : {}),
   }
-  if (guard || reason) process.stdout.write(JSON.stringify(out))
+  if (notes || reason) process.stdout.write(JSON.stringify(out))
 }
 
 if (isMainModule(import.meta.url)) {

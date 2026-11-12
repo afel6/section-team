@@ -1,11 +1,11 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, posix, resolve, win32 } from 'node:path'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide, ensureGuard, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
+import { decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 
@@ -76,7 +76,8 @@ test('hook prints a deny decision, and stays silent otherwise', () => {
   const out = JSON.parse(deny.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
-  const quiet = spawnHook(JSON.stringify(ev('section-team:backend', 'Bash')))
+  // A builder's call makes its scratch folder under the event's cwd, so that cwd is a temp folder here.
+  const quiet = spawnHook(JSON.stringify({ ...ev('section-team:backend', 'Bash'), cwd: tempDir() }))
   assert.equal(quiet.status, 0)
   assert.equal(quiet.stdout, '')
 })
@@ -773,4 +774,87 @@ test('a spawn error is a failed start, and a bad limit value is said once by the
 test("decide gives the same answers with a session id on a builder's Bash call", () => {
   assert.equal(decide(guardEvent()), null)
   assert.match(decide(guardEvent({ agent_type: 'section-team:ai-engineer' })), /read-only/)
+})
+
+// A builder's scratch folder: made where a relative `.team/tmp/<id>/` in its command resolves (the event's cwd, else CLAUDE_PROJECT_DIR).
+const scratchOf = (dir, id = 'backend') => join(dir, '.team', 'tmp', id)
+const isFolder = dir => existsSync(dir) && statSync(dir).isDirectory()
+const scratchEvent = (cwd, agent_type = 'section-team:backend', tool_name = 'Bash') => ({ agent_type, tool_name, tool_input: { command: 'npm test > .team/tmp/backend/run1.log' }, cwd })
+// The hook run with its own process folder set, so a path wrongly resolved against that folder lands in a temp folder the test checks.
+const spawnIn = (input, cwd, env = {}) => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', cwd, env: { ...hookEnv(tempDir()), ...env } })
+
+test("a builder's Bash or Agent call makes its .team/tmp/<id>/ folder under the event's cwd", () => {
+  const bash = tempDir()
+  assert.equal(ensureScratch(scratchEvent(bash), {}), null)
+  assert.ok(isFolder(scratchOf(bash)))
+  const agent = tempDir()
+  assert.equal(ensureScratch(scratchEvent(agent, 'section-team:ai-llm', 'Agent'), {}), null)
+  assert.deepEqual(readdirSync(join(agent, '.team', 'tmp')), ['ai-llm'])
+})
+
+test('the folder goes under the cwd when it differs from CLAUDE_PROJECT_DIR, and under CLAUDE_PROJECT_DIR when there is no cwd', () => {
+  const cwd = tempDir()
+  const project = tempDir()
+  assert.equal(ensureScratch(scratchEvent(cwd), { CLAUDE_PROJECT_DIR: project }), null)
+  assert.ok(isFolder(scratchOf(cwd)))
+  assert.deepEqual(readdirSync(project), [])
+  assert.equal(ensureScratch(scratchEvent(undefined), { CLAUDE_PROJECT_DIR: project }), null)
+  assert.ok(isFolder(scratchOf(project)))
+  assert.equal(ensureScratch(scratchEvent(undefined), {}), null)
+})
+
+test("an advisor's, a helper's and the supervisor's calls make no scratch folder", () => {
+  for (const agent_type of ['section-team:ai-engineer', 'section-team:plan-advisor', 'section-team:coder', 'section-team:reviewer', 'section-team:scout', 'backend', undefined]) {
+    const dir = tempDir()
+    // Spread, not the agent_type argument: an undefined argument would take its default, a builder.
+    for (const tool of ['Bash', 'PowerShell', 'Agent', 'Write']) assert.equal(ensureScratch({ ...scratchEvent(dir, 'x', tool), agent_type }, {}), null)
+    assert.deepEqual(readdirSync(dir), [], String(agent_type))
+  }
+})
+
+test('a folder that already exists gives null, and so does a second call', () => {
+  const dir = tempDir()
+  mkdirSync(scratchOf(dir), { recursive: true })
+  writeFileSync(join(scratchOf(dir), 'run1.log'), 'kept')
+  assert.equal(ensureScratch(scratchEvent(dir), {}), null)
+  assert.equal(ensureScratch(scratchEvent(dir), {}), null)
+  assert.equal(readFileSync(join(scratchOf(dir), 'run1.log'), 'utf8'), 'kept')
+})
+
+test('a .team that is a file gives one notice line and does not throw', () => {
+  const dir = tempDir()
+  writeFileSync(join(dir, '.team'), 'not a folder')
+  let notice
+  assert.doesNotThrow(() => { notice = ensureScratch(scratchEvent(dir), {}) })
+  assert.match(notice, /^scratch folder not made: \S+$/)
+})
+
+test("the spawned hook makes a builder's folder silently and never resolves a relative or missing cwd against its own folder", () => {
+  const project = tempDir()
+  const quiet = spawnHook(JSON.stringify(scratchEvent(project, 'section-team:testing', 'Agent')))
+  assert.equal(quiet.status, 0)
+  assert.equal(quiet.stdout, '')
+  assert.ok(isFolder(scratchOf(project, 'testing')))
+  for (const cwd of [undefined, '', '.', 'sub']) {
+    const here = tempDir()
+    const alone = spawnIn(JSON.stringify(scratchEvent(cwd)), here)
+    assert.equal(alone.status, 0)
+    assert.equal(alone.stdout, '')
+    assert.deepEqual(readdirSync(here), [], String(cwd))
+    const fallback = tempDir()
+    assert.equal(spawnIn(JSON.stringify(scratchEvent(cwd)), here, { CLAUDE_PROJECT_DIR: fallback }).status, 0)
+    assert.ok(isFolder(scratchOf(fallback)), String(cwd))
+    assert.deepEqual(readdirSync(here), [], String(cwd))
+  }
+})
+
+test('the spawned hook says in its one systemMessage when the folder cannot be made, and denies nothing', () => {
+  const dir = tempDir()
+  writeFileSync(join(dir, '.team'), 'not a folder')
+  const run = spawnHook(JSON.stringify(scratchEvent(dir)))
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  const out = JSON.parse(run.stdout)
+  assert.match(out.systemMessage, /^section-team pre-tool-use: scratch folder not made: \S+$/)
+  assert.equal(out.hookSpecificOutput, undefined)
 })
