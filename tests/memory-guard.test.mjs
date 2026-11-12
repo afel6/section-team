@@ -121,6 +121,13 @@ test('sessionRoot: a node root counts, an unknown host or a broken chain gives n
   assert.equal(sessionRoot([row(200, 1, 5000, 'claude.exe'), row(300, 200, 3000, 'node.exe')], 300), null)
 })
 
+// A Claude Code binary kept under its version's name (the benchmark's pinned claude-2.1.318.exe) is the root too.
+test('sessionRoot: a claude binary named with its version is the root; a name that only starts with claude is not', () => {
+  const under = name => sessionRoot([row(100, 1, 1000, name), row(200, 100, 2000, 'bash.exe'), row(300, 200, 3000, 'node.exe')], 300)
+  for (const name of ['claude-2.1.318.exe', 'Claude-2.1.318.EXE', 'claude_2.1.318', 'claude-v2.exe']) assert.equal(under(name)?.pid, 100, name)
+  for (const name of ['claudette.exe', 'claude-desktop-helper.exe', 'claude-.exe', 'my-claude-2.1.exe']) assert.equal(under(name), null, name)
+})
+
 const ROOT = { pid: 100, started: 1000, name: 'claude.exe', command: 'claude.exe' }
 const ROW_ROOT = row(100, 50, 1000, 'claude.exe')
 

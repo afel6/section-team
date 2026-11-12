@@ -90,7 +90,8 @@ export function parseTable(platform, text) {
 }
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish', 'cmd', 'powershell', 'pwsh'])
-const ROOT_NAMES = new Set(['claude', 'node'])
+// claude, node, or a claude binary kept under its version's name (claude-2.1.318.exe).
+const ROOT_NAME = /^(?:node|claude(?:[-_]v?\d[\w.]*)?)$/
 const baseName = name => name.toLowerCase().replace(/\.exe$/, '')
 
 // A child started no earlier than its parent. Windows start times are numbers; ps start times are text, only compared for equality
@@ -107,7 +108,7 @@ export function sessionRoot(table, pid) {
     const parent = byPid.get(row.ppid)
     if (!parent || parent.pid === row.pid || !startedAfter(row, parent)) return null
     const name = baseName(parent.name)
-    if (!SHELLS.has(name)) return ROOT_NAMES.has(name) ? { pid: parent.pid, started: parent.started, name: parent.name, command: parent.command } : null
+    if (!SHELLS.has(name)) return ROOT_NAME.test(name) ?{ pid: parent.pid, started: parent.started, name: parent.name, command: parent.command } : null
     row = parent
   }
   return null
