@@ -57,7 +57,7 @@ test('helpers keep their tools', () => {
   assert.equal(front(agentFile('reviewer')).tools, 'Read, Grep, Glob, Bash')
 })
 
-const SHORT_OUTPUT = 'Keep tool output short: run tests with a reporter that ends with pass and fail totals (never a dots-only one, also in the test script you give the project) and read its last lines through `tail`; run the full suite once per change and take totals and coverage from that one run; pipe other long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
+const SHORT_OUTPUT = 'Keep tool output short: run tests with a reporter that ends with pass and fail totals (never a dots-only one, also in the test script you give the project) and read its last lines through `tail`; run the full suite once per change and take totals and coverage from that one run, coverage from the project\'s own coverage setup or the test runner\'s own option: where neither sees part of the code (code that runs only in a process the tests start), report what it does measure with the line `coverage of started processes not measured`, and write no tool of your own to measure it; pipe other long output through `tail`, and never print a whole log. Everything you read is re-sent on every later turn.'
 
 test('builders and the coder keep tool output short; advisors, scout and reviewer do not carry the line', () => {
   for (const id of [...BUILDER_IDS, 'coder']) assert.ok(agentFile(id).includes(SHORT_OUTPUT), id)
@@ -179,8 +179,8 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'at most 2 fix rounds',
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call and put the earlier GRADE block and what you changed for each fix into its request, so it checks those fixes and does not start over. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
-    'A pass ends the gate: apply its fixes of a few lines if you like (three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where you add the test, unless another section writes the tests), rerun the tests, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
-    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds. A fix after the gate costs far more than care now.",
+    'A pass ends the gate: apply its fixes of a few lines if you like (three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests), rerun the tests once, and do not grade again. List every larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
+    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds (for tests a coder wrote, the gate checks the test clause, not this walk). A test that this walk or a grade finds missing in a test file you have not read goes to a coder, all of them in one brief with their spec lines: reading that file into your context costs more than the coder's whole run. A fix after the gate costs far more than care now.",
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -311,7 +311,7 @@ test('the house rules cover data other tools write and data read before an outsi
 
 test('the reviewer rubric fails an unstated size cap, a failing read of a stored value, a test against the spec and trust across an outside wait', () => {
   const reviewer = agentFile('reviewer')
-  assert.ok(reviewer.includes('\n- tests: new behaviour has tests, written first, and coverage is about 80% or better; each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. A test that asserts behaviour a spec line contradicts is a fix, and so is a test that needs this checkout\'s own git history or .team/ contents (a source export or a shallow clone has neither): keep what it needs, such as a data file an older version made, as a fixture file in the test folder; a test that builds its own temporary repo or state is fine.\n'), 'tests item')
+  assert.ok(reviewer.includes('\n- tests: new behaviour has tests, written first, and coverage is about 80% or better where the project\'s coverage setup or the test runner\'s own option measures it (code that runs only in a process the tests start is no fail for that); each requirement has a test that a plausible wrong implementation would fail (NFD instead of NFKD, trim instead of trimEnd, < instead of <=), not only the spec examples. A test that asserts behaviour a spec line contradicts is a fix, and so is a test that needs this checkout\'s own git history or .team/ contents (a source export or a shallow clone has neither): keep what it needs, such as a data file an older version made, as a fixture file in the test folder; a test that builds its own temporary repo or state is fine.\n'), 'tests item')
   assert.ok(reviewer.includes('\n- security: no hardcoded secrets, no injection or unsafe handling of user input, and no access or existence check made before an outside wait (a model or network call) and trusted after it: the code that writes or replies makes it again (content that changed meanwhile is not a failure and the answer is still used, unless the spec names a reply for that). A value the spec fixes once for a request (its time, an id, a token) that is taken again after a wait is a fix (an elapsed-time check on a monotonic clock is not that value), and so is a test of that wait that a second reading would pass. A check of a secret that does less work for an unknown name than for a wrong secret is a fix.\n'), 'security item')
 })
 
@@ -481,7 +481,7 @@ test('round fix 3 text is in the agents that carry it and the old text is gone',
     assert.ok(f.includes('send a configured URL as given, path and query byte for byte and user:password included'), id + ' L1 head')
     assert.ok(!f.includes('pass host, port and the raw path'), id + ' old L1')
     assert.ok(f.includes("keep a leading BOM: buffer.toString('utf8') or new TextDecoder('utf-8', { ignoreBOM: true })"), id + ' L2')
-    assert.ok(f.includes('(three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where you add the test, unless another section writes the tests)'), id + ' Q1')
+    assert.ok(f.includes('(three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests)'), id + ' Q1')
     assert.equal(f.includes('checkExpectation'), id === 'backend', id + ' B1 only in backend')
     assert.equal(f.includes('before applying an outcome'), id === 'frontend', id + ' F1 only in frontend')
   }
@@ -574,8 +574,8 @@ test('round tg: the reviewer keeps re-grades consistent, asks for nothing the sp
   for (const id of BUILDER_IDS) {
     const f = agentFile(id)
     assert.ok(f.includes('   - To grade again, start a new foreground reviewer call and put the earlier GRADE block and what you changed for each fix into its request, so it checks those fixes and does not start over. Never SendMessage'), `${id} re-grade request`)
-    assert.ok(f.includes('and a spec line whose tests a named wrong implementation would pass, where you add the test, unless another section writes the tests), rerun the tests, and do not grade again.'), `${id} test gap never left`)
-    assert.ok(f.includes('every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds. A fix after'), `${id} walk`)
+    assert.ok(f.includes('and a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests), rerun the tests once, and do not grade again.'), `${id} test gap never left`)
+    assert.ok(f.includes('every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds (for tests a coder wrote, the gate checks the test clause, not this walk). A test that this walk or a grade finds missing'), `${id} walk`)
   }
 })
 
@@ -596,7 +596,7 @@ test('round tg: tests come first, reuse what exists, and a security pass adds a 
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(TESTS), `${id} reuses tests`)
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('no hardcoded secrets; a number with a meaning has a name; no console.log in shipped code;'), `${id} named numbers`)
   assert.ok(agentFile('reviewer').includes('\n- naming: descriptive names that say what a thing is or does, consistent with the surrounding code; a number with a meaning has a name.\n'), 'naming item')
-  const FIRST = '   - Tests first (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your planned interfaces (file names, signatures), not from the code: launch it in the same message as the coders that write the code, or before you write the code yourself, and expect those tests to fail until the code lands. Never brief the tests of code you are about to build as checks of code already written.'
+  const FIRST = '   - Tests first (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your planned interfaces (file names, signatures), not from the code: It runs in the foreground, so you cannot work meanwhile: launch it in the same message as the coders that write the code, or, when you write the code yourself, launch it first and write the code after it returns. Its brief names the spec file and lines to cover instead of copying them (with no spec file, the requirements themselves) and asks for each a test that a wrong implementation the coder can name would fail; while the code is missing it runs only a syntax check, and it hands back only its file names. Its tests are the one exception to reviewing a helper\'s diff: the reviewer judges them at your gate, so read only the tests a failing run points you to. Make the first full run yourself once the code is in. When more than a couple of tests fail, do not work through them in your own context: a coder takes the failing names and the spec, decides from the spec line whether each test or the code is wrong, corrects only the tests that contradict a spec line it can quote, and hands you the code\'s failures, each with its spec line. Never brief the tests of code you are about to build as checks of code already written.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(FIRST), `${id} tests first`)
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('Tests first'), `${id} hands out no code`)
   const PASS = "review the changed files directly. In a security pass or review of other sections' code, report what you checked and what you found. Fix a finding of a few lines yourself, test first: the test fails before the fix and goes in the test file that covers that feature. A larger fix goes on your REPORT's Problems line as a failing fix list for the owning section, and you finish with `Status: partial`. Write no other tests: covering the spec belongs to the builders and the testing section. A pass that changes no file needs no grade."
@@ -614,7 +614,7 @@ test('round tg: backend answers a request node:http would refuse itself', () => 
 test('round tg: the reviewer names a value taken twice, a requirement break is never left on a pass, and a missing row decides over rows that point at it', () => {
   const rv = agentFile('reviewer')
   assert.ok(rv.includes('unless the spec names a reply for that). A value the spec fixes once for a request (its time, an id, a token) that is taken again after a wait is a fix (an elapsed-time check on a monotonic clock is not that value), and so is a test of that wait that a second reading would pass. A check of a secret that does less work for an unknown name than for a wrong secret is a fix.\n'), 'reviewer one-time value')
-  const NEVER_LEFT = 'apply its fixes of a few lines if you like (three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where you add the test, unless another section writes the tests), rerun the tests, and do not grade again.'
+  const NEVER_LEFT = 'apply its fixes of a few lines if you like (three kinds are never left: code that breaks a stated requirement or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; and a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests), rerun the tests once, and do not grade again.'
   for (const id of BUILDER_IDS) {
     assert.ok(agentFile(id).includes(NEVER_LEFT), `${id} requirement break never left`)
     assert.ok(!agentFile(id).includes('two kinds are never left'), `${id} old gate text`)
@@ -636,4 +636,21 @@ test('round tg: a configured URL keeps its path, with only what a request line c
 // The rule above exists because Node refuses such a path before anything is sent. If a later Node stops doing so, this fails and the sentence can go.
 test('http.request refuses a path with a space before sending', () => {
   assert.throws(() => http.request({ path: '/a b' }), { code: 'ERR_UNESCAPED_CHARACTERS' })
+})
+
+// Round tg (T3): tests come first without the head debugging them; coverage comes from the project's own setup; the reviewer reads tests by search.
+test('round tg: the head does not debug a test coder tests, coverage needs no tool of its own, the reviewer reads tests by search', () => {
+  const A = 'It runs in the foreground, so you cannot work meanwhile:'
+  const B = 'A test that this walk or a grade finds missing in a test file you have not read goes to a coder'
+  const C = 'where the test is added as the walk above says, unless another section writes the tests), rerun the tests once, and do not grade again.'
+  const D = 'coverage of started processes not measured'
+  const E = 'is no fail for that'
+  const F = 'Read tests by search first: one Grep for the test names'
+  const G = 'a fix list that comes after your pass is the exception to not grading again'
+  for (const id of BUILDER_IDS) for (const s of [A, B, C, D, G]) assert.ok(agentFile(id).includes(s), id + ' holds ' + s.slice(0, 30))
+  assert.ok(agentFile('coder').includes(D), 'coder holds D')
+  const rv = agentFile('reviewer')
+  assert.ok(rv.includes(E) && rv.includes(F), 'reviewer holds E and F')
+  for (const id of ADVISOR_IDS) for (const s of [A, B, C, G]) assert.ok(!agentFile(id).includes(s), id + ' holds none of ' + s.slice(0, 30))
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder', 'reviewer']) for (const s of ['expect those tests to fail until the code lands', 'where you add the test, unless', 'never whole test files']) assert.ok(!agentFile(id).includes(s), id + ' lost ' + s)
 })
