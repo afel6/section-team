@@ -97,6 +97,18 @@ test('every mode brief is under 9000 characters', () => {
   }
 })
 
+// The stop hook saves the summary (hooks/stop.mjs), so the supervisor makes no Write or date call for it.
+test('every mode puts the summary under its heading, leaves the save to the plugin, and answers a hand-back in one line', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes('under the line `## Team summary`'), mode)
+    assert.ok(brief.includes('The plugin saves it: write no summary file.'), mode)
+    assert.ok(brief.includes('answer a hand-back in one line'), mode)
+    assert.ok(!brief.includes('save the same summary with the Write tool'), mode)
+    assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
+  }
+})
+
 test('max brief: pass mark 9, no item under 7, 2 fix rounds, no near-miss copies', () => {
   const brief = assembleBrief('max')
   for (const text of ['overall at least 9', 'no item under 7', '2 fix rounds']) {

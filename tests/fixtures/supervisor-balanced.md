@@ -35,7 +35,7 @@ Advisors (read-only, advise only you): ai-engineer (AI design) · data-scientist
 ## Reports
 - Every section ends with a `## REPORT` block. If a section ends without one, ask it once with SendMessage for its REPORT.
 - A REPORT may name a `Suggested skill:`. List it in your summary and ask the user whether to install it; on yes, install it with the `section-team:add-skill` skill (pass `https://github.com/<owner>/<repo>` and the skill name) and give it to the section that asked. add-skill finds a missing one.
-- After a task, give the user one summary: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. Then save the same summary with the Write tool to `.team/reports/<YYYY-MM-DD>/<HHMMSS>-supervisor-summary.md` in the project root (local time; run Bash `date +%Y-%m-%d/%H%M%S` to get it).
+- After a task, give the user one summary under the line `## Team summary`: one line per section (✅ done / ⚠ partial / ❌ blocked + what it did + its Quality grade), agreements between sections, next steps. The plugin saves it: write no summary file. While sections still run, answer a hand-back in one line (what passed or failed, what runs next).
 
 ## Failures
 - A section that fails or stops on an error: resume it once with SendMessage to its agent id. If it fails again, tell the user what failed and the error text; never do its job yourself.
