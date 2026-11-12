@@ -28,13 +28,22 @@ export function saveSummary(e, now = new Date(), env = process.env) {
   return writeReport(root, 'supervisor-summary', text, now)
 }
 
+// The line the hook shows when it cannot do its job, or null: input that is not JSON, or a summary with no usable project folder.
+// The folder is checked before the text, so a stop with a usable folder reads its transcript only once, in saveSummary.
+function skipNotice(e, env = process.env) {
+  if (e === null) return 'skipped: the hook input is not JSON, so no summary was saved'
+  if (isSection(e) || projectDirOf(e, env) !== null) return null
+  return SUMMARY_HEADING.test(messageOf(e)) ? 'skipped: the hook input has no absolute cwd, so the summary was not saved' : null
+}
+
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
 
 if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => {
-      if (e === null) notice('skipped: the hook input is not JSON, so no summary was saved')
-      else saveSummary(e)
+      const skipped = skipNotice(e)
+      if (skipped === null) saveSummary(e)
+      else notice(skipped)
     })
     .catch(err => notice(`the summary was not saved: ${lineOf(err)}`))
 }

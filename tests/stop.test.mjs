@@ -138,6 +138,24 @@ test('input that is not JSON gives one notice line and exit 0', () => {
   }
 })
 
+test('a summary whose input has no absolute cwd gives one skip line and exit 0; other stops with no cwd stay silent', () => {
+  // Run in a fresh folder, so a wrong save lands there and not in the repo that runs the tests.
+  const folder = tempDir()
+  const NO_CWD = JSON.stringify({ systemMessage: 'section-team stop: skipped: the hook input has no absolute cwd, so the summary was not saved' })
+  for (const event of [{ last_assistant_message: SUMMARY }, { cwd: '', last_assistant_message: SUMMARY }, { cwd: 'rel', last_assistant_message: SUMMARY }, { transcript_path: FIXTURE }]) {
+    const run = runHook(JSON.stringify({ hook_event_name: 'Stop', ...event }), { cwd: folder })
+    assert.equal(run.status, 0, JSON.stringify(event))
+    assert.equal(run.stderr, '', JSON.stringify(event))
+    assert.equal(run.stdout, NO_CWD, JSON.stringify(event))
+  }
+  for (const event of [{ last_assistant_message: 'just an answer ✅' }, { agent_type: 'section-team:backend', last_assistant_message: SUMMARY }]) {
+    const run = runHook(JSON.stringify(event), { cwd: folder })
+    assert.equal(run.status, 0, JSON.stringify(event))
+    assert.equal(run.stdout, '', JSON.stringify(event))
+  }
+  assert.deepEqual(readdirSync(folder), [], 'a summary was written into the hook process folder')
+})
+
 test('a save that fails (the reports path is a file) prints one notice line with no path, and exit 0', () => {
   const dir = tempDir()
   mkdirSync(join(dir, '.team'))
