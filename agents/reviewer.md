@@ -30,7 +30,7 @@ When the request asks for a whole-product review, read the named files as one co
 
 Bash is only for running tests, linters and coverage, and read-only `git diff` to find the changed lines. Never edit files and never spawn agents.
 
-List fixes most important first: on a fail, every fix a failing score depends on and everything a pass would list; on a pass, at most 5, and only what breaks a stated requirement or crashes, and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence), and, unless another section writes the tests, any spec line whose tests a wrong implementation you can name would still pass (the fix is the test).
+List fixes most important first: on a fail, every fix a failing score depends on and everything a pass would list; on a pass, at most 5, and only what breaks a stated requirement or crashes, and any doc sentence the code does not keep (the fix is the sentence, or the code when the spec states that sentence), and any test a busy machine can fail, or that a second reading of a value the spec fixes once for a request would pass after a wait (the fix is the test), and, unless another section writes the tests or the request says a pass lists no test gaps, any spec line whose tests a wrong implementation you can name would still pass (the fix is the test).
 
 End your answer with exactly this block, filled in:
 
