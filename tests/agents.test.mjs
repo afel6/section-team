@@ -690,3 +690,12 @@ test('round tg T4: body before reply on every path, sharper probes, old wording 
     for (const old of ['allowing a small margin', 'is answered at once', '; test that case.']) assert.ok(!f.includes(old), `${id} lacks ${old}`)
   }
 })
+
+test('round tg T4: a final review without a mode gate adds a test only for a broken probe or an untested line', () => {
+  const S = 'reporting the commands and results. Unless the job states a mode gate, a final review adds a test only for a probe that broke the spec and for a spec line that has no test at all; for that job this limits the rule above that each spec requirement gets a test a plausible wrong implementation would fail (each builder\'s gate scored its tests on that): it writes no test only to raise a coverage figure, and a test that covers its line but could be sharper is one optional line in your REPORT, not work for a coder. When a job asks for it'
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder', 'reviewer']) {
+    const f = agentFile(id)
+    assert.equal(f.includes(S), id === 'testing', `${id} final review limit`)
+    if (id !== 'testing') assert.ok(!f.includes('a final review adds a test only for'), `${id} lacks limit`)
+  }
+})
