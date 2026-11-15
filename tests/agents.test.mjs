@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import http from 'node:http'
+import net from 'node:net'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { ROSTER, RELAY, render, renderAll, renderHelper, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
@@ -664,6 +665,34 @@ test('round tg: a configured URL keeps its path, with only what a request line c
 // The rule above exists because Node refuses such a path before anything is sent. If a later Node stops doing so, this fails and the sentence can go.
 test('http.request refuses a path with a space before sending', () => {
   assert.throws(() => http.request({ path: '/a b' }), { code: 'ERR_UNESCAPED_CHARACTERS' })
+})
+
+// Round tg (T6): a client that half-closes after its request still gets its reply.
+test('round tg T6: the backend role names httpAllowHalfOpen, no other agent does', () => {
+  assert.ok(agentFile('backend').includes('A client that ends its sending side once its request is out (a half-close) gets its reply too: set server.httpAllowHalfOpen = true, or Node closes the connection with no reply whenever the handler waits. A reply you write on these paths'), 'backend sentence')
+  for (const f of readdirSync(AGENTS)) if (f !== 'backend.md') assert.ok(!readFileSync(new URL(f, AGENTS), 'utf8').includes('httpAllowHalfOpen'), f + ' has no httpAllowHalfOpen')
+})
+
+// httpAllowHalfOpen is a property of node:http's Server that Node's http documentation does not list. This guards the plugin machine's Node, not a user project's; if a later Node drops it, this fails and the sentence can go.
+test('http server httpAllowHalfOpen decides whether a half-closing client gets its reply', async () => {
+  const run = allow => new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      req.socket.on('end', () => setImmediate(() => { res.end('ok') }))
+    })
+    server.httpAllowHalfOpen = allow
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      let data = ''
+      const c = net.connect({ port: server.address().port, host: '127.0.0.1', allowHalfOpen: true })
+      c.setEncoding('utf8')
+      c.on('data', d => { data += d })
+      c.on('error', reject)
+      c.on('close', () => { server.close(); resolve(data) })
+      c.end('GET / HTTP/1.1\r\nHost: x\r\n\r\n')
+    })
+  })
+  assert.equal(await run(false), '', 'closed with no reply')
+  assert.equal((await run(true)).split('\r\n')[0], 'HTTP/1.1 200 OK')
 })
 
 // Round tg (T3): tests come first without the head debugging them; coverage comes from the project's own setup; the reviewer reads tests by search.
