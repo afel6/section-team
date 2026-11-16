@@ -565,6 +565,13 @@ test('shipped files carry no process words: house rules, the reviewer and the te
   assert.ok(agentFile('testing').includes('never file it as optional. Put each test in a test file named for the feature it covers; no file name, test name or comment says it came from a probe, a review or a section. Give each spec requirement a test'), 'testing names tests by feature')
 })
 
+// Round tj: a page dropped the reply to its first request when another kind of request was sent, although the spec gives that reply a result.
+test('round tj: the frontend drops an outcome for a newer read of the same data, and for anything else only where the spec says so', () => {
+  const f = agentFile('frontend')
+  assert.ok(f.includes('run each step at the moment the spec names, check again right before applying an outcome whether it is still used (a newer read of the same data replaces an older one; anything else, such as another kind of request or a logout, drops it only where the spec says so), and test with a fake fetch whose json() you resolve separately.'), 'frontend outcome')
+  assert.ok(!f.includes('still used (a newer request, a logout)'), 'old wording')
+})
+
 test('no benchmark words in any agent text', () => {
   const BAD = /\bticket|\baudit\b|MODEL_URL|ADMIN_PASSWORD|database busy|model call failed/
   for (const s of ROSTER) assert.ok(!BAD.test(render(s, {})), s.id)
