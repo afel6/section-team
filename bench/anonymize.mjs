@@ -7,7 +7,7 @@
 //        node bench/anonymize.mjs   (no round: the first rounds' setups, tasks and 2 reps, into ~/bench-judge)
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { DEFAULT_CONDS, NAME, RESULTS, SEEDS, TASKS, parseArgs, requireFlags } from './run.mjs'
@@ -18,12 +18,14 @@ const LABELS = ['X', 'Y', 'Z', 'W']
 // What a hint prints for a round with no key yet: the bare --round form is refused.
 export const anonymizeCommand = round => `node bench/anonymize.mjs --round=${round} --conds=<setups> --tasks=<tasks> --reps=<n>`
 const HIDDEN = new Set(['.team', '.claude', '.superpowers', '.git', 'node_modules'])
-const isHidden = src => HIDDEN.has(basename(src)) || /\.(db|db-wal|db-shm|sqlite)$/i.test(src)
+// A database file is data the app wrote while running, except one under a fixtures folder: that is part of the tests.
+const isRunData = rel => /\.(db|db-wal|db-shm|sqlite)$/i.test(rel) && !rel.split(/[\\/]/).includes('fixtures')
+const isHidden = (root, path) => HIDDEN.has(basename(path)) || isRunData(relative(root, path))
 
 function copyClean(src, dest) {
   mkdirSync(dest, { recursive: true })
   // verbatimSymlinks: a relative link stays relative, so it never points back into the run folder.
-  cpSync(src, dest, { recursive: true, verbatimSymlinks: true, filter: path => !isHidden(path) })
+  cpSync(src, dest, { recursive: true, verbatimSymlinks: true, filter: path => !isHidden(src, path) })
 }
 
 // A run's folder and the stages it was asked for (absent in a run made before run.json recorded them: every stage).
