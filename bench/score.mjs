@@ -347,9 +347,18 @@ export function mainPeak(messages) {
     const { id, usage } = m?.type === 'assistant' && !m.isSidechain ? m.message ?? {} : {}
     if (!usage || seen.has(id)) continue
     if (id) seen.add(id)
-    peak = Math.max(peak, (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0))
+    peak = Math.max(peak, responseContext(usage))
   }
   return peak
+}
+
+const contextOf = u => (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
+
+// A response with a server tool call is several passes and its top-level usage adds them up: its context is its largest
+// main pass (type message); an advisor's pass reads the transcript on its own and is not the session's context.
+function responseContext(usage) {
+  const passes = Array.isArray(usage.iterations) ? usage.iterations.filter(p => p?.type === 'message') : []
+  return passes.length > 0 ? Math.max(...passes.map(contextOf)) : contextOf(usage)
 }
 
 // The folders a staged run's hidden sets start: the stage-1 copy as the run recorded it, the stage-2 copy by name or, when

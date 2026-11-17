@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  BENCH_EFFORT, BENCH_MODEL, LIVE_CHECKOUT, PLUGIN_KEY, SECTION_TEAM_VERSION, childEnv, cleanSettings, commonArgs, compacted,
+  BENCH_EFFORT, BENCH_MODEL, LIVE_CHECKOUT, PLUGIN_KEY, SECTION_TEAM_VERSION, advisorProblems, childEnv, cleanSettings, commonArgs, compacted,
   effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckouts, outputMessages, pluginVersionOf, readPin, resultOf,
 } from './clean-run.mjs'
 
@@ -47,7 +47,7 @@ test('childEnv strips session, model and key variables and sets the round switch
   const before = structuredClone(parent)
   assert.deepEqual(childEnv(parent, { pluginDir: 'C:/w' }), {
     PATH: 'C:/bin', SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_PLUGIN_DIRS: 'C:/w',
-    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0', CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '1',
   })
   assert.deepEqual(parent, before)
   // The pattern is anchored: names that only contain a stripped prefix stay.
@@ -79,6 +79,18 @@ test('childEnv sets CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS to 0 after the strip, w
   assert.equal(cleanSettings({ installedKeys: [], sectionTeam: false, pluginDir: 'C:/w' }).env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS, '0')
 })
 
+// The user's /advisor choice is saved in ~/.claude/settings.json (advisorModel) and a running claude picks it up at once:
+// round tk's runs got an advisor mid-round. CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 makes claude ignore advisorModel, so the
+// child always gets exactly one spelling, set to 1, whatever the parent set, and --settings carries it too.
+test('childEnv sets CLAUDE_CODE_DISABLE_ADVISOR_TOOL to 1 after the strip, whatever the parent set', () => {
+  for (const parent of [{}, { CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '0' }, { claude_code_disable_advisor_tool: '' }]) {
+    const child = childEnv({ PATH: '/bin', ...parent }, { pluginDir: '/root/section-team-v0.2.1' })
+    assert.deepEqual(Object.keys(child).filter(name => /^claude_code_disable_advisor_tool$/i.test(name)), ['CLAUDE_CODE_DISABLE_ADVISOR_TOOL'])
+    assert.equal(child.CLAUDE_CODE_DISABLE_ADVISOR_TOOL, '1')
+  }
+  assert.equal(cleanSettings({ installedKeys: [], sectionTeam: true, pluginDir: 'C:/w' }).env.CLAUDE_CODE_DISABLE_ADVISOR_TOOL, '1')
+})
+
 // Host-session variables a shell inside the desktop app sets: the child never sees them, run.json names them.
 test('childEnv strips the OAuth, MCP, thinking and Bash timeout variables, in any case, and envNames records them', () => {
   const host = [
@@ -94,7 +106,7 @@ test('childEnv strips the OAuth, MCP, thinking and Bash timeout variables, in an
 
 test('envNames lists the names of the round variables, sorted, never their values', () => {
   assert.deepEqual(envNames(childEnv({ PATH: 'p', HOME: 'h', CLAUDECODE: '1' }, { pluginDir: 'C:/w' })),
-    ['CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])
+    ['CLAUDE_CODE_DISABLE_ADVISOR_TOOL', 'CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'])
   assert.deepEqual(envNames({ PATH: 'p', CLAUDECODE: '1', ANTHROPIC_MODEL: 'm' }), ['ANTHROPIC_MODEL', 'CLAUDECODE'])
 })
 
@@ -102,7 +114,7 @@ test('cleanSettings: every installed key and plugin-authoring off, synced off, s
   const installedKeys = ['caveman@caveman', 'ponytail@ponytail']
   const env = {
     SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: PLUGIN_DIR,
-    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0', CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '1',
   }
   for (const sectionTeam of [true, false]) {
     assert.deepEqual(cleanSettings({ installedKeys, sectionTeam, pluginDir: PLUGIN_DIR }), {
@@ -280,6 +292,35 @@ test('effortProblems reports no effort recorded when no assistant line records o
   assert.deepEqual(effortProblems([jsonl([real]), jsonl([{ ...real, effort: 'medium' }])]), [])
   // With no non-synthetic assistant line there is nothing to check.
   assert.deepEqual(effortProblems([jsonl([synthetic, { type: 'user' }])]), [])
+})
+
+// Round tk: the advisor reached runs through the user's advisorModel. Either sign voids the attempt, in any transcript.
+test('advisorProblems flags an advisor offered to the model or called, in the session or a subagent', () => {
+  const clean = jsonl([{ type: 'user', message: { content: 'the advisor tool, # Advisor Tool, in plain text' } }, { type: 'assistant', effort: 'medium', message: { model: BENCH_MODEL, content: [{ type: 'text', text: 'advisor' }] } }])
+  const offered = jsonl([{ type: 'attachment', attachment: { type: 'advisor_tool', available: true, model: 'claude-fable-5-1', toolChange: 'add' } }])
+  const withdrawn = jsonl([{ type: 'attachment', attachment: { type: 'advisor_tool', available: false, toolChange: 'remove' } }])
+  const call = id => ({ type: 'assistant', message: { model: BENCH_MODEL, content: [{ type: 'server_tool_use', id, name: 'advisor', input: {} }] } })
+  // A streamed message repeats its blocks on several lines: one call is counted once.
+  const called = `${jsonl([call('srvtoolu_1'), call('srvtoolu_1'), call('srvtoolu_2')])}\r\n{"type":"assistant","mess`
+  assert.deepEqual(advisorProblems([clean]), [])
+  assert.deepEqual(advisorProblems([clean, withdrawn]), [])
+  assert.deepEqual(advisorProblems([clean, offered]), ['advisor tool offered (claude-fable-5-1)'])
+  assert.deepEqual(advisorProblems([called, clean]), ['advisor called 2 times'])
+  // Calls without an id each count; one call reads "1 time".
+  assert.deepEqual(advisorProblems([jsonl([call(undefined), call(undefined), call(undefined)])]), ['advisor called 3 times'])
+  assert.deepEqual(advisorProblems([jsonl([call('srvtoolu_9')])]), ['advisor called 1 time'])
+  assert.deepEqual(advisorProblems([offered, called]), ['advisor tool offered (claude-fable-5-1)', 'advisor called 2 times'])
+  // Rounds up to tj sent a deferred advisor definition in every request; CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 removes it,
+  // so a definition left in a request means the switch did not reach claude.
+  // The shape of a real line (round tj, claude 2.1.318): api-request-shape with shape.tools.
+  const defined = jsonl([{
+    type: 'api-request-shape', sessionId: 'sid', agentId: 'a1', shapeHash: 'h', timestamp: '2026-11-15T10:00:00.000Z', version: '2.1.318',
+    shape: { system: [{ type: 'text', text: 'x' }], tools: [{ name: 'Bash', description: 'd', input_schema: {}, eager_input_streaming: true }, { type: 'advisor_20260301', name: 'advisor', model: 'claude-opus-5-5', defer_loading: true }] },
+  }])
+  assert.deepEqual(advisorProblems([clean, defined]), ['advisor tool defined'])
+  assert.deepEqual(advisorProblems([jsonl([{ tools: [{ type: 'custom', name: 'advisor' }, { type: 'advisor_20260301', name: 'reviewer' }] }])]), [], 'both the advisor_ type and the name are needed')
+  assert.throws(() => advisorProblems([clean, undefined]), TypeError)
+  assert.throws(() => advisorProblems(clean), TypeError)
 })
 
 test('effortProblems reports nothing when only <synthetic> lines lack effort', () => {

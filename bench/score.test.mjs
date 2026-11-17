@@ -580,6 +580,22 @@ test('mainPeak is the largest context of any main-session turn: input plus cache
   assert.equal(mainPeak([{ type: 'system' }]), 0)
 })
 
+// A response with a server tool call (the advisor in round tk) is several passes: its top-level usage adds the passes'
+// cache reads (2 x ~100K read as 206K), so the context is the largest single main pass; the advisor's own pass is not
+// the session's context.
+test('mainPeak takes the largest main pass of a response with iterations, never their sum or an advisor pass', () => {
+  const pass = (type, input, read, write) => ({ type, input_tokens: input, cache_read_input_tokens: read, cache_creation_input_tokens: write, output_tokens: 5 })
+  const usage = {
+    input_tokens: 4, cache_read_input_tokens: 204_178, cache_creation_input_tokens: 2_143, output_tokens: 353,
+    // The advisor pass is the largest, so a max over every pass, whatever its type, fails.
+    iterations: [pass('message', 2, 101_689, 800), pass('advisor_message', 250_000, 0, 0), pass('message', 2, 102_489, 1_343)],
+  }
+  assert.equal(mainPeak([say('a', 'claude-opus-5-5', usage)]), 103_834)
+  // Without iterations, or with an empty list, the top-level usage stays the measure.
+  assert.equal(mainPeak([say('b', 'claude-opus-5-5', { ...usage, iterations: [] })]), 206_325)
+  assert.equal(mainPeak([say('c', 'claude-opus-5-5', { input_tokens: 1, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 9 })]), 50_010)
+})
+
 test('scoreRun gives a three-stage run its stage copies, its stage measures and its main-session peak', t => {
   const result = JSON.stringify({ type: 'result', subtype: 'success', session_id: 'sid' })
   const { results, outDir } = scoredRun(t, 'p1-team-sm-r1', { task: 'p1', snapshot: 'C:/copy1', stages: [{}, {}, {}] }, { 'raw-s1.json': `${result}\n`, 'raw-s2.json': `${result}\n`, 'raw-s3.json': `${result}\n` })
