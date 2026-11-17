@@ -13,6 +13,12 @@ const AGENTS = new URL('../agents/', import.meta.url)
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
 const agentFile = id => readFileSync(new URL(`${id}.md`, AGENTS), 'utf8')
 const front = text => Object.fromEntries(text.split('---')[1].trim().split('\n').filter(l => /^\w/.test(l)).map(l => [l.split(':')[0], l.slice(l.indexOf(':') + 1).trim()]))
+// Plan H: the node:http server rules live in the section-team:node-http skill. It gives each sentence its own paragraph,
+// so a rule that spans sentences is checked against the body read as one line, as the backend role held it.
+const NODE_HTTP = new URL('../skills/node-http/SKILL.md', import.meta.url)
+const skillFile = () => readFileSync(NODE_HTTP, 'utf8')
+const skillBody = () => skillFile().split(/^# node:http servers$/m)[1].trim().split(/\n\n/).join(' ')
+const inNoAgent = s => readdirSync(AGENTS).every(f => !readFileSync(new URL(f, AGENTS), 'utf8').includes(s))
 
 test('roster matches the section ids', () => {
   assert.deepEqual(ROSTER.map(s => s.id), [...BUILDER_IDS, ...ADVISOR_IDS])
@@ -493,10 +499,11 @@ test('round fix 3 text is in the agents that carry it and the old text is gone',
     assert.ok(!f.includes('pass host, port and the raw path'), id + ' old L1')
     assert.ok(f.includes("keep a leading BOM: buffer.toString('utf8') or new TextDecoder('utf-8', { ignoreBOM: true })"), id + ' L2')
     assert.ok(f.includes('(never left: code that breaks a stated requirement or a security rule the grade names, or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; a test a busy machine can fail, or a test of an outside wait that a second reading of a value the spec fixes once for a request would pass, where you fix the test; and, only when the job states a mode gate, a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests: with no mode gate, a test gap a pass still lists goes under Next as optional)'), id + ' Q1')
-    assert.equal(f.includes('checkExpectation'), id === 'backend', id + ' B1 only in backend')
+    assert.ok(!f.includes('checkExpectation'), id + ' B1 in no builder')
     assert.equal(f.includes('before applying an outcome'), id === 'frontend', id + ' F1 only in frontend')
   }
-  assert.ok(agentFile('backend').includes("server.on('checkExpectation', handler); on 'connect' when the spec answers CONNECT as an ordinary request rather than opening a tunnel, run the handler on a new http.ServerResponse(req) given the socket by res.assignSocket(socket), with res.shouldKeepAlive = false, socket.on('error', () => socket.destroy()) and socket.end() on the reply's 'finish', else a client reset crashes the process and the socket never closes)."), 'B1')
+  assert.ok(inNoAgent('checkExpectation'), 'B1 in no agent file')
+  assert.ok(skillBody().includes("server.on('checkExpectation', handler); on 'connect' when the spec answers CONNECT as an ordinary request rather than opening a tunnel, run the handler on a new http.ServerResponse(req) given the socket by res.assignSocket(socket), with res.shouldKeepAlive = false, socket.on('error', () => socket.destroy()) and socket.end() on the reply's 'finish', else a client reset crashes the process and the socket never closes)."), 'B1')
   assert.ok(agentFile('frontend').includes('test with a fake fetch whose json() you resolve separately.'), 'F1')
   const rv = agentFile('reviewer')
   assert.ok(rv.includes('and so is a step the spec does not state (a stripped BOM, a trim, a case-fold) that lets through input its steps reject'), 'R1')
@@ -623,9 +630,9 @@ test('backend and database keep a bounded wait off the serving thread; testing t
 // Max builds kept the order but never answered a broken chunked body. The rule states the order, not a mechanism.
 test('backend answers requests sent in one write in order, and an error in a request still arriving at once', () => {
   const PIPE = "err.code, such as HPE_INVALID_METHOD, says why and err.rawPacket holds the bytes the parser was given, which can begin with earlier requests sent in the same write (pipelining); it writes the reply to the socket by hand and ends it, after the replies to the requests that had fully arrived before the refused one, and at once for an error in a request still arriving (a broken body, or one that timed out); the same order holds on 'connect' (res.assignSocket throws while an earlier reply holds the socket): test a valid request and an unknown method, and a valid request and a CONNECT, each pair sent in one write;"
-  assert.ok(agentFile('backend').includes(`on 'clientError' a handler given (err, socket) answers the last: ${PIPE} with a listener set, Node answers no client error itself`), 'in the clientError clause')
-  assert.ok(!agentFile('backend').includes('say what was sent'), 'the one-request reading is gone')
-  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('pipelining'), id === 'backend', `${id} pipelining`)
+  assert.ok(skillBody().includes(`on 'clientError' a handler given (err, socket) answers the last: ${PIPE} with a listener set, Node answers no client error itself`), 'in the clientError clause')
+  assert.ok(!skillBody().includes('say what was sent'), 'the one-request reading is gone')
+  assert.ok(inNoAgent('pipelining') && skillBody().includes('pipelining'), 'pipelining only in the skill')
 })
 
 // Round tl, Codex case-04: the Balanced and the Max build each answered a request whose declared body never came about 10 s
@@ -633,11 +640,11 @@ test('backend answers requests sent in one write in order, and an error in a req
 // at a time limit"; the limit is the one Node keeps for every request.
 test('backend reads a declared body to its end before replying, up to the request limit Node keeps', () => {
   const DRAIN = "reply at once when it declares none, and send no reply before every declared byte has come unless the body breaks: a body that cannot come (a chunk size that is not hex, or the client ends its side first) is a broken body, answered at once as above, and a body still on its way waits for the limit Node keeps for every request, server.requestTimeout (300 s by default, 0 for none), never a shorter one of your own, which would answer a body still on its way; at that limit answer as Node does on its own sockets (408, written by hand, socket ended). On 'connect' Node no longer times the socket, and on 'clientError' it raises one more client error for that socket (ERR_HTTP_REQUEST_TIMEOUT once server.headersTimeout has passed, 60 s by default): ignore later errors on a socket you took over (a WeakSet of them), drop its 'timeout' listeners (socket.removeAllListeners('timeout')), or Node's keep-alive timer closes it with no reply keepAliveTimeout + 1 s after an earlier reply on that connection, and keep your own timer there at server.requestTimeout, cleared when the socket closes. Test it in-process on a server the test creates with http.createServer({ headersTimeout: 300, requestTimeout: 1000, connectionsCheckingInterval: 50 }): an unknown method whose body comes 0.5 s after its headers gets its reply after the body, and one whose body never comes gets the 408 only after 1 s (1 s is the limit the test sets: assert it as a time the spec names, with a margin that is a fraction of it); write those two framings in a few lines, not a general parser."
-  const backend = agentFile('backend')
-  assert.ok(backend.includes(DRAIN), 'drain clause')
-  assert.ok(!backend.includes('stop waiting at a time limit'), 'the short-limit reading is gone')
-  assert.ok(backend.includes("the rest comes as 'data' once you replace the socket's own 'data' and 'end' listeners (Node's 'end' listener ends the socket, or marks an earlier reply as the last, at a half-close);"), 'end listener replaced too')
-  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('0.5 s after its headers'), id === 'backend', `${id} late body test`)
+  const skill = skillBody()
+  assert.ok(skill.includes(DRAIN), 'drain clause')
+  assert.ok(!skill.includes('stop waiting at a time limit'), 'the short-limit reading is gone')
+  assert.ok(skill.includes("the rest comes as 'data' once you replace the socket's own 'data' and 'end' listeners (Node's 'end' listener ends the socket, or marks an earlier reply as the last, at a half-close);"), 'end listener replaced too')
+  assert.ok(inNoAgent('0.5 s after its headers') && skill.includes('0.5 s after its headers'), 'late body test only in the skill')
 })
 
 // Round tf: Balanced stage 1 is a single-area job with no security pass, and both Balanced runs skipped the hash for an unknown user.
@@ -693,9 +700,8 @@ test('round tg: tests come first, reuse what exists, and a security pass adds a 
 
 // Round tg: a builder handed back "the spec's reply cannot be given" for a method node:http refuses itself.
 test('round tg: backend answers a request node:http would refuse itself', () => {
-  const backend = agentFile('backend')
-  assert.ok(backend.includes("(an unknown Expect: a bare 417; CONNECT: the socket closes with no reply; a method it does not know or a broken request line: a bare 400): where the spec says how every request is answered, send those through your handler too (on 'clientError' a handler given (err, socket) answers the last: err.code, such as HPE_INVALID_METHOD, says why and err.rawPacket holds the bytes the parser was given, which can begin with earlier requests sent in the same write (pipelining); it writes the reply to the socket by hand and ends it, after the replies to the requests that had fully arrived before the refused one, and at once for an error in a request still arriving (a broken body, or one that timed out); the same order holds on 'connect' (res.assignSocket throws while an earlier reply holds the socket): test a valid request and an unknown method, and a valid request and a CONNECT, each pair sent in one write; with a listener set, Node answers no client error itself, so answer each code: the spec's reply where the spec covers it, else the one Node would have sent (400; 431 for HPE_HEADER_OVERFLOW; 408 for ERR_HTTP_REQUEST_TIMEOUT), and when socket.writable is false or the code is ECONNRESET write nothing and call socket.destroy(); server.on('checkExpectation', handler);"), 'clientError')
-  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('clientError'), id === 'backend', `${id} clientError only in backend`)
+  assert.ok(skillBody().includes("(an unknown Expect: a bare 417; CONNECT: the socket closes with no reply; a method it does not know or a broken request line: a bare 400): where the spec says how every request is answered, send those through your handler too (on 'clientError' a handler given (err, socket) answers the last: err.code, such as HPE_INVALID_METHOD, says why and err.rawPacket holds the bytes the parser was given, which can begin with earlier requests sent in the same write (pipelining); it writes the reply to the socket by hand and ends it, after the replies to the requests that had fully arrived before the refused one, and at once for an error in a request still arriving (a broken body, or one that timed out); the same order holds on 'connect' (res.assignSocket throws while an earlier reply holds the socket): test a valid request and an unknown method, and a valid request and a CONNECT, each pair sent in one write; with a listener set, Node answers no client error itself, so answer each code: the spec's reply where the spec covers it, else the one Node would have sent (400; 431 for HPE_HEADER_OVERFLOW; 408 for ERR_HTTP_REQUEST_TIMEOUT), and when socket.writable is false or the code is ECONNRESET write nothing and call socket.destroy(); server.on('checkExpectation', handler);"), 'clientError')
+  assert.ok(inNoAgent('clientError') && skillBody().includes('clientError'), 'clientError only in the skill')
 })
 
 // Round tg (judges): a second clock reading passed a single-area gate at 8/10, and in three of four team runs a filter by an id of no user counted rows that still carried it.
@@ -733,9 +739,32 @@ test('http.request refuses a path with a space before sending', () => {
 })
 
 // Round tg (T6): a client that half-closes after its request still gets its reply.
-test('round tg T6: the backend role names httpAllowHalfOpen, no other agent does', () => {
-  assert.ok(agentFile('backend').includes('A client that ends its sending side once its request is out (a half-close) gets its reply too: set server.httpAllowHalfOpen = true, or Node closes the connection with no reply whenever the handler waits. A reply you write on these paths'), 'backend sentence')
-  for (const f of readdirSync(AGENTS)) if (f !== 'backend.md') assert.ok(!readFileSync(new URL(f, AGENTS), 'utf8').includes('httpAllowHalfOpen'), f + ' has no httpAllowHalfOpen')
+test('round tg T6: the node-http skill names httpAllowHalfOpen, no agent does', () => {
+  assert.ok(skillBody().includes('A client that ends its sending side once its request is out (a half-close) gets its reply too: set server.httpAllowHalfOpen = true, or Node closes the connection with no reply whenever the handler waits. A reply you write on these paths'), 'backend sentence')
+  for (const f of readdirSync(AGENTS)) assert.ok(!readFileSync(new URL(f, AGENTS), 'utf8').includes('httpAllowHalfOpen'), f + ' has no httpAllowHalfOpen')
+})
+
+// Plan H: backend keeps one routing line and loads the skill only for a server on node:http itself.
+test('backend routes node:http servers to the node-http skill', () => {
+  const backend = agentFile('backend')
+  assert.ok(backend.includes('When the server answers HTTP through node:http itself (http.createServer, no web framework), load the section-team:node-http skill before you plan, and name it to each helper that writes or tests that server.'), 'routing line')
+  // The go-to sentence sits inside a step of the role's process, not on a line of its own.
+  const goto = backend.match(/Go-to skills, only when the job needs one its list lacks: ([^.]*)\./)?.[1]
+  assert.ok(goto && goto.split(', ').includes('section-team:node-http'), `go-to skills: ${goto}`)
+})
+
+test('the node-http skill has its frontmatter and no benchmark words', () => {
+  const text = skillFile()
+  const fm = front(text)
+  assert.equal(fm.name, 'node-http')
+  assert.ok(fm.description.startsWith('Rules for a Node.js HTTP server built on node:http itself'), fm.description)
+  const BAD = /\bticket|\baudit\b|MODEL_URL|ADMIN_PASSWORD|database busy|model call failed/
+  assert.ok(!BAD.test(text), 'benchmark words')
+})
+
+test('no agent file carries the node:http block', () => {
+  assert.ok(!agentFile('backend').includes('node:http answers some requests itself'), 'backend.md')
+  assert.ok(inNoAgent('node:http answers some requests itself'), 'any agent file')
 })
 
 // httpAllowHalfOpen is a property of node:http's Server that Node's http documentation does not list. This guards the plugin machine's Node, not a user project's; if a later Node drops it, this fails and the sentence can go.
@@ -785,12 +814,13 @@ test('round tg T4: body before reply on every path, sharper probes, old wording 
   const B = 'a status it treats as a normal outcome included: test it with every status the spec gives a rule of its own.'
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder', 'reviewer']) {
     const f = agentFile(id)
-    assert.equal(f.includes(A), id === 'backend', `${id} reply rules`)
+    assert.ok(!f.includes(A), `${id} reply rules not in agents`)
     assert.equal(f.includes(C), id === 'testing', `${id} lock order`)
     assert.equal(f.includes(D), id === 'testing', `${id} method probe`)
     assert.equal(f.includes(B), BUILDER_IDS.includes(id), `${id} unparsable body`)
     for (const old of ['allowing a small margin', 'is answered at once', '; test that case.']) assert.ok(!f.includes(old), `${id} lacks ${old}`)
   }
+  assert.ok(inNoAgent(A) && skillBody().includes(A), 'reply rules only in the skill')
 })
 
 test('round tg T4: a final review without a mode gate adds a test only for a broken probe or an untested line', () => {

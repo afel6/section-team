@@ -162,7 +162,7 @@ describe('assign-skill CLI in a temp copy of the plugin', () => {
   const withPlugin = (extra, fn) => {
     const tmp = mkdtempSync(join(tmpdir(), 'st-cli-'))
     try {
-      for (const d of ['scripts', 'hooks/lib', 'agents']) cpSync(join(ROOT, d), join(tmp, d), { recursive: true })
+      for (const d of ['scripts', 'hooks/lib', 'agents', 'skills']) cpSync(join(ROOT, d), join(tmp, d), { recursive: true })
       writeFileSync(rosterFile(tmp), `${JSON.stringify(extra, null, 2)}\n`)
       const gen = run(tmp, 'gen-agents.mjs')
       assert.equal(gen.status, 0, gen.stderr)
