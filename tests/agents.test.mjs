@@ -628,6 +628,18 @@ test('backend answers requests sent in one write in order, and an error in a req
   for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('pipelining'), id === 'backend', `${id} pipelining`)
 })
 
+// Round tl, Codex case-04: the Balanced and the Max build each answered a request whose declared body never came about 10 s
+// after its headers (405), where the spec reads the whole body before any reply. Their own short limit came from "stop waiting
+// at a time limit"; the limit is the one Node keeps for every request.
+test('backend reads a declared body to its end before replying, up to the request limit Node keeps', () => {
+  const DRAIN = "reply at once when it declares none, and send no reply before every declared byte has come unless the body breaks: a body that cannot come (a chunk size that is not hex, or the client ends its side first) is a broken body, answered at once as above, and a body still on its way waits for the limit Node keeps for every request, server.requestTimeout (300 s by default, 0 for none), never a shorter one of your own, which would answer a body still on its way; at that limit answer as Node does on its own sockets (408, written by hand, socket ended). On 'connect' Node no longer times the socket, and on 'clientError' it raises one more client error for that socket (ERR_HTTP_REQUEST_TIMEOUT once server.headersTimeout has passed, 60 s by default): ignore later errors on a socket you took over (a WeakSet of them), drop its 'timeout' listeners (socket.removeAllListeners('timeout')), or Node's keep-alive timer closes it with no reply keepAliveTimeout + 1 s after an earlier reply on that connection, and keep your own timer there at server.requestTimeout, cleared when the socket closes. Test it in-process on a server the test creates with http.createServer({ headersTimeout: 300, requestTimeout: 1000, connectionsCheckingInterval: 50 }): an unknown method whose body comes 0.5 s after its headers gets its reply after the body, and one whose body never comes gets the 408 only after 1 s (1 s is the limit the test sets: assert it as a time the spec names, with a margin that is a fraction of it); write those two framings in a few lines, not a general parser."
+  const backend = agentFile('backend')
+  assert.ok(backend.includes(DRAIN), 'drain clause')
+  assert.ok(!backend.includes('stop waiting at a time limit'), 'the short-limit reading is gone')
+  assert.ok(backend.includes("the rest comes as 'data' once you replace the socket's own 'data' and 'end' listeners (Node's 'end' listener ends the socket, or marks an earlier reply as the last, at a half-close);"), 'end listener replaced too')
+  for (const id of BUILDER_IDS) assert.equal(agentFile(id).includes('0.5 s after its headers'), id === 'backend', `${id} late body test`)
+})
+
 // Round tf: Balanced stage 1 is a single-area job with no security pass, and both Balanced runs skipped the hash for an unknown user.
 test('backend checks a secret in equal time and logs unexpected errors; the reviewer fails an unequal check', () => {
   const backend = agentFile('backend')
