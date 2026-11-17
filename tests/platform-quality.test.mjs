@@ -111,3 +111,16 @@ test('a later job inside the note areas records its design and leaves the frozen
   const LATER = 'A later job that builds inside the areas the note covers and changes nothing the note states (a feature added to one area) is no change to the note: record its design in `.team/notes/decisions.md`, leave the note as it is, and wake no plan advisor for it.'
   assert.ok(freeze.includes(`A change to the frozen note wakes \`section-team:plan-advisor\` again on the changed note before the change is used. ${LATER}`), 'freeze sentence')
 })
+
+// Plan H (2026-11-18): reverses the 2026-11-06 "never on a single-area task" choice for complex single-area work; the line sits in core.md, not the tiers.
+test('a complex single-area job wakes plan-advisor on a contract note first', () => {
+  const CONTRACT = '- A single-area job with concurrency, protocol framing, auth or crypto, or about 200+ new lines across modules, that no foundation note covers: first write `.team/notes/contract.md` (modules and interfaces, locks and timers, framing, auth choices, one check each) and wake `section-team:plan-advisor` on it, not in the background.'
+  for (const mode of MODES) assert.ok(assembleBrief(mode).includes(CONTRACT), mode)
+})
+
+test('plan-advisor checks a foundation or contract note', () => {
+  const text = read('agents/plan-advisor.md')
+  assert.ok(text.includes('read the foundation or contract note'), 'role')
+  const description = text.split('---')[1].split('\n').find(l => l.startsWith('description:'))
+  assert.ok(description.includes('a platform foundation note or a single-area contract note'), description)
+})
