@@ -58,13 +58,14 @@ test('the README describes the foundation skill, fresh sections and the guard, a
     'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', '24.7K', 'where the difference is large',
     'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'testing, docs, the security pass and advisors not counted', 'any saving in real use',
     // brief rules and the foundation trigger
-    "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
+    "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'The p1 rounds ran the brief rules live, and from 0.3.0 on the foundation skill too', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
     // Plan H: the node-http skill, and Max's complex single-area work
     'section-team:node-http', 'In Max, a single-area task with new concurrent writes, protocol framing, auth or crypto also loads it',
     '0.2.3',
   ], 'README')
   assert.ok(!readme.includes('nor its figures') && !readme.includes('the saving in real use'), 'stale unmeasured wording is gone')
   assert.ok(!readme.includes('any work needing 3 or more builders'), 'the foundation skill no longer covers any 3-builder work')
+  assert.ok(!readme.includes('the foundation skill and the brief rules have not been run live'), 'the p1 rounds ran them live')
   assert.ok(readme.includes('## Platform readiness'), 'Platform readiness heading missing')
   const claims = readme.split('## Platform readiness')[1].split('## Develop')[0]
   assert.deepEqual(claimSentences(claims), [], 'no saving or quality claim before the runs')
@@ -107,9 +108,35 @@ test('the README records the p1 measure round with both judges and what is not m
     '| Max | $32.96 | 8.2 | 264 | 8.5 | 8.25 | 2 of 4 | 52 min | 116K to 123K |',
     'Missed: Max judged level with Balanced by Codex and 0.75 below it by Fable, not 0.25 above.',
     'Commit 77edf80 keeps the answer after such a call',
-    'not measured yet.',
+    'checked its Node claims with probes; round tg below measured it.',
   ], 'README')
   assert.ok(!readme.includes("fix these in the sections' rules; not measured yet."), 'the confirm round fixes are measured now')
+  assert.ok(!readme.includes('checked its Node claims with probes; not measured yet.'), '77edf80 is measured now')
+})
+
+test('the README records the p1 rounds tg to ph with both judges, what each measured and what was missed', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    '**The p1 rounds after the measure round (2026-11-11 to 2026-11-18).**',
+    'Rounds tg, th, ti, tj, tk, tl and to ran on the main test machine (16 GB)',
+    '| tg, 2026-11-11 | 80ab45a |',
+    '| 3.7 | 8.6 | 7.50 / 8.75 / 9.00 | 6.00 / 8.50 / 9.00 | Balanced 1.25 above solo on Codex |',
+    "| tk, 2026-11-16 | 70969f0 | nothing: Claude Code's own advisor tool, switched on in the test machine's user settings, reached four runs, so the round was not judged |",
+    '| ph, 2026-11-18 | 8713aa3 |',
+    'meeting the 1.5 bar on both judges in ti, tj, to and ph; Max was never below Balanced on either judge.',
+    '**Round ph in detail (after the 0.3.0 release, 2026-11-18).**',
+    '| Plain Claude Code (solo) | $3.63 | 1.0 | 264 | 7.25 | 6.75 | 0 / 0 of 4 | 9 min | 135K to 145K |',
+    '| **Balanced (default)** | $17.13 | 4.7 | 264 | 8.75 | 8.75 | 1 / 1 of 4 | 36 min | 79K to 88K |',
+    '| Max | $36.94 | 10.2 | 264 | 9.25 | 8.75 | 3 / 3 of 4 | 71 min | 114K to 134K |',
+    'Not met as written:',
+    'this is kept as designed.',
+    'None of the judges\' points against the team builds was a missed target.',
+    'Codex found both Balanced builds sending a model URL written with other than two slashes before the host to the wrong path',
+    "and Node's bare 400 instead of the spec's 405 or 404 for methods Node refuses (CONNECT got no reply at all)",
+    'in rounds tg to ph Balanced cost 3.4 to 6.0 times and Max 8.4 to 13.0 times plain Claude Code',
+  ], 'README')
+  assert.ok(!readme.includes('design weight, not failed spec lines'), 'team defects are not called design weight')
+  assert.ok(!readme.includes('Rounds tg to to ran'), 'round names are listed, not "tg to to"')
 })
 
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
