@@ -24,6 +24,10 @@ function attempt(label, fn) {
 const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n${REPLACES}\n\n${modeRules(mode)}`
 const pointerText = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const isLong = prompt => typeof prompt === 'string' && prompt.length >= LONG_PROMPT
+// Hand-backs and task notifications reach this hook as prompts too, and are not the user's words.
+export const HARNESS_FRAMES = ['task-notification', 'agent-message', 'teammate-message', 'side-sessions-event', 'ci-monitor-event']
+const isFrame = prompt => new RegExp(String.raw`^\s*<(${HARNESS_FRAMES.join('|')})[>\s]`).test(prompt)
+const savable = prompt => isLong(prompt) && !isFrame(prompt)
 
 // A session with a record keeps its mode while the file is unusable (the handback gate does the same), so the problem line says so.
 const keptModeEnding = previous => (previous === null ? undefined : `so this session stays in ${modeName(previous)} mode`)
@@ -58,10 +62,10 @@ function modeCheck(root, sessionId, home) {
 }
 
 // Saves a long prompt word for word as .team/reports/<date>/<time>-user-request.md and returns that path relative to root,
-// with forward slashes; null when the prompt is short or not a string, when git does not ignore the .team/ folder itself (outside git,
+// with forward slashes; null when the prompt is short, not a string or a harness frame, when git does not ignore the .team/ folder itself (outside git,
 // with .team/keep-in-git, or before session-start excluded .team/), or without a .team/ folder. Throws when the file cannot be written.
 export function saveRequest(root, prompt, ignored, now = new Date()) {
-  if (!isLong(prompt) || !ignored) return null
+  if (!savable(prompt) || !ignored) return null
   if (statSync(join(root, '.team'), { throwIfNoEntry: false })?.isDirectory() !== true) return null
   return relative(root, writeReport(root, 'user-request', prompt, now)).split(sep).join('/')
 }
@@ -71,7 +75,7 @@ export function saveRequest(root, prompt, ignored, now = new Date()) {
 export function promptCheck({ cwd, session_id: sessionId, prompt }, home = homedir()) {
   const root = projectRoot(cwd)
   const mode = modeCheck(root, sessionId, home)
-  const request = attempt('request save', () => saveRequest(root, prompt, isLong(prompt) && isIgnored(root, '.team/')))
+  const request = attempt('request save', () => saveRequest(root, prompt, savable(prompt) && isIgnored(root, '.team/')))
   const parts = [mode.notice, request.value === null ? null : pointerText(request.value)].filter(part => part !== null)
   const warnings = request.warning === null ? mode.warnings : [...mode.warnings, request.warning]
   return { notice: parts.length === 0 ? null : parts.join('\n\n'), warnings }

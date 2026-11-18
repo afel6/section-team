@@ -63,6 +63,32 @@ test('seeded task gets SEED and hides team traces', t => {
   assert.deepEqual(readdirSync(join(box.judgeDir, 'h2-r1')).sort(), [label, 'SEED'].sort())
 })
 
+test('a database under a fixtures folder is part of the tests and is copied; other database files stay hidden', t => {
+  const box = sandbox(t)
+  fakeH2Run(box)
+  const run = join(box.root, 'run')
+  put(join(run, 'test', 'fixtures', 'old.db'), 'fixture')
+  put(join(run, 'data', 'app.sqlite'))
+  put(join(run, 'data.db-wal'))
+  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h2'], reps: 1, ...box })
+  const label = Object.keys(key['h2-r1']).find(l => key['h2-r1'][l] === 'team-ho')
+  const out = join(box.judgeDir, 'h2-r1', label)
+  assert.equal(readFileSync(join(out, 'test', 'fixtures', 'old.db'), 'utf8'), 'fixture')
+  for (const data of ['data.db', 'data.db-wal', join('data', 'app.sqlite')]) assert.ok(!existsSync(join(out, data)), `${data} is hidden`)
+})
+
+test('a run folder whose own path holds a fixtures folder still hides its database files', t => {
+  const box = sandbox(t)
+  const run = join(box.root, 'fixtures', 'run')
+  put(join(run, 'app.mjs'), 'export {}\n')
+  put(join(run, 'data.db'))
+  put(join(box.results, 'h1-team-ho-r1', 'run.json'), JSON.stringify({ id: 'h1-team-ho-r1', dir: run }))
+  const key = anonymize({ conds: ['solo-ho', 'team-ho'], tasks: ['h1'], reps: 1, ...box })
+  const label = Object.keys(key['h1-r1']).find(l => key['h1-r1'][l] === 'team-ho')
+  assert.ok(existsSync(join(box.judgeDir, 'h1-r1', label, 'app.mjs')), 'the solution is copied')
+  assert.ok(!existsSync(join(box.judgeDir, 'h1-r1', label, 'data.db')), 'data.db is hidden')
+})
+
 test('a pair with no finished run gets no folder, even for a seeded task', t => {
   const box = sandbox(t)
   put(join(box.seeds, 'h2', 's.mjs'))

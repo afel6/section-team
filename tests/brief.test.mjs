@@ -97,6 +97,18 @@ test('every mode brief is under 9000 characters', () => {
   }
 })
 
+// The stop hook saves the summary (hooks/stop.mjs), so the supervisor makes no Write or date call for it.
+test('every mode puts the summary under its heading, leaves the save to the plugin, and answers a hand-back in one line', () => {
+  for (const mode of MODES) {
+    const brief = assembleBrief(mode)
+    assert.ok(brief.includes('under the line `## Team summary`'), mode)
+    assert.ok(brief.includes('The plugin saves it: write no summary file.'), mode)
+    assert.ok(brief.includes('answer a hand-back in one line'), mode)
+    assert.ok(!brief.includes('save the same summary with the Write tool'), mode)
+    assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
+  }
+})
+
 test('max brief: pass mark 9, no item under 7, 2 fix rounds, no near-miss copies', () => {
   const brief = assembleBrief('max')
   for (const text of ['overall at least 9', 'no item under 7', '2 fix rounds']) {
@@ -136,7 +148,7 @@ test('each gate part states its mode\'s GATES values', () => {
     const failing = gate.filter(line => line.startsWith('- If it fails'))
     assert.equal(failing.length, 1, `${mode}: expected exactly one "- If it fails" line`)
     assert.ok(failing[0].includes(`at most ${rounds(fixRounds)}.`), `${mode}: the "- If it fails" line must say at most ${rounds(fixRounds)}`)
-    const sections = `- Sections get ${rounds(fixRounds)} here, not the 2 under Failures.`
+    const sections = `- Sections get ${rounds(fixRounds)} here.`
     assert.equal(gate.includes(sections), fixRounds !== GATES.balanced.fixRounds, `${mode}: the "Sections get" line is wrong`)
     assert.equal(part(`gate-${mode}`).includes('near-miss'), nearMiss, `${mode}: near-miss must appear only when GATES says so`)
     assert.equal(gate.includes(NEAR_MISS_RULE), nearMiss, `${mode}: the near-miss gate rule is wrong`)
@@ -155,8 +167,7 @@ test('max tiers add probing, security and docs always', () => {
     'ask it to probe every spec line). Code that takes user input',
     'user input or touches files or the network also gets a security section review',
     'the security section for a security pass',
-    '(the one cross-review you ask for)',
-    'testing for tests, the security section',
+    'testing for tests (tell the builders so), the security section',
     'and the docs section always, after the builders report',
     'the security pass and advisors not counted',
   ]) {
@@ -273,8 +284,8 @@ test('every mode tells the supervisor it writes no product code, tests or docs, 
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
     assert.ok(brief.split('\n')[1].endsWith(' You write no product code, tests or docs yourself.'), mode)
-    assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files'), mode)
-    assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again: at most 2 fix rounds.'), mode)
+    assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec'), mode)
+    assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds.'), mode)
     assert.ok(brief.includes('- Tell each code builder to map every OS error its code can hit'), mode)
     for (const old of ['Your own code', 'your own code', 'wrote yourself', 'fix the listed items', 'Map every OS error']) {
       assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
@@ -326,8 +337,19 @@ test('no lean brief part is left', () => {
 test('both mode briefs carry the round fix 3 wording', () => {
   for (const mode of ['balanced', 'max']) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.includes('also in older code the spec still covers'), mode)
+    assert.ok(brief.includes('After a security pass or the final review, send a builder only failing items (what that REPORT lists as failing);'), mode)
+    assert.ok(!brief.includes('also in older code the spec still covers'), mode)
     assert.ok(brief.includes('input refused or accepted only as the spec says'), mode)
     assert.ok(!brief.includes('never a refusal of input the spec accepts'), mode)
   }
+})
+
+// Round tg: the second final review repeated the first one's flows; the 35 characters that tell it apart are paid for by the cross-review aside.
+test('max tells the second final review that it is the second, at no cost in characters', () => {
+  const max = assembleBrief('max')
+  assert.ok(max.includes("each by a fresh testing section; never show the second the first's REPORT, and tell it that it is the second. Do not build multi-area work yourself"))
+  assert.ok(!part('tiers-max').includes('(the one cross-review you ask for)'))
+  assert.ok(part('tiers-balanced').includes('it is the one cross-review you ask for.'))
+  assert.ok(!assembleBrief('balanced').includes('tell it that it is the second'))
+  assert.ok(max.length <= 9000, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
 })

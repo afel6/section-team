@@ -321,6 +321,26 @@ test('a 3000-character prompt in a git repo with .team/ is saved word for word a
   assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request-2.md')
 })
 
+test('a long prompt that is a harness frame (a hand-back, a task notification) is not saved as a user request', () => {
+  const dir = gitProject()
+  const tags = { 'task-notification': '<task-notification>', 'agent-message': '<agent-message from="a1">', 'teammate-message': '<teammate-message from="a1">', 'side-sessions-event': '<side-sessions-event>', 'ci-monitor-event': '<ci-monitor-event>' }
+  for (const [name, tag] of Object.entries(tags)) {
+    for (const lead of ['', '\n  ']) {
+      const prompt = `${lead}${tag}${'a'.repeat(3000)}</${name}>`
+      assert.deepEqual(promptCheck(withPrompt(dir, prompt), tempHome()), { notice: null, warnings: [] }, name)
+      assert.equal(saveRequest(dir, prompt, true), null, name)
+      assert.equal(existsSync(reportsOf(dir)), false, name)
+    }
+  }
+})
+
+test('a long user prompt that only mentions a frame tag, or starts with another tag, is still saved', () => {
+  const dir = gitProject()
+  for (const prompt of [`please fix this:\n<task-notification>${'a'.repeat(3000)}</task-notification>`, `<html>${'a'.repeat(3000)}</html>`]) {
+    assert.match(saveRequest(dir, prompt, true), /^\.team\/reports\/.+-user-request(-\d+)?\.md$/)
+  }
+})
+
 test('a prompt under 3000 characters, or not a string, is not saved', () => {
   const dir = gitProject()
   assert.deepEqual(promptCheck(withPrompt(dir, LONG.slice(1)), tempHome()), { notice: null, warnings: [] })

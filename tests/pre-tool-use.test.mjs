@@ -1,11 +1,11 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, posix, resolve, win32 } from 'node:path'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
+import { decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 
@@ -76,7 +76,8 @@ test('hook prints a deny decision, and stays silent otherwise', () => {
   const out = JSON.parse(deny.stdout)
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
-  const quiet = spawnHook(JSON.stringify(ev('section-team:backend', 'Bash')))
+  // A builder's call makes its scratch folder under the event's cwd, so that cwd is a temp folder here.
+  const quiet = spawnHook(JSON.stringify({ ...ev('section-team:backend', 'Bash'), cwd: tempDir() }))
   assert.equal(quiet.status, 0)
   assert.equal(quiet.stdout, '')
 })
@@ -630,4 +631,230 @@ test('in Max partial, blocked and ungraded docs handbacks stay open, and a REPOR
   for (const changed of ['n/a', 'N/A (no code)', 'nothing', 'no files', 'no changes', '`none`', 'None.', '(none)', 'none (read-only)', 'unchanged', '-', '—']) {
     assert.equal(decide(handbackIn(max, REPORT_WITH('done', changed, null)), {}), null, changed)
   }
+})
+
+// The session memory guard: the hook starts one detached runner per session. Every effect is a fake here: no real listing, spawn or stop.
+const GUARD_MB = 1024 * 1024
+const GUARD_GB = 1024 * GUARD_MB
+// claude.exe 100 -> bash.exe 200 -> node.exe 300 (the hook).
+const GUARD_TABLE = [
+  { pid: 100, ppid: 50, started: 1000, bytes: GUARD_GB, name: 'claude.exe', command: 'claude.exe --session' },
+  { pid: 200, ppid: 100, started: 2000, bytes: GUARD_MB, name: 'bash.exe', command: 'bash -c node hook' },
+  { pid: 300, ppid: 200, started: 3000, bytes: GUARD_MB, name: 'node.exe', command: 'node pre-tool-use.mjs' },
+]
+const guardEvent = (over = {}) => ({ agent_type: 'section-team:backend', tool_name: 'Bash', tool_input: { command: 'ls' }, session_id: 'sess-1', cwd: tempDir(), ...over })
+function guardDeps(over = {}) {
+  const spawned = []
+  const listed = []
+  const deps = {
+    home: tempDir(), platform: 'win32', totalBytes: 16 * GUARD_GB, now: () => Date.now(), pid: 300,
+    list: () => { listed.push(1); return GUARD_TABLE },
+    spawn: file => { spawned.push(file) },
+    ...over,
+  }
+  return { deps, spawned, listed }
+}
+const guardRecord = home => join(home, '.claude', 'section-team', 'modes', 'sess-1.guard.json')
+const readGuardRecord = home => JSON.parse(readFileSync(guardRecord(home), 'utf8'))
+const writeGuardRecord = (home, data, ageMs) => {
+  mkdirSync(join(home, '.claude', 'section-team', 'modes'), { recursive: true })
+  writeFileSync(guardRecord(home), JSON.stringify(data))
+  const at = new Date(Date.now() - ageMs)
+  utimesSync(guardRecord(home), at, at)
+}
+
+test("a builder's Bash call starts one guard, with the root, the limit and the log in its record", () => {
+  const { deps, spawned } = guardDeps()
+  const e = guardEvent()
+  assert.equal(ensureGuard(e, {}, deps), null)
+  assert.deepEqual(spawned, [guardRecord(deps.home)])
+  const record = readGuardRecord(deps.home)
+  assert.deepEqual(record.root, { pid: 100, started: 1000, name: 'claude.exe', command: 'claude.exe --session' })
+  assert.equal(record.limit, 12 * GUARD_GB)
+  assert.equal(record.log, join(e.cwd, '.team', 'tmp', 'memory-guard.log'))
+  assert.match(record.claim, /^[0-9a-f-]{36}$/, 'the record names the guard it started')
+  for (const tool of ['Bash', 'PowerShell']) ensureGuard(guardEvent({ tool_name: tool, cwd: e.cwd }), {}, deps)
+  assert.equal(spawned.length, 1, 'a running guard is not started again')
+})
+
+test('two calls at the same moment on one empty record folder give exactly one spawn', () => {
+  const holder = {}
+  const { deps, spawned } = guardDeps({ list: () => { holder.inner = ensureGuard(guardEvent(), {}, deps); return GUARD_TABLE } })
+  ensureGuard(guardEvent(), {}, deps)
+  assert.equal(holder.inner, null)
+  assert.equal(spawned.length, 1)
+})
+
+test('a fresh record starts nothing; a stale one is taken over by one caller only', () => {
+  const fresh = guardDeps()
+  writeGuardRecord(fresh.deps.home, { root: {} }, 1000)
+  assert.equal(ensureGuard(guardEvent(), {}, fresh.deps), null)
+  assert.equal(fresh.spawned.length, 0)
+  assert.equal(fresh.listed.length, 0)
+
+  const stale = guardDeps()
+  writeGuardRecord(stale.deps.home, { root: {}, claim: 'old-guard' }, 60 * 1000)
+  ensureGuard(guardEvent(), {}, stale.deps)
+  ensureGuard(guardEvent(), {}, stale.deps)
+  assert.equal(stale.spawned.length, 1)
+  const taken = readGuardRecord(stale.deps.home).claim
+  assert.ok(typeof taken === 'string' && taken !== 'old-guard', 'a takeover names the new guard, so the old one exits')
+
+  // A second caller arrives while the first is taking over the same stale record: it does nothing.
+  const raced = guardDeps()
+  const holder = {}
+  raced.deps.list = () => { holder.inner = ensureGuard(guardEvent(), {}, raced.deps); return GUARD_TABLE }
+  writeGuardRecord(raced.deps.home, { root: {} }, 60 * 1000)
+  ensureGuard(guardEvent(), {}, raced.deps)
+  assert.equal(holder.inner, null)
+  assert.equal(raced.spawned.length, 1)
+})
+
+test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an unset limit on linux start nothing', () => {
+  const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
+  const cases = [
+    [guardEvent({ agent_type: undefined }), {}, {}],
+    [guardEvent({ agent_type: 'section-team:ai-engineer' }), {}, {}],
+    [guardEvent({ agent_type: 'section-team:plan-advisor' }), {}, {}],
+    [guardEvent({ agent_type: 'backend' }), {}, {}],
+    [guardEvent({ tool_name: 'Write' }), {}, {}],
+    [guardEvent({ session_id: '../x' }), {}, {}],
+    [guardEvent({ session_id: undefined }), {}, {}],
+    [guardEvent(), { [VAR]: '0' }, {}],
+    [guardEvent(), {}, { platform: 'linux' }],
+  ]
+  for (const [e, env, over] of cases) {
+    const { deps, spawned, listed } = guardDeps(over)
+    assert.equal(ensureGuard(e, env, deps), null, JSON.stringify({ e, env, over }))
+    assert.equal(spawned.length + listed.length, 0)
+    assert.deepEqual(readdirSync(deps.home), [], 'nothing written')
+  }
+  // The variable turns it on outside Windows.
+  const linux = guardDeps({ platform: 'linux' })
+  ensureGuard(guardEvent(), { [VAR]: '300' }, linux.deps)
+  assert.equal(linux.spawned.length, 1)
+  assert.equal(readGuardRecord(linux.deps.home).limit, 300 * GUARD_MB)
+})
+
+test('a failed listing and an unknown host write the failure, say so once, and are not retried within 10 minutes', () => {
+  const unknownHost = GUARD_TABLE.map(r => r.pid === 100 ? { ...r, name: 'Code.exe' } : r)
+  for (const list of [() => { throw new Error('powershell timed out') }, () => unknownHost]) {
+    let now = Date.now()
+    const { deps, spawned, listed } = guardDeps({ now: () => now })
+    deps.list = () => { listed.push(1); return list() }
+    const first = ensureGuard(guardEvent(), {}, deps)
+    assert.match(first, /memory guard/)
+    assert.ok(!first.includes('\n'))
+    assert.ok(readGuardRecord(deps.home).failed, 'the failure is in the record')
+    assert.equal(spawned.length, 0)
+    // Later calls in the next 10 minutes neither retry nor repeat the notice, even once the record looks stale.
+    assert.equal(ensureGuard(guardEvent(), {}, deps), null)
+    const old = new Date(now - 60 * 1000)
+    utimesSync(guardRecord(deps.home), old, old)
+    now += 9 * 60 * 1000
+    assert.equal(ensureGuard(guardEvent(), {}, deps), null)
+    assert.equal(listed.length, 1)
+    now += 2 * 60 * 1000
+    ensureGuard(guardEvent(), {}, deps)
+    assert.equal(listed.length, 2, 'retried after 10 minutes')
+  }
+})
+
+test('a spawn error is a failed start, and a bad limit value is said once by the caller that starts the guard', () => {
+  const broken = guardDeps({ spawn: () => { throw Object.assign(new Error('spawn failed'), { code: 'EPERM' }) } })
+  assert.match(ensureGuard(guardEvent(), {}, broken.deps), /memory guard.*EPERM/)
+  assert.ok(readGuardRecord(broken.deps.home).failed)
+  const bad = guardDeps()
+  const env = { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }
+  assert.match(ensureGuard(guardEvent(), env, bad.deps), /SECTION_TEAM_MEMORY_LIMIT_MB/)
+  assert.equal(bad.spawned.length, 1)
+  assert.equal(ensureGuard(guardEvent(), env, bad.deps), null)
+})
+
+test("decide gives the same answers with a session id on a builder's Bash call", () => {
+  assert.equal(decide(guardEvent()), null)
+  assert.match(decide(guardEvent({ agent_type: 'section-team:ai-engineer' })), /read-only/)
+})
+
+// A builder's scratch folder: made where a relative `.team/tmp/<id>/` in its command resolves (the event's cwd, else CLAUDE_PROJECT_DIR).
+const scratchOf = (dir, id = 'backend') => join(dir, '.team', 'tmp', id)
+const isFolder = dir => existsSync(dir) && statSync(dir).isDirectory()
+const scratchEvent = (cwd, agent_type = 'section-team:backend', tool_name = 'Bash') => ({ agent_type, tool_name, tool_input: { command: 'npm test > .team/tmp/backend/run1.log' }, cwd })
+// The hook run with its own process folder set, so a path wrongly resolved against that folder lands in a temp folder the test checks.
+const spawnIn = (input, cwd, env = {}) => spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8', cwd, env: { ...hookEnv(tempDir()), ...env } })
+
+test("a builder's Bash or Agent call makes its .team/tmp/<id>/ folder under the event's cwd", () => {
+  const bash = tempDir()
+  assert.equal(ensureScratch(scratchEvent(bash), {}), null)
+  assert.ok(isFolder(scratchOf(bash)))
+  const agent = tempDir()
+  assert.equal(ensureScratch(scratchEvent(agent, 'section-team:ai-llm', 'Agent'), {}), null)
+  assert.deepEqual(readdirSync(join(agent, '.team', 'tmp')), ['ai-llm'])
+})
+
+test('the folder goes under the cwd when it differs from CLAUDE_PROJECT_DIR, and under CLAUDE_PROJECT_DIR when there is no cwd', () => {
+  const cwd = tempDir()
+  const project = tempDir()
+  assert.equal(ensureScratch(scratchEvent(cwd), { CLAUDE_PROJECT_DIR: project }), null)
+  assert.ok(isFolder(scratchOf(cwd)))
+  assert.deepEqual(readdirSync(project), [])
+  assert.equal(ensureScratch(scratchEvent(undefined), { CLAUDE_PROJECT_DIR: project }), null)
+  assert.ok(isFolder(scratchOf(project)))
+  assert.equal(ensureScratch(scratchEvent(undefined), {}), null)
+})
+
+test("an advisor's, a helper's and the supervisor's calls make no scratch folder", () => {
+  for (const agent_type of ['section-team:ai-engineer', 'section-team:plan-advisor', 'section-team:coder', 'section-team:reviewer', 'section-team:scout', 'backend', undefined]) {
+    const dir = tempDir()
+    // Spread, not the agent_type argument: an undefined argument would take its default, a builder.
+    for (const tool of ['Bash', 'PowerShell', 'Agent', 'Write']) assert.equal(ensureScratch({ ...scratchEvent(dir, 'x', tool), agent_type }, {}), null)
+    assert.deepEqual(readdirSync(dir), [], String(agent_type))
+  }
+})
+
+test('a folder that already exists gives null, and so does a second call', () => {
+  const dir = tempDir()
+  mkdirSync(scratchOf(dir), { recursive: true })
+  writeFileSync(join(scratchOf(dir), 'run1.log'), 'kept')
+  assert.equal(ensureScratch(scratchEvent(dir), {}), null)
+  assert.equal(ensureScratch(scratchEvent(dir), {}), null)
+  assert.equal(readFileSync(join(scratchOf(dir), 'run1.log'), 'utf8'), 'kept')
+})
+
+test('a .team that is a file gives one notice line and does not throw', () => {
+  const dir = tempDir()
+  writeFileSync(join(dir, '.team'), 'not a folder')
+  let notice
+  assert.doesNotThrow(() => { notice = ensureScratch(scratchEvent(dir), {}) })
+  assert.match(notice, /^scratch folder not made: \S+$/)
+})
+
+test("the spawned hook makes a builder's folder silently and never resolves a relative or missing cwd against its own folder", () => {
+  const project = tempDir()
+  const quiet = spawnHook(JSON.stringify(scratchEvent(project, 'section-team:testing', 'Agent')))
+  assert.equal(quiet.status, 0)
+  assert.equal(quiet.stdout, '')
+  assert.ok(isFolder(scratchOf(project, 'testing')))
+  for (const cwd of [undefined, '', '.', 'sub']) {
+    const here = tempDir()
+    const alone = spawnIn(JSON.stringify(scratchEvent(cwd)), here)
+    assert.equal(alone.status, 0)
+    assert.equal(alone.stdout, '')
+    assert.deepEqual(readdirSync(here), [], String(cwd))
+    const fallback = tempDir()
+    assert.equal(spawnIn(JSON.stringify(scratchEvent(cwd)), here, { CLAUDE_PROJECT_DIR: fallback }).status, 0)
+    assert.ok(isFolder(scratchOf(fallback)), String(cwd))
+    assert.deepEqual(readdirSync(here), [], String(cwd))
+  }
+})
+
+test('the spawned hook says in its one systemMessage when the folder cannot be made, and denies nothing', () => {
+  const dir = tempDir()
+  writeFileSync(join(dir, '.team'), 'not a folder')
+  const run = spawnHook(JSON.stringify(scratchEvent(dir)))
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  const out = JSON.parse(run.stdout)
+  assert.match(out.systemMessage, /^section-team pre-tool-use: scratch folder not made: \S+$/)
+  assert.equal(out.hookSpecificOutput, undefined)
 })

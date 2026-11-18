@@ -270,6 +270,14 @@ test('finishAttempt: void writes void.json', t => {
   assert.ok(!existsSync(join(outDir, 'run.json')))
 })
 
+test('finishAttempt: an advisor call in any transcript voids the attempt', t => {
+  const outDir = tempRoot(t)
+  const called = JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: BENCH_MODEL, content: [{ type: 'server_tool_use', id: 'srvtoolu_1', name: 'advisor', input: {} }] } })
+  assert.throws(() => finish(outDir, { evidenceTexts: [assistant('medium'), called] }), err => err instanceof BatchStop)
+  assert.deepEqual(readJson(join(outDir, 'void.json')), { reasons: ['advisor called 1 time'] })
+  assert.ok(!existsSync(join(outDir, 'run.json')))
+})
+
 test('finishAttempt: a version or model mismatch is a harness bug that stops the batch and resets the cap', t => {
   const outDir = tempRoot(t)
   recordAttempt(outDir, { kind: 'void' })
@@ -309,7 +317,7 @@ test('finishAttempt: a timed-out run with an init and no result writes run.json 
     ...LEAN, dir: RUN_DIR, ...info, sessionId: 'sid-1', attempt: 2, end: 'timeout', subtype: null, resultText: null, pluginCommit: 'c0ffee1',
     sectionTeam: { path: SECTION_TEAM.path, version: '0.2.1' },
     init: { plugins: [...BUILTINS, SECTION_TEAM], mcp_servers: [], ...TEAM_LISTS, claude_code_version: '2.1.296', model: BENCH_MODEL, apiKeySource: 'none' },
-    envNames: ['CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'],
+    envNames: ['CLAUDE_CODE_DISABLE_ADVISOR_TOOL', 'CLAUDE_CODE_PLUGIN_DIRS', 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'DISABLE_AUTOUPDATER', 'ENABLE_CLAUDEAI_MCP_SERVERS', 'SECTION_TEAM_AUTO_INSTALL_SKILLS'],
   })
   assert.deepEqual(readdirSync(outDir), ['run.json'], 'no void.json and no attempts entry')
 })

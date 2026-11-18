@@ -60,10 +60,11 @@ export function pluginVersionOf(pluginDir) {
 // The round's switches, set both in the child environment and in --settings. They are added after the strip, so the
 // parent's own values never reach the child. CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0: claude -p otherwise stops
 // background subagents 10 minutes after the last turn (a probe on 2026-11-02 saw it cut off the testing section's
-// final review); each builder run's time limit still bounds the run.
+// final review); each builder run's time limit still bounds the run. CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1: claude
+// otherwise reads the user's advisorModel from ~/.claude/settings.json, even mid-run (round tk got an advisor that way).
 const roundEnv = pluginDir => ({
   SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: pluginDir,
-  CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+  CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0', CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '1',
 })
 
 export function childEnv(parent, { pluginDir } = {}) {
@@ -224,6 +225,32 @@ export function effortProblems(jsonlTexts, effort = BENCH_EFFORT) {
   if (real.length > 0 && !real.some(m => 'effort' in m)) return ['no effort recorded']
   const others = assistant.filter(m => 'effort' in m && m.effort !== effort).map(m => m.effort)
   return [...new Set(others)].map(other => `assistant effort ${other}, expected ${effort}`)
+}
+
+// A tool definition of the advisor anywhere in a value: an object named advisor whose type is advisor_<version>.
+const definesAdvisor = value => (Array.isArray(value)
+  ? value.some(definesAdvisor)
+  : isObject(value) && ((value.name === 'advisor' && /^advisor_/.test(String(value.type))) || Object.values(value).some(definesAdvisor)))
+
+// The advisor in a run's transcripts: defined in a request (even deferred: the switch did not reach claude), offered to
+// the model (an advisor_tool attachment that makes it available) or called (a server_tool_use block named advisor,
+// counted once per id: a streamed message repeats its blocks).
+export function advisorProblems(jsonlTexts) {
+  if (!Array.isArray(jsonlTexts) || jsonlTexts.some(text => typeof text !== 'string')) {
+    throw new TypeError('advisorProblems takes a list of transcript texts')
+  }
+  const lines = jsonlTexts.flatMap(jsonLines)
+  // Only lines that name an advisor_ type are searched in depth: transcripts run to many megabytes.
+  const defined = jsonlTexts.flatMap(text => text.split(/\r?\n/).filter(line => line.includes('"advisor_'))).map(parseOrUndefined).some(definesAdvisor)
+  const offered = lines.map(m => m.attachment).filter(a => a?.type === 'advisor_tool' && a.available !== false).map(a => a.model ?? 'unknown model')
+  // A call without an id is its own call.
+  const calls = new Set(lines.filter(m => m.type === 'assistant').flatMap(m => listOr(m.message?.content, []))
+    .filter(b => b?.type === 'server_tool_use' && b.name === 'advisor').map((b, i) => b.id ?? `no id ${i}`)).size
+  return [
+    ...(defined ? ['advisor tool defined'] : []),
+    ...[...new Set(offered)].map(model => `advisor tool offered (${model})`),
+    ...(calls > 0 ? [`advisor called ${calls} ${calls === 1 ? 'time' : 'times'}`] : []),
+  ]
 }
 
 export function compacted(jsonlText) {

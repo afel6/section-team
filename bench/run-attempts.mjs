@@ -5,7 +5,7 @@
 // harness-bug rerun of the run, across attempts; only the CAPPED kinds count toward the cap.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { PLUGIN_KEY, childEnv, effortProblems, envNames, initOf, initProblems, resultOf } from './clean-run.mjs'
+import { PLUGIN_KEY, advisorProblems, childEnv, effortProblems, envNames, initOf, initProblems, resultOf } from './clean-run.mjs'
 import { renameRetry, required } from './section-memory.mjs'
 
 // The frozen match rules: a usage or rate limit waits for the next usage window; any other API failure is capped.
@@ -181,7 +181,7 @@ export function finishAttempt({ run, outDir, dir, sessionId, attempt, info, mess
     throw capStop(run, recordAttempt(outDir, { kind, ...entry, resultText: text }).capped, `API failure (${text})`)
   }
   const init = initOf(messages)
-  const reasons = [...runInitProblems(messages, run, ctx), ...effortProblems(evidenceTexts), ...extraReasons]
+  const reasons = [...runInitProblems(messages, run, ctx), ...effortProblems(evidenceTexts), ...advisorProblems(evidenceTexts), ...extraReasons]
   if (reasons.length > 0) {
     write(join(outDir, 'void.json'), json({ reasons }))
     const mismatch = reasons.filter(reason => VERSION_RULE.test(reason))

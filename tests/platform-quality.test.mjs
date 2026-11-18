@@ -17,7 +17,7 @@ test('the foundation skill has valid frontmatter and every required step heading
   assert.ok(match, 'frontmatter with name then description')
   assert.equal(match[1], 'foundation')
   assert.ok(match[2].length > 40)
-  const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build one slice at a time']
+  const headings = ['Ask', 'Write the foundation note', 'Check the plan', 'Get the OK', 'Freeze it', 'Keep the plan', 'Build slices one at a time, or side by side when they share nothing']
   assert.deepEqual([...text.matchAll(/^## (.+)$/gm)].map(m => m[1]), headings, 'headings missing or out of order')
   const noteContents = ['purpose and non-goals', 'stack, with one reason each', 'data model', 'API and interface contracts;\n- for each request that waits on an outside call, what it reads again before it writes;\n- auth and security needs', 'build order as vertical slices', 'test plan', 'deploy and migration rules', 'commit policy']
   for (const needle of [...noteContents, 'wake nobody until they say OK', 'frozen', 'whole-stack verification', 'at most 5 questions', '.team/notes/foundation.md', 'under 150 lines', '.team/notes/decisions.md', '.team/notes/plan.md', 'commit after each job']) {
@@ -37,12 +37,12 @@ test('the foundation skill triggers on a new multi-area platform, not on a count
 test('the foundation skill says where .team/ is, and names the note and slice in each job, by full path in a worktree session', () => {
   const text = read('skills/foundation/SKILL.md')
   assert.ok(text.includes('`.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.'))
-  const build = text.split('## Build one slice at a time\n')[1]
+  const build = text.split('## Build slices one at a time, or side by side when they share nothing\n')[1]
   assert.ok(build.includes('Each job message names the foundation note and the slice. In a worktree session, give the note\'s full path.'))
 })
 
 test('the supervisor creates a missing repo itself and keeps both .team/ and section memory out of its first commit', () => {
-  const build = read('skills/foundation/SKILL.md').split('## Build one slice at a time\n')[1]
+  const build = read('skills/foundation/SKILL.md').split('## Build slices one at a time, or side by side when they share nothing\n')[1]
   assert.ok(build.includes('If there is no repo yet, create it yourself before the first job and add both `.team/` and `**/.claude/agent-memory-local/` to `.git/info/exclude`, because session start only does that for a repo that already exists.'))
 })
 
@@ -92,4 +92,42 @@ test('the plan advisor is named in the brief but not in any tier line', () => {
 
 test('every mode brief stays under 9000 characters with the plan advisor', () => {
   for (const mode of MODES) assert.ok(assembleBrief(mode).length < 9000, mode)
+})
+
+// Round tg: the skill said one slice at a time while the tiers run independent parts in parallel, and a multi-area job with auth woke no security section.
+test('the foundation note names the sections of each slice, and slices that share nothing may be built side by side', () => {
+  const text = read('skills/foundation/SKILL.md')
+  assert.ok(text.includes('- build order as vertical slices, each with a check that proves it done, the sections it wakes (the security section for a slice that touches auth, payments, uploads or secrets) and whether it can be built beside another slice;\n'))
+  const build = text.split('## Build slices one at a time, or side by side when they share nothing\n')[1]
+  assert.ok(build.startsWith("Wake the sections for one slice only, or together for slices the note says can be built side by side (no shared files, contracts already in notes). Wake every section the note lists for the slice, the security section included. Each slice, or each set built side by side, ends with the testing section's whole-stack verification (full test suite, app started, critical flows driven through its real interfaces) before the next slice starts; for the last one that is the final review the brief asks for. Each job message names the foundation note and the slice."))
+  assert.ok(!text.includes('Wake the sections for one slice only. Each slice ends'))
+  assert.ok(text.match(/^description: (.+)$/m)[1].endsWith('then builds verified slices, one at a time or side by side when they share nothing.'), 'description')
+  assert.ok(!text.includes('one verified slice at a time'), 'old description')
+})
+
+// Round tg: a later job inside the note's areas changed the frozen note and woke plan-advisor again, adding about 8K of context to a backend-only job.
+test('a later job inside the note areas records its design and leaves the frozen note alone', () => {
+  const freeze = read('skills/foundation/SKILL.md').split('## Freeze it\n')[1].split('\n## ')[0]
+  const LATER = 'A later job that builds inside the areas the note covers and changes nothing the note states (a feature added to one area) is no change to the note: record its design in `.team/notes/decisions.md`, leave the note as it is, and wake no plan advisor for it.'
+  assert.ok(freeze.includes(`A change to the frozen note wakes \`section-team:plan-advisor\` again on the changed note before the change is used. ${LATER}`), 'freeze sentence')
+})
+
+const SINGLE_TRIGGER = 'Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note'
+const MAX_SINGLE = '- A Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note: load the section-team:foundation skill before you wake anyone.'
+const SKILL_SINGLE = 'In Max mode, a Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note, also starts here, for that one area. Do only Write the foundation note, Check the plan, Freeze it and Keep the plan (one row); skip Ask, Get the OK and Build slices. The note, under 40 lines, holds only that area\'s modules and interfaces, locks and timers, what each request that waits on an outside call reads again before it writes, and framing, auth and crypto choices, each with a check, and no slices. In the Check job, tell plan-advisor the note covers one area with no slices by design, and ask for at most 5 fixes to those items. Choose defaults instead of asking, freeze the revised note without an OK, then wake the builder and name the note in each job as the frozen foundation note, by full path in a worktree session; if there is no repo yet, follow the no-repo sentence at the end first. In your final summary, list the defaults and the advice taken and not taken. A later job that adds a second area runs every step and extends this note; its Check step is the one plan-advisor wake for that change.'
+
+// Plan H (2026-11-18): Max reverses the 2026-11-06 "never on a single-area task" choice for complex single-area work, through the foundation skill (one note type; its freeze rule covers later jobs). Balanced keeps it: its cost sits at 4.99x solo.
+test('max sends a complex single-area task to the foundation skill; balanced does not', () => {
+  const tiers = read('brief/tiers-max.md').split('\n')
+  const single = tiers.findIndex(l => l.includes('Single-area task:'))
+  assert.ok(single >= 0, 'max single-area line')
+  assert.equal(tiers[single + 1], MAX_SINGLE)
+  assert.ok(assembleBrief('max').includes(MAX_SINGLE), 'max brief')
+  assert.ok(!read('brief/tiers-balanced.md').includes('new concurrent writes, protocol framing'), 'balanced tiers')
+  assert.ok(!assembleBrief('balanced').includes('new concurrent writes, protocol framing'), 'balanced brief')
+})
+
+test('the foundation skill runs only its note, check, freeze and keep steps for a complex single-area task in Max', () => {
+  assert.ok(read('skills/foundation/SKILL.md').includes(SKILL_SINGLE), 'skill paragraph')
+  assert.ok(MAX_SINGLE.includes(SINGLE_TRIGGER) && SKILL_SINGLE.includes(SINGLE_TRIGGER), 'shared trigger')
 })
