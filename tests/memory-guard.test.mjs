@@ -278,10 +278,14 @@ test('a runner whose record was taken over during a slow scan stops nothing and 
   assert.deepEqual(f.calls, [], 'the superseded runner stopped nothing')
 })
 
+// A whole-second time survives utimes and stat exactly. A time with a fraction of a second can read
+// back a hair early (Node 20.16 and 22.3 on Linux returned ...303.999 for ...304), failing an exact check.
+const minuteAgo = () => new Date(Math.floor(Date.now() / 1000) * 1000 - 60 * 1000)
+
 test('heartbeat touches the record only while it names this guard', () => {
   const dir = tempDir()
   const file = join(dir, 's.guard.json')
-  const old = new Date(Date.now() - 60 * 1000)
+  const old = minuteAgo()
   const write = text => { writeFileSync(file, text); utimesSync(file, old, old) }
   write(JSON.stringify({ claim: 'mine', root: {} }))
   assert.equal(heartbeat(file, 'mine'), true)
@@ -298,7 +302,7 @@ test('heartbeat touches the record only while it names this guard', () => {
 test('heartbeat without a claim of its own touches nothing, even a file that names no guard', () => {
   const dir = tempDir()
   const file = join(dir, 's.guard.json')
-  const old = new Date(Date.now() - 60 * 1000)
+  const old = minuteAgo()
   for (const text of [JSON.stringify({ root: {} }), '', '{"failed":{"at":1}}', 'not json']) {
     for (const claim of [null, undefined, '']) {
       writeFileSync(file, text)
