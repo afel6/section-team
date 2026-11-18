@@ -112,15 +112,22 @@ test('a later job inside the note areas records its design and leaves the frozen
   assert.ok(freeze.includes(`A change to the frozen note wakes \`section-team:plan-advisor\` again on the changed note before the change is used. ${LATER}`), 'freeze sentence')
 })
 
-// Plan H (2026-11-18): reverses the 2026-11-06 "never on a single-area task" choice for complex single-area work; the line sits in core.md, not the tiers.
-test('a complex single-area job wakes plan-advisor on a contract note first', () => {
-  const CONTRACT = '- A single-area job with concurrency, protocol framing, auth or crypto, or about 200+ new lines across modules, that no foundation note covers: first write `.team/notes/contract.md` (modules and interfaces, locks and timers, framing, auth choices, one check each) and wake `section-team:plan-advisor` on it, not in the background.'
-  for (const mode of MODES) assert.ok(assembleBrief(mode).includes(CONTRACT), mode)
+const SINGLE_TRIGGER = 'Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note'
+const MAX_SINGLE = '- A Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note: load the section-team:foundation skill before you wake anyone.'
+const SKILL_SINGLE = 'In Max mode, a Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note, also starts here, for that one area. Do only Write the foundation note, Check the plan, Freeze it and Keep the plan (one row); skip Ask, Get the OK and Build slices. The note, under 40 lines, holds only that area\'s modules and interfaces, locks and timers, what each request that waits on an outside call reads again before it writes, and framing, auth and crypto choices, each with a check, and no slices. In the Check job, tell plan-advisor the note covers one area with no slices by design, and ask for at most 5 fixes to those items. Choose defaults instead of asking, freeze the revised note without an OK, then wake the builder and name the note in each job as the frozen foundation note, by full path in a worktree session; if there is no repo yet, follow the no-repo sentence at the end first. In your final summary, list the defaults and the advice taken and not taken. A later job that adds a second area runs every step and extends this note; its Check step is the one plan-advisor wake for that change.'
+
+// Plan H (2026-11-18): Max reverses the 2026-11-06 "never on a single-area task" choice for complex single-area work, through the foundation skill (one note type; its freeze rule covers later jobs). Balanced keeps it: its cost sits at 4.99x solo.
+test('max sends a complex single-area task to the foundation skill; balanced does not', () => {
+  const tiers = read('brief/tiers-max.md').split('\n')
+  const single = tiers.findIndex(l => l.includes('Single-area task:'))
+  assert.ok(single >= 0, 'max single-area line')
+  assert.equal(tiers[single + 1], MAX_SINGLE)
+  assert.ok(assembleBrief('max').includes(MAX_SINGLE), 'max brief')
+  assert.ok(!read('brief/tiers-balanced.md').includes('new concurrent writes, protocol framing'), 'balanced tiers')
+  assert.ok(!assembleBrief('balanced').includes('new concurrent writes, protocol framing'), 'balanced brief')
 })
 
-test('plan-advisor checks a foundation or contract note', () => {
-  const text = read('agents/plan-advisor.md')
-  assert.ok(text.includes('read the foundation or contract note'), 'role')
-  const description = text.split('---')[1].split('\n').find(l => l.startsWith('description:'))
-  assert.ok(description.includes('a platform foundation note or a single-area contract note'), description)
+test('the foundation skill runs only its note, check, freeze and keep steps for a complex single-area task in Max', () => {
+  assert.ok(read('skills/foundation/SKILL.md').includes(SKILL_SINGLE), 'skill paragraph')
+  assert.ok(MAX_SINGLE.includes(SINGLE_TRIGGER) && SKILL_SINGLE.includes(SINGLE_TRIGGER), 'shared trigger')
 })

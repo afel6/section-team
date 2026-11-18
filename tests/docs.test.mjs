@@ -59,6 +59,8 @@ test('the README describes the foundation skill, fresh sections and the guard, a
     'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'testing, docs, the security pass and advisors not counted', 'any saving in real use',
     // brief rules and the foundation trigger
     "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'the foundation skill and the brief rules have not been run live', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
+    // Plan H: the node-http skill, and Max's complex single-area work
+    'section-team:node-http', 'In Max, a single-area task with new concurrent writes, protocol framing, auth or crypto also loads it',
     '0.2.3',
   ], 'README')
   assert.ok(!readme.includes('nor its figures') && !readme.includes('the saving in real use'), 'stale unmeasured wording is gone')
@@ -146,7 +148,7 @@ test('CONTRIBUTING makes no claim, explains --plugin-ref and lists the foundatio
   assert.deepEqual(claimSentences(text), [], 'no saving or quality claim in CONTRIBUTING')
   assertIncludes(text, [
     '--plugin-ref', 'names the ref the `--plugin` worktree must be at', 'v<SECTION_TEAM_VERSION>', 'leave the flag out or pass the same ref', 'expected version comes from the plugin under test',
-    'skills/foundation/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs',
+    'skills/foundation/', 'skills/node-http/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs',
   ], 'CONTRIBUTING')
   assert.ok(!text.includes('(now v0.2.1)'), 'no unpinned version number')
 })

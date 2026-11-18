@@ -148,7 +148,7 @@ test('each gate part states its mode\'s GATES values', () => {
     const failing = gate.filter(line => line.startsWith('- If it fails'))
     assert.equal(failing.length, 1, `${mode}: expected exactly one "- If it fails" line`)
     assert.ok(failing[0].includes(`at most ${rounds(fixRounds)}.`), `${mode}: the "- If it fails" line must say at most ${rounds(fixRounds)}`)
-    const sections = `- Sections get ${rounds(fixRounds)} here, not the 2 under Failures.`
+    const sections = `- Sections get ${rounds(fixRounds)} here.`
     assert.equal(gate.includes(sections), fixRounds !== GATES.balanced.fixRounds, `${mode}: the "Sections get" line is wrong`)
     assert.equal(part(`gate-${mode}`).includes('near-miss'), nearMiss, `${mode}: near-miss must appear only when GATES says so`)
     assert.equal(gate.includes(NEAR_MISS_RULE), nearMiss, `${mode}: the near-miss gate rule is wrong`)

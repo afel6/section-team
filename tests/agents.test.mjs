@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import { spawnSync } from 'node:child_process'
@@ -483,7 +483,7 @@ test('plan-advisor is a read-only advisor that returns at most 8 fixes with reas
 })
 
 // Round fix 3 (p1 confirm round): new pins, one assert per edit, plus the old texts gone.
-test('round fix 3 text is in the agents that carry it and the old text is gone', () => {
+test('round fix 3 text is in the agents and the node-http skill that carry it, and the old text is gone', () => {
   const ALL = [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']
   for (const id of ALL) {
     const f = agentFile(id)
@@ -631,7 +631,7 @@ test('backend and database keep a bounded wait off the serving thread; testing t
 test('backend answers requests sent in one write in order, and an error in a request still arriving at once', () => {
   const PIPE = "err.code, such as HPE_INVALID_METHOD, says why and err.rawPacket holds the bytes the parser was given, which can begin with earlier requests sent in the same write (pipelining); it writes the reply to the socket by hand and ends it, after the replies to the requests that had fully arrived before the refused one, and at once for an error in a request still arriving (a broken body, or one that timed out); the same order holds on 'connect' (res.assignSocket throws while an earlier reply holds the socket): test a valid request and an unknown method, and a valid request and a CONNECT, each pair sent in one write;"
   assert.ok(skillBody().includes(`on 'clientError' a handler given (err, socket) answers the last: ${PIPE} with a listener set, Node answers no client error itself`), 'in the clientError clause')
-  assert.ok(!skillBody().includes('say what was sent'), 'the one-request reading is gone')
+  assert.ok(!skillBody().includes('say what was sent') && inNoAgent('say what was sent'), 'the one-request reading is gone')
   assert.ok(inNoAgent('pipelining') && skillBody().includes('pipelining'), 'pipelining only in the skill')
 })
 
@@ -642,7 +642,7 @@ test('backend reads a declared body to its end before replying, up to the reques
   const DRAIN = "reply at once when it declares none, and send no reply before every declared byte has come unless the body breaks: a body that cannot come (a chunk size that is not hex, or the client ends its side first) is a broken body, answered at once as above, and a body still on its way waits for the limit Node keeps for every request, server.requestTimeout (300 s by default, 0 for none), never a shorter one of your own, which would answer a body still on its way; at that limit answer as Node does on its own sockets (408, written by hand, socket ended). On 'connect' Node no longer times the socket, and on 'clientError' it raises one more client error for that socket (ERR_HTTP_REQUEST_TIMEOUT once server.headersTimeout has passed, 60 s by default): ignore later errors on a socket you took over (a WeakSet of them), drop its 'timeout' listeners (socket.removeAllListeners('timeout')), or Node's keep-alive timer closes it with no reply keepAliveTimeout + 1 s after an earlier reply on that connection, and keep your own timer there at server.requestTimeout, cleared when the socket closes. Test it in-process on a server the test creates with http.createServer({ headersTimeout: 300, requestTimeout: 1000, connectionsCheckingInterval: 50 }): an unknown method whose body comes 0.5 s after its headers gets its reply after the body, and one whose body never comes gets the 408 only after 1 s (1 s is the limit the test sets: assert it as a time the spec names, with a margin that is a fraction of it); write those two framings in a few lines, not a general parser."
   const skill = skillBody()
   assert.ok(skill.includes(DRAIN), 'drain clause')
-  assert.ok(!skill.includes('stop waiting at a time limit'), 'the short-limit reading is gone')
+  assert.ok(!skill.includes('stop waiting at a time limit') && inNoAgent('stop waiting at a time limit'), 'the short-limit reading is gone')
   assert.ok(skill.includes("the rest comes as 'data' once you replace the socket's own 'data' and 'end' listeners (Node's 'end' listener ends the socket, or marks an earlier reply as the last, at a half-close);"), 'end listener replaced too')
   assert.ok(inNoAgent('0.5 s after its headers') && skill.includes('0.5 s after its headers'), 'late body test only in the skill')
 })
@@ -748,9 +748,21 @@ test('round tg T6: the node-http skill names httpAllowHalfOpen, no agent does', 
 test('backend routes node:http servers to the node-http skill', () => {
   const backend = agentFile('backend')
   assert.ok(backend.includes('When the server answers HTTP through node:http itself (http.createServer, no web framework), load the section-team:node-http skill before you plan, and name it to each helper that writes or tests that server.'), 'routing line')
-  // The go-to sentence sits inside a step of the role's process, not on a line of its own.
-  const goto = backend.match(/Go-to skills, only when the job needs one its list lacks: ([^.]*)\./)?.[1]
-  assert.ok(goto && goto.split(', ').includes('section-team:node-http'), `go-to skills: ${goto}`)
+})
+
+// Plan H: every section-team:<name> the agents, the brief and the skills name resolves to an agent file or a skill folder.
+test('every section-team name in the agents, brief and skills resolves to an agent or a skill', () => {
+  const ROOT = new URL('../', import.meta.url)
+  const files = [
+    ...readdirSync(AGENTS).filter(f => f.endsWith('.md')).map(f => new URL(f, AGENTS)),
+    ...readdirSync(new URL('brief/', ROOT)).filter(f => f.endsWith('.md')).map(f => new URL(`brief/${f}`, ROOT)),
+    ...readdirSync(new URL('skills/', ROOT)).map(d => new URL(`skills/${d}/SKILL.md`, ROOT)).filter(u => existsSync(u)),
+  ]
+  const names = new Set(files.flatMap(u => [...readFileSync(u, 'utf8').matchAll(/section-team:([a-z0-9-]+)/g)].map(m => m[1])))
+  for (const name of names) {
+    assert.ok(existsSync(new URL(`agents/${name}.md`, ROOT)) || existsSync(new URL(`skills/${name}/SKILL.md`, ROOT)), `section-team:${name} resolves`)
+  }
+  for (const name of ['node-http', 'foundation']) assert.ok(names.has(name), `section-team:${name} is named`)
 })
 
 test('the node-http skill has its frontmatter and no benchmark words', () => {
@@ -767,7 +779,7 @@ test('no agent file carries the node:http block', () => {
   assert.ok(inNoAgent('node:http answers some requests itself'), 'any agent file')
 })
 
-// httpAllowHalfOpen is a property of node:http's Server that Node's http documentation does not list. This guards the plugin machine's Node, not a user project's; if a later Node drops it, this fails and the sentence can go.
+// httpAllowHalfOpen is a property of node:http's Server that Node's http documentation does not list. This guards the plugin machine's Node, not a user project's; if a later Node drops it, this fails and the node-http skill's sentence can go.
 test('http server httpAllowHalfOpen decides whether a half-closing client gets its reply', async () => {
   const run = allow => new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {

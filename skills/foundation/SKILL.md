@@ -6,6 +6,8 @@ description: Lay the foundation when work first spans two or more builder areas,
 
 For the supervisor, before waking any builder when work first spans two or more builder areas, whether a new platform or a request that adds a second area to an existing product. Do the steps in order. `.team/` is at the project root, which is the main checkout in a worktree session: keep these notes there.
 
+In Max mode, a Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note, also starts here, for that one area. Do only Write the foundation note, Check the plan, Freeze it and Keep the plan (one row); skip Ask, Get the OK and Build slices. The note, under 40 lines, holds only that area's modules and interfaces, locks and timers, what each request that waits on an outside call reads again before it writes, and framing, auth and crypto choices, each with a check, and no slices. In the Check job, tell plan-advisor the note covers one area with no slices by design, and ask for at most 5 fixes to those items. Choose defaults instead of asking, freeze the revised note without an OK, then wake the builder and name the note in each job as the frozen foundation note, by full path in a worktree session; if there is no repo yet, follow the no-repo sentence at the end first. In your final summary, list the defaults and the advice taken and not taken. A later job that adds a second area runs every step and extends this note; its Check step is the one plan-advisor wake for that change.
+
 ## Ask
 Ask the user at most 5 questions whose answers change the build: users and scale, must-use stack, hosting, compliance, deadline. Choose sensible defaults for the rest and say which.
 
