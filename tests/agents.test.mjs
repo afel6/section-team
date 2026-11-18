@@ -748,6 +748,9 @@ test('round tg T6: the node-http skill names httpAllowHalfOpen, no agent does', 
 test('backend routes node:http servers to the node-http skill', () => {
   const backend = agentFile('backend')
   assert.ok(backend.includes('When the server answers HTTP through node:http itself (http.createServer, no web framework), load the section-team:node-http skill before you plan, and name it to each helper that writes or tests that server.'), 'routing line')
+  // The go-to sentence sits inside a step of the role's process, not on a line of its own.
+  const goto = backend.match(/Go-to skills, only when the job needs one its list lacks: ([^.]*)\./)?.[1]
+  assert.ok(goto && goto.split(', ').includes('section-team:node-http'), `go-to skills: ${goto}`)
 })
 
 // Plan H: every section-team:<name> the agents, the brief and the skills name resolves to an agent file or a skill folder.
