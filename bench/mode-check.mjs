@@ -20,7 +20,7 @@ export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 // The setup in a run's condition, the part before its round tag ('team-mo' is team).
 const setupOf = cond => /^(solo|lean|team|max)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
 const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
-const SMALL_TASKS = ['h5', 'h6']
+const SMALL_TASKS = ['h5', 'h6', 'f1', 'f2', 'f3']
 const MULTI_AREA_TASKS = ['h4', 'h7']
 const NEAR_MISS = '.team/near-miss/'
 const toPosix = path => path.split(sep).join('/').replaceAll('\\', '/')

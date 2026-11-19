@@ -15,7 +15,7 @@ import { hiddenEnv, isTestPath, sameAsSeed } from './score.mjs'
 import { required } from './section-memory.mjs'
 
 export const TIME_LIMIT_MS = 300_000
-const TASKS = ['h5', 'h6', 'h7']
+const TASKS = ['h5', 'h6', 'h7', 'f1', 'f2', 'f3']
 // Node 26 reads every `node --test <file>` argument as a glob, so a path holding one of these could run another file
 // or none: [ ] * ? { }, and the extglobs +( and @(, with which Node 26.2 runs no test and still exits 0.
 const GLOB_CHARS = /[[\]*?{}]|[+@]\(/

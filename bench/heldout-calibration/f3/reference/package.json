@@ -1,0 +1,11 @@
+{
+  "name": "poll-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small HTTP JSON service for polls.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
