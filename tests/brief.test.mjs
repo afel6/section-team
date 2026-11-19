@@ -344,6 +344,15 @@ test('both mode briefs carry the round fix 3 wording', () => {
   }
 })
 
+// Round hq: Balanced single-area builders told their reviewer that a pass lists no test gaps, so every pass listed none and the tests stayed weak; Max's gap lists became tests.
+test('balanced single-area jobs say that a pass lists test gaps; small and multi-area jobs and max do not', () => {
+  const tiers = lines(part('tiers-balanced'))
+  const single = tiers.find(line => line.includes('Single-area task:'))
+  assert.ok(single.includes('ask it to probe every spec line. Tell it that a pass lists test gaps. Wake no other builder section.'), 'single-area line')
+  for (const label of ['Small task:', 'Multi-area work:']) assert.ok(!tiers.find(line => line.includes(label)).includes('a pass lists test gaps'), label)
+  assert.ok(!part('tiers-max').includes('a pass lists test gaps'), 'max states its own gate')
+})
+
 // Round tg: the second final review repeated the first one's flows; the 35 characters that tell it apart are paid for by the cross-review aside.
 test('max tells the second final review that it is the second, at no cost in characters', () => {
   const max = assembleBrief('max')
