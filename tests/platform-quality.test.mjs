@@ -112,6 +112,13 @@ test('a later job inside the note areas records its design and leaves the frozen
   assert.ok(freeze.includes(`A change to the frozen note wakes \`section-team:plan-advisor\` again on the changed note before the change is used. ${LATER}`), 'freeze sentence')
 })
 
+// Round hq: in all four team runs of the two-stage task, the stage-2 change was appended to the frozen note as override blocks and a new section instead of written into it, and one note grew to 197 lines against its 150-line limit.
+test('a change to the frozen note is written into its lines, not appended', () => {
+  const freeze = read('skills/foundation/SKILL.md').split('## Freeze it\n')[1].split('\n## ')[0]
+  const IN_PLACE = 'Write a change, and each plan-advisor fix you take for it, into the lines it changes, so the note stays one current design under 150 lines: no appended change, fix or override sections.'
+  assert.ok(freeze.includes(`recorded in \`.team/notes/decisions.md\`. ${IN_PLACE} A change to the frozen note wakes`), 'in-place sentence')
+})
+
 const SINGLE_TRIGGER = 'Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note'
 const MAX_SINGLE = '- A Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note: load the section-team:foundation skill before you wake anyone.'
 const SKILL_SINGLE = 'In Max mode, a Single-area task with new concurrent writes, protocol framing, auth or crypto, on a product with no foundation note, also starts here, for that one area. Do only Write the foundation note, Check the plan, Freeze it and Keep the plan (one row); skip Ask, Get the OK and Build slices. The note, under 40 lines, holds only that area\'s modules and interfaces, locks and timers, what each request that waits on an outside call reads again before it writes, and framing, auth and crypto choices, each with a check, and no slices. In the Check job, tell plan-advisor the note covers one area with no slices by design, and ask for at most 5 fixes to those items. Choose defaults instead of asking, freeze the revised note without an OK, then wake the builder and name the note in each job as the frozen foundation note, by full path in a worktree session; if there is no repo yet, follow the no-repo sentence at the end first. In your final summary, list the defaults and the advice taken and not taken. A later job that adds a second area runs every step and extends this note; its Check step is the one plan-advisor wake for that change.'
