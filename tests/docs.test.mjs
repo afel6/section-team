@@ -139,6 +139,20 @@ test('the README records the p1 rounds tg to ph with both judges, what each meas
   assert.ok(!readme.includes('Rounds tg to to ran'), 'round names are listed, not "tg to to"')
 })
 
+test('the README records round hq with both judges, its missed targets, and Max as the pick for platform work', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    '**A held-out round on three other tasks (hq, 2026-11-19).**',
+    '| Plain Claude Code (solo) | $11.19 | 1.0 | 25 / 47 / 146 | 7.92 | 7.17 | 0 / 0 of 12 | up to 140K |',
+    '| **Balanced (default)** | $58.10 | 5.2 | 25 / 47 / 147 | 8.58 | 8.50 | 0 / 0 of 12 | up to 103K |',
+    '| Max | $117.47 | 10.5 | 25 / 47 / 148 | 9.42 | 9.00 | 12 / 12 of 12 | up to 125K |',
+    'Missed: Balanced judged 1.33 above solo by Fable but 0.67 by Codex, under the 1.0 bar',
+    'Balanced cost 5.2× solo over the three tasks, over 5×',
+    'commit 2003125 has it written in place, not measured yet',
+    'so for platform-sized work Max is the stronger pick',
+  ], 'README')
+})
+
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
 test('the README says the second Max final review reads the code, and slices that share nothing are built side by side', () => {
   const readme = read('README.md')
