@@ -31,6 +31,14 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('the legend wraps in a narrow pane, so no state is cut off', async ($, on) => {
+  on('state.get', { plugin: 'section-team', key: 'board' }, async () => ({ value: { value: DATA, version: 1 } }))
+  const ui = await $.ui.mount({ plugin: 'section-team', surface: 'desktop', component: 'Pane', requestId: 'team-board', props: { ...PROPS, bodyColumns: 30 } as never })
+  const legend = await ui.find({ key: 'legend' })
+  expect(legend?.props.flexWrap).toBe('wrap')
+  for (const state of ['running', 'waiting', 'done', 'problem', 'asleep']) expect(legend?.text).toContain(`● ${state}`)
+})
+
 test('the poll turns agents, saved reports and the request into cards, and only /team opens the pane', async ($, on) => {
   const { clock, seen } = world(on)
 
