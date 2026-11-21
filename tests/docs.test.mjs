@@ -36,13 +36,18 @@ test('the stale cost multiple pattern matches 3.6 times, 3.6× and 3.6x but not 
   assert.ok(!STALE_COST_MULTIPLE.test('13.6 times'))
 })
 
-test('the README states the cost ranges from the mode labels, the round 17 label and no single stale cost multiple', () => {
+test('the README states the measured cost ranges, the round 17 label and no single stale cost multiple', () => {
   const readme = read('README.md')
   assert.ok(!STALE_COST_MULTIPLE.test(readme), 'no stale 3.6 multiple')
-  const range = mode => MODE_LABELS[mode].match(/([\d.]+)–([\d.]+)×/).slice(1).join(' to ')
-  const needles = ['about 2.2 to 5.2 times', `about ${range('max')} times in Max`, 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean, the third, was removed in 0.3.0']
+  const needles = ['about 2.2 to 5.2 times', 'about 7.5 to 9.7 times in Max', 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean, the third, was removed in 0.3.0']
   assertIncludes(readme, needles, 'README')
   assert.ok(!readme.includes('cleaner, better-tested and more robust'))
+})
+
+test('the README mode table shows the picker labels, with no measured date', () => {
+  const readme = read('README.md')
+  for (const mode of ['balanced', 'max']) assert.ok(readme.includes(`| ${MODE_LABELS[mode]} |`), mode)
+  assert.ok(!readme.includes('(measured 2026-11)'), 'no date in a label')
 })
 
 test('the README says the docs section and final review apply in every mode', () => {
