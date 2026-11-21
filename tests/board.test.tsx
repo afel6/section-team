@@ -709,3 +709,29 @@ test('with no USERPROFILE or HOME the Chats pane says so in one line and reads n
   expect(seen.chats.lists).toBe(0)
   expect(seen.logs).toEqual([])
 })
+
+test('a message from another session does not replace the task line, and a first one leaves the waiting line', async ($, on) => {
+  const { clock } = world(on)
+  const frame = `<cross-session-message from="bridge:s1" from-name="peer">${'a'.repeat(50)}</cross-session-message>`
+  await $.session.start(START)
+  await $.prompt.submit({ text: frame })
+  await clock.advance(1000)
+  let ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Waiting for your next request')
+  await ui.unmount()
+
+  await $.prompt.submit({ text: 'add login' })
+  await $.prompt.submit({ text: `\n  ${frame}` })
+  await clock.advance(1000)
+  ui = await mountBoard($ as never)
+  const line = (await ui.find({ key: 'supervisor' }))?.text
+  expect(line).toContain('Task: add login')
+  expect(line).not.toContain('cross-session')
+  await ui.unmount()
+
+  // A message of the user's own that only quotes a frame further down is still their request.
+  await $.prompt.submit({ text: `fix this:\n${frame}` })
+  await clock.advance(1000)
+  ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: fix this:')
+})

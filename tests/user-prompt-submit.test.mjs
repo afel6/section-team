@@ -323,7 +323,7 @@ test('a 3000-character prompt in a git repo with .team/ is saved word for word a
 
 test('a long prompt that is a harness frame (a hand-back, a task notification) is not saved as a user request', () => {
   const dir = gitProject()
-  const tags = { 'task-notification': '<task-notification>', 'agent-message': '<agent-message from="a1">', 'teammate-message': '<teammate-message from="a1">', 'side-sessions-event': '<side-sessions-event>', 'ci-monitor-event': '<ci-monitor-event>' }
+  const tags = { 'task-notification': '<task-notification>', 'agent-message': '<agent-message from="a1">', 'teammate-message': '<teammate-message from="a1">', 'side-sessions-event': '<side-sessions-event>', 'ci-monitor-event': '<ci-monitor-event>', 'cross-session-message': '<cross-session-message from="bridge:s1" from-name="peer">' }
   for (const [name, tag] of Object.entries(tags)) {
     for (const lead of ['', '\n  ']) {
       const prompt = `${lead}${tag}${'a'.repeat(3000)}</${name}>`
