@@ -153,6 +153,16 @@ test('the README records round hq with both judges, its missed targets, and Max 
   ], 'README')
 })
 
+test('the README records round fx: the Balanced test-gap fix missed its bar and does not ship', () => {
+  const readme = read('README.md')
+  assertIncludes(readme, [
+    '**A check of one Balanced fix on three new tasks (fx, 2026-11-20).**',
+    'Codex 7.83 / 9.08 / 9.08, Fable 6.58 / 8.58 / 8.33',
+    '2.94× solo and 1.02× Balanced without it',
+    'so the fix does not ship',
+  ], 'README')
+})
+
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
 test('the README says the second Max final review reads the code, and slices that share nothing are built side by side', () => {
   const readme = read('README.md')
