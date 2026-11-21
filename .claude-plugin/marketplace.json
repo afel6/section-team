@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "section-team",
-      "description": "Supervisor plus 12 specialist sections with saved reports and a Team Board",
+      "description": "Supervisor plus 10 builder sections and 3 advisors, with saved reports and a Team Board",
       "source": "./",
       "category": "development"
     }
