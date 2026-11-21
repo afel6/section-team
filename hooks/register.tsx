@@ -395,7 +395,7 @@ export const register: Register = on => {
         {group('Sections', 'builder')}
         {group('Advisors', 'advisor')}
         <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>
-        <Box key="legend" flexDirection="row" gap={2}>
+        <Box key="legend" flexDirection="row" flexWrap="wrap" columnGap={2}>
           <Text color={COLOR.running}>● running</Text>
           <Text color={COLOR.waiting}>● waiting</Text>
           <Text color={COLOR.done}>● done</Text>
