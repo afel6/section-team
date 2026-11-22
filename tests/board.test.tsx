@@ -89,6 +89,29 @@ test('two session.start events leave one poll: exactly one agent.list per tick',
   expect(seen.agentList).toBe(2)
 })
 
+const MODE_PATH = 'C:/proj/.team/mode.json'
+
+test('a tick still running when the next one is due makes that one skip, so ticks never overlap', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = '{"mode":"max"}'
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  // A slow disk: this tick's mode read answers only on release, three ticks later.
+  let release = () => {}
+  seen.holdModeRead = new Promise<void>(resolve => { release = resolve })
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  await clock.advance(3000)
+  expect(seen.agentList).toBe(2)
+
+  release()
+  await clock.settle()
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(3)
+})
+
 test('the git root is looked up on the first refresh, not at session.start or /team, with a 5 s limit', async ($, on) => {
   const { clock, seen } = world(on)
 

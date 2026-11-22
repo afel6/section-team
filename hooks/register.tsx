@@ -92,7 +92,7 @@ type Track = ReturnType<typeof trackOffice>['track']
 type Ctx = {
   root: string; rootFrom: string; request: string; lastJson: string; lastError: string; lastNamesLog: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
-  chatsOpen: boolean; lastChats: string
+  chatsOpen: boolean; lastChats: string; polling: boolean
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
   office: { track?: Track; office?: BoardData['office'] }
 }
@@ -313,17 +313,29 @@ async function poll($: EngineInterface, ctx: Ctx) {
   await pollChats($, ctx)
 }
 
+// One tick of the timer. clock.every fires every period whatever the last call is doing, so a tick still running (a cold git, a slow
+// disk) makes the next ones skip: ticks never overlap. The flag is set before the first await, so a tick due meanwhile sees it.
+async function tick($: EngineInterface, ctx: Ctx) {
+  if (ctx.polling) return
+  ctx.polling = true
+  try {
+    await poll($, ctx)
+  } finally {
+    ctx.polling = false
+  }
+}
+
 // The poll starts with the session (/team and section spawns call this too), once. The session.end hook below only
 // resets the counts on /clear; it never stops the poll (/clear starts no new session.start), and the timer ends with the process.
 function startPoll($: EngineInterface, ctx: Ctx) {
   if (ctx.stop) return
   ctx.stop = $.clock.every(POLL_MS, () => {
-    void poll($, ctx)
+    void tick($, ctx)
   })
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', polling: false, cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max|off), or name a builder (/team name <section> <name>)" })
