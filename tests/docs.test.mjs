@@ -30,6 +30,11 @@ const UNRECORDED = 'Solo (plugin off; machine setup not recorded)'
 const FABLE_NOTE = 'Fable also planned and reviewed some of the fixes it judged.'
 // The README's Platform readiness section moved here.
 const LONG_DOC = 'docs/long-sessions.md'
+// The README's routing, report, Max, mode-file, board and section details moved here.
+const HOW_DOC = 'docs/how-it-works.md'
+// The README's length target.
+const README_MAX_WORDS = 3000
+const wordsOf = text => text.split(/\s+/).filter(word => word !== '').length
 
 const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
@@ -102,8 +107,8 @@ test('the long-sessions doc describes the foundation skill, fresh sections and t
   assert.deepEqual(claimSentences(claims), [], 'no saving or quality claim before the runs')
 })
 
-test('the README describes the saved request, the short hand-back, the resume brief and the Max flow command, with the measured peak', () => {
-  const readme = read('README.md')
+test('the how-it-works doc describes the saved request, the short hand-back, the resume brief and the Max flow command, with the measured peak', () => {
+  const readme = read(HOW_DOC)
   assertIncludes(readme, [
     "Before it says done, the supervisor runs the testing section's one command that prints a PASS or FAIL line per critical flow.",
     'a pasted message of 3000 characters or more is saved, with recognised secrets replaced by `[redacted]`, to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
@@ -112,8 +117,8 @@ test('the README describes the saved request, the short hand-back, the resume br
     'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
     'A resumed session gets the brief again only when it changed since the session started.',
     "In the p1 measure round the supervisor's chat peaked at 99K to 104K in Balanced and 116K to 123K in Max, against 158K to 168K for solo.",
-  ], 'README')
-  assert.ok(!readme.includes('the supervisor starts the app itself and drives every critical flow'), 'the old Max flow sentence is gone')
+  ], 'how-it-works doc')
+  for (const path of ['README.md', HOW_DOC]) assert.ok(!read(path).includes('the supervisor starts the app itself and drives every critical flow'), `${path}: the old Max flow sentence is gone`)
 })
 
 test('the README records the p1 confirm round with its numbers and what is not measured', () => {
@@ -297,13 +302,12 @@ test('the Quickstart says what you get without overstating it, with the wall tim
 
 test('the Needs line at the Quickstart and at Install names the tested CLI, the alias floor, Node, git and the providers', () => {
   const readme = read('README.md')
-  for (const name of ['Quickstart', 'Install']) {
-    assertIncludes(section(readme, name), [
-      '**Needs:** Claude Code 2.1.318 (tested; this release has not been run on an older one, and before 2.1.280 the `opus` alias did not mean Opus 5.5)',
-      'Node 20.16+ or 22.3+ and git 2.31+ on PATH (without Node every prompt and matched tool call shows a hook error)',
-      'first-party access to Opus 5.5 (Bedrock, Vertex and Foundry are untested; on Foundry the `opus` alias means Opus 4.6)',
-    ], name)
-  }
+  assertIncludes(section(readme, 'Install'), [
+    '**Needs:** Claude Code 2.1.318 (tested; this release has not been run on an older one, and before 2.1.280 the `opus` alias did not mean Opus 5.5)',
+    'Node 20.16+ or 22.3+ and git 2.31+ on PATH (without Node every prompt and matched tool call shows a hook error)',
+    'first-party access to Opus 5.5 (Bedrock, Vertex and Foundry are untested; on Foundry the `opus` alias means Opus 4.6)',
+  ], 'Install')
+  assert.ok(section(readme, 'Quickstart').includes('**Needs:** Claude Code 2.1.318, Node 20.16+ or 22.3+, git 2.31+ and first-party access to Opus 5.5 ([details](#install))'), 'Quickstart')
   assert.ok(!readme.includes('2.1.275 or later'), 'the untested version floor is gone')
 })
 
@@ -353,14 +357,15 @@ test('the README says where skill assignments and trusted owners live, and how t
 test('the README quotes the board-load line the prompt hook shows, and the off switch without the board', () => {
   const line = sourceConst('hooks/user-prompt-submit.mjs', 'BOARD_LINE')?.match(/^"(.*)"$/)?.[1]
   assert.ok(line, 'BOARD_LINE found in the hook')
-  assertIncludes(section(read('README.md'), 'Requirements'), [line, 'tested on Claude Code 2.1.318', 'turn the team off with `{"mode": "off"}` in `.team/mode.json`'], 'Requirements')
+  assertIncludes(section(read('README.md'), 'Team Board'), [line, 'tested on Claude Code 2.1.318', 'turn the team off with `{"mode": "off"}` in `.team/mode.json`'], 'Team Board')
 })
 
 test('the README says project settings that set the install switch, HOME or USERPROFILE keep installs off, in any letter case', () => {
   const readme = read('README.md')
   assert.ok(sourceConst('hooks/lib/project-settings.mjs', 'HOME_VARS').includes("['HOME', 'USERPROFILE']"))
   const line = "a project's `.claude/settings.json` or `settings.local.json` that sets this variable, `HOME` or `USERPROFILE` (a key in any letter case counts) keeps automatic installs off, with one line saying so"
-  for (const name of ['What changes in your sessions', 'Modes']) assert.ok(section(readme, name).includes(line), name)
+  assert.ok(section(readme, 'Modes').includes(line), 'Modes')
+  assert.ok(section(readme, 'What changes in your sessions').includes('Project settings that set it, `HOME` or `USERPROFILE` keep installs off'), 'What changes')
   for (const old of ['can set environment variables too, this one included', "a project's own `.claude/settings.json` can set it too"]) assert.ok(!readme.includes(old), `old sentence: ${old}`)
 })
 
@@ -379,8 +384,9 @@ test('the README describes the hooks as they are now: notices instead of silent 
     'if that check itself fails, the write is refused', 'a section transcript the context guard or the grade check cannot read gets one line too',
     'with recognised secrets replaced by `[redacted]`',
   ], 'README')
-  for (const old of ['allow silently', 'it allows the call if it crashes', 'stops (SIGKILL)', 'If the plugin cannot read the needed files, it allows the message.', 'If the result cannot be read, nothing is refused.']) {
-    assert.ok(!readme.includes(old), `old sentence: ${old}`)
+  const docs = [readme, read(HOW_DOC), read(LONG_DOC)].join('\n')
+  for (const old of ['allow silently', 'it allows the call if it crashes', 'stops (SIGKILL)', 'If the plugin cannot read the needed files, it allows the message.', 'If the result cannot be read, nothing is refused.', 'saved word for word']) {
+    assert.ok(!docs.includes(old), `old sentence: ${old}`)
   }
 })
 
@@ -486,4 +492,32 @@ test('the bench data READMEs point to every published round and recompute in a t
   const p1 = read('bench/data/p1/README.md')
   assertIncludes(p1, ['[`../ph/`](../ph/)', '[`../py/`](../py/)', 'node bench/data/p1/recompute.mjs ph py'], 'p1 data README')
   assert.ok(read('docs/benchmark-2026-10-24.md').includes('Data: the raw files for rounds 1-17 are public in'), 'round doc scope')
+})
+
+test(`the README is ${README_MAX_WORDS} words or fewer`, () => {
+  const words = wordsOf(read('README.md'))
+  assert.ok(words <= README_MAX_WORDS, `README has ${words} words`)
+})
+
+test('the README glossary defines its terms in eight lines', () => {
+  const lines = section(read('README.md'), 'Glossary').trim().split('\n')
+  assert.equal(lines.length, 8)
+  const terms = ['Section', 'Helper', 'Reviewer gate', 'REPORT', 'Mode', 'Solo', 'Rounds', 'Judges']
+  assert.deepEqual(lines.map(line => line.match(/^- \*\*(.+?):\*\*/)?.[1]), terms)
+  for (const name of ['p1', 'hq', 'fx', 'Codex', 'Fable']) assert.ok(lines.join('\n').includes(name), name)
+})
+
+test('the how-it-works doc keeps the README details it took, and the README points to it', () => {
+  const readme = read('README.md')
+  for (const anchor of ['', '#max', '#mode-file', '#team-board', '#sections', '#develop']) assert.ok(readme.includes(`](docs/how-it-works.md${anchor})`), `README link ${anchor}`)
+  const doc = read(HOW_DOC)
+  for (const heading of ['Routing', 'Reports, notes and long messages', 'Max', 'Mode file', 'Team Board', 'Sections', 'Requirements in detail', 'Develop']) {
+    assert.ok(doc.includes(`\n## ${heading}\n`), heading)
+  }
+  assertIncludes(doc, [
+    'a feature with its own behaviour to test (a CLI, an endpoint, a module with storage or I/O) is never small',
+    'If the file breaks mid-session, the session keeps its mode', 'The default names are frontend Iris',
+    "The plugin refuses a section's Agent call that asks for the background", 'Remote sessions (`CLAUDE_CODE_REMOTE_MEMORY_DIR`)',
+    'set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`', 'Sections load `security-review` only when the branch shares history with an `origin/HEAD` ref',
+  ], 'how-it-works doc')
 })
