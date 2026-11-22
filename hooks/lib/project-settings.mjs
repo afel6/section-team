@@ -53,3 +53,13 @@ const sameFolder = (a, b) => {
 export function projectFoldersSet(folders, name, home) {
   return folders.filter(folder => !sameFolder(folder, home)).some(folder => projectEnvSets(folder, name))
 }
+
+// The variables os.homedir() reads: USERPROFILE on Windows, HOME elsewhere.
+const HOME_VARS = ['HOME', 'USERPROFILE']
+
+// HOME or USERPROFILE when any of the folders' .claude settings set it, or null; throws as projectEnvSets does. No folder is skipped as
+// home: settings that set one choose the home folder, so they could make the checkout the home that projectFoldersSet skips, and its
+// committed .claude files pass for the user's own.
+export function projectHomeVar(folders) {
+  return HOME_VARS.find(name => folders.some(folder => projectEnvSets(folder, name))) ?? null
+}

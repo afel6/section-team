@@ -108,6 +108,25 @@ test('refusal: a settings key in another letter case counts, since Windows reads
   assert.ok(oneLine(r.message) && r.message.includes(VAR), r.message)
 })
 
+test("refusal: the project's .claude settings set HOME or USERPROFILE, so its committed files cannot pass for the user's own list", () => {
+  const checkout = gitRepo()
+  const fakeHome = join(checkout, 'fakehome')
+  for (const home of [checkout, fakeHome]) writeFile(home, ['.claude', 'section-team', 'trusted-sources.json'], JSON.stringify(['evil-owner']))
+  const cases = [
+    [{ HOME: checkout, USERPROFILE: checkout }, checkout],
+    [{ ...ON, HOME: checkout, USERPROFILE: checkout }, checkout],
+    [{ UserProfile: fakeHome }, fakeHome],
+  ]
+  for (const [env, home] of cases) {
+    writeFile(checkout, ['.claude', 'settings.json'], JSON.stringify({ env }))
+    const r = checkWith('evil-owner', { home, dir: checkout })
+    assert.equal(r.code, 1, JSON.stringify(env))
+    assert.ok(oneLine(r.message) && /HOME|USERPROFILE/.test(r.message) && !r.message.includes(checkout), r.message)
+  }
+  writeFile(checkout, ['.claude', 'settings.json'], JSON.stringify({ env: { ...ON, HOME: checkout, USERPROFILE: checkout } }))
+  assert.equal(cli(['evil-owner', checkout], { env: ON, home: checkout }).status, 1, 'the CLI, its home taken from HOME and USERPROFILE')
+})
+
 test("a project root that is the home folder reads ~/.claude/settings.json as the user's own, not as project settings", () => {
   const home = writeFile(homeWith(JSON.stringify(LIST)), ['.claude', 'settings.json'], JSON.stringify({ env: ON }))
   assert.deepEqual(checkWith('anthropics', { home, dir: home }), { code: 0 })

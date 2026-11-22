@@ -6,7 +6,7 @@ import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
-import { projectFoldersSet } from './lib/project-settings.mjs'
+import { projectFoldersSet, projectHomeVar } from './lib/project-settings.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -23,6 +23,15 @@ export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored,
 // Claude Code hands a project's .claude settings env to the hooks, so the environment's value cannot be trusted when they set the variable.
 const PROJECT_SETTINGS = "the project's .claude settings"
 const PROJECT_ENV_LINE = `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set; automatic skill installs stay off`
+const projectHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; automatic skill installs stay off`
+
+// The user's line when the project's .claude settings in these folders keep installs off, or false: they set HOME or USERPROFILE (checked
+// first, since they decide which folder is home), or the install switch outside the home folder.
+function projectSettingsLine(folders, home) {
+  const homeVar = projectHomeVar(folders)
+  if (homeVar !== null) return projectHomeLine(homeVar)
+  return projectFoldersSet(folders, AUTO_INSTALL_ENV, home) ? PROJECT_ENV_LINE : false
+}
 
 // Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
 // is named as the source of off). The mode file, which a cloned repo can commit, may turn them off but never on: its true is ignored,
@@ -131,7 +140,7 @@ function briefStillHeld(source, home, sessionId, hash) {
 }
 
 // The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, the project vetoes (a committed
-// Max or off mode file, .claude settings that set the install switch, a .team/ plan or summary left out), then each failed side effect.
+// Max or off mode file, .claude settings that set the install switch, HOME or USERPROFILE, a .team/ plan or summary left out), then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
 // source is the SessionStart source: on 'resume' an unchanged brief is left out; otherwise the full brief goes in and its hash is recorded.
 // now is the clock the prunes compare file times with.
@@ -152,8 +161,8 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
     ...(sessionId === undefined ? [] : [['mode record', () => recordMode(home, sessionId, setting.mode)]]),
   ]
   const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
-  // Claude Code reads .claude settings from the session's folder and the repo root; either one setting the variable turns installs off.
-  const projectEnv = attempt('project settings check', () => projectFoldersSet([cwd, root], AUTO_INSTALL_ENV, home))
+  // Claude Code reads .claude settings from the session's folder and the repo root; either one setting the variable, HOME or USERPROFILE turns installs off.
+  const projectEnv = attempt('project settings check', () => projectSettingsLine([cwd, root], home))
   const projectEnvSet = projectEnv.value !== false // a check that failed counts as set: refuse rather than guess
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
@@ -167,7 +176,7 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const context = composeContext(setting, env, loadable ? summary.value : null, loadable && hasPlan, { briefKept: held.value === true, projectEnvSet })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
   const skillNotice = skillSetting(setting.autoInstallSkills, env, projectEnvSet).notice
-  const projectEnvLine = projectEnv.value === true ? PROJECT_ENV_LINE : null
+  const projectEnvLine = typeof projectEnv.value === 'string' ? projectEnv.value : null
   const vetoes = [committedMode, projectEnvLine, teamLine]
   const warnings = [setting.problem, skillNotice, retired, ...vetoes, ...stepWarnings, projectEnv.warning, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }

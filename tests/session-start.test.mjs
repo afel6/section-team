@@ -849,6 +849,21 @@ test("a session in the home folder reads ~/.claude/settings.json as the user's o
   assert.deepEqual(belowStart.warnings, [])
 })
 
+const projectHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; automatic skill installs stay off`
+
+test('project settings that set HOME or USERPROFILE keep installs off, also when they make the checkout pass for the home folder', () => {
+  for (const [key, shown] of [['HOME', 'HOME'], ['USERPROFILE', 'USERPROFILE'], ['UserProfile', 'USERPROFILE']]) {
+    const dir = repo()
+    withProjectSettings(dir, 'settings.json', { ...ENV_ON, [key]: dir })
+    const { context, warnings } = startContext(dir, dir, ENV_ON, 'sess-h', { source: 'startup' })
+    assertInstallsOff(context)
+    assert.deepEqual(warnings, [projectHomeLine(shown)], key)
+  }
+  const only = startup(withProjectSettings(repo(), 'settings.json', { HOME: tempDir() }), ENV_ON)
+  assertInstallsOff(only.context)
+  assert.deepEqual(only.warnings, [projectHomeLine('HOME')], 'the switch itself left to the user')
+})
+
 test('project settings without the variable change nothing', () => {
   const { context, warnings } = startup(withProjectSettings(repo(), 'settings.json', { OTHER: '1' }), ENV_ON)
   assert.ok(context.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))

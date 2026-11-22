@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { readMode } from '../hooks/lib/mode.mjs'
 import { isMainModule, lineOf, projectRoot } from '../hooks/lib/paths.mjs'
-import { projectFoldersSet } from '../hooks/lib/project-settings.mjs'
+import { projectFoldersSet, projectHomeVar } from '../hooks/lib/project-settings.mjs'
 
 // CLI contract (add-skill runs it): node scripts/trusted-source.mjs <owner> [<project-root>]
 //   exit 0: the skill may install unattended; exit 1: ask the user (one line says why); exit 2: a usage error or an unusable list
@@ -47,13 +47,16 @@ function readList(file, shown) {
 }
 
 // Why the project at dir refuses unattended installs, or null. Its mode file can turn them off. Its .claude settings may not set the
-// switch at all: Claude Code passes a project's env to every command, so a value there cannot be told from the user's own.
+// switch at all: Claude Code passes a project's env to every command, so a value there cannot be told from the user's own. Nor may they
+// set HOME or USERPROFILE, which choose the home folder and so the user list read from it.
 // Throws one line when dir is not a folder (an empty string included: it must not stand for the current folder) or the settings cannot be read.
 function projectVeto(dir, home) {
   if (statSync(dir, { throwIfNoEntry: false })?.isDirectory() !== true) throw new Error('the project root is not a folder')
   const folder = resolve(dir)
   const root = projectRoot(folder)
   if (readMode(root).autoInstallSkills === false) return "this project's .team/mode.json sets autoInstallSkills false"
+  const homeVar = projectHomeVar([folder, root])
+  if (homeVar !== null) return `this project's .claude settings set ${homeVar}, which decides where your home folder is`
   const settingsSet = projectFoldersSet([folder, root], AUTO_INSTALL_ENV, home)
   return settingsSet ? `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set` : null
 }

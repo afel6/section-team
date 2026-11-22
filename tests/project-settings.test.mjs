@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { projectEnvSets, projectFoldersSet } from '../hooks/lib/project-settings.mjs'
+import { projectEnvSets, projectFoldersSet, projectHomeVar } from '../hooks/lib/project-settings.mjs'
 
 const VAR = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
 const tempRoot = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-settings-')))
@@ -68,4 +68,12 @@ test('projectFoldersSet checks every folder but the home folder, whose .claude/s
   assert.equal(projectFoldersSet([clean, project], VAR, home), true)
   assert.equal(projectFoldersSet([home, project], VAR, home), true)
   if (process.platform === 'win32') assert.equal(projectFoldersSet([home.toUpperCase()], VAR, home), false, 'letter case')
+})
+
+test('projectHomeVar names HOME or USERPROFILE when any folder\'s settings set it, in any letter case, and null otherwise', () => {
+  const clean = tempRoot()
+  assert.equal(projectHomeVar([clean, withSettings(tempRoot(), 'settings.json', settingsJson({ [VAR]: '1' }))]), null)
+  for (const [key, shown] of [['HOME', 'HOME'], ['USERPROFILE', 'USERPROFILE'], ['UserProfile', 'USERPROFILE']]) {
+    assert.equal(projectHomeVar([clean, withSettings(tempRoot(), 'settings.local.json', settingsJson({ [key]: clean }))]), shown, key)
+  }
 })
