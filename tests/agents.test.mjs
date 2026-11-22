@@ -887,7 +887,7 @@ test('no agent file calls the house rules the user\'s standards, and builders na
 })
 
 test('the 10 builders and the coder all carry the SAFETY line', () => {
-  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user.'
+  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this.'
   assert.equal(BUILDERS_AND_CODER.length, 11)
   for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).includes(safety), id)
 })
