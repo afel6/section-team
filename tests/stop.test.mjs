@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { saveSummary } from '../hooks/stop.mjs'
 
@@ -173,4 +173,40 @@ test('a save that fails (the reports path is a file) prints one notice line with
 test('hooks.json runs the script on Stop like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks
   assert.deepEqual(hooks.Stop, [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/stop.mjs"' }] }])
+})
+
+// An off project whose .team/ git does not ignore: a saved summary would land in the user's tree, so nothing is written.
+const OFF_UNIGNORED = 'section-team: this project is off and git does not ignore .team/, so no report was saved.'
+const offRepo = ({ committed }) => {
+  const dir = tempDir()
+  execFileSync('git', ['-C', dir, 'init', '-q'])
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), '{"mode": "off"}')
+  if (committed) {
+    execFileSync('git', ['-C', dir, 'add', '-f', '.team/mode.json'])
+    execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'team off'])
+  } else {
+    writeFileSync(join(dir, '.git', 'info', 'exclude'), '.team/\n')
+  }
+  return dir
+}
+
+test('an off project with a committed mode.json and no ignore for .team/ saves no summary and says so', () => {
+  const dir = offRepo({ committed: true })
+  const said = []
+  assert.equal(saveSummary({ cwd: dir, last_assistant_message: SUMMARY }, NOW, {}, line => said.push(line)), null)
+  assert.deepEqual(said, [OFF_UNIGNORED])
+  const run = runHook(JSON.stringify({ hook_event_name: 'Stop', cwd: dir, last_assistant_message: SUMMARY }))
+  assert.equal(run.status, 0)
+  assert.equal(run.stderr, '')
+  assert.equal(run.stdout, JSON.stringify({ systemMessage: OFF_UNIGNORED }))
+  assert.deepEqual(summaries(dir), [])
+  assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' }), '', 'the tree stays clean')
+})
+
+test('an off project whose .team/ git ignores still saves the summary, and an ordinary stop in an off project says nothing', () => {
+  const said = []
+  assert.notEqual(saveSummary({ cwd: offRepo({ committed: false }), last_assistant_message: SUMMARY }, NOW, {}, line => said.push(line)), null)
+  assert.equal(saveSummary({ cwd: offRepo({ committed: true }), last_assistant_message: 'Backend passed; testing runs next.' }, NOW, {}, line => said.push(line)), null)
+  assert.deepEqual(said, [])
 })

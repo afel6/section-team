@@ -339,8 +339,7 @@ test('a saved REPORT names the mode of its project', () => {
   assert.equal(saveInMode('{"mode": "max"}'), stamped(REPORT, 'max'))
   assert.equal(saveInMode('{"mode": "max", "autoInstallSkills": "yes"}'), stamped(REPORT, 'max'))
   assert.equal(saveInMode('{"mode": "lean"}'), stamped(REPORT, 'balanced'))
-  // A section started by hand in a project switched off: the footer says off, not the Balanced stand-in.
-  assert.equal(saveInMode('{"mode": "off"}'), stamped(REPORT, 'off'))
+  // A section started by hand in a project switched off saves only where git ignores .team/ (a test below): the footer then says off.
 })
 
 test('a broken mode file still saves the REPORT, with the mode unknown', () => {
@@ -368,4 +367,48 @@ test('the plugin version is unknown when its file is missing, broken or names no
   assert.equal(pluginVersion(broken), 'unknown')
   assert.equal(pluginVersion(empty), 'unknown')
   assert.equal(pluginVersion(), VERSION)
+})
+
+// An off project whose .team/ git does not ignore: a saved REPORT would land in the user's tree, so nothing is written.
+const OFF_UNIGNORED = 'section-team: this project is off and git does not ignore .team/, so no report was saved.'
+const offRepo = ({ committed }) => {
+  const dir = tempDir()
+  execFileSync('git', ['-C', dir, 'init', '-q'])
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), '{"mode": "off"}')
+  if (committed) {
+    execFileSync('git', ['-C', dir, 'add', '-f', '.team/mode.json'])
+    execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'team off'])
+  } else {
+    writeFileSync(join(dir, '.git', 'info', 'exclude'), '.team/\n')
+  }
+  return dir
+}
+
+test('an off project with a committed mode.json and no ignore for .team/ saves no REPORT and says so', () => {
+  const dir = offRepo({ committed: true })
+  const said = []
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT }, NOW, {}, line => said.push(line)), null)
+  assert.deepEqual(said, [OFF_UNIGNORED])
+  const input = JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT })
+  assertSystemMessage(spawnSync(process.execPath, [SCRIPT], { input, encoding: 'utf8' }), OFF_UNIGNORED)
+  assert.equal(existsSync(join(dir, '.team', 'reports')), false)
+  assert.equal(execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' }), '', 'the tree stays clean')
+})
+
+test('an off project whose .team/ git ignores still saves the REPORT with the off footer, and says nothing', () => {
+  const dir = offRepo({ committed: false })
+  const said = []
+  const file = saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT }, NOW, {}, line => said.push(line))
+  assert.equal(readFileSync(file, 'utf8'), stamped(REPORT, 'off'))
+  assert.deepEqual(said, [])
+})
+
+test('an off project outside git counts as not ignored, so nothing is saved', () => {
+  const dir = tempDir()
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), '{"mode": "off"}')
+  const said = []
+  assert.equal(saveFromEvent({ agent_type: 'section-team:backend', cwd: dir, last_assistant_message: REPORT }, NOW, {}, line => said.push(line)), null)
+  assert.deepEqual(said, [OFF_UNIGNORED])
 })

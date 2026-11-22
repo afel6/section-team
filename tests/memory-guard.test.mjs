@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { FRESH_MS, INTERVAL_MS, MB, SCAN_TIMEOUT_MS, limitBytes, oversized, parseTable, rootAlive, sessionRoot, track } from '../hooks/lib/memory-guard.mjs'
-import { heartbeat, runGuard } from '../hooks/memory-guard.mjs'
+import { KILL_GRACE_MS, heartbeat, runGuard } from '../hooks/memory-guard.mjs'
 
 const GB = 1024 * MB
 const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
@@ -183,11 +183,12 @@ test('oversized: only tracked rows over the limit, never the root, the guard or 
   assert.deepEqual(oversized(state, table, GB, [800, 810]).map(r => r.pid), [400])
 })
 
-// Fakes for every effect of the runner. A table can be an Error, which list throws.
+// Fakes for every effect of the runner. A table can be an Error, which list throws. The clock moves only when the runner sleeps.
 function fakes(tables, { touch = () => true } = {}) {
   const calls = []
   let scan = 0
   let sleeps = 0
+  let clock = 0
   return {
     calls,
     list: async () => {
@@ -195,12 +196,17 @@ function fakes(tables, { touch = () => true } = {}) {
       if (table instanceof Error) throw table
       return table
     },
-    kill: async pid => { calls.push(['kill', pid]) },
+    kill: async (pid, signal) => { calls.push(['kill', pid, signal, clock]) },
     log: line => { calls.push(['log', line]) },
-    sleep: async () => { if (++sleeps > 100) throw new Error('the loop did not end') },
+    sleep: async ms => {
+      if (++sleeps > 100) throw new Error('the loop did not end')
+      clock += ms
+    },
+    now: () => clock,
     touch: () => touch(scan),
   }
 }
+const kills = f => f.calls.filter(c => c[0] === 'kill').map(([, pid, signal]) => [pid, signal])
 const GUARD = { state: { root: ROOT, tracked: [] }, limit: GB, own: [800, 810] }
 const GONE = [row(100, 50, 7000, 'claude.exe')]
 
@@ -211,7 +217,7 @@ test('runGuard stops a process over the limit in the very first table, kill befo
   const reason = await runGuard({ ...f, ...GUARD })
   assert.equal(reason, 'root gone')
   assert.deepEqual(f.calls.map(c => c[0]), ['kill', 'log'])
-  assert.deepEqual(f.calls[0], ['kill', 400])
+  assert.deepEqual(kills(f), [[400, 'SIGTERM']])
   const line = f.calls[1][1]
   assert.ok(line.includes('400') && line.includes('2048 MB') && line.includes('claude.exe'), line)
   assert.ok(line.includes('x'.repeat(392)) && !line.includes('x'.repeat(401)), 'command clipped to 400 characters')
@@ -223,6 +229,73 @@ test('runGuard calls kill once per oversized process in each scan', async () => 
   const f = fakes([table, GONE])
   await runGuard({ ...f, ...GUARD })
   assert.deepEqual(f.calls.filter(c => c[0] === 'kill').map(c => c[1]).sort(), [400, 410])
+})
+
+// A process still running KILL_GRACE_MS after its SIGTERM gets SIGKILL. The wait spans scans, so no scan sleeps longer and the heartbeat keeps its pace.
+const BIG = row(400, 100, 4000, 'node.exe', 2 * GB, 'node build.js')
+
+test('runGuard sends SIGTERM, then SIGKILL to the same process still running KILL_GRACE_MS later, and logs both', async () => {
+  assert.equal(KILL_GRACE_MS, 5000)
+  const f = fakes([[ROW_ROOT, BIG], [ROW_ROOT, BIG], [ROW_ROOT], GONE])
+  assert.equal(await runGuard({ ...f, ...GUARD }), 'root gone')
+  assert.deepEqual(kills(f), [[400, 'SIGTERM'], [400, 'SIGKILL']])
+  const [term, kill] = f.calls.filter(c => c[0] === 'kill')
+  assert.ok(kill[3] - term[3] >= KILL_GRACE_MS, `SIGKILL ${kill[3] - term[3]} ms after SIGTERM`)
+  const lines = f.calls.filter(c => c[0] === 'log').map(c => c[1])
+  assert.equal(lines.length, 2)
+  assert.match(lines[0], /sent SIGTERM to pid 400 at 2048 MB \(limit 1024 MB\): node build\.js \| parent: claude\.exe/)
+  assert.match(lines[1], /sent SIGKILL to pid 400, still running 5 s after SIGTERM: node build\.js$/)
+})
+
+test('runGuard waits the whole grace on the clock, not a number of scans', async () => {
+  let clock = 0
+  const f = fakes([...Array(6).fill([ROW_ROOT, BIG]), [ROW_ROOT], GONE])
+  f.sleep = async () => { clock += 1000 }
+  f.now = () => clock
+  f.kill = async (pid, signal) => { f.calls.push(['kill', pid, signal, clock]) }
+  await runGuard({ ...f, ...GUARD })
+  const [term, kill] = f.calls.filter(c => c[0] === 'kill')
+  assert.deepEqual([term[2], kill[2]], ['SIGTERM', 'SIGKILL'])
+  assert.equal(kill[3] - term[3], KILL_GRACE_MS, 'the first scan at or past the grace sends it')
+  assert.equal(kills(f).length, 2, 'one SIGKILL, not one per scan')
+})
+
+test("the log redacts secrets in a stopped process's command and its parent's, before the command is clipped", async () => {
+  // Made-up values. The key block runs past the 400-character clip, so a clip before the redaction would cut off its END line.
+  const pem = `-----BEGIN PRIVATE KEY-----\n${'A'.repeat(500)}\n-----END PRIVATE KEY-----`
+  const parent = row(100, 50, 1000, 'claude.exe', 10 * MB, 'claude.exe --api-key=sk-ant-api03-abcdefghijklmnop1234')
+  const child = row(400, 100, 4000, 'node.exe', 2 * GB, `node seed.js --password=hunter2 "${pem}" MY_SECRET=abc`)
+  const f = fakes([[parent, child], [parent], GONE])
+  await runGuard({ ...f, ...GUARD })
+  const [line] = f.calls.filter(c => c[0] === 'log').map(c => c[1])
+  assert.match(line, /node seed\.js --password=\[redacted\] "\[redacted\]" MY_SECRET=\[redacted\] \| parent: claude\.exe --api-key=\[redacted\]$/)
+  assert.ok(!/hunter2|AAAA|abcdefghijklmnop/.test(line), line)
+})
+
+test('a process gone after SIGTERM, or a pid reused by another start, gets no SIGKILL', async () => {
+  const gone = fakes([[ROW_ROOT, BIG], [ROW_ROOT], [ROW_ROOT], GONE])
+  await runGuard({ ...gone, ...GUARD })
+  assert.deepEqual(kills(gone), [[400, 'SIGTERM']])
+  const reused = fakes([[ROW_ROOT, BIG], [ROW_ROOT, row(400, 100, 4500, 'node.exe')], [ROW_ROOT, row(400, 100, 4500, 'node.exe')], GONE])
+  await runGuard({ ...reused, ...GUARD })
+  assert.deepEqual(kills(reused), [[400, 'SIGTERM']])
+})
+
+test('a SIGTERM that fails waits for no SIGKILL, and a SIGKILL that fails is logged', async () => {
+  const failing = fakes([[ROW_ROOT, BIG], [ROW_ROOT, BIG], GONE])
+  failing.kill = async (pid, signal) => {
+    failing.calls.push(['kill', pid, signal])
+    throw Object.assign(new Error('no'), { code: signal === 'SIGTERM' ? 'EPERM' : 'ESRCH' })
+  }
+  await runGuard({ ...failing, ...GUARD })
+  assert.deepEqual(kills(failing), [[400, 'SIGTERM'], [400, 'SIGTERM']], 'a failed SIGTERM is tried again next scan, never escalated')
+  const stubborn = fakes([[ROW_ROOT, BIG], [ROW_ROOT, BIG], GONE])
+  stubborn.kill = async (pid, signal) => {
+    stubborn.calls.push(['kill', pid, signal])
+    if (signal === 'SIGKILL') throw Object.assign(new Error('no'), { code: 'EPERM' })
+  }
+  await runGuard({ ...stubborn, ...GUARD })
+  assert.match(stubborn.calls.filter(c => c[0] === 'log').at(-1)[1], /could not kill \(EPERM\) pid 400, still running 5 s after SIGTERM/)
 })
 
 test('a stop that fails is logged as such and the guard keeps going', async () => {
@@ -260,13 +333,17 @@ test('a scan as slow as the timeout never leaves the record stale long enough fo
   assert.ok(Number.isFinite(SCAN_TIMEOUT_MS) && SCAN_TIMEOUT_MS > 0, 'the scan timeout is a named constant')
   let clock = 0
   const touches = []
-  const f = fakes([[ROW_ROOT, row(400, 100, 4000, 'node.exe', 2 * GB)], [ROW_ROOT], [ROW_ROOT], GONE])
+  // Two processes that outlive their SIGTERM, so one scan sends two SIGTERMs and a later one two SIGKILLs.
+  const lingering = [ROW_ROOT, row(400, 100, 4000, 'node.exe', 2 * GB), row(410, 100, 4100, 'node.exe', 2 * GB)]
+  const f = fakes([lingering, lingering, [ROW_ROOT], GONE])
   const list = f.list
   f.list = async () => { clock += SCAN_TIMEOUT_MS; return list() }
-  f.kill = async () => { clock += 1000 }
+  f.kill = async (pid, signal) => { f.calls.push(['kill', pid, signal]); clock += 1000 }
   f.sleep = async ms => { clock += ms }
+  f.now = () => clock
   f.touch = () => { touches.push(clock); return true }
   assert.equal(await runGuard({ ...f, ...GUARD }), 'root gone')
+  assert.deepEqual(kills(f), [[400, 'SIGTERM'], [410, 'SIGTERM'], [400, 'SIGKILL'], [410, 'SIGKILL']])
   const gaps = touches.slice(1).map((t, i) => t - touches[i])
   assert.ok(Math.max(...gaps) < FRESH_MS, `touch gaps ${gaps} must stay under ${FRESH_MS} ms`)
   assert.ok(FRESH_MS > SCAN_TIMEOUT_MS + INTERVAL_MS / 2, 'a slow scan still fits the freshness window')
@@ -349,7 +426,7 @@ test('runGuard ends after 10 failed scans in a row and logs that once; a good sc
 })
 
 test('runGuard needs every effect: a missing one throws before any scan', async () => {
-  for (const key of ['list', 'kill', 'log', 'sleep', 'touch', 'state', 'limit', 'own']) {
+  for (const key of ['list', 'kill', 'log', 'sleep', 'now', 'touch', 'state', 'limit', 'own']) {
     const f = fakes([[ROW_ROOT]])
     const args = { ...f, ...GUARD }
     delete args[key]

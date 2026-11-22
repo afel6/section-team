@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { finalAgentText } from './subagent-stop.mjs'
+import { OFF_UNIGNORED, finalAgentText, keepsOut, sayLine } from './subagent-stop.mjs'
 import { isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team stop'
@@ -14,15 +14,20 @@ const holds = (file, text) => {
 }
 
 // Saves the main session's last message as the supervisor summary when it has the heading, unless the newest summary already holds it.
-// Checked in this order so an ordinary stop starts no git process. Returns the file, or null when nothing was saved.
+// Checked in this order so an ordinary stop starts no git process. Returns the file, or null when nothing was saved; say gets the one
+// line for the user when a summary is held back (keepsOut).
 // ponytail: reads the whole transcript when the event carries no text; read only its tail if a stop ever gets slow.
-export function saveSummary(e, now = new Date(), env = process.env) {
+export function saveSummary(e, now = new Date(), env = process.env, say = () => {}) {
   if (isSection(e)) return null
   const text = messageOf(e)
   if (!SUMMARY_HEADING.test(text)) return null
   const dir = projectDirOf(e, env)
   if (dir === null) return null
   const root = projectRoot(dir)
+  if (keepsOut(root)) {
+    say(OFF_UNIGNORED)
+    return null
+  }
   const last = latestSummary(root, now)
   if (last !== null && holds(last, text)) return null
   return writeReport(root, 'supervisor-summary', text, now)
@@ -42,7 +47,7 @@ if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => {
       const skipped = skipNotice(e)
-      if (skipped === null) saveSummary(e)
+      if (skipped === null) saveSummary(e, new Date(), process.env, sayLine)
       else notice(skipped)
     })
     .catch(err => notice(`the summary was not saved: ${lineOf(err)}`))

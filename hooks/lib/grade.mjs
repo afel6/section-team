@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { contentOf, subagentBase } from './head-context.mjs'
+import { contentOf, subagentBase, unread } from './head-context.mjs'
 
 const REVIEWER_TYPE = 'section-team:reviewer'
 const NO_REVIEWER_CALL = 'section-team: your REPORT gives a grade, but no reviewer call is in your transcript. Run section-team:reviewer on your changed files.'
@@ -64,17 +64,27 @@ function refusal(entries, quality, gate) {
   return low ? lowItemReason(low, min) : null
 }
 
-// The refusal for a REPORT whose grade the section's own transcript does not back, else null. quality is the REPORT's grade;
-// gate is the mode's, and its minItem is the lowest score the reviewer may have given any item.
-// Hooks fail open, so any read failure denies nothing. The whole file is read, unlike the resume guard's tail: a missing call
-// refuses here, and real reviewer calls sit up to megabytes from the end. It runs once per graded handback, not on every message.
-export function gradeRule(e, quality, gate) {
-  const base = subagentBase(e, e?.agent_id)
-  if (base === null) return null
+// Every row of a transcript, or null when it cannot be read or a row in it is not JSON; the caller says so to the user.
+function transcriptEntries(file) {
   try {
-    const lines = readFileSync(`${base}.jsonl`, 'utf8').split('\n').filter(line => line.trim() !== '')
-    return refusal(lines.map(line => JSON.parse(line)), quality, gate)
+    return readFileSync(file, 'utf8').split('\n').filter(line => line.trim() !== '').map(line => JSON.parse(line))
   } catch {
     return null
   }
 }
+
+const UNREAD_HANDBACK = unread('hand-back')
+
+// The verdict for a REPORT whose grade the section's own transcript does not back. quality is the REPORT's grade;
+// gate is the mode's, and its minItem is the lowest score the reviewer may have given any item.
+// Hooks fail open, so a transcript that cannot be found or read denies nothing, and the user is told the hand-back went unchecked.
+// The whole file is read, unlike the resume guard's tail: a missing call refuses here, and real reviewer calls sit up to megabytes
+// from the end. It runs once per graded handback, not on every message.
+export function gradeCheck(e, quality, gate) {
+  const base = subagentBase(e, e?.agent_id)
+  const entries = base === null ? null : transcriptEntries(`${base}.jsonl`)
+  return entries === null ? UNREAD_HANDBACK : { reason: refusal(entries, quality, gate), notice: null }
+}
+
+// The refusal alone, or null.
+export const gradeRule = (e, quality, gate) => gradeCheck(e, quality, gate).reason

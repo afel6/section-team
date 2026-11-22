@@ -7,27 +7,64 @@ import { dirname, isAbsolute } from 'node:path'
 import { createInterface } from 'node:readline'
 import { INTERVAL_MS, MB, SCAN_TIMEOUT_MS, listerCommand, oversized, parseTable, rootAlive, track } from './lib/memory-guard.mjs'
 import { isMainModule, lineOf } from './lib/paths.mjs'
+import { redact } from './lib/redact.mjs'
 
 const ROOT_GONE_SCANS = 2
 const MAX_FAILED_SCANS = 10
 const COMMAND_CLIP = 400
 const LIST_BUFFER = 64 * MB
-const EFFECTS = ['list', 'kill', 'log', 'sleep', 'touch', 'state', 'limit', 'own']
+// How long a process has after SIGTERM to exit before SIGKILL. Scans are INTERVAL_MS apart, so the SIGKILL goes out at the first scan past it.
+export const KILL_GRACE_MS = 5000
+const EFFECTS = ['list', 'kill', 'log', 'sleep', 'now', 'touch', 'state', 'limit', 'own']
 
-const clip = text => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)
+// Redacted before it is cut, so a secret that runs past the cut (a PEM block) is still found whole.
+const clip = text => redact(text).replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)
+const key = p => `${p.pid}:${p.started}`
+const stampOf = now => new Date(now()).toISOString()
 
-async function stopOversized({ kill, log, limit, own }, state, table) {
-  const byPid = new Map(table.map(r => [r.pid, r]))
-  for (const row of oversized(state, table, limit, own)) {
-    let outcome = 'stopped'
-    try {
-      await kill(row.pid)
-    } catch (err) {
-      outcome = `could not stop (${lineOf(err)})`
-    }
-    const parent = byPid.get(row.ppid)
-    await log(`${new Date().toISOString()} ${outcome} pid ${row.pid} at ${Math.round(row.bytes / MB)} MB (limit ${Math.round(limit / MB)} MB): ${clip(row.command)} | parent: ${parent ? clip(parent.command) : 'gone'}`)
+// Sends one signal: null when it went out, else the error as one line.
+async function signal(kill, pid, name) {
+  try {
+    await kill(pid, name)
+    return null
+  } catch (err) {
+    return lineOf(err)
   }
+}
+
+// SIGKILL to each process still listed (same pid and start time) KILL_GRACE_MS after its SIGTERM; each is sent once.
+async function killLingering({ kill, log, now }, due, listed) {
+  for (const t of due) {
+    const failed = await signal(kill, t.pid, 'SIGKILL')
+    const outcome = failed === null ? 'sent SIGKILL to' : `could not kill (${failed})`
+    await log(`${stampOf(now)} ${outcome} pid ${t.pid}, still running ${KILL_GRACE_MS / 1000} s after SIGTERM: ${clip(listed.get(key(t)).command)}`)
+  }
+}
+
+// SIGTERM to each row; returns the ones it reached, with when.
+async function termOversized({ kill, log, limit, now }, rows, table) {
+  const byPid = new Map(table.map(r => [r.pid, r]))
+  const sent = []
+  for (const row of rows) {
+    const failed = await signal(kill, row.pid, 'SIGTERM')
+    const parent = byPid.get(row.ppid)
+    await log(`${stampOf(now)} ${failed === null ? 'sent SIGTERM to' : `could not stop (${failed})`} pid ${row.pid} at ${Math.round(row.bytes / MB)} MB (limit ${Math.round(limit / MB)} MB): ${clip(row.command)} | parent: ${parent ? clip(parent.command) : 'gone'}`)
+    if (failed === null) sent.push({ pid: row.pid, started: row.started, at: now() })
+  }
+  return sent
+}
+
+// A graceful stop that spans scans, so no scan waits and the record's heartbeat keeps its pace: SIGTERM to each tracked process over the
+// limit, then SIGKILL at a later scan to each that is still listed KILL_GRACE_MS after it. A pid that names a new start is not the same process.
+// Returns the new state.
+async function stopOversized(args, state, table) {
+  const listed = new Map(table.map(r => [key(r), r]))
+  const termed = (state.termed ?? []).filter(t => listed.has(key(t)))
+  const due = termed.filter(t => args.now() - t.at >= KILL_GRACE_MS)
+  await killLingering(args, due, listed)
+  const fresh = oversized(state, table, args.limit, args.own).filter(r => !termed.some(t => key(t) === key(r)))
+  const sent = await termOversized(args, fresh, table)
+  return { ...state, termed: [...termed.filter(t => !due.includes(t)), ...sent] }
 }
 
 // One table, or the error that kept it from being read.
@@ -56,15 +93,14 @@ export async function runGuard(args) {
     if (error) {
       failed += 1
       if (failed >= MAX_FAILED_SCANS) {
-        await args.log(`${new Date().toISOString()} ${MAX_FAILED_SCANS} scans in a row failed (${lineOf(error)}), so the guard stopped`)
+        await args.log(`${stampOf(args.now)} ${MAX_FAILED_SCANS} scans in a row failed (${lineOf(error)}), so the guard stopped`)
         return 'failed'
       }
     } else {
       failed = 0
       gone = rootAlive(table, state.root) ? 0 : gone + 1
       if (gone >= ROOT_GONE_SCANS) return 'root gone'
-      state = track(state, table)
-      await stopOversized(args, state, table)
+      state = await stopOversized(args, track(state, table), table)
     }
     await sleep(INTERVAL_MS)
   }
@@ -162,9 +198,11 @@ async function main() {
   const lister = process.platform === 'win32' ? powershellLister(command) : psLister(command, process.platform)
   const reason = await runGuard({
     list: lister.list,
-    kill: pid => process.kill(pid, 'SIGKILL'),
+    // On Windows every signal ends the process at once, so SIGTERM already stops it there.
+    kill: (pid, name) => process.kill(pid, name),
     log: line => appendLog(record.log, line),
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+    now: Date.now,
     touch: () => heartbeat(file, record.claim),
     state: { root: record.root, tracked: [] },
     limit: record.limit,

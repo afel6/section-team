@@ -13,10 +13,13 @@ const FINISHED_STEP = {
 }
 
 // The last TAIL_BYTES of a file as whole lines: transcripts can be huge, and a line the cut falls inside is dropped.
+// Windows opens a folder and reads it as empty, so a folder is refused here on every platform.
 function tailLines(file) {
   const fd = openSync(file, 'r')
   try {
-    const { size } = fstatSync(fd)
+    const stats = fstatSync(fd)
+    if (!stats.isFile()) throw new Error('the transcript is not a file')
+    const { size } = stats
     const start = Math.max(0, size - TAIL_BYTES)
     const tail = Buffer.alloc(size - start)
     const read = readSync(fd, tail, 0, tail.length, start)
@@ -63,25 +66,45 @@ export function subagentBase(e, id) {
   return join(dirname(e.transcript_path), e.session_id, 'subagents', `agent-${id}`)
 }
 
+// The builder a meta file names, or null. No meta file means the target is no subagent of this session (main, a teammate); a meta file that
+// cannot be read or names another agent type is not known to be a builder. Either way there is nothing to check and nothing to say.
 function builderId(metaFile) {
-  const id = sectionIdFromType(JSON.parse(readFileSync(metaFile, 'utf8'))?.agentType)
-  return BUILDER_IDS.includes(id) ? id : null
-}
-
-// The refusal for a SendMessage that would resume a finished, oversized builder head, else null. A head still working takes messages at any size:
-// that is how a sibling's reply or a supervisor's note reaches it. A call with no agent_type is the supervisor, who can start a fresh head; a section or helper asks it to.
-// Hooks fail open, so any read failure here (no such target, bad JSON) denies nothing: real work must never be blocked by a guard that cannot see.
-export function headContextRule(e) {
-  const base = subagentBase(e, e?.tool_input?.to)
-  if (base === null) return null
   try {
-    const id = builderId(`${base}.meta.json`)
-    if (id === null) return null
-    const entries = tailLines(`${base}.jsonl`).map(line => JSON.parse(line))
-    const tokens = contextTokens(entries)
-    if (tokens <= HEAD_CONTEXT_LIMIT || !hasFinished(entries)) return null
-    return `section-team: the ${id} section has finished at ${Math.floor(tokens / 1000)}K tokens of context, so resuming it costs far more than starting over. ${e.agent_type ? FINISHED_STEP.section : FINISHED_STEP.supervisor}`
+    const id = sectionIdFromType(JSON.parse(readFileSync(metaFile, 'utf8'))?.agentType)
+    return BUILDER_IDS.includes(id) ? id : null
   } catch {
     return null
   }
 }
+
+// The tail's rows, or null when the transcript cannot be read or a row in it is not JSON; the caller says so to the user.
+function tailEntries(file) {
+  try {
+    return tailLines(file).map(line => JSON.parse(line))
+  } catch {
+    return null
+  }
+}
+
+// A verdict: reason denies the call; notice allows it and tells the user one line.
+export const ALLOW = Object.freeze({ reason: null, notice: null })
+export const unread = what => Object.freeze({ reason: null, notice: `section-team: could not read the section's transcript; this ${what} was not checked.` })
+const UNREAD_MESSAGE = unread('message')
+
+// The verdict for a SendMessage that would resume a finished, oversized builder head. A head still working takes messages at any size:
+// that is how a sibling's reply or a supervisor's note reaches it. A call with no agent_type is the supervisor, who can start a fresh head; a section or helper asks it to.
+// Hooks fail open, so a builder whose transcript cannot be read is not blocked: real work must never wait on a guard that cannot see. The user is told instead.
+export function headContextCheck(e) {
+  const base = subagentBase(e, e?.tool_input?.to)
+  if (base === null) return ALLOW
+  const id = builderId(`${base}.meta.json`)
+  if (id === null) return ALLOW
+  const entries = tailEntries(`${base}.jsonl`)
+  if (entries === null) return UNREAD_MESSAGE
+  const tokens = contextTokens(entries)
+  if (tokens <= HEAD_CONTEXT_LIMIT || !hasFinished(entries)) return ALLOW
+  return { reason: `section-team: the ${id} section has finished at ${Math.floor(tokens / 1000)}K tokens of context, so resuming it costs far more than starting over. ${e.agent_type ? FINISHED_STEP.section : FINISHED_STEP.supervisor}`, notice: null }
+}
+
+// The refusal alone, or null.
+export const headContextRule = e => headContextCheck(e).reason
