@@ -91,19 +91,23 @@ function briefStillHeld(source, home, sessionId, hash) {
 // The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
 // source is the SessionStart source: on 'resume' an unchanged brief is left out; otherwise the full brief goes in and its hash is recorded.
-export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source } = {}) {
+// now is the clock the prunes compare file times with.
+export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source, now = Date.now() } = {}) {
   const root = projectRoot(cwd)
   const setting = readMode(root)
-  // A project switched off gets no brief and nothing written: no git exclude edit, no notes folder, no records.
-  if (setting.off) return { context: null, warnings: [OFF_LINE] }
+  // The prunes only delete old files under the home folder, so they run in an off project too: a user whose projects are all off still prunes.
+  const pruneWarnings = [
+    ['status prune', () => pruneStatus(statusDir(home), now)],
+    ['mode record prune', () => pruneStatus(modeRecordDir(home), now)],
+  ].map(([label, fn]) => attempt(label, fn).warning)
+  // A project switched off gets no brief and nothing else written: no git exclude edit, no notes folder, no records.
+  if (setting.off) return { context: null, warnings: [OFF_LINE, ...pruneWarnings].filter(warning => warning !== null) }
   const steps = [
     ['git exclude update', () => ensureExcluded(cwd, root)],
     ...(excludeFile(cwd) ? [['notes folder', () => ensureNotes(root)]] : []), // a plain folder gets no .team/ until a section writes a note
-    ['status prune', () => pruneStatus(statusDir(home))],
-    ['mode record prune', () => pruneStatus(modeRecordDir(home))],
     ...(sessionId === undefined ? [] : [['mode record', () => recordMode(home, sessionId, setting.mode)]]),
   ]
-  const stepWarnings = steps.map(([label, fn]) => attempt(label, fn).warning)
+  const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
   // A saved lean is told to the user as well as to the supervisor (the Mode section).

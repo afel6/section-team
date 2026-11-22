@@ -649,3 +649,40 @@ test('an off project gets no brief, no files and no records, only the one off li
   const out = JSON.parse(run(startInput(dir), home).stdout)
   assert.deepEqual(out, { systemMessage: `section-team session-start: ${OFF_LINE}` })
 })
+
+// --- project vetoes: files a cloned repo can commit ---
+
+const DAY_MS = 24 * 60 * 60 * 1000
+// Years before the real clock, so a prune that reads the real clock deletes fresh.json too.
+const FIXED_NOW = Date.UTC(2020, 0, 15, 12, 0, 0)
+// old.json (8 days before FIXED_NOW) and fresh.json (1 day before) in a new folder.
+const writeFixedAgedFiles = dir => {
+  mkdirSync(dir, { recursive: true })
+  for (const [name, days] of [['old.json', 8], ['fresh.json', 1]]) {
+    writeFileSync(join(dir, name), '{}')
+    const when = new Date(FIXED_NOW - days * DAY_MS)
+    utimesSync(join(dir, name), when, when)
+  }
+}
+
+test('an off project still prunes old status files and mode records, and writes nothing else', () => {
+  const dir = withModeFile(repo(), '{"mode":"off"}')
+  const home = tempHome()
+  const sessions = join(home, '.claude', 'section-team', 'sessions')
+  const modes = join(home, '.claude', 'section-team', 'modes')
+  writeFixedAgedFiles(sessions)
+  writeFixedAgedFiles(modes)
+  const result = startContext(dir, home, {}, 'test-session', { source: 'startup', now: FIXED_NOW })
+  assert.deepEqual(result, { context: null, warnings: [OFF_LINE] })
+  assert.deepEqual(readdirSync(sessions), ['fresh.json'])
+  assert.deepEqual(readdirSync(modes), ['fresh.json'], 'no mode record for the off session')
+  assert.equal(existsSync(join(dir, '.team', 'notes')), false, 'no notes folder')
+})
+
+test('a project that is on prunes with the same clock', () => {
+  const home = tempHome()
+  const sessions = join(home, '.claude', 'section-team', 'sessions')
+  writeFixedAgedFiles(sessions)
+  startContext(repo(), home, {}, undefined, { now: FIXED_NOW })
+  assert.deepEqual(readdirSync(sessions), ['fresh.json'])
+})
