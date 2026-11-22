@@ -49,7 +49,7 @@ jobs:
         run: npm test
 
   # Time-boxed trial: needs the Claude Code CLI. continue-on-error so an auth requirement cannot fail the build.
-  # If both steps ask for login, delete this job; README.md already says the board tests run only locally.
+  # If a step needs login, delete that step; if both do, delete the job. README.md already says the board tests run only locally.
   board-and-validate:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -64,4 +64,5 @@ jobs:
       - name: Team Board tests
         run: npm run test:board
       - name: Plugin validation
+        if: ${{ !cancelled() }}
         run: npm run validate
