@@ -395,6 +395,11 @@ const writeRecordText = (home, text) => {
   writeFileSync(file, text)
 }
 
+test('a project turned off mid-session keeps the gate of the mode the session started in', () => {
+  const reason = gateWith(projectWith('{"mode":"off"}'), DONE_AT('8/10 (reviewer, 1 fix round)'), homeWith('max'))
+  assert.ok(has(reason, '(9/10)'), reason)
+})
+
 test('a Max record keeps the Max gate when the project mode file is unusable', () => {
   const home = homeWith('max')
   for (const dir of brokenProjects()) {

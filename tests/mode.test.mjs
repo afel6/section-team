@@ -156,9 +156,9 @@ test('serializing replaces a broken or invalid previous file', () => {
 
 test('serializing an unknown mode throws one plain line', () => {
   assert.throws(() => serializeMode(null, 'fast'), /unknown mode/)
-  assert.throws(() => serializeMode(null, 'fast'), { message: 'unknown mode "fast": pick balanced or max' })
+  assert.throws(() => serializeMode(null, 'fast'), { message: 'unknown mode "fast": pick balanced, max or off' })
   for (const bad of [undefined, null, 'Max', '', 'x\ny']) {
-    assert.throws(() => serializeMode(null, bad), err => /^unknown mode[^\n]*: pick balanced or max$/.test(err.message), String(bad))
+    assert.throws(() => serializeMode(null, bad), err => /^unknown mode[^\n]*: pick balanced, max or off$/.test(err.message), String(bad))
   }
 })
 
@@ -195,7 +195,7 @@ test('readMode reports a hand-edited bad file', () => {
 
 test('writeMode with an unknown mode throws and writes nothing', () => {
   const root = tempDir()
-  assert.throws(() => writeMode(root, 'turbo'), { message: 'unknown mode "turbo": pick balanced or max' })
+  assert.throws(() => writeMode(root, 'turbo'), { message: 'unknown mode "turbo": pick balanced, max or off' })
   assert.equal(existsSync(teamDir(root)), false)
 })
 
@@ -279,6 +279,7 @@ test('readMode passes the ending to its stand-in problems and leaves the no-file
 })
 
 const LEAN_GONE = 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max'
+const LEAN_GONE_SAVE = 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced, max or off'
 
 test('a saved lean runs as balanced and says it was retired', () => {
   const expected = { mode: 'balanced', autoInstallSkills: null, problem: null, modeUsable: true, retired: 'lean' }
@@ -294,11 +295,29 @@ test('activeMode runs a retired lean as balanced and leaves the rest alone', () 
 
 test('lean is refused when it is picked, and writing a mode replaces a saved lean', () => {
   assert.throws(() => assertMode('lean'), { message: LEAN_GONE })
-  assert.throws(() => modeName('lean'), { message: LEAN_GONE })
-  assert.throws(() => serializeMode(null, 'lean'), { message: LEAN_GONE })
+  assert.throws(() => modeName('lean'), { message: LEAN_GONE_SAVE })
+  assert.throws(() => serializeMode(null, 'lean'), { message: LEAN_GONE_SAVE })
   const root = withModeFile('{"mode":"lean","autoInstallSkills":true}')
-  assert.throws(() => writeMode(root, 'lean'), { message: LEAN_GONE })
+  assert.throws(() => writeMode(root, 'lean'), { message: LEAN_GONE_SAVE })
   assert.equal(readFileSync(modeFile(root), 'utf8'), '{"mode":"lean","autoInstallSkills":true}')
   writeMode(root, 'max')
   assert.deepEqual(readMode(root), { mode: 'max', autoInstallSkills: true, problem: null, modeUsable: true })
+})
+
+// The per-project off switch: a saved off reads as Balanced plus off: true, so a hook that does not check the flag still runs Balanced.
+test('a saved off reads as Balanced with off: true, and saves and reads back', () => {
+  assert.deepEqual(parseModeFile('{"mode":"off"}'), { mode: 'balanced', autoInstallSkills: null, problem: null, modeUsable: true, off: true })
+  assert.equal('off' in parseModeFile('{"mode":"max"}'), false)
+  assert.equal(serializeMode(null, 'off'), '{"mode":"off"}')
+  assert.equal(modeName('off'), 'Off')
+  assert.equal(serializeMode('{"mode":"max","autoInstallSkills":false}', 'off'), '{"mode":"off","autoInstallSkills":false}')
+  const root = withModeFile('{"mode":"max"}')
+  writeMode(root, 'off')
+  assert.equal(readMode(root).off, true)
+  writeMode(root, 'max')
+  assert.deepEqual(readMode(root), { mode: 'max', autoInstallSkills: null, problem: null, modeUsable: true })
+})
+
+test('off is a saved setting, not a team mode: briefs and session records still refuse it', () => {
+  assert.throws(() => assertMode('off'), { message: 'unknown mode "off": pick balanced or max' })
 })

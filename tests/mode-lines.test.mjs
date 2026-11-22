@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from '../hooks/mode-lines.mjs'
+import { MODE_OPTIONS, OFF_LABEL, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from '../hooks/mode-lines.mjs'
 import { MODE_LABELS } from '../hooks/lib/mode.mjs'
 
 test('a failed save shows only the error code, or what ENOTDIR means here, never the engine message', () => {
@@ -23,19 +23,28 @@ test("a mode file that cannot be read is Balanced with the hooks' own problem li
   assert.deepEqual(unreadableModeFile(notAFolder()), because('.team is not a folder'))
   assert.deepEqual(unreadableModeFile(new Error("section-team: $.fs.read: EPERM: operation not permitted, open 'C:\\p\\.team\\mode.json'")), because('could not be read (EPERM)'))
   assert.deepEqual(unreadableModeFile(new Error("refused at 'C:\\p'")), because('could not be read (unknown error)'))
-  assert.equal(modeHint('balanced'), 'section-team mode: Balanced · /team mode balanced|max')
+  assert.equal(modeHint('balanced'), 'section-team mode: Balanced · /team mode balanced|max|off')
 })
 
 test('only an unknown mode gets a line, and an odd one is not echoed', () => {
-  for (const mode of ['balanced', 'max']) assert.equal(unknownModeLine(mode), null)
-  assert.equal(unknownModeLine('lean'), 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max')
-  assert.equal(unknownModeLine('turbo'), 'unknown mode "turbo": pick balanced or max')
-  assert.equal(unknownModeLine('max extra'), 'unknown mode (not shown): pick balanced or max')
+  for (const mode of ['balanced', 'max', 'off']) assert.equal(unknownModeLine(mode), null)
+  assert.equal(unknownModeLine('lean'), 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced, max or off')
+  assert.equal(unknownModeLine('turbo'), 'unknown mode "turbo": pick balanced, max or off')
+  assert.equal(unknownModeLine('max extra'), 'unknown mode (not shown): pick balanced, max or off')
   assert.equal(savedLine('max'), 'section-team mode: Max (applies from your next message)')
 })
 
-test('the picker offers the two modes in order with their labels, and the summary lists them', () => {
-  assert.deepEqual(MODE_OPTIONS, [{ value: 'balanced', label: MODE_LABELS.balanced }, { value: 'max', label: MODE_LABELS.max }])
+test('the picker offers the two modes in order with their labels, then off, and the summary lists them', () => {
+  assert.deepEqual(MODE_OPTIONS, [{ value: 'balanced', label: MODE_LABELS.balanced }, { value: 'max', label: MODE_LABELS.max }, { value: 'off', label: OFF_LABEL }])
+  assert.equal(OFF_LABEL, 'Off · no team in this project')
   assert.equal(modeSummary({ mode: 'max', problem: null }).split('\n')[0], 'section-team mode: Max')
-  assert.equal(modeSummary({ mode: 'balanced', problem: null }).split('\n').length, 4)
+  assert.equal(modeSummary({ mode: 'balanced', problem: null }).split('\n').length, 5)
+})
+
+test('off shows as Off, and switching to or from off applies from the next session', () => {
+  assert.equal(modeSummary({ mode: 'balanced', problem: null, off: true }).split('\n')[0], 'section-team mode: Off')
+  assert.equal(savedLine('off'), 'section-team mode: Off (applies from your next session)')
+  assert.equal(savedLine('max', true), 'section-team mode: Max (applies from your next session)')
+  assert.equal(savedLine('max', false), 'section-team mode: Max (applies from your next message)')
+  assert.equal(modeHint('off'), 'section-team mode: Off · /team mode balanced|max|off')
 })

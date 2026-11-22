@@ -56,7 +56,8 @@ function recordedMode(home, sessionId) {
 function projectGate(e, env, home) {
   const dir = projectDirOf(e, env)
   const setting = dir === null ? null : readMode(projectRoot(dir))
-  if (setting?.modeUsable) return GATES[setting.mode]
+  // A project switched off mid-session keeps the gate the session started with, as an unusable file does.
+  if (setting?.modeUsable && !setting.off) return GATES[setting.mode]
   return GATES[recordedMode(home, e.session_id) ?? DEFAULT_MODE]
 }
 

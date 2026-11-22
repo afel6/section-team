@@ -635,3 +635,17 @@ test('a session started in a subfolder finds plan.md at the repo root', () => {
   mkdirSync(sub, { recursive: true })
   assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
 })
+
+const OFF_LINE = 'section-team is off in this project (.team/mode.json says "off"), so the team brief was not added; /team mode balanced turns it back on from your next session'
+
+test('an off project gets no brief, no files and no records, only the one off line for the user', () => {
+  const dir = withModeFile(repo(), '{"mode":"off"}')
+  const home = tempHome()
+  const result = startContext(dir, home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: '1' }, 'test-session', { source: 'startup' })
+  assert.deepEqual(result, { context: null, warnings: [OFF_LINE] })
+  assert.equal(existsSync(join(dir, '.team', 'notes')), false, 'no notes folder')
+  assert.ok(!readFileSync(excludeFile(dir), 'utf8').includes('.team/'), 'no git exclude edit')
+  assert.deepEqual(readdirSync(home), [], 'nothing written under the home folder')
+  const out = JSON.parse(run(startInput(dir), home).stdout)
+  assert.deepEqual(out, { systemMessage: `section-team session-start: ${OFF_LINE}` })
+})

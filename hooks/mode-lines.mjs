@@ -1,24 +1,31 @@
-import { assertMode, balancedBecause, MODE_FILE, MODE_LABELS, MODES, modeName, NOT_FOLDER, readReason } from './lib/mode.mjs'
+import { assertSavable, balancedBecause, MODE_FILE, MODE_LABELS, MODES, modeName, NOT_FOLDER, OFF_MODE, readReason } from './lib/mode.mjs'
 
 // The words the mode picker and /team mode show. Pure: register.tsx does the reading and writing, since $ may not cross an import.
 
-const HOW_TO_SET = '/team mode balanced|max'
+const HOW_TO_SET = '/team mode balanced|max|off'
 
-// What the strip's picker offers, in MODES order.
-export const MODE_OPTIONS = Object.freeze(MODES.map(value => Object.freeze({ value, label: MODE_LABELS[value] })))
+export const OFF_LABEL = 'Off · no team in this project'
 
-// The one line naming the modes to pick from when mode is not one of them, else null.
+// What the strip's picker offers: the modes in MODES order, then off.
+export const MODE_OPTIONS = Object.freeze([
+  ...MODES.map(value => Object.freeze({ value, label: MODE_LABELS[value] })),
+  Object.freeze({ value: OFF_MODE, label: OFF_LABEL }),
+])
+
+// The one line naming the modes to pick from when mode is not one a project can save, else null.
 export function unknownModeLine(mode) {
   try {
-    assertMode(mode)
+    assertSavable(mode)
     return null
   } catch (err) {
     return err.message
   }
 }
 
-// The line after a save. Throws on an unknown mode.
-export const savedLine = mode => `section-team mode: ${modeName(mode)} (applies from your next message)`
+// The line after a save. A switch to off, or from off, applies from the next session: the brief is added only at session start.
+// Throws on an unknown mode.
+export const savedLine = (mode, fromOff = false) =>
+  `section-team mode: ${modeName(mode)} (applies from your next ${mode === OFF_MODE || fromOff ? 'session' : 'message'})`
 
 // The one line the mobile strip's button shows: the mode, and how to set it.
 export const modeHint = mode => `section-team mode: ${modeName(mode)} · ${HOW_TO_SET}`
@@ -44,8 +51,8 @@ export function saveFailedLine(error) {
 // The mode file as the hooks' readMode reports one it could not read: Balanced, with the same problem line.
 export const unreadableModeFile = error => balancedBecause(readReason({ code: codeOf(error) ?? undefined }))
 
-// What /team mode shows for a parsed mode file: the mode the hooks will use, its problem line when it has one, and the two modes.
-export function modeSummary({ mode, problem }) {
-  const lines = [`section-team mode: ${modeName(mode)}`, ...(problem === null ? [] : [problem]), ...MODE_OPTIONS.map(o => o.label)]
+// What /team mode shows for a parsed mode file: the mode the hooks will use (or Off), its problem line when it has one, and the choices.
+export function modeSummary({ mode, problem, off = false }) {
+  const lines = [`section-team mode: ${modeName(off ? OFF_MODE : mode)}`, ...(problem === null ? [] : [problem]), ...MODE_OPTIONS.map(o => o.label)]
   return [...lines, `Set it with ${HOW_TO_SET}`].join('\n')
 }

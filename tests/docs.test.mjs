@@ -229,3 +229,8 @@ test('the README lists every MCP grant in the agent files, and says no section g
   for (const grant of grants) assert.ok(readme.includes(`\`${grant}\``), `README does not list ${grant}`)
   assert.ok(readme.includes('No section gets `mcp__claude-in-chrome__*`'))
 })
+
+test('the README says how to turn the team off in one project, and that it applies from the next session', () => {
+  const modes = read('README.md').split('\n## Modes\n')[1].split('\n## ')[0]
+  assertIncludes(modes, ['**Turn it off in one project:**', '`/team mode off`', '`{"mode": "off"}`', 'applies from your next session', 'no brief'], 'Modes section')
+})

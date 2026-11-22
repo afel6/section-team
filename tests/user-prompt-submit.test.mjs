@@ -417,3 +417,14 @@ test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => 
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks
   assert.deepEqual(hooks.UserPromptSubmit, [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.mjs"' }] }])
 })
+
+test('an off project announces nothing, records nothing and saves no long prompt', () => {
+  const dir = project('{"mode":"off"}')
+  execFileSync('git', ['-C', dir, 'init', '-q'])
+  writeFileSync(join(dir, '.git', 'info', 'exclude'), '.team/' + String.fromCharCode(10))
+  const home = tempHome()
+  assert.deepEqual(promptCheck({ cwd: dir, session_id: 's1', prompt: 'x'.repeat(3000) }, home), { notice: null, warnings: [] })
+  assert.equal(existsSync(join(dir, '.team', 'reports')), false, 'no saved request')
+  assert.equal(existsSync(recordPath(home, 's1')), false, 'no mode record')
+  assert.equal(run(promptInput(dir), home).stdout, '')
+})

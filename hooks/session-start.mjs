@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { assembleBrief, briefHash } from './lib/brief.mjs'
-import { DEFAULT_MODE, MODE_FILE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
@@ -34,7 +34,9 @@ const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run it
 // The 2026-11-09 p1 round: each --resume re-sent the whole brief, which the resumed history already holds.
 const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still applies.'
 
-const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
+export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session`
+
+const PLAN_LINE ='`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
 function modeSection(mode, skills, problem, retired) {
   return [
@@ -92,6 +94,8 @@ function briefStillHeld(source, home, sessionId, hash) {
 export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source } = {}) {
   const root = projectRoot(cwd)
   const setting = readMode(root)
+  // A project switched off gets no brief and nothing written: no git exclude edit, no notes folder, no records.
+  if (setting.off) return { context: null, warnings: [OFF_LINE] }
   const steps = [
     ['git exclude update', () => ensureExcluded(cwd, root)],
     ...(excludeFile(cwd) ? [['notes folder', () => ensureNotes(root)]] : []), // a plain folder gets no .team/ until a section writes a note
@@ -124,7 +128,7 @@ async function main() {
   const dir = projectDirOf(input)
   if (dir === null) return skipped(input === null ? 'the hook input is not JSON' : 'the hook input has no absolute cwd')
   const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null, { source: input?.source })
-  const output = { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
+  const output = context === null ? {} : { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
   process.stdout.write(JSON.stringify(warnings.length === 0 ? output : { systemMessage: `${MESSAGE_PREFIX}: ${warnings.join('; ')}`, ...output }))
 }
 

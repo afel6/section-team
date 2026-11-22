@@ -72,6 +72,8 @@ export function saveRequest(root, prompt, ignored, now = new Date()) {
 // git is asked whether it ignores .team/ (so everything under it) only for a long prompt, so a short one costs no extra process.
 export function promptCheck({ cwd, session_id: sessionId, prompt }, home = homedir()) {
   const root = projectRoot(cwd)
+  // A project switched off is left alone: no notice, no record, no saved request. Switching off or back on applies from the next session.
+  if (readMode(root).off) return { notice: null, warnings: [] }
   const mode = modeCheck(root, sessionId, home)
   const request = attempt('request save', () => saveRequest(root, prompt, savable(prompt) && isIgnored(root, '.team/')))
   const parts = [mode.notice, request.value === null ? null : pointerText(request.value)].filter(part => part !== null)
