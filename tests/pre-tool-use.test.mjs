@@ -642,6 +642,8 @@ const GUARD_TABLE = [
   { pid: 200, ppid: 100, started: 2000, bytes: GUARD_MB, name: 'bash.exe', command: 'bash -c node hook' },
   { pid: 300, ppid: 200, started: 3000, bytes: GUARD_MB, name: 'node.exe', command: 'node pre-tool-use.mjs' },
 ]
+// The guard is opt-in: these tests turn it on with a 12 GB limit.
+const GUARD_ON = Object.freeze({ SECTION_TEAM_MEMORY_LIMIT_MB: '12288' })
 const guardEvent = (over = {}) => ({ agent_type: 'section-team:backend', tool_name: 'Bash', tool_input: { command: 'ls' }, session_id: 'sess-1', cwd: tempDir(), ...over })
 function guardDeps(over = {}) {
   const spawned = []
@@ -666,21 +668,21 @@ const writeGuardRecord = (home, data, ageMs) => {
 test("a builder's Bash call starts one guard, with the root, the limit and the log in its record", () => {
   const { deps, spawned } = guardDeps()
   const e = guardEvent()
-  assert.equal(ensureGuard(e, {}, deps), null)
+  assert.equal(ensureGuard(e, GUARD_ON, deps), null)
   assert.deepEqual(spawned, [guardRecord(deps.home)])
   const record = readGuardRecord(deps.home)
   assert.deepEqual(record.root, { pid: 100, started: 1000, name: 'claude.exe', command: 'claude.exe --session' })
   assert.equal(record.limit, 12 * GUARD_GB)
   assert.equal(record.log, join(e.cwd, '.team', 'tmp', 'memory-guard.log'))
   assert.match(record.claim, /^[0-9a-f-]{36}$/, 'the record names the guard it started')
-  for (const tool of ['Bash', 'PowerShell']) ensureGuard(guardEvent({ tool_name: tool, cwd: e.cwd }), {}, deps)
+  for (const tool of ['Bash', 'PowerShell']) ensureGuard(guardEvent({ tool_name: tool, cwd: e.cwd }), GUARD_ON, deps)
   assert.equal(spawned.length, 1, 'a running guard is not started again')
 })
 
 test('two calls at the same moment on one empty record folder give exactly one spawn', () => {
   const holder = {}
-  const { deps, spawned } = guardDeps({ list: () => { holder.inner = ensureGuard(guardEvent(), {}, deps); return GUARD_TABLE } })
-  ensureGuard(guardEvent(), {}, deps)
+  const { deps, spawned } = guardDeps({ list: () => { holder.inner = ensureGuard(guardEvent(), GUARD_ON, deps); return GUARD_TABLE } })
+  ensureGuard(guardEvent(), GUARD_ON, deps)
   assert.equal(holder.inner, null)
   assert.equal(spawned.length, 1)
 })
@@ -688,14 +690,14 @@ test('two calls at the same moment on one empty record folder give exactly one s
 test('a fresh record starts nothing; a stale one is taken over by one caller only', () => {
   const fresh = guardDeps()
   writeGuardRecord(fresh.deps.home, { root: {} }, 1000)
-  assert.equal(ensureGuard(guardEvent(), {}, fresh.deps), null)
+  assert.equal(ensureGuard(guardEvent(), GUARD_ON, fresh.deps), null)
   assert.equal(fresh.spawned.length, 0)
   assert.equal(fresh.listed.length, 0)
 
   const stale = guardDeps()
   writeGuardRecord(stale.deps.home, { root: {}, claim: 'old-guard' }, 60 * 1000)
-  ensureGuard(guardEvent(), {}, stale.deps)
-  ensureGuard(guardEvent(), {}, stale.deps)
+  ensureGuard(guardEvent(), GUARD_ON, stale.deps)
+  ensureGuard(guardEvent(), GUARD_ON, stale.deps)
   assert.equal(stale.spawned.length, 1)
   const taken = readGuardRecord(stale.deps.home).claim
   assert.ok(typeof taken === 'string' && taken !== 'old-guard', 'a takeover names the new guard, so the old one exits')
@@ -703,25 +705,27 @@ test('a fresh record starts nothing; a stale one is taken over by one caller onl
   // A second caller arrives while the first is taking over the same stale record: it does nothing.
   const raced = guardDeps()
   const holder = {}
-  raced.deps.list = () => { holder.inner = ensureGuard(guardEvent(), {}, raced.deps); return GUARD_TABLE }
+  raced.deps.list = () => { holder.inner = ensureGuard(guardEvent(), GUARD_ON, raced.deps); return GUARD_TABLE }
   writeGuardRecord(raced.deps.home, { root: {} }, 60 * 1000)
-  ensureGuard(guardEvent(), {}, raced.deps)
+  ensureGuard(guardEvent(), GUARD_ON, raced.deps)
   assert.equal(holder.inner, null)
   assert.equal(raced.spawned.length, 1)
 })
 
-test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an unset limit on linux start nothing', () => {
+test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an unset limit on any platform start nothing', () => {
   const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
   const cases = [
-    [guardEvent({ agent_type: undefined }), {}, {}],
-    [guardEvent({ agent_type: 'section-team:ai-engineer' }), {}, {}],
-    [guardEvent({ agent_type: 'section-team:plan-advisor' }), {}, {}],
-    [guardEvent({ agent_type: 'backend' }), {}, {}],
-    [guardEvent({ tool_name: 'Write' }), {}, {}],
-    [guardEvent({ session_id: '../x' }), {}, {}],
-    [guardEvent({ session_id: undefined }), {}, {}],
+    [guardEvent({ agent_type: undefined }), GUARD_ON, {}],
+    [guardEvent({ agent_type: 'section-team:ai-engineer' }), GUARD_ON, {}],
+    [guardEvent({ agent_type: 'section-team:plan-advisor' }), GUARD_ON, {}],
+    [guardEvent({ agent_type: 'backend' }), GUARD_ON, {}],
+    [guardEvent({ tool_name: 'Write' }), GUARD_ON, {}],
+    [guardEvent({ session_id: '../x' }), GUARD_ON, {}],
+    [guardEvent({ session_id: undefined }), GUARD_ON, {}],
     [guardEvent(), { [VAR]: '0' }, {}],
+    [guardEvent(), {}, {}],
     [guardEvent(), {}, { platform: 'linux' }],
+    [guardEvent(), { [VAR]: '12GB' }, {}],
   ]
   for (const [e, env, over] of cases) {
     const { deps, spawned, listed } = guardDeps(over)
@@ -742,33 +746,28 @@ test('a failed listing and an unknown host write the failure, say so once, and a
     let now = Date.now()
     const { deps, spawned, listed } = guardDeps({ now: () => now })
     deps.list = () => { listed.push(1); return list() }
-    const first = ensureGuard(guardEvent(), {}, deps)
+    const first = ensureGuard(guardEvent(), GUARD_ON, deps)
     assert.match(first, /memory guard/)
     assert.ok(!first.includes('\n'))
     assert.ok(readGuardRecord(deps.home).failed, 'the failure is in the record')
     assert.equal(spawned.length, 0)
     // Later calls in the next 10 minutes neither retry nor repeat the notice, even once the record looks stale.
-    assert.equal(ensureGuard(guardEvent(), {}, deps), null)
+    assert.equal(ensureGuard(guardEvent(), GUARD_ON, deps), null)
     const old = new Date(now - 60 * 1000)
     utimesSync(guardRecord(deps.home), old, old)
     now += 9 * 60 * 1000
-    assert.equal(ensureGuard(guardEvent(), {}, deps), null)
+    assert.equal(ensureGuard(guardEvent(), GUARD_ON, deps), null)
     assert.equal(listed.length, 1)
     now += 2 * 60 * 1000
-    ensureGuard(guardEvent(), {}, deps)
+    ensureGuard(guardEvent(), GUARD_ON, deps)
     assert.equal(listed.length, 2, 'retried after 10 minutes')
   }
 })
 
-test('a spawn error is a failed start, and a bad limit value is said once by the caller that starts the guard', () => {
+test('a spawn error is a failed start', () => {
   const broken = guardDeps({ spawn: () => { throw Object.assign(new Error('spawn failed'), { code: 'EPERM' }) } })
-  assert.match(ensureGuard(guardEvent(), {}, broken.deps), /memory guard.*EPERM/)
+  assert.match(ensureGuard(guardEvent(), GUARD_ON, broken.deps), /memory guard.*EPERM/)
   assert.ok(readGuardRecord(broken.deps.home).failed)
-  const bad = guardDeps()
-  const env = { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }
-  assert.match(ensureGuard(guardEvent(), env, bad.deps), /SECTION_TEAM_MEMORY_LIMIT_MB/)
-  assert.equal(bad.spawned.length, 1)
-  assert.equal(ensureGuard(guardEvent(), env, bad.deps), null)
 })
 
 test("decide gives the same answers with a session id on a builder's Bash call", () => {

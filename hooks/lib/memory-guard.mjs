@@ -3,8 +3,8 @@
 
 export const MB = 1024 * 1024
 export const LIMIT_VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
-// R28, pending the user's yes: the platforms where the guard is on when the variable is unset. [] turns that default off everywhere.
-export const DEFAULT_ON_PLATFORMS = ['win32']
+// The platforms where the guard is on when the variable is unset. None: the guard stops processes, so it runs only when the user sets a limit.
+export const DEFAULT_ON_PLATFORMS = []
 const DEFAULT_SHARE = 0.75
 const FLOOR_MB = 4096
 // The runner scans this often; a record touched within FRESH_SCANS intervals means a guard is running.

@@ -191,11 +191,11 @@ test('the README says the guard refuses only finished heads, and what each calle
 // Real use, 2026-11-11: one process took all the memory of the machine three times; the plugin's guard stops such a run.
 test('the README describes the memory guard under Use: what it stops, the limit, the variable, the log, the default and how to turn it off', () => {
   const use = read('README.md').split('\n## Use\n')[1].split('\n## ')[0]
-  const guard = use.split('**Memory guard.**')[1]?.split('\n')[0]
+  const guard = use.split('**Memory guard (opt-in).**')[1]?.split('\n')[0]
   assert.ok(guard, 'no Memory guard entry under Use')
   assertIncludes(guard, [
-    'every 5 seconds', "the session's MCP servers", '75% of physical memory, never under 4096 MB', '`SECTION_TEAM_MEMORY_LIMIT_MB`', '`0` turns it off',
-    '`.team/tmp/memory-guard.log`', 'on by default on Windows only',
+    'every 5 seconds', "the session's MCP servers", '`SECTION_TEAM_MEMORY_LIMIT_MB`', 'for example `12288` on a 16 GB machine', '`0` or a value that is not a whole number keeps it off',
+    '`.team/tmp/memory-guard.log`', 'It is off by default on every platform',
   ], 'memory guard entry')
 })
 
