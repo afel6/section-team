@@ -10,7 +10,7 @@ test('defaults come from the crew and the file lives under the home folder', () 
   assert.equal(D.backend, 'Moss')
   assert.equal(namesFile('/h'), '/h/.claude/section-team/names.json')
   assert.equal(NO_HOME_LINE, 'Names need USERPROFILE or HOME to be set.')
-  assert.equal(UNREADABLE_LINE, 'names.json could not be read, so the default names are shown; the next rename rewrites it.')
+  assert.equal(UNREADABLE_LINE, 'names.json could not be read, so the default names are shown; fix or delete the file to rename builders.')
 })
 
 test('cleanName trims, composes and collapses spaces', () => {

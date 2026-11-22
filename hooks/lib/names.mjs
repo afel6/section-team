@@ -6,7 +6,7 @@ export const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} -]{0,11}$/u
 
 export const DEFAULT_NAMES = Object.fromEntries(BUILDER_IDS.map((id) => [id, CREW[id].name]))
 export const NO_HOME_LINE = 'Names need USERPROFILE or HOME to be set.'
-export const UNREADABLE_LINE = 'names.json could not be read, so the default names are shown; the next rename rewrites it.'
+export const UNREADABLE_LINE = 'names.json could not be read, so the default names are shown; fix or delete the file to rename builders.'
 export const NOT_READ_LINE = 'Name not saved: names.json could not be read.'
 const NOT_VALID = 'names.json is not valid'
 const TOO_LARGE = 'names.json is too large'
