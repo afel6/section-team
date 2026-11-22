@@ -7,6 +7,8 @@ import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from 
 import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, parseNames, serializeNames, UNREADABLE_LINE } from './lib/names.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 import { codeOf, MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
+import { officeAlt, officeSvg, ORDER } from './office.mjs'
+import { trackOffice } from './office-track.mjs'
 import { dashboardCards, HIDE_MS, parseStatus, statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -83,12 +85,14 @@ async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<stri
 type Report = ReturnType<typeof parseReport>
 type Spawn = { parentAgentId?: string; subagentType: string; model: string }
 type Used = { total: number; out: number }
-// spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
+type Track = ReturnType<typeof trackOffice>['track']
+// spawns, usage and the office's walk tracking live here, not in the atom: only the computed board is stored. spawns and usage are keyed by agent id.
 type Ctx = {
   root: string; rootFrom: string; request: string; lastJson: string; lastError: string; lastNamesLog: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
   chatsOpen: boolean; lastChats: string
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
+  office: { track?: Track; office?: BoardData['office'] }
 }
 
 // A fresh session counts from zero. The poll is not touched: the board stays alive across a /clear.
@@ -144,6 +148,19 @@ async function readReports($: EngineInterface, ctx: Ctx, root: string) {
   return { reports, lastSummary }
 }
 
+// The office picture, rebuilt only when trackOffice says so: between rebuilds its source stays the same, so its motion never restarts.
+// Both maps hold all ten builders in ORDER, since trackOffice keys on their JSON as given. The track moves on only once the picture is
+// built, so a tick that fails here rebuilds on the next one.
+function officeFor(ctx: Ctx, cards: BoardCard[], now: number) {
+  const card = (id: string) => cards.find(c => c.kind === 'builder' && c.id === id)
+  const states = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.state ?? 'asleep']))
+  const names = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.name ?? '']))
+  const { track, rebuild } = trackOffice(ctx.office.track, { states, names, now })
+  if (rebuild) ctx.office.office = { source: officeSvg({ states, names, moves: track.moves, now }), alt: officeAlt({ states, names }) }
+  ctx.office.track = track
+  return ctx.office.office
+}
+
 async function refresh($: EngineInterface, ctx: Ctx) {
   const agents = await $.agent.list()
   // Looked up here, not at session.start, so the session start never waits on git.
@@ -152,7 +169,8 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   // Read each tick, so a rename made in another chat shows here within a second.
   const { names } = await readNames($, ctx)
   const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
-  const next = boardModel({ agents, reports, request: ctx.request, lastSummary, usage, names })
+  const model = boardModel({ agents, reports, request: ctx.request, lastSummary, usage, names })
+  const next = { ...model, office: officeFor(ctx, model.cards, await $.clock.now()) }
   ctx.board = next
   const json = JSON.stringify(next)
   if (json !== ctx.lastJson) {
@@ -294,7 +312,7 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)" })
@@ -407,8 +425,10 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Svg, Text } = $.ui.resolve(e)
     const data = await read($, board)
+    // The terminal draws no Svg. Elsewhere the office, which shows the sleeping builders too, takes the asleep line's place.
+    const office = e.surface === 'terminal' ? undefined : data.office
     const width = cardWidth(e.props.bodyColumns ?? 80)
     const card = (c: BoardCard) => (
       <Box key={`card-${c.id}`} width={width} flexDirection="column" paddingX={1} borderStyle={c.kind === 'advisor' ? 'dashed' : 'round'} borderColor={COLOR[c.state]}>
@@ -440,9 +460,10 @@ export const register: Register = on => {
           <Text dimColor>{data.lastSummary === '' ? counts : `${counts} · last summary ${data.lastSummary}`}</Text>
           {data.teamLine ? <Text dimColor>{data.teamLine}</Text> : null}
         </Box>
+        {office ? <Svg key="office" source={office.source} alt={office.alt} /> : null}
         {group('Sections', 'builder')}
         {group('Advisors', 'advisor')}
-        <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>
+        {office ? null : <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>}
         <Box key="legend" flexDirection="row" flexWrap="wrap" columnGap={2}>
           <Text color={COLOR.running}>● running</Text>
           <Text color={COLOR.waiting}>● waiting</Text>

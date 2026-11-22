@@ -874,3 +874,83 @@ test('a lasting names problem logs once even while another failure keeps happeni
   expect(seen.logs.filter(l => l.text.includes('disk full'))).toHaveLength(1)
   expect(seen.logs.every(l => l.to === 'debug')).toBe(true)
 })
+
+// The office picture: drawn from the poll's office data on every surface but the terminal, in place of the asleep line.
+type Mounted = { find: (q: { key: string }) => Promise<{ text: string } | undefined>; findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown> }[]>; unmount: () => Promise<void> }
+const mountOn = ($: { ui: { mount: (t: never) => Promise<Mounted> } }, surface: string) =>
+  $.ui.mount({ plugin: 'section-team', surface, component: 'Pane', requestId: 'team-board', props: PROPS } as never)
+// The one office picture's source, as the pane on that surface draws it.
+const officeSource = async ($: never, surface = 'desktop') => {
+  const ui = await mountOn($, surface)
+  const svgs = await ui.findAll({ type: 'Svg' })
+  await ui.unmount()
+  expect(svgs).toHaveLength(1)
+  expect(typeof svgs[0].props.source).toBe('string')
+  return svgs[0].props.source as string
+}
+const FRONTEND = { id: '1', type: 'section-team:frontend', status: 'running', description: 'login form' }
+
+test('on desktop the board draws the office picture, with its alt text, in place of the asleep line', async ($, on) => {
+  const { clock } = world(on)
+
+  await $.session.start(START)
+  await $.agent.spawn(SECTION)
+  await clock.advance(1000)
+  const ui = await mountOn($ as never, 'desktop')
+  const svgs = await ui.findAll({ type: 'Svg' })
+  expect(svgs).toHaveLength(1)
+  expect(svgs[0].props.alt).toMatch(/^The office:/)
+  for (const prop of ['width', 'height', 'isInteractive']) expect(svgs[0].props[prop]).toBeUndefined()
+  expect(await ui.find({ key: 'asleep' })).toBeUndefined()
+  expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('● Iris · frontend')
+})
+
+test('on the terminal the board draws no office picture and keeps the asleep line', async ($, on) => {
+  const { clock } = world(on)
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  const ui = await mountOn($ as never, 'terminal')
+  expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
+  expect((await ui.find({ key: 'asleep' }))?.text).toMatch(/\d+ asleep/)
+})
+
+test('the office source stays the same across ticks where only token counts change', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = TEAM
+  seen.spawnAnswer = answerSpawns
+
+  await $.session.start(START)
+  await $.agent.spawn(SECTION)
+  await step($ as never, seen, 'S1', usage(100, 50, 0, 0))
+  await clock.advance(1000)
+  const first = await officeSource($ as never)
+  expect(await cardText($ as never, 'frontend')).toContain('tokens 150 · out 50')
+
+  await step($ as never, seen, 'S1', usage(10, 40, 0, 0))
+  await clock.advance(1000)
+  expect(await cardText($ as never, 'frontend')).toContain('tokens 200 · out 90')
+  expect(await officeSource($ as never)).toBe(first)
+})
+
+test('a builder that wakes walks to its desk, the walk carries on across a rebuild, and ends', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = []
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  seen.agents = [FRONTEND]
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).toMatch(/\.wk0\{animation:wk0 2\.2s ease-in-out -0s both\}/)
+
+  seen.agents = [{ ...FRONTEND, status: 'waiting' }]
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).toContain('-1s both}')
+
+  await clock.advance(2500)
+  expect(await officeSource($ as never)).not.toContain('.wk0{')
+
+  // A surface that mounts the pane later gets the picture with the walk over, not one from before.
+  await clock.advance(1000)
+  expect(await officeSource($ as never, 'mobile')).not.toContain('.wk0{')
+})
