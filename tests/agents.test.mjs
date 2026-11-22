@@ -31,7 +31,7 @@ test('every section file has the pinned model, memory, a valid colour and a REPO
     const fm = front(text)
     assert.equal(fm.name, s.id)
     // Every section head runs on Opus: benchmark rounds 4–6 showed Sonnet heads land at solo quality even with the Opus gate.
-    assert.equal(fm.model, 'claude-opus-5-5', `${file} model`)
+    assert.equal(fm.model, 'opus', `${file} model`)
     assert.equal(fm.memory, 'local', `${file} memory`)
     assert.ok(COLORS.includes(fm.color), `${file} colour ${fm.color}`)
     assert.ok(text.includes('## REPORT · '), `${file} has no REPORT template`)
@@ -166,7 +166,7 @@ test('every section head skips the global CLAUDE.md, carries the house rules and
     const text = agentFile(s.id)
     assert.equal(front(text).omitClaudeMd, 'true', `${s.id} omitClaudeMd`)
     assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), `${s.id} project rules`)
-    assert.ok(text.includes("House rules (the user's standards):"), `${s.id} house rules`)
+    assert.ok(text.includes('section-team default rules (where the project'), `${s.id} house rules`)
     assert.ok(text.includes('section-team:scout'), `${s.id} scout`)
     if (s.kind === 'builder') assert.ok(text.includes('section-team:coder'), `${s.id} coder`)
     else assert.ok(!text.includes('section-team:coder'), `${s.id} must not get the coder`)
@@ -447,7 +447,7 @@ test('coder is a Sonnet routine-coding helper that cannot spawn agents', () => {
   for (const tool of ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']) assert.ok(fm.tools.split(', ').includes(tool), `coder lacks ${tool}`)
   assert.ok(!fm.tools.split(', ').includes('Agent'), 'coder has Agent')
   assert.ok(fm.tools.split(', ').includes('Skill'), 'coder lacks Skill')
-  assert.ok(text.includes('House rules'))
+  assert.ok(text.includes('section-team default rules'))
   assert.ok(text.includes('CLAUDE.local.md'), 'coder needs the full project-rules list')
   assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), 'coder project rules')
 })
@@ -692,11 +692,11 @@ test('round tg: tests come first, reuse what exists, and a security pass adds a 
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(TESTS), `${id} reuses tests`)
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('no hardcoded secrets; a number with a meaning has a name; no console.log in shipped code;'), `${id} named numbers`)
   assert.ok(agentFile('reviewer').includes('\n- naming: descriptive names that say what a thing is or does, consistent with the surrounding code; a number with a meaning has a name.\n'), 'naming item')
-  const FIRST = '   - Tests (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your interfaces (file names, signatures): every expected value comes from the spec, never from what the code does. Its brief names the spec file and lines to cover instead of copying them (with no spec file, the requirements themselves) and asks for each a test that a wrong implementation the coder can name would fail. When the job states no mode gate (no pass mark other than your quality gate\'s own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; the same holds for a standing instruction that asks for tests first (a CLAUDE.md or AGENTS.md rule), since the user chose this order for this mode; only a job message that asks for tests first in words still holds; the tests still come from the spec): once it is in, launch the test coders together in one message; each runs its own tests against the code, decides every failure from the spec line, corrects a test only where it contradicts a spec line it can quote, and hands back its file names, its pass and fail totals and the code\'s failures, each with its spec line; you fix the code and make one full run. When the job states a mode gate, the tests come first: a test coder starts before the code exists. Where helpers run in the foreground, it blocks you, so you cannot work meanwhile: launch it in the same message as the coders that write the code, or, when you write the code yourself, launch it first and write the code after it returns; where they run in the background, write the code while it runs. While the code is missing it runs only a syntax check, and it hands back only its file names. Make the first full run yourself once the code is in. When more than a couple of tests fail, do not work through them in your own context: a coder takes the failing names and the spec, decides from the spec line whether each test or the code is wrong, corrects only the tests that contradict a spec line it can quote, and hands you the code\'s failures, each with its spec line. Never brief the tests of code you are about to build as checks of code already written. In both orders a test coder\'s tests are the one exception to reviewing a helper\'s diff: the reviewer judges them at your gate, so read only the tests a failing run points you to.'
+  const FIRST = '   - Tests (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your interfaces (file names, signatures): every expected value comes from the spec, never from what the code does. Its brief names the spec file and lines to cover instead of copying them (with no spec file, the requirements themselves) and asks for each a test that a wrong implementation the coder can name would fail. When the job states no mode gate (no pass mark other than your quality gate\'s own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; this is section-team\'s default order for this mode; a tests-first rule in the project\'s CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message; each runs its own tests against the code, decides every failure from the spec line, corrects a test only where it contradicts a spec line it can quote, and hands back its file names, its pass and fail totals and the code\'s failures, each with its spec line; you fix the code and make one full run. When the job states a mode gate, the tests come first: a test coder starts before the code exists. Where helpers run in the foreground, it blocks you, so you cannot work meanwhile: launch it in the same message as the coders that write the code, or, when you write the code yourself, launch it first and write the code after it returns; where they run in the background, write the code while it runs. While the code is missing it runs only a syntax check, and it hands back only its file names. Make the first full run yourself once the code is in. When more than a couple of tests fail, do not work through them in your own context: a coder takes the failing names and the spec, decides from the spec line whether each test or the code is wrong, corrects only the tests that contradict a spec line it can quote, and hands you the code\'s failures, each with its spec line. Never brief the tests of code you are about to build as checks of code already written. In both orders a test coder\'s tests are the one exception to reviewing a helper\'s diff: the reviewer judges them at your gate, so read only the tests a failing run points you to.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(FIRST), `${id} tests first`)
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('Tests (not when the job says another section writes the tests)'), `${id} hands out no code`)
   for (const id of BUILDER_IDS) {
-    for (const s of ["When the job states no mode gate (no pass mark other than your quality gate's own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; the same holds for a standing instruction that asks for tests first (a CLAUDE.md or AGENTS.md rule), since the user chose this order for this mode; only a job message that asks for tests first in words still holds; the tests still come from the spec): once it is in, launch the test coders together in one message;", 'When the job states a mode gate, the tests come first: a test coder starts before the code exists.', 'every expected value comes from the spec, never from what the code does.']) assert.ok(agentFile(id).includes(s), `${id} test order: ${s.slice(0, 40)}`)
+    for (const s of ["When the job states no mode gate (no pass mark other than your quality gate's own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; this is section-team's default order for this mode; a tests-first rule in the project's CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message;", 'When the job states a mode gate, the tests come first: a test coder starts before the code exists.', 'every expected value comes from the spec, never from what the code does.']) assert.ok(agentFile(id).includes(s), `${id} test order: ${s.slice(0, 40)}`)
   }
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder', 'reviewer']) for (const s of ['   - Tests first (not when', 'your planned interfaces']) assert.ok(!agentFile(id).includes(s), `${id} drops ${s}`)
   const PASS = "review the changed files directly. In a security pass or review of other sections' code, report what you checked and what you found. A finding that breaks a spec line or a security rule in this file, or lets a request succeed on a secret, a role or a session the server stores in a way no one-at-a-time order of the requests gives (where a password change ends the user's sessions, a login on the old password that leaves a session alive after it; not a claim a signed token carries by design), is a failing item however rare the moment it needs (two requests at the same time), never a low or optional one (a case a rule in this file settles, such as content that changed during an outside call or a session's expiry judged at the clock reading the request took, is settled by that rule). Fix a finding of a few lines yourself, test first: the test fails before the fix and goes in the test file that covers that feature. A larger fix goes on your REPORT's Problems line as a failing fix list for the owning section, and you finish with `Status: partial`. Write no other tests: covering the spec belongs to the builders and the testing section. A pass that changes no file needs no grade."
@@ -873,4 +873,38 @@ test('round tg e3: late replies by kind, own work under a row lock, stored answe
       assert.ok(!agentFile(id).includes(old), id + ' old text: ' + old)
     }
   }
+})
+
+// 0.6.0 W2 PR-A: the default rules yield to the project's own rules, and every builder carries the safety line.
+const BUILDERS_AND_CODER = [...BUILDER_IDS, 'coder']
+
+test('no agent file calls the house rules the user\'s standards, and builders name them section-team default rules', () => {
+  assert.ok(inNoAgent("the user's standards"))
+  for (const id of BUILDERS_AND_CODER) {
+    assert.ok(agentFile(id).includes("section-team default rules (where the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, the project's rules win): "), id)
+  }
+})
+
+test('the 10 builders and the coder all carry the SAFETY line', () => {
+  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user.'
+  assert.equal(BUILDERS_AND_CODER.length, 11)
+  for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).includes(safety), id)
+})
+
+test('a tests-first rule in the project or the job still holds; no agent says the user chose the order', () => {
+  assert.ok(inNoAgent('user chose'))
+  assert.ok(agentFile('backend').includes("this is section-team's default order for this mode; a tests-first rule in the project's CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds"))
+})
+
+test('the reviewer grades against section-team default rules and the project rules', () => {
+  assert.ok(agentFile('reviewer').includes("grades changed code against section-team's default rules and the project's own rules"))
+  assert.ok(agentFile('reviewer').includes("against section-team's default rules and the project's own rules and return a score"))
+})
+
+test('sections use the opus alias, and no Fable consultant file or branch is left', () => {
+  for (const id of [...BUILDER_IDS, ...ADVISOR_IDS]) assert.equal(front(agentFile(id)).model, 'opus', id)
+  assert.ok(!existsSync(new URL('fable-consultant.md', AGENTS)))
+  assert.ok(inNoAgent('fable-consultant'))
+  assert.ok(inNoAgent('as a consultant; if Fable'))
+  assert.ok(agentFile('backend').includes('the supervisor decides with the user whether to consult a stronger model'))
 })
