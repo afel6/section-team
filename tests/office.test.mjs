@@ -25,7 +25,7 @@ test('the office fits the Svg limit at its worst', () => {
 
 test('the office holds only plain vector', () => {
   for (const src of [worst(), officeSvg({})]) {
-    assert.doesNotMatch(src, /url\(|href|data:|<image|\|NaN|undefined/)
+    assert.doesNotMatch(src, /url\(|href|data:|<image|\\|NaN|undefined/)
     assert.doesNotMatch(src, /&(?!amp;|lt;|gt;|quot;)/)
   }
 })
@@ -60,17 +60,29 @@ test('walk timing', () => {
   const leaving = svg('asleep', 'leave', 99000)
   assert.ok(leaving.includes(WALK))
   assert.ok(leaving.includes('.rm1{animation:rm1 22s ease-in-out 1.2s infinite}'))
-  assert.ok(svg('asleep', 'leave', 70000).includes('.rm1{animation:rm1 22s ease-in-out -7.7s infinite}'))
+  assert.ok(svg('asleep', 'leave', 70000).includes('.rm1{animation:rm1 22s ease-in-out -5.8s infinite}'))
+  assert.ok(svg('running', 'arrive', 99000).includes('.wk1 .of-step{animation-delay:-1s}'))
 })
 
 test('a creature that never moved strolls on the clock', () => {
   assert.ok(officeSvg({ now: 0 }).includes('.rm1{animation:rm1 22s ease-in-out -1.9s infinite}'))
 })
 
-test('names are escaped', () => {
-  const svg = officeSvg({ names: { backend: '<&">' } })
-  assert.ok(svg.includes('&lt;&amp;&quot;&gt;'))
-  assert.ok(!svg.includes('<&">'))
+test('a name outside the rules falls back to the default', () => {
+  const bad = officeSvg({ names: { backend: '<&">' } })
+  assert.ok(bad.includes('>Moss</text>') && !bad.includes('<&">'))
+  const evil = officeSvg({ names: { backend: 'a\\b url(x)' } })
+  assert.ok(evil.includes('>Moss</text>') && !evil.includes('\\') &&!evil.includes('url('))
+  assert.match(officeAlt({ states: { backend: 'running' }, names: { backend: '<&">' } }), /Moss \(backend\)/)
+})
+
+test('in-walk and walk-over strolls line up', () => {
+  const delay = (svg) => Number(/\.rm1\{animation:rm1 22s ease-in-out (-?[\d.]+)s infinite\}/.exec(svg)[1])
+  const build = (now) => officeSvg({ states: { backend: 'asleep' }, moves: { backend: { kind: 'leave', at: 100000 } }, now })
+  const startMs = 101000 + delay(build(101000)) * 1000 // mid-walk build: the stroll starts when the walk ends
+  const later = 107000
+  assert.equal(startMs, 102200)
+  assert.equal(-delay(build(later)), (later - startMs) / 1000)
 })
 
 test('default and custom nameplates', () => {

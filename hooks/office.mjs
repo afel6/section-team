@@ -23,7 +23,9 @@ const OFFICE_CSS = '.of-glow{animation:cr-glow 1.8s ease-in-out infinite}'
   + '.of-step{animation:of-step .37s ease-in-out 6}'
   + '@keyframes of-step{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}';
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// The one rule for a desk name; anything else draws the creature's default name.
+export const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} -]{0,11}$/u;
+const nameOf = (names, id) => (typeof names[id] === 'string' && NAME_RE.test(names[id]) ? names[id] : CREW[id].name);
 const shape = (d, fill, extra = '') => `<path d="${d}" fill="${fill}"${extra}/>`;
 const line = (d, stroke, w, extra = '') => `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${extra}/>`;
 const fillPath = (L, k, cls) => (L[k].d ? shape(L[k].d, L[k].fill, cls ? ` class="${cls}"` : '') : '');
@@ -101,7 +103,7 @@ function desk(section, name) {
     + shape(rrect(cx - 82, base - 6, 164, 12, 5), '#D9A877')
     + shape(rrect(cx - 38, base + 18, 76, 23, 5), '#F7EEDF')
     + shape(rrect(cx - 38, base + 18, 76, 4, 2), CREW[section].fill.body[0])
-    + `<text x="${cx}" y="${base + 35.5}" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="700" fill="#4A3426">${esc(name)}</text>`;
+    + `<text x="${cx}" y="${base + 35.5}" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="700" fill="#4A3426">${name}</text>`;
 }
 
 // Each section's prop on the left of its desk, (x, y) the middle of its foot on the desk top.
@@ -175,9 +177,8 @@ function placed(section, state, move, now) {
   let css = '';
   if (!seated) {
     const roam = roamCss(i);
-    const offset = i * 1.9;
     const delay = walking ? `${r2(WALK_S - age)}s`
-      : `-${r2((age === null ? now / 1000 + offset : age - WALK_S + offset) % roam.dur)}s`;
+      : `-${r2((age === null ? now / 1000 + i * 1.9 : age - WALK_S) % roam.dur)}s`;
     css += `.rm${i}{animation:rm${i} ${roam.dur}s ease-in-out ${delay} infinite}${roam.keyframes}`;
     body = `<g class="rm${i}">${body}</g>`;
   }
@@ -185,7 +186,7 @@ function placed(section, state, move, now) {
     const from = seated ? homeBox(i) : seatBox(section);
     const dx = r2(from.x - box.x);
     const dy = r2(from.y - box.y);
-    css += `.wk${i}{animation:wk${i} ${WALK_S}s ease-in-out -${r2(age)}s both}@keyframes wk${i}{from{transform:translate(${dx}px,${dy}px)}to{transform:translate(0px,0px)}}`;
+    css += `.wk${i}{animation:wk${i} ${WALK_S}s ease-in-out -${r2(age)}s both}@keyframes wk${i}{from{transform:translate(${dx}px,${dy}px)}to{transform:translate(0px,0px)}}.wk${i} .of-step{animation-delay:-${r2(age)}s}`;
     body = `<g class="wk${i}"><g class="of-step">${body}</g></g>`;
   }
   return { markup: body, css, inDeskLayer: seated || walking };
@@ -198,7 +199,7 @@ function officeSvg({ states = {}, names = {}, moves = {}, now = 0 } = {}) {
   const plan = ORDER.map((section) => ({ section, ...placed(section, states[section] ?? 'asleep', moves[section], now) }));
   const rowLayer = (r) => ROWS[r].sections.map((section) => {
     const p = plan.find((q) => q.section === section);
-    return chair(section) + (p.inDeskLayer ? p.markup : '') + desk(section, names[section] || CREW[section].name)
+    return chair(section) + (p.inDeskLayer ? p.markup : '') + desk(section, nameOf(names, section))
       + PROPS[section](deskSpot(section).cx - 50, deskSpot(section).base - 6);
   }).join('');
   const corridor = plan.filter((p) => !p.inDeskLayer)
@@ -212,7 +213,7 @@ function officeSvg({ states = {}, names = {}, moves = {}, now = 0 } = {}) {
 // What the office says to a reader who cannot see it.
 function officeAlt({ states = {}, names = {} } = {}) {
   const seated = ORDER.filter((s) => SEATED.has(states[s] ?? 'asleep'));
-  const who = (s) => `${names[s] || CREW[s].name} (${s}) ${states[s]}`;
+  const who = (s) => `${nameOf(names, s)} (${s}) ${states[s]}`;
   const free = ORDER.length - seated.length;
   return seated.length === 0 ? 'The office: all ten builders are free, strolling the corridor.'
     : `The office: ${seated.map(who).join(', ')} at their desks; ${free} free in the corridor.`;
