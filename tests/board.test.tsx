@@ -839,3 +839,14 @@ test('a names file that cannot be read shows the default names, /team name says 
   expect(seen.logs[0].text).toContain('EISDIR')
   expect(seen.logs[0].to).toBe('debug')
 })
+
+test('a names file that cannot be written says the name was not saved, and nothing is saved', async ($, on) => {
+  const { seen } = world(on)
+
+  await $.session.start(START)
+  seen.denyWrite = 'EPERM: operation not permitted'
+  const text = await teamText($ as never, 'name frontend Nova')
+  expect(text.startsWith('Name not saved: ')).toBe(true)
+  expect(text).toContain('EPERM: operation not permitted')
+  expect(NAMES_PATH in seen.disk).toBe(false)
+})
