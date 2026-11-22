@@ -553,3 +553,13 @@ test('SECURITY.md lists the known limits', () => {
     'Every push to `main` ships', '`main` moves only at releases',
   ], 'Known limits')
 })
+
+test('the bug report asks for the Plugin: line and the install method, not a commit', () => {
+  const form = read('.github/ISSUE_TEMPLATE/bug_report.yml')
+  assert.ok(!form.includes('section-team commit'), 'no commit field')
+  const plugin = form.split('id: plugin-line')[1]?.split('  - type:')[0] ?? ''
+  assertIncludes(plugin, ['Plugin:', '.team/reports/', 'version and mode', 'required: true'], 'Plugin: line field')
+  const install = form.split('id: install-method')[1]?.split('  - type:')[0] ?? ''
+  assertIncludes(install, ['Install method', '- marketplace', '- clone', '- --plugin-dir', 'required: true'], 'install method dropdown')
+  assert.ok(form.includes('  - type: dropdown\n    id: install-method'), 'a dropdown')
+})
