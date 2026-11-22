@@ -18,18 +18,20 @@ function settingsText(file) {
   }
 }
 
-// Whether a settings file's text sets env[name] as an own key, to any value.
+// Whether a settings file's text sets env[name] as an own key, to any value. Letter case is folded on every platform: Windows reads
+// Section_Team_X as SECTION_TEAM_X, and elsewhere folding can only add refusals.
 function textSets(text, name) {
+  const upper = name.toUpperCase()
   let data
   try {
     data = JSON.parse(withoutBom(text))
   } catch {
     // ponytail: text that is not JSON counts when it names the variable at all; the hook cannot tell how Claude Code read it, so it refuses
     // rather than guesses. Parse JSON with comments here if Claude Code is found to accept them.
-    return text.includes(name)
+    return text.toUpperCase().includes(upper)
   }
   const env = data?.env
-  return typeof env === 'object' && env !== null && !Array.isArray(env) && Object.hasOwn(env, name)
+  return typeof env === 'object' && env !== null && !Array.isArray(env) && Object.keys(env).some(key => key.toUpperCase() === upper)
 }
 
 // True when <root>/.claude/settings.json or <root>/.claude/settings.local.json sets env[name]. Throws on a read error other than a missing file.

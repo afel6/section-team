@@ -100,6 +100,14 @@ test("refusal: the project's .claude settings set SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.equal(checkWith('anthropics', { home, dir: sub }).code, 1)
 })
 
+test('refusal: a settings key in another letter case counts, since Windows reads environment names in any case', () => {
+  const home = homeWith(JSON.stringify(LIST))
+  const dir = writeFile(tempDir('trusted-project-'), ['.claude', 'settings.json'], JSON.stringify({ env: { Section_Team_Auto_Install_Skills: '1' } }))
+  const r = checkWith('anthropics', { home, dir })
+  assert.equal(r.code, 1)
+  assert.ok(oneLine(r.message) && r.message.includes(VAR), r.message)
+})
+
 test("a project root that is the home folder reads ~/.claude/settings.json as the user's own, not as project settings", () => {
   const home = writeFile(homeWith(JSON.stringify(LIST)), ['.claude', 'settings.json'], JSON.stringify({ env: ON }))
   assert.deepEqual(checkWith('anthropics', { home, dir: home }), { code: 0 })

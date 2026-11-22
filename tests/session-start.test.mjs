@@ -812,6 +812,12 @@ test('settings.local.json, a session folder below the root, and any value all co
   assert.deepEqual(zero.warnings, [PROJECT_ENV])
 })
 
+test('a settings key in another letter case keeps installs off too, since Windows reads environment names in any case', () => {
+  const { context, warnings } = startup(withProjectSettings(repo(), 'settings.json', { Section_Team_Auto_Install_Skills: '1' }), ENV_ON)
+  assertInstallsOff(context)
+  assert.deepEqual(warnings, [PROJECT_ENV])
+})
+
 test("a mode file's false still names the mode file, and the user still hears about the project's setting", () => {
   const { context, warnings } = startup(withProjectSettings(withModeFile(repo(), '{"autoInstallSkills":false}')), ENV_ON)
   assertInstallsOff(context, '- Automatic skill installs: off (from .team/mode.json).')

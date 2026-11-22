@@ -43,6 +43,13 @@ test('a file that is not JSON counts when it names the variable, so the hook ref
   assert.equal(projectEnvSets(withSettings(tempRoot(), 'settings.json', '{not json'), VAR), false)
 })
 
+test('a key in another letter case counts on every platform, since Windows reads environment names in any case', () => {
+  for (const key of ['Section_Team_Auto_Install_Skills', 'section_team_auto_install_skills']) {
+    assert.equal(projectEnvSets(withSettings(tempRoot(), 'settings.json', settingsJson({ [key]: '1' })), VAR), true, key)
+    assert.equal(projectEnvSets(withSettings(tempRoot(), 'settings.local.json', `{ // a comment\n "env": { "${key}": "1" } }`), VAR), true, `${key}, not JSON`)
+  }
+})
+
 test('a .claude that is a file is no settings; a settings path that is a folder throws its code', () => {
   const root = tempRoot()
   writeFileSync(join(root, '.claude'), 'a file where the folder should be')
