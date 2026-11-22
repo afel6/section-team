@@ -427,9 +427,9 @@ test('the held-out and p1 baselines are labelled the author\'s setup, with revie
   assert.ok(read('bench/data/README.md').includes(BASELINE), 'rounds 1-17 data README label')
 })
 
-test('no sentence about a held-out or p1 row calls the baseline plain Claude Code', () => {
-  for (const path of ['README.md', RESULTS_DOC]) {
-    const bad = sentencesOf(read(path)).filter(s => /held-out|\bp1\b/i.test(s) && s.includes('plain Claude Code'))
+test('no sentence about a held-out, p1, hq or fx round calls the baseline plain Claude Code', () => {
+  for (const path of ['README.md', RESULTS_DOC, LONG_DOC, HOW_DOC]) {
+    const bad = sentencesOf(read(path)).filter(s => /held-out|\bp1\b|\bhq\b|\bfx\b/i.test(s) && s.includes('plain Claude Code'))
     assert.deepEqual(bad, [], path)
   }
   assert.ok(!read('docs/benchmark-heldout-2026-11.md').includes('plain Claude Code'), 'held-out doc')
@@ -519,7 +519,12 @@ test('the how-it-works doc keeps the README details it took, and the README poin
     'If the file breaks mid-session, the session keeps its mode', 'The default names are frontend Iris',
     "The plugin refuses a section's Agent call that asks for the background", 'Remote sessions (`CLAUDE_CODE_REMOTE_MEMORY_DIR`)',
     'set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`', 'Sections load `security-review` only when the branch shares history with an `origin/HEAD` ref',
+    // lines the trim cut from the README that live only here
+    'An unknown mode is refused and nothing is saved.', 'On mobile the strip has no picker', 'Nothing opens by itself.',
+    'Balanced is above the 8.60 scale ceiling', "the handback gate uses the new mode's pass mark at once", 'A change to `autoInstallSkills` applies from the next session.',
+    'and prompts are not saved or checked', '(for example, its input names no project folder)', 'then on the two single-area tasks alone',
   ], 'how-it-works doc')
+  assert.ok(!read(LONG_DOC).includes('the Results figures above'), 'no pointer to text that moved')
 })
 
 test('the README Support section says where to ask and how soon, and a question form exists', () => {
@@ -538,6 +543,8 @@ test('SECURITY.md says whether private reporting is on, and the issue config lin
   assert.ok(off || /Private vulnerability reporting: enabled \(checked \d{4}-\d{2}-\d{2}\)/.test(security), 'SECURITY.md states the setting with a date')
   if (off) {
     assert.ok(!security.includes('Use GitHub\'s private reporting'), 'no instruction to use a form that is off')
+    assert.ok(config.includes('blank_issues_enabled: false') && security.includes('with the Question form'), 'the interim route names a form that can be opened')
+    assert.ok(read('.github/ISSUE_TEMPLATE/question.yml').includes('name: Question'), 'the Question form exists')
     assert.ok(!config.includes('security/advisories/new'), 'the issue config does not link the form while it is off')
     assert.ok(config.includes('/blob/main/SECURITY.md'), 'the issue config links SECURITY.md')
   }

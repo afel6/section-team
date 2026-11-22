@@ -34,7 +34,7 @@ One command installs it from this repo:
 ```
 /plugin install section-team --marketplace afel6/section-team
 ```
-On older versions, run `/plugin marketplace add afel6/section-team`, then `/plugin install section-team@section-team`. To work on the plugin from a clone, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Or in two steps: `/plugin marketplace add afel6/section-team`, then `/plugin install section-team@section-team`. To work on the plugin from a clone, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Turn it off or uninstall
 - **One project:** `/team mode off` or **Off** in the Mode picker (`/team mode balanced` turns it back on); it applies from your next session, `/clear` or `/compact`, and the hooks and the strip still run there ([what still runs](#what-changes-in-your-sessions)).
@@ -45,7 +45,7 @@ On older versions, run `/plugin marketplace add afel6/section-team`, then `/plug
 - The disable and uninstall commands are the ones `claude plugin --help` lists on Claude Code 2.1.318; a fresh-profile run of the marketplace install, disable and uninstall has not been recorded yet.
 
 ## Results
-Hidden tests show no meaningful gain: they tied in most rounds; the plugin passed fewer than solo in the first three p1 rounds and in round tj's official scoring (one Balanced run's hidden suites were cut short under machine load; a reported rescore, not published, passed 264); and Max passed 2 more of 148 on one hq task. Each result rests on 2 or 3 runs per setup, on Node.js tasks with no npm packages, run headless.
+Hidden tests show no meaningful gain: they tied in most rounds; the plugin passed fewer than solo in the first three p1 rounds and in round tj's official scoring (one Balanced run's hidden suites were cut short under machine load; a reported rescore, not published, passed 264); and Max passed 2 more of 148 on one hq task. Each result rests on 2 or 3 runs per setup, on Node.js tasks with no npm packages, run headless with any plan approved in advance.
 
 **Baselines.** Solo is Claude Code with the plugin off. Only the mode round's baseline was plain Claude Code on a clean machine. The held-out round and the p1 rounds in `bench/data/p1/` used Claude Code with the author's setup (plugin off; their CLAUDE.md and other plugins on): 5 of 9 held-out solo runs and 16 of 20 solo runs in `bench/data/p1/` spawned the author's code-reviewer or security-reviewer agent. For rounds hq, fx, py and ph the machine setup was not recorded.
 

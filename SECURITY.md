@@ -3,7 +3,7 @@
 section-team runs hooks on every prompt and on every Write, Edit, MultiEdit, NotebookEdit, Bash, PowerShell, Agent, SubagentHandback and SendMessage call in every session, can stop processes (the opt-in memory guard), and can install third-party skills into `~/.claude/skills` (through `section-team:add-skill`). Please report a problem in any of these privately.
 
 ## Report a vulnerability
-- Private vulnerability reporting: not enabled yet (checked 2026-11-23), so this repository's private advisory form does not work. Until it is, open an issue titled "Security contact request" that holds no detail of the problem, and the maintainer will arrange a private channel with you.
+- Private vulnerability reporting: not enabled yet (checked 2026-11-23), so this repository's private advisory form does not work. Until it is, open an issue with the Question form, titled "Security contact request", that holds no detail of the problem, and the maintainer will arrange a private channel with you.
 - Do not put any detail of a vulnerability in a public issue, pull request or discussion.
 - Say which version you ran (the `Plugin:` line at the end of any file in `.team/reports/`), how you installed it (marketplace or clone), your OS and Claude Code version, and the steps to reproduce.
 
