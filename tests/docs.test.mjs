@@ -23,6 +23,12 @@ const claimSentences = text => text.split(/(?<=[.!?])\s+|\n/).filter(s => CLAIM_
 // The round-by-round results moved out of the README into this file.
 const RESULTS_DOC = 'docs/benchmark-p1-hq-fx-2026-11.md'
 
+// The solo baseline of rounds 1-17, the held-out round and the p1 rounds on the main test machine; the mode round's was plain Claude Code.
+const BASELINE = "Claude Code with the author's setup (plugin off; their CLAUDE.md and other plugins on)"
+// The solo row label of rounds whose machine setup was not recorded (hq, fx and the second machine's p1 rounds).
+const UNRECORDED = 'Solo (plugin off; machine setup not recorded)'
+const FABLE_NOTE = 'Fable also planned and reviewed some of the fixes it judged.'
+
 const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 test('the claim check catches claim words and accepts a disclaimed sentence', () => {
@@ -103,7 +109,7 @@ test('the README records the p1 confirm round with its numbers and what is not m
   const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A p1 confirm round (0.3.0, 2026-11-10).**',
-    '| Plain Claude Code (solo) | $3.53 | 1.0 | 264 | 7.0 | 0 of 4 | 27 min | 149K to 152K |',
+    `| ${BASELINE} | $3.53 | 1.0 | 264 | 7.0 | 0 of 4 | 27 min | 149K to 152K |`,
     '| **Balanced (default)** | $17.45 | 4.9 | 262.5 | 8.0 | 0 of 4 | 34 min | 95K to 98K |',
     '| Max | $37.37 | 10.6 | 261 | 8.75 | 4 of 4 | 54 min | 137K to 139K |',
     'Missed: Balanced judged 1.0 above solo again, not 1.5',
@@ -117,7 +123,7 @@ test('the README records the p1 measure round with both judges and what is not m
   const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A p1 measure round (0.3.0, 2026-11-11).**',
-    '| Plain Claude Code (solo) | $4.03 | 1.0 | 264 | 7.0 | 7.0 | 0 of 4 | 8 min | 158K to 168K |',
+    `| ${BASELINE} | $4.03 | 1.0 | 264 | 7.0 | 7.0 | 0 of 4 | 8 min | 158K to 168K |`,
     '| **Balanced (default)** | $18.95 | 4.7 | 264 | 8.5 | 9.0 | 2 of 4 | 43 min | 99K to 104K |',
     '| Max | $32.96 | 8.2 | 264 | 8.5 | 8.25 | 2 of 4 | 52 min | 116K to 123K |',
     'Missed: Max judged level with Balanced by Codex and 0.75 below it by Fable, not 0.25 above.',
@@ -139,7 +145,7 @@ test('the README records the p1 rounds tg to ph with both judges, what each meas
     '| ph, 2026-11-18 | 8713aa3 |',
     'meeting the 1.5 bar on both judges in ti, tj, to and ph; Max was never below Balanced on either judge.',
     '**Round ph in detail (after the 0.3.0 release, 2026-11-18).**',
-    '| Plain Claude Code (solo) | $3.63 | 1.0 | 264 | 7.25 | 6.75 | 0 / 0 of 4 | 9 min | 135K to 145K |',
+    `| ${UNRECORDED} | $3.62 | 1.0 | 264 | 7.25 | 6.75 | 0 / 0 of 4 | 9 min | 135K to 145K |`,
     '| **Balanced (default)** | $17.13 | 4.7 | 264 | 8.75 | 8.75 | 1 / 1 of 4 | 36 min | 79K to 88K |',
     '| Max | $36.94 | 10.2 | 264 | 9.25 | 8.75 | 3 / 3 of 4 | 71 min | 114K to 134K |',
     'Not met as written:',
@@ -152,11 +158,11 @@ test('the README records the p1 rounds tg to ph with both judges, what each meas
   assert.ok(!readme.includes('Rounds tg to to ran'), 'round names are listed, not "tg to to"')
 })
 
-test('the README records round hq with both judges, its missed targets, and Max as the pick for platform work', () => {
+test('the results doc records round hq with both judges and its missed targets', () => {
   const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A held-out round on three other tasks (hq, 2026-11-19).**',
-    '| Plain Claude Code (solo) | $11.19 | 1.0 | 25 / 47 / 146 | 7.92 | 7.17 | 0 / 0 of 12 | up to 140K |',
+    `| ${UNRECORDED} | $11.20 | 1.0 | 25 / 47 / 146 | 7.92 | 7.17 | 0 / 0 of 12 | up to 140K |`,
     '| **Balanced (default)** | $58.10 | 5.2 | 25 / 47 / 147 | 8.58 | 8.50 | 0 / 0 of 12 | up to 103K |',
     '| Max | $117.47 | 10.5 | 25 / 47 / 148 | 9.42 | 9.00 | 12 / 12 of 12 | up to 125K |',
     'Missed: Balanced judged 1.33 above solo by Fable but 0.67 by Codex, under the 1.0 bar',
@@ -170,21 +176,30 @@ test('the README records round fx: the Balanced test-gap fix missed its bar and 
   assertIncludes(readme, [
     '**A check of one Balanced fix on three new tasks (fx, 2026-11-20).**',
     'Codex 7.83 / 9.08 / 9.08, Fable 6.58 / 8.58 / 8.33',
-    '2.94× solo and 1.02× Balanced without it',
+    '2.93× solo and 1.02× Balanced without it',
     'so the fix does not ship',
   ], 'results doc')
 })
 
-test('the README Modes section keeps the p1 and h7 cost ranges and Max as the pick for platform work', () => {
+test('the README Modes section keeps the p1 and h7 cost ranges, and labels Max on platform work as reported only', () => {
   const modes = read('README.md').split('\n## Modes\n')[1].split('\n## ')[0]
-  assertIncludes(modes, ['in rounds tg to ph Balanced cost 3.4 to 6.0 times and Max 8.4 to 13.0 times plain Claude Code', 'so for platform-sized work Max is the stronger pick'], 'Modes section')
+  assertIncludes(modes, [
+    'in rounds tg to ph Balanced cost 3.4 to 6.0 times and Max 8.4 to 13.0 times solo',
+    'Reported only: on hq (2 runs) Max ranked first; in the published p1 data Max led Balanced by 0 to +0.75 at 1.4 to 2.7× its cost and scored below it in pr and tf.',
+  ], 'Modes section')
 })
 
-test('the results doc says which rounds are published and which are reported only, and the h7 overlap with p1', () => {
+test('the results doc links every published round with its recompute command, and the h7 overlap with p1', () => {
   const results = read(RESULTS_DOC)
-  assertIncludes(results, ['**reported, raw data not published**', 'node bench/data/p1/recompute.mjs', 'not publicly pre-registered', 'h7 is not fully held out'], 'results doc')
+  assertIncludes(results, [
+    'node bench/data/p1/recompute.mjs', 'node bench/data/p1/recompute.mjs ph py', 'node bench/data/hq/recompute.mjs', 'node bench/data/fx/recompute.mjs',
+    '[`bench/data/hq/`](../bench/data/hq/)', '[`bench/data/fx/`](../bench/data/fx/)', 'not publicly pre-registered', 'h7 is not fully held out',
+    'a reported rescore, not published',
+  ], 'results doc')
+  assert.ok(!results.includes('raw data not published'), 'every round in the doc now has its raw data')
   const readme = read('README.md')
-  assertIncludes(readme, ['Reported, raw data not published.', '[`bench/data/p1/`](bench/data/p1/)', 'shares a requirement word for word with p1'], 'README')
+  assertIncludes(readme, ['[`bench/data/p1/`](bench/data/p1/)', '[`bench/data/hq/`](bench/data/hq/)', '[`bench/data/fx/`](bench/data/fx/)', 'shares a requirement word for word with p1'], 'README')
+  assert.ok(!readme.includes('raw data not published'), 'README: every listed round has its raw data')
 })
 
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
@@ -365,4 +380,101 @@ test('the README says an off project saves no report where git does not ignore .
     'only where git ignores `.team/`; elsewhere nothing is saved and one line says so',
     'A committed `.team/mode.json` that sets Max or off is named in one line at session start.',
   ], 'Modes')
+})
+
+// Solo runs in the published summaries under these folders, and how many spawned the author's code-reviewer or security-reviewer agent.
+function soloReviewerRuns(dirs) {
+  const solo = dirs.flatMap(dir => JSON.parse(read(`${dir}/summary.json`))).filter(row => row.cond.startsWith('solo'))
+  const spawned = solo.filter(row => Object.keys(row.agentTypes ?? {}).some(type => /code-reviewer|security-reviewer/.test(type)))
+  return `${spawned.length} of ${solo.length}`
+}
+
+const P1_DIR = new URL('../bench/data/p1/', import.meta.url)
+const P1_ROUNDS = readdirSync(P1_DIR, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `bench/data/p1/${entry.name}`)
+
+const sentencesOf = text => text.split(/(?<=[.!?])\s+|\n/)
+
+test('the held-out and p1 baselines are labelled the author\'s setup, with reviewer counts from the published summaries', () => {
+  const readme = read('README.md')
+  const p1 = soloReviewerRuns(P1_ROUNDS)
+  const heldout = soloReviewerRuns(['bench/data/heldout'])
+  assert.equal(soloReviewerRuns(['bench/data/modes']).split(' of ')[0], '0', 'the clean mode round spawned none')
+  assertIncludes(section(readme, 'Results'), [
+    BASELINE, `${heldout} held-out solo runs and ${p1} solo runs in \`bench/data/p1/\` spawned the author's code-reviewer or security-reviewer agent`,
+    "Only the mode round's baseline was plain Claude Code on a clean machine.", 'For rounds hq, fx, py and ph the machine setup was not recorded',
+  ], 'README Results')
+  const results = read(RESULTS_DOC)
+  assert.equal(results.split('\n').filter(line => line.startsWith(`| ${BASELINE} |`)).length, 4, 'the four main-machine p1 tables')
+  assert.equal(results.split('\n').filter(line => line.startsWith(`| ${UNRECORDED} |`)).length, 2, 'the ph and hq tables')
+  assert.ok(!results.split('\n').some(line => line.startsWith('| Plain Claude Code (solo)')), 'no solo row is called plain Claude Code')
+  assert.ok(read('docs/benchmark-heldout-2026-11.md').includes(BASELINE), 'held-out doc label')
+  assert.ok(read('bench/data/p1/README.md').includes(BASELINE), 'p1 data README label')
+  assert.ok(read('bench/data/README.md').includes(BASELINE), 'rounds 1-17 data README label')
+})
+
+test('no sentence about a held-out or p1 row calls the baseline plain Claude Code', () => {
+  for (const path of ['README.md', RESULTS_DOC]) {
+    const bad = sentencesOf(read(path)).filter(s => /held-out|\bp1\b/i.test(s) && s.includes('plain Claude Code'))
+    assert.deepEqual(bad, [], path)
+  }
+  assert.ok(!read('docs/benchmark-heldout-2026-11.md').includes('plain Claude Code'), 'held-out doc')
+})
+
+test('the hq paragraph does not call round hq pre-registered', () => {
+  const hq = read(RESULTS_DOC).split('\n').filter(line => line.includes('(hq, 2026-11-19)') || line.startsWith('Met: Max scored at least'))
+  assert.equal(hq.length, 2, 'the hq paragraphs')
+  for (const line of hq) assert.ok(!line.replaceAll('not publicly pre-registered', '').includes('pre-registered'), line.slice(0, 60))
+  const bullet = read('README.md').split('\n').find(line => line.startsWith('- **Round hq'))
+  assert.ok(bullet && !bullet.includes('pre-registered'), 'README hq bullet')
+})
+
+test('the README says Max is the pick for platform work only as a labelled report', () => {
+  const unlabelled = sentencesOf(read('README.md')).filter(s => /stronger pick/i.test(s) && !s.includes('Reported only'))
+  assert.deepEqual(unlabelled, [])
+})
+
+test('the README p1 bullet gives the judged ranges, the unjudged round and the versions', () => {
+  assertIncludes(section(read('README.md'), 'Results'), [
+    "Balanced judged 1.0 to 1.75 above solo on Codex at 3.4 to 5.6× (judged rounds; py's 6.0× was never judged); Max 6.1 to 13.0×.",
+    'Round pr ran 0.2.3, so eleven of the twelve published p1 rounds are 0.3.0 or later.',
+    'in round tj\'s official scoring', '[`bench/data/ph/`](bench/data/ph/)', '[`bench/data/py/`](bench/data/py/)',
+  ], 'README Results')
+})
+
+// A line of text, or a table with the line before it: the unit a Fable score must carry its note in.
+function scoreUnits(text) {
+  return text.split(/\n{2,}/).reduce((units, para) => {
+    const table = para.split('\n').every(line => line.startsWith('|'))
+    if (table && units.length > 0) return [...units.slice(0, -1), `${units.at(-1)}\n${para}`]
+    return [...units, ...para.split('\n')]
+  }, [])
+}
+
+test('every line or table with a Fable score says Fable also planned and reviewed some of the fixes it judged', () => {
+  for (const path of ['README.md', RESULTS_DOC]) {
+    const missing = scoreUnits(read(path)).filter(unit => /Fable/.test(unit) && /\d\.\d/.test(unit) && !unit.includes(FABLE_NOTE))
+    assert.deepEqual(missing.map(unit => unit.slice(0, 80)), [], path)
+  }
+})
+
+test('the results doc numbers are the recompute output, correctly rounded', () => {
+  const results = read(RESULTS_DOC)
+  for (const old of ['$11.19', '2.94×', '$3.63', '$9.82', '$18.79', '3.3× on h6', '| 4.2 | 9.0 |']) assert.ok(!results.includes(old), `old figure ${old}`)
+  assertIncludes(results, ['$11.20', '2.93×', '$3.62', '| $9.81 |', '| $18.78 |', '3.2× on h6', '| 4.2 | 9.1 |'], 'results doc')
+  const p1 = read('bench/data/p1/README.md')
+  assert.ok(!p1.includes('where they say $9.82 and $18.79') && p1.includes('to 4.2x, 9.1x'), 'p1 data README')
+})
+
+test('the results doc records the 0.2.3 h7 run that hit its limit, and labels the tj rescore', () => {
+  assertIncludes(read(RESULTS_DOC), ['hit the 120-minute limit in stage 1 at $29.43', '(264 on a quiet rescore: a reported rescore, not published)'], 'results doc')
+})
+
+test('the bench data READMEs point to every published round and recompute in a temp folder', () => {
+  const data = read('bench/data/README.md')
+  for (const dir of ['heldout', 'modes', 'p1', 'ph', 'py', 'hq', 'fx']) assert.ok(data.includes(`[\`${dir}/\`](${dir}/)`), dir)
+  assert.ok(data.includes('BENCH_RESULTS="$tmp" node bench/aggregate.mjs --round=v17'), 'temp-folder recipe')
+  assert.ok(!data.includes('cp bench/data/*.json bench/results/'), 'never bench/results/')
+  const p1 = read('bench/data/p1/README.md')
+  assertIncludes(p1, ['[`../ph/`](../ph/)', '[`../py/`](../py/)', 'node bench/data/p1/recompute.mjs ph py'], 'p1 data README')
+  assert.ok(read('docs/benchmark-2026-10-24.md').includes('Data: the raw files for rounds 1-17 are public in'), 'round doc scope')
 })
