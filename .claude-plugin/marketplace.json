@@ -1,14 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "section-team",
-  "description": "The section-team plugin for Claude Code, installable straight from its GitHub repo",
+  "description": "section-team for Claude Code: a supervisor plus specialist Opus agents, an Opus code-review gate, saved reports and a Team Board",
   "owner": {
     "name": "Raouf"
   },
   "plugins": [
     {
       "name": "section-team",
-      "description": "Supervisor plus 10 builder sections and 3 advisors, with saved reports and a Team Board",
+      "description": "Turns each Claude Code session into a supervisor that hands every job to Opus specialist agents (frontend, backend, testing and more) behind an Opus code-review gate, with saved reports and a live Team Board. Costs about 5x plain Claude Code in Balanced and 10x in Max; /team mode off turns it off for one project.",
       "source": "./",
       "category": "development"
     }
