@@ -394,4 +394,13 @@ describe('add-skill procedure', () => {
     assert.ok(procedure.includes('When the supervisor installs a `Suggested skill:` from a section and its brief says automatic skill installs are on, the user has approved installs that pass this review: skip this question if step 4 found no red flag, and give it to the section that suggested it. Otherwise ask as usual.'), 'no-question path')
     assert.ok(procedure.includes('If step 4 found any red flag, do not install it: tell the user what was flagged.'), 'red flag stops an unattended install')
   })
+
+  test('nothing runs git in the plugin root: assign-skill records the assignment and says when it was already there', () => {
+    assert.ok(!procedure.includes('git -C "<plugin root>"'), 'a git command in the plugin root')
+    assert.ok(!/\bgit\b[^`\n]*\bcommit\b/.test(procedure), 'a git commit')
+    assert.ok(procedure.includes('`node "<plugin root>/scripts/assign-skill.mjs" <name> <section> [<section>...]`'), 'the assign command')
+    assert.ok(procedure.includes('`~/.claude/section-team/roster-extra.json`'), 'where assignments live')
+    assert.ok(procedure.includes('If it prints `already assigned`, say so.'), 'already-assigned comes from the script')
+    assert.ok(procedure.includes('`node "<plugin root>/scripts/assign-skill.mjs" --reapply`'), 'the report says how to restore assignments after an update')
+  })
 })
