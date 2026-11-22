@@ -1,11 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import { ROSTER, RELAY, render, renderAll, renderHelper, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { ROSTER, RELAY, render, renderAll, renderHelper, renderSkills, writeSkills, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE, SAFETY, HOUSE_RULES, SPEC_LITERAL } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
@@ -908,4 +910,45 @@ test('sections use the opus alias, and no Fable consultant file or branch is lef
   assert.ok(inNoAgent('fable-consultant'))
   assert.ok(inNoAgent('as a consultant; if Fable'))
   assert.ok(agentFile('backend').includes('the supervisor decides with the user whether to consult a stronger model'))
+})
+
+// 0.6.0 W2 PR-B (L1): in Balanced the supervisor does a direct job itself, from the generated section-team:direct-build skill.
+const DIRECT_BUILD = new URL('../skills/direct-build/SKILL.md', import.meta.url)
+const DIRECT_DESCRIPTION = 'section-team supervisor only: how to do a direct job yourself (a question, a read, or a change of about 30 lines or less of non-test code that adds no feature), test first, then the reviewer gate.'
+const DIRECT_STEPS = [
+  '1. Read only the files the change needs.',
+  "2. If it changes behaviour, first write a test that fails because of the bug or request, with expected values from the report or spec and never from what the code does. Run it, see it fail, fix the code, then run the project's whole suite once.",
+  '3. The rules below apply to every line you change.',
+  '4. Run the reviewer gate from your brief on your changed files.',
+  '5. If the change grows past about 30 lines of non-test code (tests do not count) or needs a feature, stop and wake the builder with what you found.',
+  "6. Answer with the files changed, the test added and the gate's grade.",
+]
+
+test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
+  const text = readFileSync(DIRECT_BUILD, 'utf8')
+  assert.equal(text, renderSkills()['direct-build/SKILL.md'], 'the committed skill matches the generator')
+  const fm = front(text)
+  assert.equal(fm.name, 'direct-build')
+  assert.equal(JSON.parse(fm.description), DIRECT_DESCRIPTION)
+  const body = text.split('\n---\n')[1].split('\n')
+  assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
+  const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
+  assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)
+  assert.ok(agentFile('coder').split('\n').includes(HOUSE_RULES), 'the skill carries the same default rules as the sections')
+  assert.ok(agentFile('backend').includes(SPEC_LITERAL) && agentFile('backend').includes(SAFETY), "the skill carries the builders' spec and safety rules")
+})
+
+test('writeSkills writes the skill into its folder, and a check names it while it is missing or stale', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'st-skills-'))
+  try {
+    const target = pathToFileURL(`${dir}/`)
+    assert.deepEqual(writeSkills({ dir: target, check: true }), ['direct-build/SKILL.md'])
+    assert.equal(existsSync(join(dir, 'direct-build')), false, 'a check writes nothing')
+    assert.deepEqual(writeSkills({ dir: target }), ['direct-build/SKILL.md'])
+    assert.deepEqual(writeSkills({ dir: target, check: true }), [])
+    writeFileSync(join(dir, 'direct-build', 'SKILL.md'), 'stale\n')
+    assert.deepEqual(writeSkills({ dir: target, check: true }), ['direct-build/SKILL.md'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
