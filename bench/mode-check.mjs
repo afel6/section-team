@@ -24,8 +24,9 @@ export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 const setupOf = cond => /^(solo|lean|team|max|base)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
 // base is the control arm: an older section-team in Balanced, held to team's rules.
 const modeOfSetup = setup => modeOfCond(setup === 'base' ? 'team' : setup)
-// The direct-job task: there team (the plugin with the direct tier) may do the fix itself, behind its own reviewer gate.
-const DIRECT_TASKS = ['h8']
+// The direct-job tasks: there team (the plugin with the direct tier) may do the fix itself, behind its own reviewer gate.
+// h8 is the round's; h5p is the pilot's L1 probe (h5's seed, its first bug report only).
+const DIRECT_TASKS = ['h8', 'h5p']
 const REVIEWER = 'section-team:reviewer'
 const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
 const SMALL_TASKS = ['h5', 'h6']
@@ -216,11 +217,30 @@ export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
 const spawnedTypes = roles => [...new Set(roles.filter(r => r.role !== 'main').map(r => r.role))].sort()
 const isBuilderType = type => BUILDERS.includes(/^section-team:(.+)$/.exec(type)?.[1])
 
-// Every assistant line's model other than the round's, with the role that ran it (V4); <synthetic> lines are Claude
-// Code's own (API errors, interrupts), not a model's turn.
-const offModels = roles => {
+// Every assistant line's model other than the round's, with the role that ran it; <synthetic> lines are Claude Code's
+// own (API errors, interrupts), not a model's turn.
+const modelsOtherThanRound = roles => {
   const seen = roles.flatMap(r => r.messages.filter(m => m?.type === 'assistant' && m.message?.model !== '<synthetic>').map(m => `${r.role}\u0000${m.message?.model}`))
   return [...new Set(seen)].map(key => key.split('\u0000')).filter(([, model]) => model !== BENCH_MODEL).map(([role, model]) => ({ role, model }))
+}
+
+// { 'section-team:<name>': model } from the agent files of the plugin the run loaded, or null when they cannot be read.
+function declaredModels(pluginDir) {
+  if (typeof pluginDir !== 'string') return null
+  const files = unlessMissing(() => readdirSync(join(pluginDir, 'agents')).filter(name => name.endsWith('.md')), null)
+  if (files === null) return null
+  return Object.fromEntries(files.map(name => [`section-team:${name.slice(0, -3)}`, /^model:\s*(\S+)/m.exec(readFileSync(join(pluginDir, 'agents', name), 'utf8'))?.[1] ?? null]))
+}
+
+// V4 checks the opus alias: main and every section whose agent file says opus answer as the round's model. Roles that
+// run another model by design (the coder on sonnet, the scout on haiku, built-in helpers) are reported as otherModels.
+// A builder run whose agent files cannot be read leaves V4 unmeasured (offModel null).
+function modelChecks(roles, setup, pluginDir) {
+  const declared = setup === 'solo' ? {} : declaredModels(pluginDir)
+  const other = modelsOtherThanRound(roles)
+  if (declared === null) return { offModel: null, otherModels: other }
+  const held = role => role === 'main' || declared[role] === 'opus'
+  return { offModel: other.filter(o => held(o.role)), otherModels: other.filter(o => !held(o.role)) }
 }
 
 // The commit a run's arm must report: none for solo, the pin's base entry for base, the pin's own for team and max (V3).
@@ -235,7 +255,7 @@ const voidOrKept = (rule, broke, history) => {
 // The nx round's validity checks of one run, from its transcripts, its run.json and the round's pin:
 // V1 leverFired (team on h8: it spawned only the reviewer and built-ins), V1b wokeBuilder (base on h8: one that woke no
 // builder is void once), V2 nonBuiltin (solo: any spawn outside the pin's built-in agents is void once), V3 commit,
-// V4 offModel, V5 timedOut. Only V1b and V2 void a run; the others are read by the bars.
+// V4 offModel (modelChecks), V5 timedOut. Only V1b and V2 void a run; the others are read by the bars.
 export function validityOf({ setup, task, roles, run, pin, history = [] }) {
   const spawned = spawnedTypes(roles)
   const builtins = pin.setups?.solo?.agents ?? []
@@ -253,7 +273,7 @@ export function validityOf({ setup, task, roles, run, pin, history = [] }) {
     nonBuiltin,
     ...voidOrKept(rule[0], rule[1], history),
     commit: { ok: got === want && versionOk, want, got },
-    offModel: offModels(roles),
+    ...modelChecks(roles, setup, run.sectionTeam?.path),
     timedOut: run.timedOut === true,
   }
 }
@@ -360,15 +380,18 @@ export function modeCheck({ results = RESULTS, round, readers = {} }) {
   }))
 }
 
-// The round's pin beside its results, or null (a round from before the validity checks, or a test's results folder).
+// The round's pin beside its results when it names its setups (conds, since the nx round's preflight), else null: an
+// older round's pin, such as the mode round's, gets no validity rows.
 function readRoundPin(results, round) {
   const file = join(results, `preflight-${round}.json`)
   if (!existsSync(file)) return null
+  let pin
   try {
-    return JSON.parse(readFileSync(file, 'utf8'))
+    pin = JSON.parse(readFileSync(file, 'utf8'))
   } catch (err) {
     throw new Error(`${file} is not valid JSON`, { cause: err })
   }
+  return Array.isArray(pin?.conds) ? pin : null
 }
 
 // What a validity row adds to a run's line: a void with its rerun, a kept repeat, and V1, V3, V4 and V5 misses.
@@ -379,7 +402,8 @@ function validityLine(id, v) {
     v.kept && `  ${v.kept} repeated after its rerun: kept and reported`,
     v.leverFired === false && `  lever did not fire (spawned ${v.spawned.join(', ')})`,
     !v.commit.ok && `  commit ${v.commit.got ?? 'none'}, expected ${v.commit.want ?? 'none'} (or its version differs)`,
-    v.offModel.length > 0 && `  off-model ${v.offModel.map(o => `${o.role} ${o.model}`).join(', ')}`,
+    v.offModel === null && '  models not checked (agent files unread)',
+    v.offModel?.length > 0 && `  off-model ${v.offModel.map(o => `${o.role} ${o.model}`).join(', ')}`,
     v.timedOut && '  timed out',
   ].filter(Boolean).join('')
 }

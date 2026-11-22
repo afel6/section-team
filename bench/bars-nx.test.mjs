@@ -14,7 +14,7 @@ const GROUPS = [...[1, 2, 3, 4, 5].map(r => `h8-r${r}`), 'h9-r1', 'h9-r2', 'h10-
 const COST = { h8: { solo: 0.5, base: 1.5, team: 1.0 }, h9: { solo: 0.9, base: 2.7, team: 2.7 }, h10: { solo: 0.9, base: 6.4, team: 6.4 } }
 const taskOf = group => group.slice(0, group.lastIndexOf('-r'))
 const idOf = (group, setup) => `${taskOf(group)}-${SETUPS[setup]}-r${group.slice(group.lastIndexOf('-r') + 2)}`
-const GOOD_VALIDITY = { spawned: [], leverFired: null, wokeBuilder: false, nonBuiltin: null, void: null, kept: null, commit: { ok: true, want: null, got: null }, offModel: [], timedOut: false }
+const GOOD_VALIDITY = { spawned: [], leverFired: null, wokeBuilder: false, nonBuiltin: null, void: null, kept: null, commit: { ok: true, want: null, got: null }, offModel: [], otherModels: [], timedOut: false }
 
 // A world where every bar is met; change(world) breaks it.
 function world() {
@@ -98,6 +98,9 @@ test('a bar that cannot be measured is missed, never met', () => {
   const noValidity = world()
   delete noValidity.modeCheck['h9-base-nx-r1'].validity
   assert.equal(barsNx(noValidity).bars.V3.status, 'missed')
+  const unreadModels = world()
+  unreadModels.modeCheck['h8-base-nx-r1'].validity.offModel = null
+  assert.equal(barsNx(unreadModels).bars.V4.status, 'missed', 'models that could not be checked are not a pass')
   const noProfile = world()
   noProfile.pin = { ...noProfile.pin, configDir: null }
   assert.equal(barsNx(noProfile).bars.V2.status, 'missed', 'a preflight that checked no profile is no plain baseline')
