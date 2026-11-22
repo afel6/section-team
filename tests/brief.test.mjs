@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { assembleBrief, modeRules } from '../hooks/lib/brief.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
@@ -351,5 +352,12 @@ test('max tells the second final review that it is the second, at no cost in cha
   assert.ok(!part('tiers-max').includes('(the one cross-review you ask for)'))
   assert.ok(part('tiers-balanced').includes('it is the one cross-review you ask for.'))
   assert.ok(!assembleBrief('balanced').includes('tell it that it is the second'))
-  assert.ok(max.length <= 9000, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
+  assert.ok(max.length <= 8950, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
+})
+
+// PR-B guard: the direct tier is Balanced-only; Max and gate-max.md stay exactly as at v0.5.1 (043e00d).
+test('max has no direct tier and gate-max.md is unchanged', () => {
+  const max = assembleBrief('max')
+  assert.ok(!max.includes('direct job') && !max.includes('direct-build'))
+  assert.equal(createHash('sha256').update(part('gate-max')).digest('hex'), '7eea0548dd9acb1c88e7bf56fd3a6edd6e81f163416733dff1c4ba739ccd01ac')
 })
