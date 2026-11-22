@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tempRoot } from './run-fixtures.mjs'
-import { checkRunsRoot, instructionFilesAbove } from './run.mjs'
+import { checkRunsRoot, instructionFilesAbove } from './clean-run.mjs'
 
 const put = (file, text = 'x') => {
   mkdirSync(join(file, '..'), { recursive: true })

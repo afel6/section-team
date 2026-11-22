@@ -2,9 +2,9 @@
 // the round's pinned model and effort, the child environment, the clean --settings, reading claude's output, and the
 // init and transcript checks that void a run whose setup differs from the one the preflight pinned.
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isAbsolutePath, isUnder, samePath } from './os-paths.mjs'
 
@@ -295,6 +295,27 @@ export function compacted(jsonlText) {
   return jsonLines(jsonlText).some(m => m.type === 'system' && m.subtype === 'compact_boundary')
 }
 
+// What Claude Code reads as instructions from the folder a session starts in and every folder above it (ctx7 lookup of
+// the Claude Code docs, 2026-11-23: "Parent directories ... root/CLAUDE.md ... pulled in automatically"; AGENTS.md is
+// the plan's addition). .mcp.json is not listed: every run passes --strict-mcp-config.
+const INSTRUCTION_FILES = ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', join('.claude', 'CLAUDE.md')]
+
+// Every instruction file in dir and the folders above it, up to the drive root, nearest first.
+export function instructionFilesAbove(dir) {
+  const here = INSTRUCTION_FILES.map(name => join(dir, name)).filter(path => existsSync(path))
+  const parent = dirname(dir)
+  return parent === dir ? here : [...here, ...instructionFilesAbove(parent)]
+}
+
+// Before any paid run: the run folders' root is absolute and no instruction file sits above it, since every run, solo
+// included, would read it. found lists them (tests pass a clean tree's).
+export function checkRunsRoot(root, { found = instructionFilesAbove } = {}) {
+  if (!isAbsolutePath(root)) throw new Error(`BENCH_RUNS takes an absolute path, got "${root}"`)
+  const [first, ...rest] = found(resolve(root))
+  if (first === undefined) return
+  const more = rest.length > 0 ? ` (and ${rest.length} more)` : ''
+  throw new Error(`${first} sits above the run folders${more}, and Claude Code reads it as instructions in every run: set BENCH_RUNS to a folder with no CLAUDE.md, CLAUDE.local.md or AGENTS.md above it`)
+}
 // A file's SHA-256 in hex; one line naming the file when it cannot be read.
 export function sha256Of(file) {
   let bytes

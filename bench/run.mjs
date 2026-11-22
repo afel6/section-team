@@ -47,27 +47,6 @@ export const DEFAULT_PLUGIN_REF = `v${SECTION_TEAM_VERSION}`
 // Benchmark projects live outside this repo: under BENCH_RUNS, else in the user's home folder (forward slashes: run ids
 // are joined with '/'). A home with a CLAUDE.md or AGENTS.md in it needs BENCH_RUNS elsewhere (checkRunsRoot).
 export const RUNS = (process.env.BENCH_RUNS || join(homedir(), 'bench-runs')).replaceAll('\\', '/')
-// What Claude Code reads as instructions from the folder a session starts in and every folder above it (ctx7 lookup of
-// the Claude Code docs, 2026-11-23: "Parent directories ... root/CLAUDE.md ... pulled in automatically"; AGENTS.md is
-// the plan's addition). .mcp.json is not listed: every run passes --strict-mcp-config.
-const INSTRUCTION_FILES = ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', join('.claude', 'CLAUDE.md')]
-
-// Every instruction file in dir and the folders above it, up to the drive root, nearest first.
-export function instructionFilesAbove(dir) {
-  const here = INSTRUCTION_FILES.map(name => join(dir, name)).filter(path => existsSync(path))
-  const parent = dirname(dir)
-  return parent === dir ? here : [...here, ...instructionFilesAbove(parent)]
-}
-
-// Before any paid run: the run folders' root is absolute and no instruction file sits above it, since every run, solo
-// included, would read it. found lists them (tests pass a clean tree's).
-export function checkRunsRoot(root, { found = instructionFilesAbove } = {}) {
-  if (!isAbsolutePath(root)) throw new Error(`BENCH_RUNS takes an absolute path, got "${root}"`)
-  const [first, ...rest] = found(resolve(root))
-  if (first === undefined) return
-  const more = rest.length > 0 ? ` (and ${rest.length} more)` : ''
-  throw new Error(`${first} sits above the run folders${more}, and Claude Code reads it as instructions in every run: set BENCH_RUNS to a folder with no CLAUDE.md, CLAUDE.local.md or AGENTS.md above it`)
-}
 // A round's results. The command-line tests point BENCH_RESULTS at a temp folder, so they never write into the real one.
 export const RESULTS = process.env.BENCH_RESULTS || join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
