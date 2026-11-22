@@ -1,0 +1,21 @@
+name: Question
+description: Ask how section-team works or how to use it
+labels: [question]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What do you want to know? Say what you tried and what you expected.
+    validations:
+      required: true
+  - type: input
+    id: plugin-line
+    attributes:
+      label: "Plugin: line"
+      description: The last line of any file in `.team/reports/` (it names the plugin version and the project's mode), if you have one.
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: Claude Code version
+      placeholder: claude --version

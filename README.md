@@ -106,5 +106,8 @@ Long sessions and multi-area platforms (fresh sections, the context guard, the g
 - **Rounds:** p1 (a help-desk platform task: rounds pr, tm, tc, tf, tg to to, py, ph), hq (tasks h5 to h7), fx (tasks f1 to f3).
 - **Judges:** blind graders: Opus in the early rounds, then Codex and Fable (which also planned and reviewed some of the fixes it judged).
 
+## Support
+[Open an issue](https://github.com/afel6/section-team/issues/new/choose) for bugs and questions. One person maintains the plugin, best effort, with a first reply within 7 days; vulnerabilities go by [SECURITY.md](SECURITY.md).
+
 ## Develop
 Checks: `npm test`, `npm run test:board`, `npm run validate`, `node scripts/gen-agents.mjs --check` and `node --test bench/*.test.mjs`. What each covers, CI and the harness: [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/how-it-works.md](docs/how-it-works.md#develop).

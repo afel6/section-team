@@ -521,3 +521,12 @@ test('the how-it-works doc keeps the README details it took, and the README poin
     'set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`', 'Sections load `security-review` only when the branch shares history with an `origin/HEAD` ref',
   ], 'how-it-works doc')
 })
+
+test('the README Support section says where to ask and how soon, and a question form exists', () => {
+  const support = section(read('README.md'), 'Support')
+  assertIncludes(support, ['](https://github.com/afel6/section-team/issues/new/choose)', 'bugs and questions', 'first reply within 7 days', '[SECURITY.md](SECURITY.md)'], 'Support')
+  assert.ok(support.trim().split('\n').length <= 3, 'three lines or fewer')
+  assert.ok(read('SECURITY.md').includes('first reply within 7 days'), 'SECURITY.md promises the same reply time')
+  const form = read('.github/ISSUE_TEMPLATE/question.yml')
+  assertIncludes(form, ['name: Question', 'labels: [question]', 'id: question', 'required: true', 'id: plugin-line'], 'question form')
+})
