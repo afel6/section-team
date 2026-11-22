@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData, ChatCard, ChatsData, Mode, SessionState, SessionStatus } from '../types'
 import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
+import { isHarnessFrame } from './lib/frames.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 import { MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
@@ -329,6 +330,8 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    // A hand-back, a notification or another session's message is not the user's request: the task line keeps the last one.
+    if (isHarnessFrame(e.text)) return next(e)
     const first = e.text.split(/\r?\n/).find(line => line.trim() !== '' && !line.startsWith('/'))
     if (first) ctx.request = first.trim().slice(0, 120)
     return next(e)
@@ -392,7 +395,7 @@ export const register: Register = on => {
         {group('Sections', 'builder')}
         {group('Advisors', 'advisor')}
         <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>
-        <Box key="legend" flexDirection="row" gap={2}>
+        <Box key="legend" flexDirection="row" flexWrap="wrap" columnGap={2}>
           <Text color={COLOR.running}>● running</Text>
           <Text color={COLOR.waiting}>● waiting</Text>
           <Text color={COLOR.done}>● done</Text>

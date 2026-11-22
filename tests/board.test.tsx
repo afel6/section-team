@@ -31,6 +31,14 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('the legend wraps in a narrow pane, so no state is cut off', async ($, on) => {
+  on('state.get', { plugin: 'section-team', key: 'board' }, async () => ({ value: { value: DATA, version: 1 } }))
+  const ui = await $.ui.mount({ plugin: 'section-team', surface: 'desktop', component: 'Pane', requestId: 'team-board', props: { ...PROPS, bodyColumns: 30 } as never })
+  const legend = await ui.find({ key: 'legend' })
+  expect(legend?.props.flexWrap).toBe('wrap')
+  for (const state of ['running', 'waiting', 'done', 'problem', 'asleep']) expect(legend?.text).toContain(`● ${state}`)
+})
+
 test('the poll turns agents, saved reports and the request into cards, and only /team opens the pane', async ($, on) => {
   const { clock, seen } = world(on)
 
@@ -708,4 +716,30 @@ test('with no USERPROFILE or HOME the Chats pane says so in one line and reads n
   expect(await ui.find({ key: 'chats' })).toBeUndefined()
   expect(seen.chats.lists).toBe(0)
   expect(seen.logs).toEqual([])
+})
+
+test('a message from another session does not replace the task line, and a first one leaves the waiting line', async ($, on) => {
+  const { clock } = world(on)
+  const frame = `<cross-session-message from="bridge:s1" from-name="peer">${'a'.repeat(50)}</cross-session-message>`
+  await $.session.start(START)
+  await $.prompt.submit({ text: frame })
+  await clock.advance(1000)
+  let ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Waiting for your next request')
+  await ui.unmount()
+
+  await $.prompt.submit({ text: 'add login' })
+  await $.prompt.submit({ text: `\n  ${frame}` })
+  await clock.advance(1000)
+  ui = await mountBoard($ as never)
+  const line = (await ui.find({ key: 'supervisor' }))?.text
+  expect(line).toContain('Task: add login')
+  expect(line).not.toContain('cross-session')
+  await ui.unmount()
+
+  // A message of the user's own that only quotes a frame further down is still their request.
+  await $.prompt.submit({ text: `fix this:\n${frame}` })
+  await clock.advance(1000)
+  ui = await mountBoard($ as never)
+  expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: fix this:')
 })

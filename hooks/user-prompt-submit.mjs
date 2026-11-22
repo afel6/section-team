@@ -2,6 +2,7 @@ import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { briefHash, modeRules } from './lib/brief.mjs'
+import { isHarnessFrame } from './lib/frames.mjs'
 import { activeMode, modeName, readMode } from './lib/mode.mjs'
 import { assertSessionId, readRecord, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { isIgnored, isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
@@ -24,10 +25,7 @@ function attempt(label, fn) {
 const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n${REPLACES}\n\n${modeRules(mode)}`
 const pointerText = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const isLong = prompt => typeof prompt === 'string' && prompt.length >= LONG_PROMPT
-// Hand-backs and task notifications reach this hook as prompts too, and are not the user's words.
-export const HARNESS_FRAMES = ['task-notification', 'agent-message', 'teammate-message', 'side-sessions-event', 'ci-monitor-event']
-const isFrame = prompt => new RegExp(String.raw`^\s*<(${HARNESS_FRAMES.join('|')})[>\s]`).test(prompt)
-const savable = prompt => isLong(prompt) && !isFrame(prompt)
+const savable = prompt => isLong(prompt) && !isHarnessFrame(prompt)
 
 // A session with a record keeps its mode while the file is unusable (the handback gate does the same), so the problem line says so.
 const keptModeEnding = previous => (previous === null ? undefined : `so this session stays in ${modeName(previous)} mode`)

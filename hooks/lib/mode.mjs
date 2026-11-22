@@ -16,10 +16,11 @@ export const GATES = Object.freeze({
   max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 2, reviewerModel: null, nearMiss: false, gradeAll: true }),
 })
 
-// The picker label for each mode: usage against plain Claude Code in the 2026-11 mode round, single-area tasks to all tasks.
+// The picker label for each mode: rough usage against plain Claude Code, rounded from the mode round (Balanced 4.3-5.2x, Max 7.5-9.7x)
+// and round hq (5.2x, 10.5x); platform tasks (p1, h7) ran higher, as the README says.
 export const MODE_LABELS = Object.freeze({
-  balanced: 'Balanced · ~4.3–5.2× usage (measured 2026-11)',
-  max: 'Max · ~7.5–9.7× usage (measured 2026-11)',
+  balanced: 'Balanced · ~5× usage',
+  max: 'Max · ~10× usage',
 })
 
 // Where a project keeps its mode, relative to the project root.
