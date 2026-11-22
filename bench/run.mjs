@@ -242,7 +242,7 @@ export function batchPlugin(plugin, pin, passedRef, { git = gitLine, readVersion
 
 // ~/.claude/skills and ~/.claude/agents (synced/ left out), like the preflight's syncedListing: the user's own skills
 // and agents, which every init lists.
-export const userListing = home => claudeListing(home, ['skills', 'agents'], path => path.split('/')[0] === 'synced')
+export const userListing = claudeDir => claudeListing(claudeDir, ['skills', 'agents'], path => path.split('/')[0] === 'synced')
 
 // One line naming the changed top-level entries (skills/<name>, agents/<name>) of a list of paths, sorted, at most
 // SHOWN of them and a count of the rest.
@@ -258,9 +258,9 @@ function changedEntriesLine(paths) {
 // A run that stops on its own keeps its stop (and exit code); a change it made, or a failure to list, is said with log.
 export function watchUserLists(one, { home, log = console.error } = {}) {
   required({ home })
-  const start = new Set(userListing(home))
+  const start = new Set(userListing(join(home, '.claude')))
   const changeLine = (run, when) => {
-    const now = new Set(userListing(home))
+    const now = new Set(userListing(join(home, '.claude')))
     const added = [...now].filter(path => !start.has(path))
     const removed = [...start].filter(path => !now.has(path))
     if (added.length + removed.length === 0) return null

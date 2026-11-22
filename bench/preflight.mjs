@@ -92,7 +92,7 @@ export function pinInstalled({ version, run = spawnSync, which = npmClaude }) {
 }
 
 // What claude.ai has synced into ~/.claude, as sorted paths relative to it; a run must leave it unchanged.
-export const syncedListing = home => claudeListing(home, SYNCED)
+export const syncedListing = claudeDir => claudeListing(claudeDir, SYNCED)
 
 function answerProblems(result) {
   if (!result) return ['no result message']
@@ -165,11 +165,11 @@ function checkSetup(setup, { home, binary, version, pluginDir, pluginVersion, in
   const run = { id: `pf-${setup}`, task: 'pf', base: setup, cond: setup }
   const dir = prepareRun(run, { dir: folder(run), root })
   const sessionId = randomUUID()
-  const before = syncedListing(home)
+  const before = syncedListing(join(home, '.claude'))
   const args = builderArgs(setup, PROMPT, { sessionId, installedKeys, pluginDir })
   const env = builderEnv(process.env, { pluginDir })
   const r = spawn(binary, args, { cwd: dir, env, encoding: 'utf8', timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: MAX_BUFFER, stdio: ['ignore', 'pipe', 'pipe'] })
-  const synced = JSON.stringify(syncedListing(home)) === JSON.stringify(before) ? [] : [`${setup}: the synced plugins or skills changed during the run`]
+  const synced = JSON.stringify(syncedListing(join(home, '.claude'))) === JSON.stringify(before) ? [] : [`${setup}: the synced plugins or skills changed during the run`]
   if (r.error) return { problems: [`${setup}: could not run claude (${r.error.code ?? r.error.message})`, ...synced], init: null }
   const messages = outputMessages(r.stdout)
   const checks = preflightProblems({ setup, messages, record: recordOf(home, sessionId), pluginDir, version, pluginVersion })

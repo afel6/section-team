@@ -13,20 +13,17 @@ export { isUnder } from './os-paths.mjs'
 export const PLUGIN_KEY = 'section-team@inline'
 export const BENCH_MODEL = 'claude-opus-5-5'
 export const BENCH_EFFORT = 'medium'
-// The tag a round pins when no --plugin-ref is passed (run.mjs, cloud-sync.mjs). A builder's expected version is its manifest's.
-export const SECTION_TEAM_VERSION = '0.2.1'
-// The CLI version the round runs (spec: Pinned CLI); the cloud machine's in-place pin must be this version.
-export const ROUND_CLI_VERSION = '2.1.296'
+// The CLI version the round runs (spec: Pinned CLI): every preflight pins this version's binary, whatever is on PATH.
+export const ROUND_CLI_VERSION = '2.1.318'
 export const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
-// The user's own checkout: no round run may load anything from it.
-export const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
-// On Linux (the cloud machine) the user's checkout is the one running the harness: its plugin files are not the pinned
-// worktree's. The Windows path stays in the list, where nothing on Linux can be under it.
 const HARNESS_CHECKOUT = dirname(dirname(fileURLToPath(import.meta.url)))
-export const liveCheckouts = (platform = process.platform) => (platform === 'win32' ? [LIVE_CHECKOUT] : [LIVE_CHECKOUT, HARNESS_CHECKOUT])
+// On Linux (the cloud machine) the user's checkout is the one running the harness: its plugin files are not the pinned
+// worktree's. live is the user's own checkout (liveCheckoutOf), when there is one.
+export const liveCheckouts = (platform = process.platform, live = null) => [...(live ? [live] : []), ...(platform === 'win32' ? [] : [HARNESS_CHECKOUT])]
 const PLUGIN_AUTHORING = 'cc-plugin-plugin-authoring@builtin'
-const SETUPS = ['solo', 'lean', 'team', 'max', 'judge']
-const BUILDERS = ['lean', 'team', 'max']
+const SETUPS = ['solo', 'lean', 'team', 'max', 'base', 'judge']
+// base: the round's control arm, an older section-team loaded from its own worktree, held to the same rules.
+const BUILDERS = ['lean', 'team', 'max', 'base']
 // Session, model, key and switch variables from the parent: a round started inside a Claude Code session must behave
 // like one started from a plain terminal. Case-insensitive, as variable names are on Windows. A shell inside the
 // desktop app also sets OAuth, MCP, thinking and Bash timeout variables: they go too.
@@ -39,6 +36,36 @@ const listOr = (value, fallback) => (Array.isArray(value) ? value : fallback)
 
 function requirePluginDir(pluginDir, caller) {
   if (typeof pluginDir !== 'string' || pluginDir === '') throw new TypeError(`${caller} needs a pluginDir`)
+}
+
+// The user's own checkout, from which no round run may load anything: SECTION_TEAM_LIVE_CHECKOUT, an absolute path. The
+// repo names no default (it is the user's folder): required on Windows, optional on Linux, where liveCheckouts adds this
+// checkout anyway. Read in each entry point's main, never at import.
+export function liveCheckoutOf(env = process.env, platform = process.platform) {
+  const value = env.SECTION_TEAM_LIVE_CHECKOUT ?? ''
+  if (value === '') {
+    if (platform !== 'win32') return null
+    throw new Error('set SECTION_TEAM_LIVE_CHECKOUT to the absolute path of your own section-team checkout: no round run may load anything from it')
+  }
+  if (!isAbsolutePath(value, platform)) throw new Error(`SECTION_TEAM_LIVE_CHECKOUT takes an absolute path, got "${value}"`)
+  return value
+}
+
+// Before any paid run: a plugin worktree at or inside the live checkout would void every builder run (sectionTeamProblems).
+export function checkLiveCheckout(live, worktrees) {
+  if (live === null) return
+  const inside = worktrees.find(dir => isUnder(dir, live))
+  if (inside !== undefined) throw new Error(`${inside} is the live checkout ${live} (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it`)
+}
+
+// SECTION_TEAM_MEMORY_LIMIT_MB from the harness's own environment: the plugin's memory guard limit, in whole megabytes,
+// given to every child after the strip (solo has no plugin to read it). null when unset; anything else stops the batch
+// before a paid run, since the guard would only say so in a hook line.
+export function memoryLimitOf(env = process.env) {
+  const value = env.SECTION_TEAM_MEMORY_LIMIT_MB ?? ''
+  if (value === '') return null
+  if (!/^[1-9]\d*$/.test(value)) throw new RangeError(`SECTION_TEAM_MEMORY_LIMIT_MB takes a whole number of megabytes such as 12288, got "${value}"`)
+  return value
 }
 
 // The version the plugin under test says it is, so one harness can measure 0.2.2 and 0.2.3. Read once per batch, at the
@@ -57,34 +84,42 @@ export function pluginVersionOf(pluginDir) {
   return manifest.version
 }
 
+// Only the tag of a pin from before --plugin-ref (the mode round's, which run.mjs and cloud-sync.mjs restore by it): every
+// arm's expected version is its own worktree's manifest's (pluginVersionOf), and a round with two refs names both.
+export const SECTION_TEAM_VERSION = '0.2.1'
+
 // The round's switches, set both in the child environment and in --settings. They are added after the strip, so the
 // parent's own values never reach the child. CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0: claude -p otherwise stops
 // background subagents 10 minutes after the last turn (a probe on 2026-11-02 saw it cut off the testing section's
 // final review); each builder run's time limit still bounds the run. CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1: claude
 // otherwise reads the user's advisorModel from ~/.claude/settings.json, even mid-run (round tk got an advisor that way).
-const roundEnv = pluginDir => ({
+// SECTION_TEAM_MEMORY_LIMIT_MB: the round's memory-guard limit (memoryLimitOf), when it has one.
+const roundEnv = (pluginDir, memoryLimitMb = null) => ({
   SECTION_TEAM_AUTO_INSTALL_SKILLS: '0', DISABLE_AUTOUPDATER: '1', ENABLE_CLAUDEAI_MCP_SERVERS: 'false', CLAUDE_CODE_PLUGIN_DIRS: pluginDir,
   CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0', CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '1',
+  ...(memoryLimitMb === null ? {} : { SECTION_TEAM_MEMORY_LIMIT_MB: memoryLimitMb }),
 })
 
-export function childEnv(parent, { pluginDir } = {}) {
+// configDir: the round's clean profile, as CLAUDE_CONFIG_DIR in the environment only (it picks the folder settings are
+// read from, so --settings cannot carry it). Both are set after the strip, so the parent's own values never reach the child.
+export function childEnv(parent, { pluginDir, memoryLimitMb = null, configDir = null } = {}) {
   requirePluginDir(pluginDir, 'childEnv')
   const kept = Object.entries(parent).filter(([name]) => !STRIPPED.test(name))
-  return { ...Object.fromEntries(kept), ...roundEnv(pluginDir) }
+  return { ...Object.fromEntries(kept), ...roundEnv(pluginDir, memoryLimitMb), ...(configDir === null ? {} : { CLAUDE_CONFIG_DIR: configDir }) }
 }
 
 // The names (never the values) that run.json records.
 export const envNames = env => Object.keys(env).filter(name => RECORDED.test(name)).sort()
 
-// A clean Linux home (the cloud machine) has never installed a plugin and has no installed_plugins.json: no keys there.
-// On Windows a missing file still fails, as before.
-export function installedPluginKeys(home = homedir(), { platform = process.platform } = {}) {
-  const path = join(home, '.claude', 'plugins', 'installed_plugins.json')
+// A clean Linux home (the cloud machine) and a fresh profile (configDir, the round's CLAUDE_CONFIG_DIR) have never
+// installed a plugin and have no installed_plugins.json: no keys there. On Windows a missing ~/.claude file still fails.
+export function installedPluginKeys(home = homedir(), { platform = process.platform, configDir = null } = {}) {
+  const path = join(configDir ?? join(home, '.claude'), 'plugins', 'installed_plugins.json')
   let plugins
   try {
     plugins = JSON.parse(readFileSync(path, 'utf8'))?.plugins
   } catch (err) {
-    if (err.code === 'ENOENT' && platform !== 'win32') return []
+    if (err.code === 'ENOENT' && (platform !== 'win32' || configDir !== null)) return []
     throw new Error(`cannot read installed plugins: ${path} (${err.code ?? err.name})`, { cause: err })
   }
   if (!isObject(plugins)) throw new Error(`cannot read installed plugins: ${path} (no plugins object)`)
@@ -92,7 +127,7 @@ export function installedPluginKeys(home = homedir(), { platform = process.platf
 }
 
 // --settings for one run: every installed and synced plugin off, section-team as the setup says.
-export function cleanSettings({ installedKeys, sectionTeam, pluginDir } = {}) {
+export function cleanSettings({ installedKeys, sectionTeam, pluginDir, memoryLimitMb = null } = {}) {
   requirePluginDir(pluginDir, 'cleanSettings')
   if (!Array.isArray(installedKeys)) throw new TypeError('cleanSettings needs the installed plugin keys')
   if (typeof sectionTeam !== 'boolean') throw new TypeError('cleanSettings needs sectionTeam true or false')
@@ -100,7 +135,7 @@ export function cleanSettings({ installedKeys, sectionTeam, pluginDir } = {}) {
     syncClaudeAiPlugins: false,
     syncClaudeAiSkills: false,
     enabledPlugins: { ...Object.fromEntries(installedKeys.map(key => [key, false])), [PLUGIN_AUTHORING]: false, [PLUGIN_KEY]: sectionTeam },
-    env: roundEnv(pluginDir),
+    env: roundEnv(pluginDir, memoryLimitMb),
   }
 }
 
@@ -153,10 +188,12 @@ function loadedOnceProblems(entries, { pluginDir, pluginVersion }) {
   ]
 }
 
-// Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec).
-function sectionTeamProblems(plugins, setup, plugin) {
+// Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec). The pin records
+// the live checkouts its round named; a pin from before that has only the ones this process knows.
+function sectionTeamProblems(plugins, setup, plugin, pin) {
   const entries = plugins.filter(p => p?.source === PLUGIN_KEY)
-  const fromLive = liveCheckouts().flatMap(dir => {
+  const live = pin.liveCheckouts ?? liveCheckouts(process.platform, process.env.SECTION_TEAM_LIVE_CHECKOUT || null)
+  const fromLive = live.flatMap(dir => {
     const live = plugins.filter(p => isUnder(p?.path, dir))
     return live.length > 0 ? [`loaded from the live checkout ${dir}: ${live.map(p => p.source).join(', ')}`] : []
   })
@@ -206,7 +243,7 @@ export function initProblems(init, { setup, pin, pluginDir, pluginVersion } = {}
   const plugins = listOr(init.plugins, [])
   return [
     ...(Array.isArray(init.plugins) ? [] : ['the init has no plugins list']),
-    ...sectionTeamProblems(plugins, setup, { pluginDir, pluginVersion }),
+    ...sectionTeamProblems(plugins, setup, { pluginDir, pluginVersion }, pin),
     ...otherPluginProblems(plugins, pin),
     ...mcpProblems(init.mcp_servers),
     ...listProblems(init, setup, pin),
@@ -279,10 +316,10 @@ function listUnder(dir) {
   }
 }
 
-// Everything under the given ~/.claude folders as sorted ~/.claude-relative paths, without the folder-relative paths
-// skip names: the preflight's synced listing and the batch's user skills and agents.
-export const claudeListing = (home, folders, skip = () => false) => folders
-  .flatMap(folder => listUnder(join(home, '.claude', folder)).filter(path => !skip(path)).map(path => `${folder}/${path}`)).sort()
+// Everything under the given folders of claudeDir (~/.claude, or the round's profile) as sorted claudeDir-relative paths,
+// without the folder-relative paths skip names: the preflight's synced listing and the batch's user skills and agents.
+export const claudeListing = (claudeDir, folders, skip = () => false) => folders
+  .flatMap(folder => listUnder(join(claudeDir, folder)).filter(path => !skip(path)).map(path => `${folder}/${path}`)).sort()
 
 export function readPin(results, round) {
   const path = join(results, `preflight-${round}.json`)

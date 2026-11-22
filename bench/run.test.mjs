@@ -613,8 +613,8 @@ function fakeClaudeHome(t) {
 
 test('userListing lists ~/.claude skills and agents without synced/, sorted, and a missing folder as empty', t => {
   const home = fakeClaudeHome(t)
-  assert.deepEqual(userListing(home), ['agents/helper.md', 'skills/tdd', 'skills/tdd/SKILL.md'])
-  assert.deepEqual(userListing(join(home, 'no-such-home')), [])
+  assert.deepEqual(userListing(join(home, '.claude')), ['agents/helper.md', 'skills/tdd', 'skills/tdd/SKILL.md'])
+  assert.deepEqual(userListing(join(home, 'no-such-home', '.claude')), [])
 })
 
 test('watchUserLists stops the batch naming the run when user skills or agents change during or before it; synced/ is ignored', async t => {

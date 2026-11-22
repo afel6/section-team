@@ -5,9 +5,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
-import { BENCH_MODEL, PLUGIN_KEY, SECTION_TEAM_VERSION } from './clean-run.mjs'
+import { BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
-import { ROUND_CLI_VERSION } from './clean-run.mjs'
 import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
 
 // A temp folder removed after the test, even when the test fails.
@@ -23,7 +22,7 @@ const writeFile = (file, text) => {
 }
 
 const sha256 = text => createHash('sha256').update(text).digest('hex')
-const VERSION = '2.1.296'
+const VERSION = ROUND_CLI_VERSION
 const PLUGIN_DIR = 'C:/Users/Asus/section-team-v0.2.1'
 const BUILTINS = [
   { name: 'cc-plugin-agents-md', path: 'builtin', source: 'cc-plugin-agents-md@builtin' },
@@ -74,7 +73,7 @@ test('a stray plugin, an MCP server or plugin-authoring fails', () => {
   assert.deepEqual(problemsOf('max', { initMessage: init('max', { plugins: [...BUILTINS, SECTION_TEAM, authoring] }) }), ['max: cc-plugin-plugin-authoring@builtin is loaded'])
   assert.deepEqual(problemsOf('team', { initMessage: init('team', { plugins: BUILTINS }) }), ['team: expected 1 section-team plugin, found 0'])
   assert.deepEqual(problemsOf('team', { initMessage: init('team', { model: 'claude-haiku-5-5', claude_code_version: '2.1.297' }) }), [
-    'team: model claude-haiku-5-5, expected claude-opus-5-5', 'team: claude_code_version 2.1.297, expected 2.1.296',
+    'team: model claude-haiku-5-5, expected claude-opus-5-5', `team: claude_code_version 2.1.297, expected ${VERSION}`,
   ])
 })
 
@@ -176,11 +175,11 @@ test('publishPin pushes the round\'s pin file under results/ on the sync branch,
 
 test('syncedListing lists both synced folders, sorted, and treats a missing folder as empty', t => {
   const home = tempRoot(t)
-  assert.deepEqual(syncedListing(home), [])
+  assert.deepEqual(syncedListing(join(home, '.claude')), [])
   writeFile(join(home, '.claude', 'skills', 'synced', 'b-skill', 'SKILL.md'), 'b')
   writeFile(join(home, '.claude', 'plugins', 'synced', 'b', 'plugin.json'), '{}')
   writeFile(join(home, '.claude', 'plugins', 'synced', 'a', 'plugin.json'), '{}')
-  assert.deepEqual(syncedListing(home), [
+  assert.deepEqual(syncedListing(join(home, '.claude')), [
     'plugins/synced/a', 'plugins/synced/a/plugin.json', 'plugins/synced/b', 'plugins/synced/b/plugin.json',
     'skills/synced/b-skill', 'skills/synced/b-skill/SKILL.md',
   ])
@@ -310,10 +309,10 @@ test('preflight on Windows still copies from the versions folder, and a missing 
 test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn', t => {
   const { home, results, calls, deps } = fakeRound(t)
   assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: gitAt('other') }),
-    { message: `${PLUGIN_DIR} is at other, not at v0.2.1 (tagged)` })
+    { message: `${PLUGIN_DIR} is at other, not at v${SECTION_TEAM_VERSION} (tagged)` })
   const dirty = args => (args.includes('status') ? ' M agents/backend.md' : gitAt('tagged')(args))
   assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: dirty }),
-    { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v0.2.1 worktree` })
+    { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v${SECTION_TEAM_VERSION} worktree` })
   assert.throws(() => preflight({ round: '', plugin: PLUGIN_DIR, home, results }, deps), { message: '--round= names the round in letters and digits, e.g. --round=mo' })
   assert.deepEqual(calls, { run: [], spawn: [] })
 })
