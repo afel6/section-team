@@ -5,7 +5,7 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 ## 0.5.0 (not released yet)
 
 **Safer defaults. Read these first if you are upgrading.**
-- A project's `.team/mode.json` can no longer turn on automatic skill installs. Only `SECTION_TEAM_AUTO_INSTALL_SKILLS=1` in your user settings turns them on; `"autoInstallSkills": false` in a project still turns them off there, and a `true` is ignored with a one-line notice.
+- A project's `.team/mode.json` can no longer turn on automatic skill installs. Only the `SECTION_TEAM_AUTO_INSTALL_SKILLS=1` environment variable turns them on (a project's own `.claude/settings.json` can set environment variables too, so check that file in repos you clone); `"autoInstallSkills": false` in a project still turns them off there, and a `true` is ignored with a one-line notice.
 - `skills/add-skill/trusted-sources.json` ships empty, and a trusted owner installs without asking only when `SECTION_TEAM_AUTO_INSTALL_SKILLS=1`. Before, skills found from `anthropics`, `vercel-labs` or `microsoft` installed without asking, with no setting.
 - The memory guard is off on every platform until you set `SECTION_TEAM_MEMORY_LIMIT_MB` to a whole number of MB. Before, it was on by default on Windows at 75% of RAM. To keep that on a 16 GB machine, set it to `12288`.
 - No section is granted `mcp__claude-in-chrome__*` (your own logged-in Chrome) any more. frontend, testing, uiux and ai-llm keep the built-in browser, chrome-devtools and playwright; the README lists every grant.

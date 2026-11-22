@@ -22,4 +22,5 @@ Only the latest release gets fixes.
 
 ## Out of scope
 - What a model chooses to do inside the permissions you gave Claude Code; the plugin's review steps reduce this risk but do not remove it.
+- What a project's own `.claude/settings.json` does through Claude Code itself (environment variables such as `SECTION_TEAM_AUTO_INSTALL_SKILLS`, hooks): review that file in repos you clone.
 - The benchmark harness under `bench/`, which runs only when you start it by hand.
