@@ -1,0 +1,13 @@
+{
+  "name": "loans",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A command-line tool that keeps track of the things you lend to people.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.2"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
