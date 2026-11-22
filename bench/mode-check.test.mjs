@@ -556,3 +556,66 @@ test('a round under any tag is checked: the setup comes from the part before the
   writeRun(results, 'h7-team-sm-r1', { dir, roles: teamH4(dir), record: 'balanced' })
   assert.deepEqual(modeCheck({ results, round: 'sm' }), { 'h7-team-sm-r1': { cond: 'team-sm', task: 'h7', faithful: true, broken: [], tier: 'multi' } })
 })
+
+// The nx round: solo, base (v0.5.1, the control arm) and team (the release candidate with the direct tier, L1).
+const direct = (extra = []) => [main_(write(1, 'src/server.mjs', 'Edit'), wake(2, 'reviewer'), ...extra), ...reviews(null, [[3, 9]])]
+const viaBackend = () => [
+  main_(wake(1, 'backend')),
+  section('backend', 'b1', [userLine(2, 'job'), write(3, 'src/server.mjs', 'Edit'), wake(4, 'reviewer')]),
+  ...reviews('b1', [[5, 9]]),
+]
+
+test('base is held to Balanced\'s rules like team; on h8 team\'s direct job is faithful with the reviewer gate and named tier direct', t => {
+  const dir = runDir(t)
+  const check = (cond, roles, record = 'balanced') => checkRun({ cond, task: 'h8', roles, runDir: dir, record })
+  assert.deepEqual(check('base-nx', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(check('base-nx', viaBackend(), null).broken, ['mode record is missing, not balanced'])
+  assert.deepEqual(check('team-nx', direct()), { faithful: true, broken: [], tier: 'direct' })
+  assert.deepEqual(check('team-nx', [main_(write(1, 'src/server.mjs', 'Edit'))]), { faithful: false, broken: ['direct job without the reviewer gate'], tier: 'direct' })
+  assert.equal(check('base-nx', [main_(write(1, 'src/server.mjs', 'Edit'))]).tier, 'small', 'base keeps the old rules and labels on h8')
+  assert.equal(checkRun({ cond: 'team-nx', task: 'h9', roles: direct(), runDir: dir, record: 'balanced' }).tier, 'small', 'the direct tier is h8\'s')
+})
+
+// A pin with solo's built-in agents and each arm's commit, and a run.json as run.mjs writes it.
+const NX_PIN = { pluginCommit: 'rc1', base: { pluginCommit: 'b51' }, setups: { solo: { agents: ['general-purpose', 'Explore'] } } }
+function writeNxRun(results, id, { dir, roles, record, commit, version = '0.5.1', timedOut = false, reruns = [] }) {
+  writeRun(results, id, { dir, roles, record, version: id.includes('-solo-') ? undefined : version })
+  const file = join(results, id, 'run.json')
+  const run = JSON.parse(readFileSync(file, 'utf8'))
+  writeFileSync(file, JSON.stringify({ ...run, pluginCommit: commit, pluginVersion: id.includes('-solo-') ? null : '0.5.1', timedOut, attempt: 1 + reruns.length }))
+  if (reruns.length) writeFileSync(join(results, id, 'attempts.json'), JSON.stringify(reruns.map(reason => ({ kind: 'harness-bug', reason, at: at(0) }))))
+}
+const helper = (agentId, type, model = OPUS) => ({ role: type, agentId, parentId: null, start: at(9), messages: [{ type: 'assistant', timestamp: at(9), message: { model, content: [] } }] })
+
+test('with the round\'s pin, each row says V1 to V5: lever fired, builder woken, non-built-in spawns, commit, models and time limit', t => {
+  const results = runDir(t)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify(NX_PIN))
+  const dir = runDir(t)
+  writeNxRun(results, 'h8-team-nx-r1', { dir, roles: direct(), record: 'balanced', commit: 'rc1' })
+  writeNxRun(results, 'h8-team-nx-r2', { dir, roles: viaBackend(), record: 'balanced', commit: 'rc1', timedOut: true })
+  writeNxRun(results, 'h8-base-nx-r1', { dir, roles: viaBackend(), record: 'balanced', commit: 'b51' })
+  writeNxRun(results, 'h8-base-nx-r2', { dir, roles: direct(), record: 'balanced', commit: 'rc1' })
+  writeNxRun(results, 'h8-base-nx-r3', { dir, roles: direct(), record: 'balanced', commit: 'b51', reruns: ['V1b'] })
+  writeNxRun(results, 'h8-solo-nx-r1', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('e1', 'Explore')], commit: null })
+  writeNxRun(results, 'h8-solo-nx-r2', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('c1', 'code-reviewer', SONNET)], commit: null })
+  writeNxRun(results, 'h8-solo-nx-r3', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('c1', 'code-reviewer')], commit: null, reruns: ['V2'] })
+  const v = Object.fromEntries(Object.entries(modeCheck({ results, round: 'nx' })).map(([id, row]) => [id, row.validity]))
+  assert.deepEqual(v['h8-team-nx-r1'], {
+    spawned: ['section-team:reviewer'], leverFired: true, wokeBuilder: false, nonBuiltin: null, void: null, kept: null,
+    commit: { ok: true, want: 'rc1', got: 'rc1' }, offModel: [], timedOut: false,
+  })
+  assert.deepEqual([v['h8-team-nx-r2'].leverFired, v['h8-team-nx-r2'].timedOut, v['h8-team-nx-r2'].void], [false, true, null], 'a team run that woke backend is reported, never voided')
+  assert.deepEqual([v['h8-base-nx-r1'].wokeBuilder, v['h8-base-nx-r1'].void, v['h8-base-nx-r1'].leverFired], [true, null, null])
+  assert.deepEqual([v['h8-base-nx-r2'].void, v['h8-base-nx-r2'].commit], ['V1b', { ok: false, want: 'b51', got: 'rc1' }])
+  assert.deepEqual([v['h8-base-nx-r3'].void, v['h8-base-nx-r3'].kept], [null, 'V1b'], 'after its one rerun a base run that again woke no builder is kept')
+  assert.deepEqual([v['h8-solo-nx-r1'].nonBuiltin, v['h8-solo-nx-r1'].void, v['h8-solo-nx-r1'].commit], [[], null, { ok: true, want: null, got: null }])
+  assert.deepEqual([v['h8-solo-nx-r2'].nonBuiltin, v['h8-solo-nx-r2'].void, v['h8-solo-nx-r2'].offModel], [['code-reviewer'], 'V2', [{ role: 'code-reviewer', model: SONNET }]])
+  assert.deepEqual([v['h8-solo-nx-r3'].void, v['h8-solo-nx-r3'].kept], [null, 'V2'])
+})
+
+test('a round without a pin in results gets no validity, so older rounds read as before', t => {
+  const results = runDir(t)
+  const dir = runDir(t)
+  writeRun(results, 'h8-base-nx-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  assert.deepEqual(modeCheck({ results, round: 'nx' }), { 'h8-base-nx-r1': { cond: 'base-nx', task: 'h8', faithful: true, broken: [], tier: 'multi' } })
+})

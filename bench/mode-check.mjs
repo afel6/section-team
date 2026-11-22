@@ -2,9 +2,11 @@
 // 2026-11-01-mode-round-design.md, "Mode fidelity"): the mode record and .team/mode.json, the sections woken, the
 // reviewer's model, the gate rules and, for Max before 0.3.0, the near-miss copies. Read-only over results/<id>/evidence/ and the
 // run folder. A gate's final grade is never a rule (gate-stats.mjs reports it); tier is reported, never a rule.
+// A round whose pin (results/preflight-<round>.json) sits beside its runs also gets each run's validity (V1 to V5 of the
+// nx round, docs in validityOf); a void there is owed one rerun: --rerun=<id> --reason=V1b (or V2).
 // Usage: node bench/mode-check.mjs --round=mo   (writes results/mode-check-<round>.json and prints one line per run)
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, sep } from 'node:path'
 import { parseModeFile } from '../hooks/lib/mode.mjs'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
@@ -12,13 +14,19 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { ROUND_GATES, modeOfCond } from './gate-stats.mjs'
 import { BUILDERS, FILE_WRITERS, HEADS, gates, reviewerCalls, toolUses, wakeUps } from './mode-gates.mjs'
 import { insideFolder } from './os-paths.mjs'
+import { BENCH_MODEL } from './clean-run.mjs'
 import { NAME, RESULTS } from './run.mjs'
 import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
 import { required } from './section-memory.mjs'
 
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 // The setup in a run's condition, the part before its round tag ('team-mo' is team).
-const setupOf = cond => /^(solo|lean|team|max)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
+const setupOf = cond => /^(solo|lean|team|max|base)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
+// base is the control arm: an older section-team in Balanced, held to team's rules.
+const modeOfSetup = setup => modeOfCond(setup === 'base' ? 'team' : setup)
+// The direct-job task: there team (the plugin with the direct tier) may do the fix itself, behind its own reviewer gate.
+const DIRECT_TASKS = ['h8']
+const REVIEWER = 'section-team:reviewer'
 const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
 const SMALL_TASKS = ['h5', 'h6']
 const MULTI_AREA_TASKS = ['h4', 'h7']
@@ -166,12 +174,17 @@ function nearMissRules(roles, runDir) {
   return [...(made ? [] : [`no near-miss copy in ${NEAR_MISS}`]), ...(outside.length ? [`near-miss copy outside .team/: ${listed(outside)}`] : [])]
 }
 
-// The tier the supervisor chose: only its own wake-ups count, not a section's (testing waking backend).
-const tierOf = woken => {
+// The tier the supervisor chose: only its own wake-ups count, not a section's (testing waking backend). Team on the
+// direct-job task with no section woken is the direct tier.
+const tierOf = (woken, direct = false) => {
   const own = woken.filter(w => w.caller === 'main')
   if (own.some(w => BUILDERS.includes(w.section))) return 'multi'
-  return own.some(w => w.section === 'testing') ? 'single' : 'small'
+  if (own.some(w => w.section === 'testing')) return 'single'
+  return direct && woken.length === 0 ? 'direct' : 'small'
 }
+
+// A direct job that changed code gets the gate too: the supervisor runs the reviewer on its own changed files.
+const directRules = roles => (reviewerCalls(roles).some(call => call.caller === 'main') ? [] : ['direct job without the reviewer gate'])
 
 // A row that was not checked: one line says why.
 const failedRow = line => ({ faithful: false, broken: [line], tier: null })
@@ -181,9 +194,10 @@ const failedRow = line => ({ faithful: false, broken: [line], tier: null })
 export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
   if (setupOf(cond) === 'solo') return { faithful: true, broken: [], tier: null }
   if (roles === null) return failedRow('no data')
-  const mode = modeOfCond(setupOf(cond))
+  const mode = modeOfSetup(setupOf(cond))
   if (mode === null) throw new Error(`unknown setup "${cond}"`)
   const woken = wakeUps(roles)
+  const tier = tierOf(woken, setupOf(cond) === 'team' && DIRECT_TASKS.includes(task))
   const gate = gateFor(mode, pluginVersion)
   const broken = [
     ...recordRules(mode, record),
@@ -193,8 +207,55 @@ export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
     ...gateRules(roles, mode, gate.fixRounds),
     ...sectionRules(mode, task, woken),
     ...(gate.nearMiss ? nearMissRules(roles, runDir) : []),
+    ...(tier === 'direct' ? directRules(roles) : []),
   ]
-  return { faithful: broken.length === 0, broken, tier: tierOf(woken) }
+  return { faithful: broken.length === 0, broken, tier }
+}
+
+// The agent types a run spawned, sorted, from its transcripts (main is the session itself).
+const spawnedTypes = roles => [...new Set(roles.filter(r => r.role !== 'main').map(r => r.role))].sort()
+const isBuilderType = type => BUILDERS.includes(/^section-team:(.+)$/.exec(type)?.[1])
+
+// Every assistant line's model other than the round's, with the role that ran it (V4); <synthetic> lines are Claude
+// Code's own (API errors, interrupts), not a model's turn.
+const offModels = roles => {
+  const seen = roles.flatMap(r => r.messages.filter(m => m?.type === 'assistant' && m.message?.model !== '<synthetic>').map(m => `${r.role}\u0000${m.message?.model}`))
+  return [...new Set(seen)].map(key => key.split('\u0000')).filter(([, model]) => model !== BENCH_MODEL).map(([role, model]) => ({ role, model }))
+}
+
+// The commit a run's arm must report: none for solo, the pin's base entry for base, the pin's own for team and max (V3).
+const wantedCommit = (setup, pin) => (setup === 'solo' ? null : setup === 'base' ? pin.base?.pluginCommit ?? null : pin.pluginCommit ?? null)
+
+// A void owed one rerun, or after that rerun (an attempts.json harness-bug entry with that reason) kept and reported.
+const voidOrKept = (rule, broke, history) => {
+  if (!broke) return { void: null, kept: null }
+  return history.some(entry => entry?.kind === 'harness-bug' && entry.reason === rule) ? { void: null, kept: rule } : { void: rule, kept: null }
+}
+
+// The nx round's validity checks of one run, from its transcripts, its run.json and the round's pin:
+// V1 leverFired (team on h8: it spawned only the reviewer and built-ins), V1b wokeBuilder (base on h8: one that woke no
+// builder is void once), V2 nonBuiltin (solo: any spawn outside the pin's built-in agents is void once), V3 commit,
+// V4 offModel, V5 timedOut. Only V1b and V2 void a run; the others are read by the bars.
+export function validityOf({ setup, task, roles, run, pin, history = [] }) {
+  const spawned = spawnedTypes(roles)
+  const builtins = pin.setups?.solo?.agents ?? []
+  const onDirectTask = DIRECT_TASKS.includes(task)
+  const wokeBuilder = spawned.some(isBuilderType)
+  const nonBuiltin = setup === 'solo' ? spawned.filter(type => !builtins.includes(type)) : null
+  const rule = setup === 'base' && onDirectTask ? ['V1b', !wokeBuilder] : setup === 'solo' ? ['V2', nonBuiltin.length > 0] : [null, false]
+  const want = wantedCommit(setup, pin)
+  const got = run.pluginCommit ?? null
+  const versionOk = setup === 'solo' ? (run.sectionTeam ?? null) === null : run.sectionTeam?.version === run.pluginVersion
+  return {
+    spawned,
+    leverFired: setup === 'team' && onDirectTask ? spawned.every(type => type === REVIEWER || builtins.includes(type)) : null,
+    wokeBuilder,
+    nonBuiltin,
+    ...voidOrKept(rule[0], rule[1], history),
+    commit: { ok: got === want && versionOk, want, got },
+    offModel: offModels(roles),
+    timedOut: run.timedOut === true,
+  }
 }
 
 const unreadable = what => failedRow(`${what} unreadable`)
@@ -231,9 +292,34 @@ function sessionOf(folder) {
 // The readers of a run's evidence; tests inject failing ones.
 const READERS = Object.freeze({ session: sessionOf, record: (folder, sid) => readRecord(join(folder, 'evidence'), sid) })
 
+// results/<id>/attempts.json's entries, [] when there is none.
+function readHistory(folder) {
+  const text = unlessMissing(() => readFileSync(join(folder, 'attempts.json'), 'utf8'), '[]')
+  try {
+    const history = JSON.parse(text)
+    return Array.isArray(history) ? history : []
+  } catch (err) {
+    throw new Error('attempts.json is not valid JSON', { cause: err })
+  }
+}
+
+// A row's validity, with the round's pin: null when the run has no run.json or evidence to read.
+function validityRow(folder, cond, task, readers, pin) {
+  const run = attempt(() => readRunJson(folder))
+  const session = run === undefined || run === FAILED ? FAILED : attempt(() => readers.session(folder))
+  if (session === FAILED || session.roles === null) return null
+  const history = attempt(() => readHistory(folder))
+  return validityOf({ setup: setupOf(cond), task, roles: session.roles, run, pin, history: history === FAILED ? [] : history })
+}
+
 // One run's row: every run of the round gets one. No run.json, run folder or evidence is a no-data row; a file that
 // does not parse or cannot be read names itself (run.json, session, mode record, run folder).
-function runRow(folder, cond, task, readers) {
+function runRow(folder, cond, task, readers, pin = null) {
+  const row = faithfulRow(folder, cond, task, readers)
+  return pin === null ? row : { ...row, validity: validityRow(folder, cond, task, readers, pin) }
+}
+
+function faithfulRow(folder, cond, task, readers) {
   if (setupOf(cond) === 'solo') return checkRun({ cond, task, roles: null, runDir: null, record: null })
   const run = attempt(() => readRunJson(folder))
   if (run === undefined) return failedRow('no data')
@@ -254,7 +340,8 @@ function runRow(folder, cond, task, readers) {
 // task from the run id). Throws one line when results/ cannot be read, or (a bug) naming the run it failed on.
 export function modeCheck({ results = RESULTS, round, readers = {} }) {
   const use = { ...READERS, ...readers }
-  const runId = new RegExp(`^([^-]+)-(solo|lean|team|max)-${round}-r\\d+$`)
+  const runId = new RegExp(`^([^-]+)-(solo|lean|team|max|base)-${round}-r\\d+$`)
+  const pin = readRoundPin(results, round)
   let entries
   try {
     entries = readdirSync(results, { withFileTypes: true })
@@ -266,14 +353,38 @@ export function modeCheck({ results = RESULTS, round, readers = {} }) {
     const [, task, base] = runId.exec(id)
     const cond = `${base}-${round}`
     try {
-      return [id, { cond, task, ...runRow(join(results, id), cond, task, use) }]
+      return [id, { cond, task, ...runRow(join(results, id), cond, task, use, pin) }]
     } catch (err) {
       throw new Error(`${id}: ${err.message}`, { cause: err })
     }
   }))
 }
 
-const lineOf = (id, row) => `${id}  ${row.faithful ? 'faithful' : 'not faithful'}  tier ${row.tier ?? '–'}${row.broken.length ? `  ${row.broken.join('; ')}` : ''}`
+// The round's pin beside its results, or null (a round from before the validity checks, or a test's results folder).
+function readRoundPin(results, round) {
+  const file = join(results, `preflight-${round}.json`)
+  if (!existsSync(file)) return null
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch (err) {
+    throw new Error(`${file} is not valid JSON`, { cause: err })
+  }
+}
+
+// What a validity row adds to a run's line: a void with its rerun, a kept repeat, and V1, V3, V4 and V5 misses.
+function validityLine(id, v) {
+  if (!v) return v === null ? '  validity: no data' : ''
+  return [
+    v.void && `  void ${v.void}: rerun once with --rerun=${id} --reason=${v.void}`,
+    v.kept && `  ${v.kept} repeated after its rerun: kept and reported`,
+    v.leverFired === false && `  lever did not fire (spawned ${v.spawned.join(', ')})`,
+    !v.commit.ok && `  commit ${v.commit.got ?? 'none'}, expected ${v.commit.want ?? 'none'} (or its version differs)`,
+    v.offModel.length > 0 && `  off-model ${v.offModel.map(o => `${o.role} ${o.model}`).join(', ')}`,
+    v.timedOut && '  timed out',
+  ].filter(Boolean).join('')
+}
+
+const lineOf = (id, row) => `${id}  ${row.faithful ? 'faithful' : 'not faithful'}  tier ${row.tier ?? '–'}${row.broken.length ? `  ${row.broken.join('; ')}` : ''}${validityLine(id, row.validity)}`
 
 export function main(argv = process.argv.slice(2), { results, readers } = {}) {
   required({ results })
