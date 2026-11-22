@@ -954,3 +954,15 @@ test('a builder that wakes walks to its desk, the walk carries on across a rebui
   await clock.advance(1000)
   expect(await officeSource($ as never, 'mobile')).not.toContain('.wk0{')
 })
+
+test('a new session.start starts the office fresh, so its first poll draws no walk', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.agents = []
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  seen.agents = [FRONTEND]
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).not.toContain('.wk0{')
+})

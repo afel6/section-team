@@ -319,6 +319,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
     resetCounts(ctx)
+    // A new session's first poll records no moves: nobody walks from where the last session left them. A /clear keeps the track.
+    ctx.office = {}
     startPoll($, ctx)
     return next(e)
   })
