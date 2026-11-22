@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
-import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
+import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -37,6 +38,29 @@ const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still ap
 export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session`
 
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
+
+// The user's lines when the plan and summary were left out; the hook's own prefix names section-team.
+const TEAM_SHIPPED_LINE = 'this repo ships a .team/ folder in git; its plan and last summary were not loaded as instructions'
+const TEAM_UNIGNORED_LINE = "git does not ignore this project's .team/ folder, or the project is not in git; its plan and last summary were not loaded as instructions"
+
+// The files git tracks under .team/, in any letter case (a case-insensitive disk finds a committed .Team/ as .team/), or null when git
+// cannot say: no repo, no git on PATH, or a timeout. Null is never read as "nothing tracked".
+function trackedTeamFiles(root) {
+  try {
+    const out = execFileSync('git', ['-C', root, 'ls-files', '--', ':(icase).team'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 })
+    return out.split(/\r?\n/).filter(line => line !== '')
+  } catch {
+    return null // git could not answer, so the caller treats .team/ as not verified
+  }
+}
+
+// Null when the plan and summary under .team/ may be read as instructions: git ignores .team/ and tracks nothing in it, so they are this
+// machine's own and no cloned repo wrote them. Otherwise the line that says why they were left out. Run after the exclude update.
+function teamNotice(root) {
+  const tracked = trackedTeamFiles(root)
+  if (tracked !== null && tracked.length > 0) return TEAM_SHIPPED_LINE
+  return tracked !== null && isIgnored(root, '.team/') ? null : TEAM_UNIGNORED_LINE
+}
 
 function modeSection(mode, skills, problem, retired) {
   return [
@@ -110,14 +134,17 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
+  // git is asked only when there is a plan or summary to load; a shipped or unverified one is left out with one line for the user.
+  const teamLine = summary.value === null && !hasPlan ? null : teamNotice(root)
+  const loadable = teamLine === null
   // A saved lean is told to the user as well as to the supervisor (the Mode section).
   const retired = setting.retired === undefined ? null : RETIRED_LINE
   const hash = briefHash(setting.mode)
   const held = briefStillHeld(source, home, sessionId, hash)
-  const context = composeContext(setting, env, summary.value, hasPlan, { briefKept: held.value === true })
+  const context = composeContext(setting, env, loadable ? summary.value : null, loadable && hasPlan, { briefKept: held.value === true })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
   const skillNotice = skillSetting(setting.autoInstallSkills, env).notice
-  const warnings = [setting.problem, skillNotice, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  const warnings = [setting.problem, skillNotice, retired, teamLine, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 
