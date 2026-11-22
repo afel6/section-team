@@ -4,4 +4,5 @@
 - If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds. Then tell the user the grade and what is left.
 - A pass ends the gate: do not grade again after a pass.
 - Tell each code builder to map every OS error its code can hit (a data path that is a directory, a missing parent folder, a file it cannot write, a port in use) by err.code to one friendly line and a non-zero exit (1 unless the spec names a code), and to detect a missing file by `err.code === 'ENOENT'`, not `existsSync`; no folder or behaviour the spec does not ask for; a crash path it notices is a fix before its gate, never a next step.
+- A direct job that changes behaviour gets this gate too: you run `section-team:reviewer` on your changed files (no `model`); docs, rename and config-value edits skip it.
 - Docs-only work skips this gate.
