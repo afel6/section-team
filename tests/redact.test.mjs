@@ -13,15 +13,18 @@ test('NAME=value is redacted when the name says key, token, secret or password, 
   assert.equal(redact('NODE_ENV=production PORT=3000'), 'NODE_ENV=production PORT=3000', 'other names stay')
 })
 
-test('a Bearer token is redacted', () => {
+test('a Bearer token is redacted; the word bearer in prose is not', () => {
   assert.equal(redact('curl -H "Authorization: Bearer eyJhbGci.payload.sig-_~+/=" https://x'), 'curl -H "Authorization: Bearer [redacted]" https://x')
-  assert.equal(redact('bearer abc.def'), 'bearer [redacted]')
+  assert.equal(redact('bearer abcdefghij.klmnopqrst'), 'bearer [redacted]')
+  assert.equal(redact('Send a bearer token in the Authorization header.'), 'Send a bearer token in the Authorization header.')
 })
 
-test('a PEM block is redacted whole, and one cut off before its END line to the end of the text', () => {
+test('a PEM block is redacted whole; one cut off before its END line loses only its key lines', () => {
   const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEow\nAAAA==\n-----END RSA PRIVATE KEY-----'
   assert.equal(redact(`key:\n${pem}\nafter`), 'key:\n[redacted]\nafter')
-  assert.equal(redact('x -----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNz'), 'x [redacted]')
+  assert.equal(redact('x -----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNzaC1rZXktdjEAAAAA\nAAAABG5vbmUAAAAEbm9uZQ'), 'x [redacted]')
+  const spec = 'The file starts with -----BEGIN CERTIFICATE----- and the parser must accept it.\nThe rest of the request stays.'
+  assert.equal(redact(spec), 'The file starts with [redacted] and the parser must accept it.\nThe rest of the request stays.')
 })
 
 test('sk- and gh*_ tokens are redacted; short look-alikes are not', () => {
