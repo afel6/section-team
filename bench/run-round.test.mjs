@@ -8,7 +8,7 @@ import { checkRunsRoot, instructionFilesAbove } from './clean-run.mjs'
 import { projectDirFor } from './run-attempts.mjs'
 import { fakeClaude, soloAttempt, tempRoot } from './run-fixtures.mjs'
 import {
-  CONDITIONS, ROUND_CONDS, TIMEOUT_MIN, armOf, batchArms, checkConds, copyRunEvidence, modeFileFor, parseArgs, plan, projectDirIn, runOne, syncBranchOf,
+  CONDITIONS, ROUND_CONDS, TIMEOUT_MIN, armOf, batchArms, checkConds, copyRunEvidence, modeFileFor, parseArgs, plan, prepareRun, projectDirIn, runOne, seedOf, syncBranchOf,
   timeoutFor, watchUserLists,
 } from './run.mjs'
 
@@ -84,6 +84,19 @@ test('base is a setup of its own: planned like the others, a round setup, Balanc
 test('the nx tasks have their time limits: h8 60, h9 60, h10 120 minutes', () => {
   assert.deepEqual({ h8: TIMEOUT_MIN.h8, h9: TIMEOUT_MIN.h9, h10: TIMEOUT_MIN.h10 }, { h8: 60, h9: 60, h10: 120 })
   assert.equal(timeoutFor('h8', 'base'), 60)
+})
+
+// The pilot's L1 probe (h5p): h5's seed with only h5's first bug report as the request, so no seed is copied.
+test('the probe h5p starts from h5\'s seed and has h5\'s time limit', t => {
+  const root = tempRoot(t)
+  const seeds = join(root, 'seeds')
+  put(join(seeds, 'h5', 'lib', 'money.mjs'), 'export {}\n')
+  const dir = join(root, 'runs', 'h5p-0123abcd')
+  prepareRun({ id: 'h5p-team-pnx-r1', task: 'h5p', cond: 'team-pnx', base: 'team', rep: 1 }, { dir, root: join(root, 'runs'), seeds })
+  assert.ok(existsSync(join(dir, 'lib', 'money.mjs')))
+  assert.equal(seedOf('h5p'), 'h5')
+  assert.equal(seedOf('h8'), 'h8')
+  assert.equal(TIMEOUT_MIN.h5p, 60)
 })
 
 // Each arm's worktree is checked against its own pinned ref and commit; solo records none.

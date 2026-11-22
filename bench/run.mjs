@@ -59,7 +59,10 @@ export const RESULTS = process.env.BENCH_RESULTS || join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
-export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 60, h8: 60, h9: 60, h10: 120 }
+export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 60, h8: 60, h9: 60, h10: 120, h5p: 60 }
+// A task that starts from another task's seed: the pilot's L1 probe (h5p) is h5's seed with only its first bug report.
+const SEED_OF = { h5p: 'h5' }
+export const seedOf = task => SEED_OF[task] ?? task
 // Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
@@ -395,7 +398,7 @@ export function modeFileFor(base) {
 // A fresh run folder (see freshRepo) with the setup's mode file, left uncommitted as when a user picks a mode.
 export function prepareRun(run, { dir, root, seeds = SEEDS } = {}) {
   required({ dir, root })
-  const seed = join(seeds, run.task)
+  const seed = join(seeds, seedOf(run.task))
   freshRepo(dir, { seed: existsSync(seed) ? seed : null, root })
   const modeFile = modeFileFor(baseOf(run))
   if (modeFile !== null) {
