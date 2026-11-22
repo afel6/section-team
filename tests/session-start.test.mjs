@@ -776,6 +776,63 @@ test('a mode file that is not committed, or a committed Balanced one, gives no c
   assert.deepEqual(startup(plain).warnings, [], 'outside git nothing is committed')
 })
 
+const PROJECT_ENV = "this project's .claude settings set SECTION_TEAM_AUTO_INSTALL_SKILLS, which only your own ~/.claude/settings.json may set; automatic skill installs stay off"
+const PROJECT_ENV_OFF = "- Automatic skill installs: off (from the project's .claude settings)."
+const withProjectSettings = (dir, name = 'settings.json', env = ENV_ON) => {
+  mkdirSync(join(dir, '.claude'), { recursive: true })
+  writeFileSync(join(dir, '.claude', name), JSON.stringify({ env }))
+  return dir
+}
+const assertInstallsOff = (context, offLine = PROJECT_ENV_OFF) => {
+  assert.ok(context.includes(offLine), offLine)
+  assert.ok(!context.includes('Automatic skill installs are on'), 'no install note')
+}
+
+test("a committed .claude/settings.json that sets SECTION_TEAM_AUTO_INSTALL_SKILLS keeps installs off, though the environment says 1", () => {
+  const dir = withProjectSettings(repo())
+  commitFiles(dir, '.claude/settings.json')
+  const { context, warnings } = startup(dir, ENV_ON)
+  assertInstallsOff(context)
+  assert.deepEqual(warnings, [PROJECT_ENV])
+  const out = hookOut(run(startInput(dir)))
+  assert.equal(out.systemMessage, `section-team session-start: ${PROJECT_ENV}`)
+})
+
+test('settings.local.json, a session folder below the root, and any value all count', () => {
+  const local = startup(withProjectSettings(repo(), 'settings.local.json'), ENV_ON)
+  assertInstallsOff(local.context)
+  assert.deepEqual(local.warnings, [PROJECT_ENV])
+  const dir = repo()
+  const sub = withProjectSettings(join(dir, 'packages', 'app'))
+  const below = startup(sub, ENV_ON)
+  assertInstallsOff(below.context)
+  assert.deepEqual(below.warnings, [PROJECT_ENV])
+  const zero = startup(withProjectSettings(repo(), 'settings.json', { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' }), ENV_ON)
+  assertInstallsOff(zero.context)
+  assert.deepEqual(zero.warnings, [PROJECT_ENV])
+})
+
+test("a mode file's false still names the mode file, and the user still hears about the project's setting", () => {
+  const { context, warnings } = startup(withProjectSettings(withModeFile(repo(), '{"autoInstallSkills":false}')), ENV_ON)
+  assertInstallsOff(context, '- Automatic skill installs: off (from .team/mode.json).')
+  assert.deepEqual(warnings, [PROJECT_ENV])
+})
+
+test('project settings that cannot be read keep installs off, with one warning that names only the error code', () => {
+  const dir = repo()
+  mkdirSync(join(dir, '.claude', 'settings.json'), { recursive: true })
+  const { value, lines } = quietStderr(() => startup(dir, ENV_ON))
+  assertInstallsOff(value.context)
+  assert.deepEqual(value.warnings, ['project settings check failed: EISDIR'])
+  assert.equal(lines.length, 1)
+})
+
+test('project settings without the variable change nothing', () => {
+  const { context, warnings } = startup(withProjectSettings(repo(), 'settings.json', { OTHER: '1' }), ENV_ON)
+  assert.ok(context.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.deepEqual(warnings, [])
+})
+
 test('nothing to load means no line, whatever git says about .team/', () => {
   const dir = withModeFile(repo(), '{"mode":"balanced"}')
   commitFiles(dir, '.team/mode.json')

@@ -6,6 +6,7 @@ import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
+import { projectEnvSets } from './lib/project-settings.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -19,11 +20,17 @@ const AUTO_INSTALL_NOTE = [
 
 export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set ${AUTO_INSTALL_ENV}=1 in your user settings instead`
 
+// Claude Code hands a project's .claude settings env to the hooks, so the environment's value cannot be trusted when they set the variable.
+const PROJECT_SETTINGS = "the project's .claude settings"
+const PROJECT_ENV_LINE = `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set; automatic skill installs stay off`
+
 // Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
 // is named as the source of off). The mode file, which a cloned repo can commit, may turn them off but never on: its true is ignored,
-// with a notice when the environment does not turn them on anyway.
-function skillSetting(autoInstallSkills, env) {
+// with a notice when the environment does not turn them on anyway. projectEnvSet (the project's settings set the variable, or could
+// not be read) turns them off as well.
+function skillSetting(autoInstallSkills, env, projectEnvSet = false) {
   if (autoInstallSkills === false) return { on: false, from: MODE_FILE, notice: null }
+  if (projectEnvSet) return { on: false, from: PROJECT_SETTINGS, notice: null }
   const on = env[AUTO_INSTALL_ENV] === '1'
   const from = env[AUTO_INSTALL_ENV] === undefined ? null : AUTO_INSTALL_ENV
   return { on, from, notice: autoInstallSkills === true && !on ? FILE_ON_IGNORED : null }
@@ -86,9 +93,9 @@ function modeSection(mode, skills, problem, retired) {
 }
 
 // The session context from readMode's answer: the mode's brief, the install note when installs are automatic, the last summary, the plan line when a plan exists, then the Mode section.
-// briefKept: the session already holds this brief (a resume), so one line stands in for it.
-export function composeContext({ mode, autoInstallSkills, problem, retired }, env, summary, hasPlan = false, { briefKept = false } = {}) {
-  const skills = skillSetting(autoInstallSkills, env)
+// briefKept: the session already holds this brief (a resume), so one line stands in for it. projectEnvSet: see skillSetting.
+export function composeContext({ mode, autoInstallSkills, problem, retired }, env, summary, hasPlan = false, { briefKept = false, projectEnvSet = false } = {}) {
+  const skills = skillSetting(autoInstallSkills, env, projectEnvSet)
   return [
     briefKept ? BRIEF_KEPT_LINE : assembleBrief(mode),
     skills.on ? AUTO_INSTALL_NOTE : null,
@@ -144,6 +151,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
     ...(sessionId === undefined ? [] : [['mode record', () => recordMode(home, sessionId, setting.mode)]]),
   ]
   const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
+  // Claude Code reads .claude settings from the session's folder and the repo root; either one setting the variable turns installs off.
+  const projectEnv = attempt('project settings check', () => [cwd, root].some(dir => projectEnvSets(dir, AUTO_INSTALL_ENV)))
+  const projectEnvSet = projectEnv.value !== false // a check that failed counts as set: refuse rather than guess
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))
   // git is asked only when there is a plan or summary to load; a shipped or unverified one is left out with one line for the user.
@@ -153,10 +163,12 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const retired = setting.retired === undefined ? null : RETIRED_LINE
   const hash = briefHash(setting.mode)
   const held = briefStillHeld(source, home, sessionId, hash)
-  const context = composeContext(setting, env, loadable ? summary.value : null, loadable && hasPlan, { briefKept: held.value === true })
+  const context = composeContext(setting, env, loadable ? summary.value : null, loadable && hasPlan, { briefKept: held.value === true, projectEnvSet })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
-  const skillNotice = skillSetting(setting.autoInstallSkills, env).notice
-  const warnings = [setting.problem, skillNotice, retired, committedMode, teamLine, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  const skillNotice = skillSetting(setting.autoInstallSkills, env, projectEnvSet).notice
+  const projectEnvLine = projectEnv.value === true ? PROJECT_ENV_LINE : null
+  const vetoes = [committedMode, projectEnvLine, teamLine]
+  const warnings = [setting.problem, skillNotice, retired, ...vetoes, ...stepWarnings, projectEnv.warning, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 
