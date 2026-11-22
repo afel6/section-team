@@ -198,13 +198,24 @@ function startGuard(fd, record, e, env, deps, limit) {
   }
 }
 
+// A limit the guard cannot use leaves it off, so its problem line is said on the first call of each session that would have started it.
+// The marker ends in .json so the modes folder's weekly prune removes it.
+function badLimitOnce(home, sessionId, problem) {
+  const dir = modeRecordDir(home)
+  mkdirSync(dir, { recursive: true })
+  const marker = openNew(nodePath.join(dir, `${sessionId}.limit-said.json`))
+  if (marker === null) return null
+  closeSync(marker)
+  return problem
+}
+
 // Starts the session's memory guard when this call should and none runs; never denies. deps carries every effect: home (the record folder's home),
 // platform, totalBytes, now, pid (this hook's), list (the process table) and spawn (starts the runner on a record file).
 // Returns one line for the user, or null.
 export function ensureGuard(e, env, deps) {
   if (!wantsGuard(e)) return null
   const { bytes, problem } = limitBytes(env, deps.totalBytes, deps.platform)
-  if (bytes === null) return null
+  if (bytes === null) return problem === null ? null : badLimitOnce(deps.home, e.session_id, problem)
   const record = nodePath.join(modeRecordDir(deps.home), `${e.session_id}${GUARD_SUFFIX}`)
   const mtime = mtimeOrNull(record)
   if (mtime !== null && deps.now() - mtime < FRESH_MS) return null

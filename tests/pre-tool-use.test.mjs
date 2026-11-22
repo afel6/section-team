@@ -730,7 +730,6 @@ test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an
     [guardEvent(), { [VAR]: '0' }, {}],
     [guardEvent(), {}, {}],
     [guardEvent(), {}, { platform: 'linux' }],
-    [guardEvent(), { [VAR]: '12GB' }, {}],
   ]
   for (const [e, env, over] of cases) {
     const { deps, spawned, listed } = guardDeps(over)
@@ -773,6 +772,35 @@ test('a spawn error is a failed start', () => {
   const broken = guardDeps({ spawn: () => { throw Object.assign(new Error('spawn failed'), { code: 'EPERM' }) } })
   assert.match(ensureGuard(guardEvent(), GUARD_ON, broken.deps), /memory guard.*EPERM/)
   assert.ok(readGuardRecord(broken.deps.home).failed)
+})
+
+// The 0.5.1 regression: the guard became opt-in, and a bad value then returned before its problem line, so a user's typo turned the guard off in silence.
+test('a bad limit value is said once per session, starts no guard, and unset or 0 stay silent', () => {
+  const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
+  for (const bad of ['12GB', '12288 ', '12,288']) {
+    const { deps, spawned, listed } = guardDeps()
+    const env = { [VAR]: bad }
+    const first = ensureGuard(guardEvent(), env, deps)
+    assert.match(first ?? '', new RegExp(`^${VAR} is not a whole number of MB`), JSON.stringify(bad))
+    assert.ok(!first.includes('\n'))
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, `${JSON.stringify(bad)} is said once`)
+    assert.equal(ensureGuard(guardEvent({ tool_name: 'PowerShell' }), env, deps), null)
+    assert.equal(spawned.length + listed.length, 0, 'no guard starts on a bad value')
+    // Another session is told too.
+    assert.match(ensureGuard(guardEvent({ session_id: 'sess-2' }), env, deps) ?? '', new RegExp(VAR))
+  }
+  for (const env of [{}, { [VAR]: '' }, { [VAR]: '0' }]) {
+    const { deps } = guardDeps()
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, JSON.stringify(env))
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, JSON.stringify(env))
+  }
+})
+
+test('the said-once marker ends in .json, so the weekly prune of the modes folder removes it', () => {
+  const { deps } = guardDeps()
+  ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }, deps)
+  const names = readdirSync(join(deps.home, '.claude', 'section-team', 'modes'))
+  assert.deepEqual(names, ['sess-1.limit-said.json'])
 })
 
 test("decide gives the same answers with a session id on a builder's Bash call", () => {
