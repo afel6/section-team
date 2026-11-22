@@ -4,7 +4,7 @@ import { isMainModule } from '../hooks/lib/paths.mjs'
 import { readExtra } from './assign-skill.mjs'
 
 // All heads run on Opus: benchmark rounds 4–6 showed Sonnet builder heads land at solo quality even with the Opus gate.
-// The `opus` alias resolves to Opus 5.5 on the Anthropic API (Claude Code model-config docs); pilot check V4 confirms the id.
+// `opus` follows the parent's Opus version, otherwise the alias default (Opus 5.5 on the Anthropic API since CLI 2.1.280); ANTHROPIC_DEFAULT_OPUS_MODEL overrides it.
 export const MODEL = { builder: 'opus', advisor: 'opus' }
 // S2 (docs/v3-spikes.md): a section can SendMessage a sibling by agent id; the supervisor relay stays as the fallback.
 export const RELAY = 'To ask another section something, look in `.team/notes/` first. If the notes do not answer it, SendMessage its agent id (the job lists the ids of awake sections). Ask a sibling a question only while it is working; if it has handed back, ask `main`. Never wake a section yourself. When the id is missing or the message fails, SendMessage the supervisor (`main`) with the section name and your request; the supervisor forwards it to the owner with your agent id, and the owner replies to you directly. If neither works, finish with `Status: blocked` and say what you need from which section. Waiting on unfinished work from another section is also `Status: blocked`, not `partial`.'
