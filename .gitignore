@@ -6,3 +6,4 @@ bench/results/
 bench-*.log
 bench-*.err
 pid.txt
+.superpowers/
