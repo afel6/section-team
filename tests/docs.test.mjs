@@ -212,7 +212,7 @@ test('CONTRIBUTING makes no claim, explains --plugin-ref and lists the foundatio
 test('the README describes the office, walks, names and where names are saved', () => {
   const board = read('README.md').split('\n## Team Board\n')[1].split('\n## ')[0]
   assertIncludes(board, [
-    '/team name <section> <name>', '/team name <section>', 'names.json', 'walks', 'strolls', 'advisors',
+    '/team name <section> <name>', '`/team name <section>` gives back its default name', 'names.json', 'walks', 'strolls', 'advisors',
     'The terminal keeps the text board.',
   ], 'Team Board section')
 })
