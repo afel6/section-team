@@ -9,7 +9,7 @@ Summaries, blind keys and judge verdicts for four rounds run on the second test 
 | ph | `../ph/` | p1 | solo-ph, team-ph, max-ph | Codex, Fable | same as hq |
 | py | `../py/` | p1 | solo-py, team-py, max-py | none (not judged) | summary, blind key, external key |
 
-The judge files hold each case's verdict mapped back to setups, built from the judges' raw `verdict.json` files with the harness's own `importVerdicts` (`bench/external-judge.mjs`), the same rows `external-judge.mjs import` writes. The raw verdict folders, transcripts and workspaces are not published, and neither are fx's hidden tests.
+The judge files hold each case's verdict mapped back to setups, built from the judges' raw `verdict.json` files with the harness's own `importVerdicts` (`bench/external-judge.mjs`), the same rows `external-judge.mjs import` writes. The raw verdict folders, transcripts and workspaces are not published. fx's task specs and hidden tests are published in `bench/tasks/f1-f3.md` and `bench/hidden/f1-f3.test.mjs`.
 
 ## Recompute
 
@@ -23,4 +23,4 @@ node bench/data/p1/recompute.mjs ph py
 
 Each prints, per setup and then per task: total cost over its runs, cost as a multiple of solo, hidden tests passed per task (mean), and each judge's mean overall score with the number of cases that ranked the setup first. Rounds ph and py have p1's layout, so p1's per-run means apply to them (the third command prints them; py has no judges, so only cost and hidden tests).
 
-Known differences from the results doc, all rounding (the printed value is the correctly rounded one; the doc is off by 0.01): hq solo's total prints $11.20 (the doc says $11.19; the unrounded sum is $11.197), fx's fix setup prints 2.93x solo (the doc says 2.94x; unrounded 2.933), and ph solo's mean cost is $3.62 per run where the doc says $3.63.
+Known differences from the results doc. Three are rounding (the printed value is the correctly rounded one; the doc is off by 0.01): hq solo's total prints $11.20 (the doc says $11.19; the unrounded sum is $11.197), fx's fix setup prints 2.93x solo (the doc says 2.94x; unrounded 2.933), and ph solo's mean cost is $3.62 per run where the doc says $3.63. The fourth is not rounding: Balanced cost on h6 prints 3.24x (5.34065 / 1.64805 = 3.2406), so the doc's "3.3x" should read 3.2x; the doc averaged the two per-run ratios (3.74 and 2.86) while the table and the recompute use the ratio of totals.
