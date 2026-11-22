@@ -27,6 +27,34 @@ test('a PEM block is redacted whole; one cut off before its END line loses only 
   assert.equal(redact(spec), 'The file starts with [redacted] and the parser must accept it.\nThe rest of the request stays.')
 })
 
+test('prose between a quoted BEGIN line and a quoted END line stays', () => {
+  const probe = 'The file starts with -----BEGIN CERTIFICATE----- and the parser must accept it. Lots of other prose here. It ends with -----END CERTIFICATE----- and more.'
+  assert.equal(redact(probe), 'The file starts with [redacted] and the parser must accept it. Lots of other prose here. It ends with -----END CERTIFICATE----- and more.')
+  assert.equal(redact('Wrap it in -----BEGIN CERTIFICATE----- and -----END CERTIFICATE----- lines.'), 'Wrap it in [redacted] and -----END CERTIFICATE----- lines.')
+  assert.equal(redact('-----BEGIN CERTIFICATE-----\nnot\n-----END PRIVATE KEY----- here'), '[redacted]\nnot\n-----END PRIVATE KEY----- here', 'an END line with another label does not close the block')
+})
+
+test('a PEM block written with \\n as in JSON, with header lines, or indented, is redacted whole', () => {
+  // Made-up values.
+  const json = String.raw`{"private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\nAAAA==\n-----END PRIVATE KEY-----\n","id":"1"}`
+  assert.equal(redact(json), String.raw`{"private_key":"[redacted]\n","id":"1"}`)
+  const legacy = '-----BEGIN RSA PRIVATE KEY-----\r\nProc-Type: 4,ENCRYPTED\r\nDEK-Info: AES-128-CBC,0123456789ABCDEF\r\n\r\nMIIEow\r\nAAAA==\r\n-----END RSA PRIVATE KEY-----\r\nafter'
+  assert.equal(redact(legacy), '[redacted]\r\nafter')
+  const yaml = 'key: |\n    -----BEGIN PRIVATE KEY-----\n    MIIEvQ\n    -----END PRIVATE KEY-----\nnext: 1'
+  assert.equal(redact(yaml), 'key: |\n    [redacted]\nnext: 1')
+})
+
+test('many BEGIN lines with no END line, blank lines after one, or BEGIN lines in header lines stay fast', () => {
+  const lines = '-----BEGIN CERTIFICATE-----\n'.repeat(20 * 1024) // 560 KB
+  const blanks = '\r\n  '.repeat(128 * 1024) // 512 KB
+  const headers = '-----BEGIN X-----\nk: -----BEGIN X-----\n'
+  const started = performance.now()
+  assert.equal(redact(lines), '[redacted]\n'.repeat(20 * 1024))
+  assert.equal(redact(`-----BEGIN X-----${blanks}`), `[redacted]${blanks}`)
+  assert.equal(redact(headers.repeat(14 * 1024)), '[redacted]\nk: [redacted]\n'.repeat(14 * 1024)) // 530 KB
+  assert.ok(performance.now() - started < 1000, `took ${performance.now() - started} ms`)
+})
+
 test('sk- and gh*_ tokens are redacted; short look-alikes are not', () => {
   assert.equal(redact('use sk-ant-api03-abcdefghijklmnop1234 now'), 'use [redacted] now')
   assert.equal(redact('ghp_abcdefghijklmnopqrstuvwxyz0123456789'), '[redacted]')
