@@ -563,3 +563,14 @@ test('the bug report asks for the Plugin: line and the install method, not a com
   assertIncludes(install, ['Install method', '- marketplace', '- clone', '- --plugin-dir', 'required: true'], 'install method dropdown')
   assert.ok(form.includes('  - type: dropdown\n    id: install-method'), 'a dropdown')
 })
+
+test('the old review brief, final report and build ledger live in docs/history with a superseded banner', () => {
+  const docs = readdirSync(new URL('../docs/', import.meta.url))
+  for (const name of ['REVIEW-BRIEF.md', 'final-report-2026-10-26.md', 'build-ledger.md']) {
+    assert.ok(!docs.includes(name), `${name} left docs/`)
+    const lines = read(`docs/history/${name}`).split('\n')
+    assert.ok(lines[0].startsWith('# '), `${name} keeps its title`)
+    assert.ok(lines[2].includes('Historical; superseded by the README.'), `${name} banner`)
+  }
+  assert.ok(read('docs/history/REVIEW-BRIEF.md').includes('`docs/history/build-ledger.md`'), 'the brief points to the ledger where it is now')
+})
