@@ -406,14 +406,18 @@ it('page: at load app.js requests only GET /api/polls and fills #poll-list with 
   assert.deepEqual(state(page), { error: '', ...NOTHING, list: LIST, fetches: [] })
   const empty = await ready([]); assert.deepEqual(kids(empty.el('poll-list')), NONE)
 })
-it('page: a list fetch with an error status or no reply shows the message and keeps the list; a later success leaves #error alone', async () => {
+it('page: a list fetch with an error status or no reply shows the message and keeps the list; a list fetch that succeeds leaves #error alone', async () => {
   for (const [i, [how, error]] of errorCases(200).entries()) {
-    const page = await openPage(); await answer(take(page, 'GET', '/api/polls'), how)
-    same(i, { error: errorText(page), list: kids(page.el('poll-list')) }, { error, list: [] })
+    const page = await openPage(), before = kids(page.el('poll-list')); await answer(take(page, 'GET', '/api/polls'), how)
+    same(i, { error: errorText(page), list: kids(page.el('poll-list')) }, { error, list: before })
     const other = await ready(); await openPoll(other, 0, SAMPLE[0]); fire(voteButton(other, 0), 'click'); await flush()
     await answer(take(other, 'POST', '/api/polls/3/votes'), c => c.reply(201, SAMPLE[0])); await answer(take(other, 'GET', '/api/polls'), how)
     same(i, { error: errorText(other), list: kids(other.el('poll-list')) }, { error, list: LIST }, 'a list fetch after a vote')
   }
+  // The load's list fetch is still open when a create fails: its success must not empty the create's message.
+  const page = await openPage(); page.el('question').value = 'Q'; page.el('answers').value = 'a\nb'; fire(page.el('poll-form'), 'submit'); await flush()
+  await answer(take(page, 'POST', '/api/polls'), c => c.reply(400, err(E.diff))); await answer(take(page, 'GET', '/api/polls'), okList(SAMPLE))
+  assert.deepEqual({ error: errorText(page), list: kids(page.el('poll-list')) }, { error: E.diff, list: LIST })
 })
 it('page: Open requests GET /api/polls/<id> and shows the poll: question, one <li> per answer with its votes, percent and a Vote button (disabled when closed), Close poll enabled only when open', async () => {
   const page = await ready(); await openPoll(page, 0, SAMPLE[0])
