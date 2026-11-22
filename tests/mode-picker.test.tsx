@@ -76,7 +76,7 @@ test('/team with no arguments opens the board as before, and its description tel
   const { seen } = world(on)
 
   await $.session.start(START)
-  expect(seen.descriptions.team).toBe("Show the Team Board, or set this project's mode: /team mode balanced|max")
+  expect(seen.descriptions.team).toBe("Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)")
   expect(await team($ as never, '')).toEqual({ text: 'Team Board opened.' })
   // Only the word mode itself picks the mode command.
   expect(await team($ as never, 'modex')).toEqual({ text: 'Team Board opened.' })

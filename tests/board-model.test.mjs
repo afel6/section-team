@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { boardModel, cardLine, cardState, latestReportFiles, emptyBoard, formatTokens, shortModel, sectionUsage, stripLine } from '../hooks/board-model.mjs'
+import { DEFAULT_NAMES } from '../hooks/lib/names.mjs'
 
 test('agent status and report status map to card states', () => {
   assert.equal(cardState(undefined, undefined), 'asleep')
@@ -225,6 +226,14 @@ test('the team line says "1 helper" for one and "N helpers" for any other count'
   assert.equal(line(5, 2), 'team tokens 5 · 2 helpers')
   assert.equal(line(5, 0), 'team tokens 5 · 0 helpers')
   assert.equal(line(0, 1), 'team tokens 0 · 1 helper')
+})
+
+test('builder cards carry their name, the defaults when none are given, and advisors their id', () => {
+  const card = (data, id) => data.cards.find(c => c.id === id)
+  const named = boardModel({ names: { ...DEFAULT_NAMES, backend: 'Nova' } })
+  assert.equal(card(named, 'backend').name, 'Nova')
+  assert.equal(card(named, 'ai-engineer').name, 'ai-engineer')
+  assert.equal(card(boardModel({}), 'frontend').name, 'Iris')
 })
 
 test('a done card shows the reviewer grade when the report has one', () => {

@@ -18,7 +18,7 @@ const assertIncludes = (text, needles, label) => {
 // Sentences that make a saving or quality claim without saying it is unmeasured.
 const claimSentences = text => text.split(/(?<=[.!?])\s+|\n/).filter(s => CLAIM_WORDS.test(s) && !DISCLAIMED.test(s))
 
-const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
+const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 test('the claim check catches claim words and accepts a disclaimed sentence', () => {
   for (const claim of ['It will save money.', 'Tokens were saved.', 'Quality improved.', 'It reduces the bill.', 'You get lower cost.', 'You get better quality.', 'It uses much less.']) {
@@ -207,4 +207,12 @@ test('CONTRIBUTING makes no claim, explains --plugin-ref and lists the foundatio
     'skills/foundation/', 'skills/node-http/', 'hooks/lib/head-context.mjs', 'hooks/lib/grade.mjs',
   ], 'CONTRIBUTING')
   assert.ok(!text.includes('(now v0.2.1)'), 'no unpinned version number')
+})
+
+test('the README describes the office, walks, names and where names are saved', () => {
+  const board = read('README.md').split('\n## Team Board\n')[1].split('\n## ')[0]
+  assertIncludes(board, [
+    '/team name <section> <name>', '`/team name <section>` gives back its default name', 'names.json', 'walks', 'strolls', 'advisors',
+    'The terminal keeps the text board.',
+  ], 'Team Board section')
 })

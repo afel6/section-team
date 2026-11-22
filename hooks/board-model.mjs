@@ -1,3 +1,4 @@
+import { DEFAULT_NAMES } from './lib/names.mjs'
 import { ADVISOR_IDS, BUILDER_IDS, sectionIdFromType } from './lib/report.mjs'
 
 const ACTIVE = new Set(['pending', 'running', 'waiting', 'idle'])
@@ -72,7 +73,8 @@ export function sectionUsage({ agents = [], spawns = {}, usage = {} } = {}) {
   return sections
 }
 
-export function boardModel({ agents = [], reports = {}, request = '', lastSummary = '', usage = {} } = {}) {
+// A builder card carries its creature's name (the defaults when no names are given), an advisor card its id.
+export function boardModel({ agents = [], reports = {}, request = '', lastSummary = '', usage = {}, names = DEFAULT_NAMES } = {}) {
   const byId = new Map()
   for (const agent of agents) {
     const id = sectionIdFromType(agent.type)
@@ -86,7 +88,7 @@ export function boardModel({ agents = [], reports = {}, request = '', lastSummar
     const used = usage[id]
     const tokens = used?.total > 0 ? `tokens ${formatTokens(used.total)} · out ${formatTokens(used.out)}` : ''
     const helpersLine = used?.helpers > 0 ? `helpers ${used.helpers} · ${used.models.map(([model, n]) => `${model}×${n}`).join(' ')}` : ''
-    return { id, kind, state, line: cardLine(state, agent, report), tokens, helpersLine }
+    return { id, kind, name: kind === 'builder' ? names[id] : id, state, line: cardLine(state, agent, report), tokens, helpersLine }
   }
   const cards = [...BUILDER_IDS.map(id => card(id, 'builder')), ...ADVISOR_IDS.map(id => card(id, 'advisor'))]
   const count = (...states) => cards.filter(c => states.includes(c.state)).length

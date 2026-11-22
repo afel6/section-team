@@ -24,8 +24,9 @@ export function world(on: On, now = 0) {
     chats: { files: {} as Record<string, string>, mtimes: {} as Record<string, number>, deny: undefined as string | undefined, lists: 0, reads: [] as string[] },
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown,
     // Where the session is, whether git finds a repository there and its root, and the files on disk by path (a path holding text is a file,
-    // the folders above it exist); denyModeRead refuses reading any mode.json.
+    // the folders above it exist); denyModeRead refuses reading any mode.json, denyNamesRead any section-team/names.json.
     cwd: 'C:/proj', projectRoot: 'C:/proj', gitExit: 0, gitRoot: 'C:/proj', disk: {} as Record<string, string>, denyModeRead: undefined as string | undefined,
+    denyNamesRead: undefined as string | undefined,
     holdModeRead: undefined as Promise<void> | undefined,
     descriptions: {} as Record<string, string | undefined>, toasts: [] as string[] }
   const under = (path: string, dir: string) => path.startsWith(`${dir}/`)
@@ -81,6 +82,7 @@ export function world(on: On, now = 0) {
     const path = slashes(e.path)
     if (!path.startsWith(`${STATUS_DIR}/`)) {
       if (seen.denyModeRead && path.endsWith('/mode.json')) return { deny: seen.denyModeRead }
+      if (seen.denyNamesRead && path.endsWith('/section-team/names.json')) return { deny: seen.denyNamesRead }
       const held = path.endsWith('/mode.json') ? seen.holdModeRead : undefined
       if (held) {
         // One mode read that answers late, with the text the file had when it was asked.

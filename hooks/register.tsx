@@ -4,8 +4,11 @@ import type { BoardCard, BoardData, ChatCard, ChatsData, Mode, SessionState, Ses
 import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { isHarnessFrame } from './lib/frames.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
+import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, NOT_READ_LINE, parseNames, serializeNames, UNREADABLE_LINE, unread } from './lib/names.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
-import { MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
+import { codeOf, MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
+import { officeAlt, officeSvg, ORDER } from './office.mjs'
+import { trackOffice } from './office-track.mjs'
 import { dashboardCards, HIDE_MS, parseStatus, statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -82,12 +85,14 @@ async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<stri
 type Report = ReturnType<typeof parseReport>
 type Spawn = { parentAgentId?: string; subagentType: string; model: string }
 type Used = { total: number; out: number }
-// spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
+type Track = ReturnType<typeof trackOffice>['track']
+// spawns, usage and the office's walk tracking live here, not in the atom: only the computed board is stored. spawns and usage are keyed by agent id.
 type Ctx = {
-  root: string; rootFrom: string; request: string; lastJson: string; lastError: string; stop?: Timer
+  root: string; rootFrom: string; request: string; lastJson: string; lastError: string; lastNamesLog: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
   chatsOpen: boolean; lastChats: string
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
+  office: { track?: Track; office?: BoardData['office'] }
 }
 
 // A fresh session counts from zero. The poll is not touched: the board stays alive across a /clear.
@@ -143,13 +148,34 @@ async function readReports($: EngineInterface, ctx: Ctx, root: string) {
   return { reports, lastSummary }
 }
 
+// The office picture, rebuilt only when trackOffice says so: between rebuilds its source stays the same, so its motion never restarts.
+// Both maps hold all ten builders in ORDER, since trackOffice keys on their JSON as given. The track moves on only once the picture is
+// built, so a tick whose drawing throws keeps the last picture and track, logs once, and rebuilds on the next one; the cards and the
+// status file carry on without it.
+function officeFor($: EngineInterface, ctx: Ctx, cards: BoardCard[], now: number) {
+  const card = (id: string) => cards.find(c => c.kind === 'builder' && c.id === id)
+  const states = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.state ?? 'asleep']))
+  const names = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.name ?? '']))
+  try {
+    const { track, rebuild } = trackOffice(ctx.office.track, { states, names, now })
+    if (rebuild) ctx.office.office = { source: officeSvg({ states, names, moves: track.moves, now }), alt: officeAlt({ states, names }) }
+    ctx.office.track = track
+  } catch (error) {
+    logFailure($, ctx, 'office draw', error)
+  }
+  return ctx.office.office
+}
+
 async function refresh($: EngineInterface, ctx: Ctx) {
   const agents = await $.agent.list()
   // Looked up here, not at session.start, so the session start never waits on git.
   const root = await projectRoot($, ctx)
   const { reports, lastSummary } = await readReports($, ctx, root)
+  // Read each tick, so a rename made in another chat shows here within a second.
+  const { names } = await readNames($, ctx)
   const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
-  const next = boardModel({ agents, reports, request: ctx.request, lastSummary, usage })
+  const model = boardModel({ agents, reports, request: ctx.request, lastSummary, usage, names })
+  const next = { ...model, office: officeFor($, ctx, model.cards, await $.clock.now()) }
   ctx.board = next
   const json = JSON.stringify(next)
   if (json !== ctx.lastJson) {
@@ -205,12 +231,55 @@ async function refreshChats($: EngineInterface, ctx: Ctx) {
   ctx.lastChats = json
 }
 
-// Logged once per message, to the debug log only.
-function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown) {
+// Logged once per message, to the debug log only. Names problems keep a slot of their own (lastNamesLog): sharing lastError with
+// another failure that keeps happening would make both log every tick.
+function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown, slot: 'lastError' | 'lastNamesLog' = 'lastError') {
   const message = error instanceof Error ? error.message : String(error)
-  if (message === ctx.lastError) return
-  ctx.lastError = message
+  if (message === ctx[slot]) return
+  ctx[slot] = message
   $.ui.log(`Team Board: ${what} failed: ${message}`, { to: 'debug' })
+}
+
+// The builders' names, saved per user under the home folder. Read as the mode file is, only when it exists. A file that cannot be read
+// gives the default names and UNREADABLE_LINE, one that is not valid the names it could keep and its problem; both are logged once while
+// they last. A clean read clears the slot, so a problem that comes back is logged again.
+async function readNames($: EngineInterface, ctx: Ctx): Promise<{ names: Record<string, string>; problem: string | null }> {
+  const home = await homeDir($)
+  if (!home) return { names: { ...DEFAULT_NAMES }, problem: null }
+  const file = namesFile(home)
+  let text: string | null
+  try {
+    text = (await $.fs.exists(file)) ? await $.fs.read(file) : null
+  } catch (error) {
+    // The code alone: the engine's message carries an absolute path.
+    logFailure($, ctx, 'names read', codeOf(error) ?? 'read refused', 'lastNamesLog')
+    return { names: { ...DEFAULT_NAMES }, problem: UNREADABLE_LINE }
+  }
+  const parsed = parseNames(text)
+  if (parsed.problem === null) ctx.lastNamesLog = ''
+  else logFailure($, ctx, 'names read', parsed.problem, 'lastNamesLog')
+  return parsed
+}
+
+// `/team name` alone lists the ten names, under the file's problem when it has one. With a section it renames that builder, or gives it
+// its default name back when no name follows, and saves the names in the home folder. Returns the lines to show. A file whose names
+// could not be read at all is never overwritten: saving the defaults plus one rename would wipe every other custom name in it.
+async function nameCommand($: EngineInterface, ctx: Ctx, section: string | undefined, raw: string | undefined): Promise<string> {
+  const { names, problem } = await readNames($, ctx)
+  if (section === undefined) return problem === null ? listNames(names) : `${problem}\n${listNames(names)}`
+  if (unread(problem)) return NOT_READ_LINE
+  const { line, next } = applyName(names, section, raw)
+  if (!next) return line
+  const home = await homeDir($)
+  if (!home) return NO_HOME_LINE
+  try {
+    // $.fs has no rename, so this save is not atomic, as the mode file's is not; the poll shows the new name on its next tick.
+    await $.fs.write(namesFile(home), serializeNames(next))
+  } catch (error) {
+    // The code alone, as the mode line gives it: the engine's message carries an absolute path.
+    return `Name not saved: ${codeOf(error) ?? 'the file system refused it'}.`
+  }
+  return line
 }
 
 async function pollChats($: EngineInterface, ctx: Ctx) {
@@ -251,13 +320,15 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'team', description: "Show the Team Board, or set this project's mode: /team mode balanced|max" })
+    await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)" })
     await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
     resetCounts(ctx)
+    // A new session's first poll records no moves: nobody walks from where the last session left them. A /clear keeps the track.
+    ctx.office = {}
     startPoll($, ctx)
     return next(e)
   })
@@ -289,11 +360,15 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // `/team mode` shows the mode, `/team mode <mode>` sets it; anything else opens the board, as before.
+  // `/team mode` shows the mode, `/team mode <mode>` sets it; `/team name [<section> [<name>]]` lists or sets builder names;
+  // anything else opens the board, as before.
   on('command.run', { command: 'team' }, async ($, e) => {
     // A caller that sends no args at all (a test's $.command.run) means no arguments, as before.
-    const modeArgs = /^mode(?:\s+(.*))?$/s.exec((e.args ?? '').trim())
+    const args = (e.args ?? '').trim()
+    const modeArgs = /^mode(?:\s+(.*))?$/s.exec(args)
     if (modeArgs) return { text: modeArgs[1] === undefined ? await describeMode($, ctx) : await setMode($, ctx, modeArgs[1]) }
+    const nameArgs = /^name(?:\s+(\S+)(?:\s+(.+))?)?$/s.exec(args)
+    if (nameArgs) return { text: await nameCommand($, ctx, nameArgs[1], nameArgs[2]) }
     startPoll($, ctx)
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: 'Team Board opened.' }
@@ -360,12 +435,15 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Svg, Text } = $.ui.resolve(e)
     const data = await read($, board)
+    // The terminal draws no Svg. Elsewhere the office, which shows the sleeping builders too, takes the asleep line's place.
+    const office = e.surface === 'terminal' ? undefined : data.office
     const width = cardWidth(e.props.bodyColumns ?? 80)
     const card = (c: BoardCard) => (
       <Box key={`card-${c.id}`} width={width} flexDirection="column" paddingX={1} borderStyle={c.kind === 'advisor' ? 'dashed' : 'round'} borderColor={COLOR[c.state]}>
-        <Text bold color={COLOR[c.state]}>● {c.id}</Text>
+        {/* A board stored by an earlier version has no names on its cards: the header falls back to the id until the next tick. */}
+        <Text bold color={COLOR[c.state]}>{c.kind === 'builder' && c.name ? `● ${c.name} · ${c.id}` : `● ${c.id}`}</Text>
         <Text wrap="truncate-end" dimColor={c.state === 'asleep'}>{c.line}</Text>
         {c.tokens ? <Text wrap="truncate-end" dimColor>{c.tokens}</Text> : null}
         {c.helpersLine ? <Text dimColor>{c.helpersLine}</Text> : null}
@@ -392,9 +470,10 @@ export const register: Register = on => {
           <Text dimColor>{data.lastSummary === '' ? counts : `${counts} · last summary ${data.lastSummary}`}</Text>
           {data.teamLine ? <Text dimColor>{data.teamLine}</Text> : null}
         </Box>
+        {office ? <Svg key="office" source={office.source} alt={office.alt} /> : null}
         {group('Sections', 'builder')}
         {group('Advisors', 'advisor')}
-        <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>
+        {office ? null : <Box key="asleep"><Text dimColor>{asleep} asleep</Text></Box>}
         <Box key="legend" flexDirection="row" flexWrap="wrap" columnGap={2}>
           <Text color={COLOR.running}>● running</Text>
           <Text color={COLOR.waiting}>● waiting</Text>
