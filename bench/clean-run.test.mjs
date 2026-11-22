@@ -411,11 +411,12 @@ test('liveCheckoutOf reads SECTION_TEAM_LIVE_CHECKOUT, required and absolute on 
 })
 
 test('checkLiveCheckout refuses a plugin worktree that is the live checkout or inside it', () => {
-  assert.doesNotThrow(() => checkLiveCheckout(LIVE_CHECKOUT, ['C:/Users/Asus/claude-team-cloud/wt/v0.5.1', 'D:/claude-team']))
-  assert.doesNotThrow(() => checkLiveCheckout(null, ['C:/Users/Asus/claude-team']))
-  for (const worktree of ['C:/Users/Asus/claude-team', 'C:\\Users\\Asus\\Claude-Team', 'C:/Users/Asus/claude-team/.claude/worktrees/rc']) {
-    assert.throws(() => checkLiveCheckout(LIVE_CHECKOUT, ['C:/elsewhere', worktree]),
-      { message: `${worktree} is the live checkout ${LIVE_CHECKOUT} (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` }, worktree)
+  const live = 'D:/me/claude-team'
+  assert.doesNotThrow(() => checkLiveCheckout(live, ['D:/me/claude-team-cloud/wt/v0.5.1', 'E:/claude-team']))
+  assert.doesNotThrow(() => checkLiveCheckout(null, [live]))
+  for (const worktree of [live, 'D:\\me\\Claude-Team', 'D:/me/claude-team/.claude/worktrees/rc']) {
+    assert.throws(() => checkLiveCheckout(live, ['C:/elsewhere', worktree]),
+      { message: `${worktree} is the live checkout ${live} (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` }, worktree)
   }
 })
 
@@ -431,7 +432,7 @@ test('memoryLimitOf takes a plain whole number of megabytes, or nothing', () => 
 })
 
 test('childEnv sets the round\'s memory limit and config dir after the strip, whatever the parent set', () => {
-  const parent = { PATH: '/bin', SECTION_TEAM_MEMORY_LIMIT_MB: '999', CLAUDE_CONFIG_DIR: 'C:/Users/Asus/.claude', claude_config_dir: 'x' }
+  const parent = { PATH: '/bin', SECTION_TEAM_MEMORY_LIMIT_MB: '999', CLAUDE_CONFIG_DIR: 'C:/Users/me/.claude', claude_config_dir: 'x' }
   const child = childEnv(parent, { pluginDir: 'C:/w', memoryLimitMb: '12288', configDir: 'C:/bench-profile-nx' })
   assert.equal(child.SECTION_TEAM_MEMORY_LIMIT_MB, '12288')
   assert.equal(child.CLAUDE_CONFIG_DIR, 'C:/bench-profile-nx')

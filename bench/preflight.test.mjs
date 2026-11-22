@@ -241,8 +241,8 @@ test('built-in sets that differ between setups fail', () => {
 })
 
 // The nx round's control arm: v0.5.1 from a worktree of its own.
-const BASE_DIR = 'C:/Users/Asus/section-team-v0.5.1'
-const BASE_INIT = { plugins: [...BUILTINS, { ...SECTION_TEAM, path: 'C:\\Users\\Asus\\section-team-v0.5.1' }] }
+const BASE_DIR = 'C:/wt/section-team-v0.5.1'
+const BASE_INIT = { plugins: [...BUILTINS, { ...SECTION_TEAM, path: 'C:\\wt\\section-team-v0.5.1' }] }
 // A git where every worktree is its own root, clean, at 'tagged'.
 const ownRoots = args => (args.includes('--show-toplevel') ? args[1] : args.includes('rev-parse') ? 'tagged' : '')
 const NX = { round: 'nx', plugin: PLUGIN_DIR, pluginRef: 'v0.6.0-rc.1', basePlugin: BASE_DIR, baseRef: 'v0.5.1', conds: ['solo', 'base', 'team'] }
@@ -487,7 +487,7 @@ test('preflight refuses before any spawn: no base ref, one folder for both arms,
   const at = (change, extraDeps = {}) => () => preflight({ ...NX, home, results, ...change }, { ...deps, git: ownRoots, ...extraDeps })
   assert.throws(at({ baseRef: '' }), { message: '--base-ref= names the ref the base worktree is at: a round with base pins both refs' })
   assert.throws(at({ basePlugin: PLUGIN_DIR }), { message: `--base-plugin= and --plugin= name one folder, ${PLUGIN_DIR}: each arm needs its own worktree` })
-  assert.throws(at({ live: 'C:/Users/Asus' }), { message: `${PLUGIN_DIR} is the live checkout C:/Users/Asus (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` })
+  assert.throws(at({ live: 'C:/Users' }), { message: `${PLUGIN_DIR} is the live checkout C:/Users (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` })
   assert.throws(at({}, { found: () => ['C:/Users/me/AGENTS.md'] }), { message: /^C:\/Users\/me\/AGENTS\.md sits above the run folders, and Claude Code reads it as instructions in every run/ })
   assert.throws(at({ configDir }), { message: `profile ${configDir}: the folder does not exist: log in there first (CLAUDE_CONFIG_DIR=${configDir} claude)` })
   writeFile(join(configDir, 'CLAUDE.md'), 'rules')

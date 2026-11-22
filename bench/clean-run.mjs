@@ -296,8 +296,8 @@ export function compacted(jsonlText) {
 }
 
 // What Claude Code reads as instructions from the folder a session starts in and every folder above it (ctx7 lookup of
-// the Claude Code docs, 2026-11-23: "Parent directories ... root/CLAUDE.md ... pulled in automatically"; AGENTS.md is
-// the plan's addition). .mcp.json is not listed: every run passes --strict-mcp-config.
+// the Claude Code docs, 2026-11-23: CLAUDE.md files in parent folders are loaded too; AGENTS.md is the plan's
+// addition). .mcp.json is not listed: every run passes --strict-mcp-config.
 const INSTRUCTION_FILES = ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', join('.claude', 'CLAUDE.md')]
 
 // Every instruction file in dir and the folders above it, up to the drive root, nearest first.
