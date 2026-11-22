@@ -1,0 +1,12 @@
+{
+  "p1-r1": {
+    "X": "team-tl",
+    "Y": "max-tl",
+    "Z": "solo-tl"
+  },
+  "p1-r2": {
+    "X": "max-tl",
+    "Y": "solo-tl",
+    "Z": "team-tl"
+  }
+}

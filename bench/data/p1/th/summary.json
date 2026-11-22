@@ -1,0 +1,1162 @@
+[
+  {
+    "id": "p1-max-th-r1",
+    "task": "p1",
+    "cond": "max-th",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 8284533,
+    "costUSD": 42.445125999999945,
+    "costComputed": true,
+    "tokens": {
+      "input": 1759,
+      "output": 863686,
+      "cacheRead": 59707556,
+      "cacheWrite": 3658569,
+      "total": 64231570
+    },
+    "turns": 2,
+    "agentSpawns": 59,
+    "agentTypes": {
+      "section-team:backend": 3,
+      "section-team:coder": 25,
+      "section-team:reviewer": 19,
+      "section-team:testing": 4,
+      "section-team:security": 3,
+      "section-team:plan-advisor": 2,
+      "section-team:frontend": 1,
+      "section-team:docs": 1,
+      "section-team:ai-engineer": 1
+    },
+    "agentModels": {
+      "inherit": 59
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 1405,
+        "output": 627641,
+        "cacheRead": 52309515,
+        "cacheWrite": 2728824,
+        "costUSD": 37.045814000000036
+      },
+      "claude-sonnet-5-5": {
+        "input": 354,
+        "output": 236045,
+        "cacheRead": 7398041,
+        "cacheWrite": 929745,
+        "costUSD": 5.425324600000003
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 4196775
+      },
+      "section-team:reviewer": {
+        "opus": 6036344
+      },
+      "section-team:plan-advisor": {
+        "opus": 1070428
+      },
+      "section-team:coder": {
+        "sonnet": 8328140
+      },
+      "section-team:security": {
+        "opus": 4024891
+      },
+      "section-team:testing": {
+        "opus": 18865769
+      },
+      "section-team:backend": {
+        "opus": 17816152
+      },
+      "section-team:frontend": {
+        "opus": 1412392
+      },
+      "section-team:ai-engineer": {
+        "opus": 339714
+      },
+      "section-team:docs": {
+        "opus": 1174190
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": false,
+      "exitCode": 1,
+      "pass": 606,
+      "fail": 1
+    },
+    "code": {
+      "files": 28,
+      "lines": 2171,
+      "testFiles": 36,
+      "testLines": 6281,
+      "docsLines": 214
+    },
+    "team": {
+      "reports": 28,
+      "sections": {
+        "user-request": 3,
+        "backend": 6,
+        "security-details": 3,
+        "security": 3,
+        "testing": 4,
+        "plan-advisor": 2,
+        "testing-details": 4,
+        "frontend": 1,
+        "docs": 1,
+        "ai-engineer": 1
+      },
+      "summaries": 3
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 11,
+        "lines": 549,
+        "testFiles": 19,
+        "testLines": 2769,
+        "docsLines": 92
+      },
+      "calls": {
+        "freshAgents": 7,
+        "agentTypes": {
+          "section-team:plan-advisor": 1,
+          "section-team:backend": 1,
+          "section-team:frontend": 1,
+          "section-team:security": 1,
+          "section-team:docs": 1,
+          "section-team:testing": 2
+        },
+        "sendMessages": 0
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 11,
+          "lines": 549,
+          "testFiles": 19,
+          "testLines": 2769,
+          "docsLines": 92
+        },
+        "calls": {
+          "freshAgents": 7,
+          "agentTypes": {
+            "section-team:plan-advisor": 1,
+            "section-team:backend": 1,
+            "section-team:frontend": 1,
+            "section-team:security": 1,
+            "section-team:docs": 1,
+            "section-team:testing": 2
+          },
+          "sendMessages": 0
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 8,
+          "lines": 367,
+          "testFiles": 12,
+          "testLines": 1368,
+          "docsLines": 45
+        },
+        "calls": {
+          "freshAgents": 6,
+          "agentTypes": {
+            "section-team:ai-engineer": 1,
+            "section-team:plan-advisor": 1,
+            "section-team:backend": 1,
+            "section-team:testing": 1,
+            "section-team:security": 1,
+            "section-team:reviewer": 1
+          },
+          "sendMessages": 0
+        }
+      }
+    ],
+    "mainPeak": 143554
+  },
+  {
+    "id": "p1-max-th-r2",
+    "task": "p1",
+    "cond": "max-th",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 9796907,
+    "costUSD": 54.62634260000005,
+    "costComputed": true,
+    "tokens": {
+      "input": 2094,
+      "output": 1001149,
+      "cacheRead": 78178792,
+      "cacheWrite": 4952512,
+      "total": 84134547
+    },
+    "turns": 3,
+    "agentSpawns": 63,
+    "agentTypes": {
+      "section-team:backend": 2,
+      "section-team:coder": 23,
+      "section-team:reviewer": 25,
+      "section-team:testing": 5,
+      "section-team:security": 3,
+      "section-team:plan-advisor": 1,
+      "section-team:frontend": 1,
+      "section-team:docs": 1,
+      "section-team:ai-engineer": 1,
+      "section-team:ai-llm": 1
+    },
+    "agentModels": {
+      "inherit": 63
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 1694,
+        "output": 736962,
+        "cacheRead": 69583589,
+        "cacheWrite": 3870977,
+        "costUSD": 48.42031479999997
+      },
+      "claude-sonnet-5-5": {
+        "input": 400,
+        "output": 264187,
+        "cacheRead": 8595203,
+        "cacheWrite": 1081535,
+        "costUSD": 6.206027800000003
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 4964109
+      },
+      "section-team:reviewer": {
+        "opus": 6651979
+      },
+      "section-team:docs": {
+        "opus": 1500567
+      },
+      "section-team:coder": {
+        "sonnet": 9677138
+      },
+      "section-team:testing": {
+        "opus": 19365550
+      },
+      "section-team:frontend": {
+        "opus": 4921448
+      },
+      "section-team:ai-llm": {
+        "opus": 12151819
+      },
+      "section-team:security": {
+        "opus": 3291833
+      },
+      "section-team:ai-engineer": {
+        "opus": 514218
+      },
+      "section-team:backend": {
+        "opus": 19855308
+      },
+      "section-team:plan-advisor": {
+        "opus": 239429
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 761,
+      "fail": 0
+    },
+    "code": {
+      "files": 29,
+      "lines": 2031,
+      "testFiles": 29,
+      "testLines": 7364,
+      "docsLines": 303
+    },
+    "team": {
+      "reports": 34,
+      "sections": {
+        "user-request": 3,
+        "security-details": 3,
+        "backend": 5,
+        "security": 3,
+        "backend-details": 1,
+        "testing-details": 5,
+        "testing": 5,
+        "plan-advisor": 1,
+        "frontend": 2,
+        "docs": 1,
+        "ai-engineer": 1,
+        "ai-llm": 4
+      },
+      "summaries": 3
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 10,
+        "lines": 486,
+        "testFiles": 15,
+        "testLines": 2431,
+        "docsLines": 170
+      },
+      "calls": {
+        "freshAgents": 8,
+        "agentTypes": {
+          "section-team:plan-advisor": 1,
+          "section-team:backend": 1,
+          "section-team:frontend": 1,
+          "section-team:security": 1,
+          "section-team:testing": 3,
+          "section-team:docs": 1
+        },
+        "sendMessages": 2
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 10,
+          "lines": 486,
+          "testFiles": 15,
+          "testLines": 2431,
+          "docsLines": 170
+        },
+        "calls": {
+          "freshAgents": 8,
+          "agentTypes": {
+            "section-team:plan-advisor": 1,
+            "section-team:backend": 1,
+            "section-team:frontend": 1,
+            "section-team:security": 1,
+            "section-team:testing": 3,
+            "section-team:docs": 1
+          },
+          "sendMessages": 2
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 9,
+          "lines": 338,
+          "testFiles": 8,
+          "testLines": 1272,
+          "docsLines": 71
+        },
+        "calls": {
+          "freshAgents": 5,
+          "agentTypes": {
+            "section-team:ai-engineer": 1,
+            "section-team:ai-llm": 1,
+            "section-team:testing": 1,
+            "section-team:security": 1,
+            "section-team:reviewer": 1
+          },
+          "sendMessages": 1
+        }
+      }
+    ],
+    "mainPeak": 150671
+  },
+  {
+    "id": "p1-solo-th-r1",
+    "task": "p1",
+    "cond": "solo-th",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 897458,
+    "costUSD": 3.9936835000000004,
+    "costComputed": true,
+    "tokens": {
+      "input": 95,
+      "output": 98061,
+      "cacheRead": 4150711,
+      "cacheWrite": 182739,
+      "total": 4431606
+    },
+    "turns": 22,
+    "agentSpawns": 1,
+    "agentTypes": {
+      "code-reviewer": 1
+    },
+    "agentModels": {
+      "sonnet": 1
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 85,
+        "output": 92056,
+        "cacheRead": 4091279,
+        "cacheWrite": 147474,
+        "costUSD": 3.8395078000000007
+      },
+      "claude-sonnet-5-5": {
+        "input": 10,
+        "output": 6005,
+        "cacheRead": 59432,
+        "cacheWrite": 35265,
+        "costUSD": 0.1541757
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 4238838
+      },
+      "code-reviewer": {
+        "sonnet": 94707
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 42,
+      "fail": 0
+    },
+    "code": {
+      "files": 23,
+      "lines": 1535,
+      "testFiles": 7,
+      "testLines": 1038,
+      "docsLines": 138
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 8,
+        "lines": 400,
+        "testFiles": 3,
+        "testLines": 373,
+        "docsLines": 23
+      },
+      "calls": {
+        "freshAgents": 0,
+        "agentTypes": {},
+        "sendMessages": 0
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 8,
+          "lines": 400,
+          "testFiles": 3,
+          "testLines": 373,
+          "docsLines": 23
+        },
+        "calls": {
+          "freshAgents": 0,
+          "agentTypes": {},
+          "sendMessages": 0
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 7,
+          "lines": 238,
+          "testFiles": 1,
+          "testLines": 196,
+          "docsLines": 26
+        },
+        "calls": {
+          "freshAgents": 0,
+          "agentTypes": {},
+          "sendMessages": 0
+        }
+      }
+    ],
+    "mainPeak": 163910
+  },
+  {
+    "id": "p1-solo-th-r2",
+    "task": "p1",
+    "cond": "solo-th",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 1071541,
+    "costUSD": 4.233471999999999,
+    "costComputed": true,
+    "tokens": {
+      "input": 84,
+      "output": 99659,
+      "cacheRead": 4737500,
+      "cacheWrite": 161557,
+      "total": 4998800
+    },
+    "turns": 13,
+    "agentSpawns": 0,
+    "agentTypes": {},
+    "agentModels": {},
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 84,
+        "output": 99659,
+        "cacheRead": 4737500,
+        "cacheWrite": 161557,
+        "costUSD": 4.233472000000002
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 4899141
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 93,
+      "fail": 0
+    },
+    "code": {
+      "files": 22,
+      "lines": 1410,
+      "testFiles": 13,
+      "testLines": 1612,
+      "docsLines": 133
+    },
+    "team": {
+      "reports": 0,
+      "sections": {},
+      "summaries": 0
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 8,
+        "lines": 378,
+        "testFiles": 6,
+        "testLines": 536,
+        "docsLines": 36
+      },
+      "calls": {
+        "freshAgents": 0,
+        "agentTypes": {},
+        "sendMessages": 0
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 8,
+          "lines": 378,
+          "testFiles": 6,
+          "testLines": 536,
+          "docsLines": 36
+        },
+        "calls": {
+          "freshAgents": 0,
+          "agentTypes": {},
+          "sendMessages": 0
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 5,
+          "lines": 179,
+          "testFiles": 4,
+          "testLines": 307,
+          "docsLines": 31
+        },
+        "calls": {
+          "freshAgents": 0,
+          "agentTypes": {},
+          "sendMessages": 0
+        }
+      }
+    ],
+    "mainPeak": 177994
+  },
+  {
+    "id": "p1-team-th-r1",
+    "task": "p1",
+    "cond": "team-th",
+    "rep": 1,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 4105999,
+    "costUSD": 21.25646960000002,
+    "costComputed": true,
+    "tokens": {
+      "input": 737,
+      "output": 517862,
+      "cacheRead": 27223950,
+      "cacheWrite": 1730153,
+      "total": 29472702
+    },
+    "turns": 6,
+    "agentSpawns": 26,
+    "agentTypes": {
+      "section-team:backend": 2,
+      "section-team:coder": 13,
+      "section-team:reviewer": 5,
+      "section-team:plan-advisor": 1,
+      "section-team:frontend": 1,
+      "section-team:docs": 1,
+      "section-team:security": 1,
+      "section-team:testing": 1,
+      "section-team:ai-llm": 1
+    },
+    "agentModels": {
+      "inherit": 26
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 569,
+        "output": 337713,
+        "cacheRead": 23869881,
+        "cacheWrite": 1202654,
+        "costUSD": 17.800489200000005
+      },
+      "claude-sonnet-5-5": {
+        "input": 168,
+        "output": 180149,
+        "cacheRead": 3354069,
+        "cacheWrite": 527499,
+        "costUSD": 3.4559804000000005
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 2280015
+      },
+      "section-team:coder": {
+        "sonnet": 3881736
+      },
+      "section-team:plan-advisor": {
+        "opus": 162090
+      },
+      "section-team:reviewer": {
+        "opus": 2456188
+      },
+      "section-team:backend": {
+        "opus": 8806214
+      },
+      "section-team:security": {
+        "opus": 886269
+      },
+      "section-team:frontend": {
+        "opus": 861709
+      },
+      "section-team:testing": {
+        "opus": 3257802
+      },
+      "section-team:ai-llm": {
+        "opus": 5709274
+      },
+      "section-team:docs": {
+        "opus": 653543
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 563,
+      "fail": 0
+    },
+    "code": {
+      "files": 26,
+      "lines": 1916,
+      "testFiles": 24,
+      "testLines": 4777,
+      "docsLines": 215
+    },
+    "team": {
+      "reports": 14,
+      "sections": {
+        "user-request": 3,
+        "backend": 2,
+        "plan-advisor": 1,
+        "frontend": 1,
+        "docs": 1,
+        "security": 1,
+        "testing": 1,
+        "security-details": 1,
+        "ai-llm": 1,
+        "testing-details": 1,
+        "ai-llm-details": 1
+      },
+      "summaries": 3
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 10,
+        "lines": 525,
+        "testFiles": 10,
+        "testLines": 1857,
+        "docsLines": 95
+      },
+      "calls": {
+        "freshAgents": 6,
+        "agentTypes": {
+          "section-team:plan-advisor": 1,
+          "section-team:backend": 1,
+          "section-team:frontend": 1,
+          "section-team:docs": 1,
+          "section-team:security": 1,
+          "section-team:testing": 1
+        },
+        "sendMessages": 0
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 10,
+          "lines": 525,
+          "testFiles": 10,
+          "testLines": 1857,
+          "docsLines": 95
+        },
+        "calls": {
+          "freshAgents": 6,
+          "agentTypes": {
+            "section-team:plan-advisor": 1,
+            "section-team:backend": 1,
+            "section-team:frontend": 1,
+            "section-team:docs": 1,
+            "section-team:security": 1,
+            "section-team:testing": 1
+          },
+          "sendMessages": 0
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 8,
+          "lines": 325,
+          "testFiles": 7,
+          "testLines": 716,
+          "docsLines": 52
+        },
+        "calls": {
+          "freshAgents": 1,
+          "agentTypes": {
+            "section-team:ai-llm": 1
+          },
+          "sendMessages": 0
+        }
+      }
+    ],
+    "mainPeak": 102006
+  },
+  {
+    "id": "p1-team-th-r2",
+    "task": "p1",
+    "cond": "team-th",
+    "rep": 2,
+    "timedOut": false,
+    "isError": false,
+    "wallMs": 4144509,
+    "costUSD": 21.856306045000018,
+    "costComputed": true,
+    "tokens": {
+      "input": 795,
+      "output": 507696,
+      "cacheRead": 25515858,
+      "cacheWrite": 2038625,
+      "total": 28062974
+    },
+    "turns": 8,
+    "agentSpawns": 27,
+    "agentTypes": {
+      "section-team:backend": 2,
+      "section-team:coder": 13,
+      "section-team:reviewer": 5,
+      "section-team:plan-advisor": 1,
+      "section-team:scout": 1,
+      "section-team:frontend": 1,
+      "section-team:docs": 1,
+      "section-team:security": 1,
+      "section-team:testing": 1,
+      "section-team:ai-llm": 1
+    },
+    "agentModels": {
+      "inherit": 27
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "input": 605,
+        "output": 316747,
+        "cacheRead": 21378084,
+        "cacheWrite": 1507428,
+        "costUSD": 18.40573479999999
+      },
+      "claude-sonnet-5-5": {
+        "input": 184,
+        "output": 183385,
+        "cacheRead": 4072892,
+        "cacheWrite": 479256,
+        "costUSD": 3.4396471999999987
+      },
+      "claude-haiku-5-5": {
+        "input": 6,
+        "output": 7564,
+        "cacheRead": 64882,
+        "cacheWrite": 51941,
+        "costUSD": 0.010924045
+      }
+    },
+    "split": {
+      "main": {
+        "opus": 2402670
+      },
+      "section-team:coder": {
+        "sonnet": 4552332
+      },
+      "section-team:reviewer": {
+        "opus": 3449176
+      },
+      "section-team:security": {
+        "opus": 649782
+      },
+      "section-team:backend": {
+        "opus": 6244304
+      },
+      "section-team:plan-advisor": {
+        "opus": 157664
+      },
+      "section-team:ai-llm": {
+        "opus": 4055063
+      },
+      "section-team:scout": {
+        "haiku": 116829
+      },
+      "section-team:docs": {
+        "opus": 651136
+      },
+      "section-team:testing": {
+        "opus": 3206198
+      },
+      "section-team:frontend": {
+        "opus": 2070124
+      }
+    },
+    "splitCoverage": null,
+    "hidden": {
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "rate": 1,
+      "parts": {
+        "s1": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0
+        },
+        "s2": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0
+        },
+        "s3": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0
+        },
+        "reg2": {
+          "tests": 67,
+          "pass": 67,
+          "fail": 0
+        },
+        "reg3": {
+          "tests": 92,
+          "pass": 92,
+          "fail": 0
+        }
+      },
+      "incomplete": []
+    },
+    "own": {
+      "hasScript": true,
+      "passed": true,
+      "exitCode": 0,
+      "pass": 551,
+      "fail": 0
+    },
+    "code": {
+      "files": 28,
+      "lines": 1817,
+      "testFiles": 20,
+      "testLines": 4976,
+      "docsLines": 239
+    },
+    "team": {
+      "reports": 13,
+      "sections": {
+        "user-request": 3,
+        "backend": 3,
+        "plan-advisor": 1,
+        "frontend": 1,
+        "security": 1,
+        "docs": 1,
+        "testing": 1,
+        "security-details": 1,
+        "ai-llm": 1
+      },
+      "summaries": 3
+    },
+    "stage2": {
+      "stage": 2,
+      "change": {
+        "files": 9,
+        "lines": 481,
+        "testFiles": 11,
+        "testLines": 1960,
+        "docsLines": 107
+      },
+      "calls": {
+        "freshAgents": 6,
+        "agentTypes": {
+          "section-team:plan-advisor": 1,
+          "section-team:backend": 1,
+          "section-team:frontend": 1,
+          "section-team:docs": 1,
+          "section-team:security": 1,
+          "section-team:testing": 1
+        },
+        "sendMessages": 1
+      }
+    },
+    "stages": [
+      {
+        "stage": 2,
+        "change": {
+          "files": 9,
+          "lines": 481,
+          "testFiles": 11,
+          "testLines": 1960,
+          "docsLines": 107
+        },
+        "calls": {
+          "freshAgents": 6,
+          "agentTypes": {
+            "section-team:plan-advisor": 1,
+            "section-team:backend": 1,
+            "section-team:frontend": 1,
+            "section-team:docs": 1,
+            "section-team:security": 1,
+            "section-team:testing": 1
+          },
+          "sendMessages": 1
+        }
+      },
+      {
+        "stage": 3,
+        "change": {
+          "files": 10,
+          "lines": 371,
+          "testFiles": 7,
+          "testLines": 788,
+          "docsLines": 56
+        },
+        "calls": {
+          "freshAgents": 1,
+          "agentTypes": {
+            "section-team:ai-llm": 1
+          },
+          "sendMessages": 0
+        }
+      }
+    ],
+    "mainPeak": 101643
+  }
+]

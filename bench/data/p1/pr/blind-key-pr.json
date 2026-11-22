@@ -1,0 +1,14 @@
+{
+  "p1-r1": {
+    "X": "lean-pr",
+    "Y": "team-pr",
+    "Z": "max-pr",
+    "W": "solo-pr"
+  },
+  "p1-r2": {
+    "X": "team-pr",
+    "Y": "max-pr",
+    "Z": "solo-pr",
+    "W": "lean-pr"
+  }
+}

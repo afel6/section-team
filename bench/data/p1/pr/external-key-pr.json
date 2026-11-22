@@ -1,0 +1,46 @@
+[
+  {
+    "case": "case-01",
+    "pair": "p1-r1",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-02",
+    "pair": "p1-r2",
+    "judge": 2,
+    "map": {
+      "A": "Z",
+      "B": "Y",
+      "C": "X",
+      "D": "W"
+    }
+  },
+  {
+    "case": "case-03",
+    "pair": "p1-r1",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  },
+  {
+    "case": "case-04",
+    "pair": "p1-r2",
+    "judge": 1,
+    "map": {
+      "A": "W",
+      "B": "X",
+      "C": "Y",
+      "D": "Z"
+    }
+  }
+]

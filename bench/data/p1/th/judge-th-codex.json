@@ -1,0 +1,152 @@
+[
+  {
+    "pair": "p1-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong atomic bootstrap (A/lib/database.mjs:77), asynchronous lock retries and rollback (A/lib/transaction.mjs:24), bounded model attempts (A/lib/model-client.mjs:34), and detailed usage documentation (A/README.md:12). Confirmed defects: an initial 401 with invalid JSON silently hides the required error (A/public/app.js:141); unknown HTTP methods receive a response before the request body arrives (A/lib/http-server.mjs:50). npm --prefix A test was blocked by sandbox spawn EPERM, not failed assertions. In-process own browser/page/model-URL/date tests passed 102/102. Shared in-memory route and trigger-rollback probes passed; mocked socket and browser probes reproduced both defects."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Clear route definitions, centralized rollback (B/src/transaction.mjs:25), minimal model payloads (B/src/routes/ai.mjs:38), and useful usage/API documentation (B/README.md:7). Confirmed defects: ticket ID 9007199254740993 makes detail and list requests return 500 because SQLite integers are read as Numbers (B/src/models.mjs:55); fetch normalizes MODEL_URL dot segments and rejects valid credential-bearing URLs (B/src/model.mjs:36); created_by filtering counts orphaned tickets for a nonexistent user (B/src/routes/reports.mjs:72); malformed initial 401 JSON hides the required browser error (B/public/app.js:157). npm --prefix B test was blocked by sandbox spawn EPERM; in-process integration setup also hit mkdtemp EPERM. Own unit/browser tests passed 16/16. Shared in-memory route/rollback checks passed; SQLite, browser, and mocked-transport probes reproduced these defects without external network access."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "Most complete implementation reviewed: preserves existing databases and bootstraps atomically (C/src/database.mjs:79), retries locks asynchronously (C/src/transaction.mjs:46), limits model payloads and rechecks authorization before auditing (C/src/handlers/ai.mjs:14), bounds complete model responses and aborts failed attempts (C/src/model/client.mjs:61), and handles stale browser reports (C/public/app.js:98). Clear usage and existing-database guidance (C/README.md:11). No confirmed defect found. npm --prefix C test was blocked by sandbox spawn EPERM; full subprocess/startup coverage therefore remains unverified. In-process own page/framing/model-client tests passed 248/248. Additional in-memory integration covered accounts, role isolation, tickets/comments, reports/SVG, both AI routes, rollback, session revocation and cascading deletion. Shared socket/browser probes also passed."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear modular handlers, atomic initialization (A/lib/startup.mjs:87), narrow model payloads and no transaction held during HTTP waits (A/lib/handlers/ai.mjs:48). README configuration and model usage are thorough (A/README.md:19, A/README.md:80). Defects: statements lack BigInt reads (A/lib/tx.mjs:21); an externally inserted ticket ID 9007199254740993 made both its detail route and ticket listing return 500. The model client normalizes MODEL_URL dot segments (A/lib/model.mjs:42) and imposes an unspecified 1 MB response cap (A/lib/model.mjs:33); probes confirmed a changed request path and three rejected attempts for an otherwise valid response. Initial 401 responses with invalid JSON silently hide the required connection error (A/public/app.js:60, A/public/app.js:164), confirmed with the fake DOM. Ran npm --prefix A test: all 5 test files blocked by sandbox spawn EPERM, not assertion failures. Running page.test.mjs with --test-isolation=none passed all 7 tests."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong separation of routing, database work and model transport. Lock handling retries asynchronously and rolls back failures (B/src/transaction.mjs:33); model input is restricted to the selected ticket and model waits hold no transaction (B/src/ticket-ai.mjs:39, B/src/ticket-ai.mjs:70). Broad browser/model tests and detailed configuration/model documentation (B/README.md:25, B/README.md:140). Independent large-ID and raw MODEL_URL path probes passed. Defect: unknown-method body draining recognizes only Content-Length (B/src/server-events.mjs:34, B/src/server-events.mjs:46); a BREW request with chunked framing received 405 before its body was sent. CONNECT with a declared body also received 405 prematurely (B/src/server-events.mjs:90). Ran npm --prefix B test: 26 test files blocked by sandbox spawn EPERM. In-process page/report tests passed 200/200 and model-client tests 36/36. Database/session tests remained unverified because temporary-directory creation was denied. Ranked first for its broader tested protocol coverage."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Careful existing-database inspection (C/src/database.mjs:30), transactional rollback/retries (C/src/transaction.mjs:35), and model projection/auditing outside HTTP waits (C/src/routes/ticket-assist.mjs:23, C/src/routes/ticket-assist.mjs:53). Dashboard guards stale report outcomes (C/public/app.js:118); documentation explains configuration, model behavior and stand-in tests thoroughly (C/README.md:16, C/README.md:151, C/README.md:203). Independent large-ID and raw MODEL_URL path probes passed. Defect: CONNECT bypasses body reading via EMPTY_BODY (C/src/http-server.mjs:59); a probe declaring five body bytes received 405 before sending any. Ran npm --prefix C test: 18 test files blocked by sandbox spawn EPERM. With --test-isolation=none, app/page-HTML/report-filter tests passed 165/165 and model-client tests 31/31. Database-dependent tests remained unverified because temporary-directory creation was denied."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong modular implementation: transactional initialization (A/src/database.mjs:55), asynchronous lock retries and rollback (A/src/transaction.mjs:46), private model payloads and bounded attempts (A/src/handlers/ai.mjs:14; A/src/model/client.mjs:61), and detailed documentation (A/README.md:11). Confirmed concurrency defect at A/src/handlers/ai.mjs:29: a held summary returned old ticket text after a concurrent PATCH, with audit order ticket.update then ticket.summary; no serial execution produces both. The audit transaction at A/src/handlers/ai.mjs:35 does not validate the content snapshot. A/test/ai-routes-races.test.mjs:99 misses this ordering problem. Ran npm --prefix A test: all 21 file workers blocked by sandbox spawn EPERM before assertions. In-process own tests passed 127 page/markup/body checks and 121 model-client checks. In-memory SQLite and loopback probes confirmed exact large-ID replies, preserved model URL paths, and body draining before unknown-method replies."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Clear validation pipeline (B/src/app.mjs:38), transactional bootstrap (B/src/database.mjs:93), scoped model input (B/src/routes/ai.mjs:38), and useful documentation (B/README.md:7). Confirmed defects: B/src/model.mjs:36 passes accepted URLs to fetch, changing /a/../predict to /predict and rejecting credential URLs without making a request. B/src/models.mjs:55 uses number-only SQLite reads, so an existing ticket ID 9007199254740993 returns 500. B/src/routes/ai.mjs:47 snapshots before the model call and audits later at line 53, reproducing the same nonserializable old-summary/update audit order as A and C. Malformed initial 401 JSON leaves the page error empty (B/public/app.js:50; B/public/app.js:151). The native server at B/server.mjs:29 returns bare 400 for BREW /api/tickets before reading its body, instead of JSON 405. Ran npm test in B: 9 file workers blocked by sandbox spawn EPERM before assertions. In-process own unit and page-script suites passed 16/16. Local model, large-ID, browser and raw-socket probes confirmed these failures."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong schema-preserving startup (C/lib/database.mjs:105), asynchronous rollback/lock handling (C/lib/transaction.mjs:24), private model projection and bounded HTTP attempts (C/lib/routes/model-tasks.mjs:43; C/lib/model-client.mjs:34), broad tests and detailed documentation (C/README.md:9). Confirmed concurrency defect at C/lib/model-route.mjs:29: a held summary used old ticket text while a concurrent PATCH committed first; its later audit at line 22 produced ticket.update then ticket.summary, inconsistent with any serial execution. Malformed initial 401 JSON suppresses the required reachability error (C/public/app.js:59; C/public/app.js:142). Unknown-method handling replies before the complete body arrives (C/lib/http-server.mjs:50); a raw BREW request with its four-byte body withheld already received 405. Ran npm test in C: 15 file workers blocked by sandbox spawn EPERM before assertions. In-process own model-URL/page/script tests passed 74/74 and filtered date/chart tests passed 41/41. In-memory and loopback probes confirmed the defects and verified exact large-ID replies and preserved model URL paths."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "p1-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong modular API with atomic rollback and asynchronous lock retries (A/src/transaction.mjs:35), exact large-integer serialization (A/src/reply.mjs:32), isolated model payloads (A/src/routes/ticket-assist.mjs:23), and thorough usage documentation (A/README.md:16). Defects: parser-error and CONNECT shortcuts reply before draining bodies and mishandle fragmented custom methods (A/src/http-server.mjs:53, A/src/http-server.mjs:68); local TCP probes confirmed premature 405 and incorrect bare 400. Concurrent echo-title probe returned Old after PATCH changed the title to New, with audit order ticket.update then ticket.summary, violating serial execution semantics (A/src/routes/ticket-assist.mjs:40); A/test/ticket-assist-flow.test.mjs:68 explicitly accepts this stale-result behavior. Ran npm test: all 18 file workers blocked by sandbox spawn EPERM, not assertion failures. Separate node --test --test-isolation=none runs of app.test.mjs, page-html.test.mjs, report-filters.test.mjs and model-client.test.mjs passed 196/196; scratch in-memory API/rollback checks passed 20/20. Disk-backed tests were blocked by mkdtemp EPERM."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Best overall: careful existing-database preservation and atomic initialization (B/src/database.mjs:80, B/src/database.mjs:108), BigInt-safe queries (B/src/sql.mjs:10), complete model timeout/retry handling (B/src/model-client.mjs:64), extensive preservation tests (B/test/existing-db.test.mjs:103), and detailed usage/AI documentation (B/README.md:25, B/README.md:193). Defects: custom-method fallback treats chunked bodies without Content-Length as empty, replying prematurely; fragmented method lines receive bare 400 (B/src/server-events.mjs:21, B/src/server-events.mjs:31, B/src/server-events.mjs:77); scratch TCP probes confirmed both. Concurrent echo-title probe reproduced Old summary with New ticket and ticket.update before ticket.summary in audit, violating serial execution semantics (B/src/ticket-ai.mjs:57). Ran npm test: all 26 file workers blocked by sandbox spawn EPERM. In-process page-*.test.mjs plus report-units.test.mjs passed 200/200; model-client.test.mjs passed 36/36 using a local stand-in. Additional scratch in-memory HTTP integration checks passed 25/25, including model isolation, retries, ownership and trigger rollback. Disk-backed tests could not execute in the read-only sandbox."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Clear transactional startup (C/lib/startup.mjs:74), isolated ticket-only model input (C/lib/handlers/ai.mjs:48), correct report-generation race handling (C/public/app.js:106), and useful setup/API documentation (C/README.md:12). Confirmed defects: schema-valid ticket ID 9007199254740992 throws RangeError and yields 500 because SQLite integers are read as Number (C/lib/tx.mjs:45); malformed initial-session 401 JSON silently hides the required connection error (C/public/app.js:60, C/public/app.js:164); model URL /v1/../model is normalized to /model (C/lib/model.mjs:42); the extra 1 MB response cap rejects otherwise valid model JSON (C/lib/model.mjs:6, C/lib/model.mjs:33). Concurrent echo-title probe also produced Old summary with New ticket and update-before-summary audit order (C/lib/handlers/ai.mjs:62). Its own dates test incorrectly expects valid 2024-01-01 to be rejected; executing that assertion fails (C/test/reports.test.mjs:108). Ran npm test: five file workers blocked by sandbox spawn EPERM. node --test --test-isolation=none --test-concurrency=1 test/page.test.mjs passed 7/7. Scratch memory-only probes confirmed the listed failures; full disk-backed integration remained unavailable."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  }
+]

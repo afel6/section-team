@@ -1,0 +1,192 @@
+[
+  {
+    "pair": "p1-r1",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: clear routing, transactional rollback, extensive tests and thorough documentation (A/src/app.mjs:105; A/src/db.mjs:108; A/README.md:14). npm --prefix A test was blocked by sandbox spawn EPERM; 300 own tests passed with process isolation disabled. In-memory probes reproduced successful AI completion audited after concurrent ticket deletion, violating serial execution (A/src/handlers/ai.mjs:48), and 500 responses for valid large SQLite IDs (A/src/rows.mjs:37). Credential-bearing MODEL_URL values pass validation but fetch rejects them before transmission (A/src/model.mjs:44,102). Initialization also incorrectly rejects version-0 databases containing only views because it counts every schema object (A/src/db.mjs:66)."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: readable ordered checks, asynchronous lock retries with rollback, correct model retries, broad behavioral tests and useful documentation (B/src/app.mjs:79; B/src/db.mjs:72; B/src/model.mjs:43; B/test/db-truth.test.mjs:107; B/README.md:24). npm --prefix B test was blocked by sandbox spawn EPERM; 73 own frontend tests passed with process isolation disabled, plus 10 additional in-memory checks. Probes reproduced two defects: AI completion after concurrent ticket deletion returns 200 and appends its audit after the deletion, violating serial execution (B/src/app.mjs:123); a tool-inserted valid ticket ID 9007199254740993 returns 500 because SQLite reads use JavaScript numbers (B/src/routes/tickets.mjs:25)."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: focused modules, transactional error handling, narrowly scoped model payloads, whole-response timeouts, thorough tests and documentation (C/src/db.mjs:120; C/src/handlers/assist.mjs:45; C/src/model.mjs:17; C/test/assist.test.mjs:105; C/README.md:137). npm --prefix C test was blocked by sandbox spawn EPERM; 63 own browser tests passed with process isolation disabled, plus 43 additional in-memory API assertions. Probes reproduced successful AI completion audited after concurrent ticket deletion, which cannot match sequential execution (C/src/router.mjs:165). A valid SQLite ticket ID 9007199254740993 makes detail and list routes return 500 because reads do not accommodate large integers (C/src/handlers/tickets.mjs:19,28)."
+    },
+    "W": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Strengths: compact modules, transactional bootstrap, safe dashboard rendering and report-race handling, with practical documentation (D/src/db.mjs:78; D/public/app.js:80,92; D/README.md:20). npm --prefix D test was blocked by sandbox spawn EPERM; 28 own unit/frontend tests passed with process isolation disabled. In-memory probes reproduced AI success audited after concurrent ticket deletion (D/src/routes/ai.mjs:50), and 500 for a valid int64 ticket ID (D/src/routes/tickets.mjs:20). Oversized before values incorrectly exclude the maximum SQLite ID by clamping the exclusive bound (D/src/validate.mjs:44). Credential-bearing model URLs cannot be sent through fetch; non-200 responses unnecessarily wait for their bodies before retrying (D/src/model-client.mjs:10,18). Tests miss these boundaries."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z",
+      "W"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r2",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Atomic initialization and separated model/audit phases are well structured (A/src/db.mjs:112; A/src/routes/ai.mjs:34); documentation covers all features (A/README.md:80). In-memory API/AI probes passed payload privacy, ownership, retries and audit-trigger rollback. Defects: login/password cleanup and logout re-enabling wait for JSON parsing (A/public/app.js:111,128); deferred-JSON probes left both buttons disabled. MODEL_URL validation accepts credential-bearing URLs, but fetch rejects them (A/src/model.mjs:48,76). A/test/page.test.mjs:79 misses the deferred-body case. Ran npm test: exit 1, sandbox spawn EPERM. Separate node --test --test-isolation=none runs passed unit.test.mjs 10/10 and page.test.mjs 9/9; full integration results remain unverified."
+    },
+    "Y": {
+      "correctness": 6,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 6,
+      "overall": 6,
+      "notes": "Readable route checks and transaction rollback preserve the original API/dashboard well (B/src/router.mjs:84; B/src/db.mjs:90). In-memory creation, pagination, reporting and audit-trigger rollback probes passed; standalone app/markup/parser tests passed 118/118 with node --test --test-isolation=none. However, the entire AI extension is absent: the route table ends without summary/category endpoints (B/src/router.mjs:60), startup never checks MODEL_URL (B/server.mjs:40), and README environment/routes omit it (B/README.md:14,37). Probes returned 404 for ticket summary and attempted database opening for an invalid MODEL_URL. No AI stand-in tests exist. Ran npm test: exit 1, sandbox spawn EPERM; full integration results remain unverified."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Most complete implementation and regression coverage. Startup preserves existing databases (C/lib/database.mjs:63,92); model calls use restricted ticket payloads and separate audit transactions (C/lib/routes/ai.mjs:34; C/lib/app.mjs:71). Non-200 model responses fail immediately (C/lib/model.mjs:49), and browser controls reset before JSON parsing (C/public/app.js:49,122). Offline probes passed ownership, exact model payloads, three-attempt retries, ignored bodies, reporting and rollback; the stalled-302 probe retried in about 1 ms. AI tests cover failure types and whole-body timeouts (C/test/ai-attempts.test.mjs:49,118). Minor documentation gap: C/README.md:9 omits the Node >=24 prerequisite in C/package.json:13. Ran npm test: exit 1, sandbox spawn EPERM; app-script.test.mjs and app-script-gaps.test.mjs passed 73/73 with --test-isolation=none. File-backed integration remains unverified."
+    },
+    "W": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Complete, modular API/dashboard/AI implementation with clear operational documentation (D/README.md:14,95). Startup validation precedes database opening (D/server.mjs:16), and AI preparation, model I/O and audit writes are separated (D/lib/app.mjs:79,95). Offline API/AI probes passed ownership, restricted ordered payloads, retries, ignored bodies and audit rollback; delayed-JSON UI handling also passed. Defect: the model client checks non-200 status only at response end and buffers the intervening body (D/lib/model.mjs:72). A mocked 302 with an unfinished body delayed the retry about 2007 ms instead of retrying immediately; C retried immediately. Existing failure tests use completed response bodies (D/test/api-ai.test.mjs:131). Ran npm test: exit 1, sandbox spawn EPERM; separate unit/page runs with --test-isolation=none passed 68/68. Full integration remains unverified."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "W": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Clear request pipeline and transactional rollback (A/src/app.mjs:25, A/src/app.mjs:42), restricted model payload (A/src/routes/ai.mjs:35), and useful usage documentation (A/README.md:20). Defects: the final AI transaction only appends an audit entry (A/src/routes/ai.mjs:57); holding a model response, completing logout, then releasing it produced summary 200 with audit order logout then ticket.summary, violating serial execution. Default numeric SQLite reads fail for valid ticket ID 9007199254740993, returning 500 for detail and listing (A/src/routes/tickets.mjs:20, A/src/routes/tickets.mjs:40). Ran npm --prefix A test: blocked by sandbox spawn EPERM. Ran unit.test.mjs and frontend.test.mjs with --test-isolation=none: 23/23 passed. In-memory probes passed account, ownership, reporting, model payload/retry, and trigger-rollback checks, and reproduced both defects."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Well-separated handlers, transactional bootstrap (B/src/db.mjs:91), bounded model retries (B/src/model.mjs:87), and detailed documentation (B/README.md:144). Defects: pending AI calls succeed after logout and append their audit afterward, violating serial execution (B/src/router.mjs:160). Malformed JSON on the initial session 401 incorrectly leaves the error empty (B/public/app.js:70, B/public/app.js:134). Large SQLite IDs cause 500 reads; Number(lastInsertRowid) also rounds generated IDs and audit targets (B/src/handlers/tickets.mjs:48). An in-memory sequence probe produced three successful creates with two identical returned IDs. Ran npm --prefix B test: blocked by sandbox spawn EPERM. Ran page.test.mjs with --test-isolation=none: 63/63 passed. Additional probes confirmed these defects and passed model-envelope, category, retry, and whole-response timeout checks."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong modular organization, transactional database initialization (C/src/db.mjs:166), asynchronous lock waiting, restricted model input (C/src/routes/ai.mjs:43), and correct stale-report handling (C/public/app.js:120). Comprehensive documentation and regression tests (C/README.md:73, C/test/ai-routes.test.mjs:215). Defects: AI completion audits captured authorization without rechecking or preserving serial ordering; a held summary succeeded after logout, with its audit recorded afterward (C/src/app.mjs:119). Default SQLite numeric reads reject existing ticket ID 9007199254740993, causing 500 detail/list/AI responses and subsequent creation failure (C/src/routes/tickets.mjs:24, C/src/routes/tickets.mjs:31). Ran npm test: blocked by sandbox spawn EPERM; full in-process execution also encountered mkdtemp EPERM. Four frontend suites passed 73/73 in-process. Memory-only API probes confirmed the defects and passed model retry/timeout, transaction-release, and trigger-rollback checks."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear centralized checks, bounded transactional retry handling (D/src/db.mjs:126), careful complete-response model deadlines (D/src/model.mjs:98), correct browser report invalidation (D/public/app.js:126), and extensive documentation (D/README.md:129). Defects: pending AI calls can succeed after logout and append their audit afterward, violating serial execution (D/src/handlers/ai.mjs:48). Existing valid large SQLite IDs cause 500 detail/list replies through default numeric conversion (D/src/rows.mjs:37, D/src/rows.mjs:56). Startup counts every schema object instead of tables, incorrectly rejecting a version-0 database containing only a view (D/src/db.mjs:66); an in-memory fixture confirmed that classification mismatch. Ran npm test: blocked by sandbox spawn EPERM. Nine own dashboard, reporting, serialization, and model suites passed 300/300 with --test-isolation=none. Additional probes confirmed the concurrency and large-ID defects and correct model payload isolation."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "W",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "p1-r2",
+    "W": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong transaction handling (A/lib/db.mjs:111), restricted model payloads (A/lib/handlers/ai.mjs:34), and detailed AI documentation (A/README.md:95). A transport mock confirmed that non-200 headers with an unfinished body delay retry about 2012 ms instead of retrying immediately (A/lib/model.mjs:72). An externally inserted ticket with id 9007199254740993 returns 500 because row reads use JavaScript numbers (A/lib/rows.mjs:42). Ran the original test command, blocked by spawn EPERM; fixture tests also encountered mkdtemp EPERM. With --test-isolation=none, 68 unit/browser tests passed. In-memory API and model probes confirmed access checks, payload isolation, retries, responsiveness, and rollback."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Clear ordered request pipeline and transaction boundaries (B/lib/app.mjs:35), immediate rejection of model error statuses (B/lib/model.mjs:49), and comprehensive usage documentation (B/README.md:98). Tests cover model deadlines and credential-bearing URLs (B/test/ai-attempts.test.mjs:118; B/test/ai-request.test.mjs:178). Confirmed defect: an externally inserted ticket with id 9007199254740993 returns 500 because SELECT results are read as JavaScript numbers (B/lib/routes/tickets.mjs:20). Ran the original test command, blocked by spawn EPERM; fixture tests also encountered mkdtemp EPERM. With --test-isolation=none, 82 browser/markup tests passed. In-memory API and model probes passed ordinary contract checks, rollback, payload isolation, category validation, and immediate status-error retries."
+    },
+    "Y": {
+      "correctness": 5,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 6,
+      "overall": 6,
+      "notes": "Well-structured original API transactions (C/src/db.mjs:90) and extensive dashboard tests. However, the entire AI extension is absent: startup never validates MODEL_URL (C/server.mjs:40), the route table has neither AI route (C/src/router.mjs:22), and configuration documentation omits MODEL_URL (C/README.md:14). In-memory probes confirmed AI requests return generic 404 responses instead of the required behavior. Large valid SQLite ticket IDs also return 500 (C/src/handlers/tickets.mjs:23). The browser silently ignores malformed JSON on startup 401 responses (C/public/app.js:151), confirmed with a fetch stub. Ran the original test command, blocked by spawn EPERM; fixture tests encountered mkdtemp EPERM. With --test-isolation=none, 118 filesystem-free browser/markup/parser tests passed."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Preserves the schema (D/src/db.mjs:13), isolates ticket content sent to the model (D/src/routes/ai.mjs:6), and documents AI operation (D/README.md:80). Browser probes confirmed login/password cleanup and logout re-enabling wait for JSON parsing instead of fetch settlement (D/public/app.js:111; D/public/app.js:128). MODEL_URL accepts credential-bearing HTTP URLs, but fetch rejects them before sending (D/src/model.mjs:40; D/src/model.mjs:76). Large valid SQLite ticket IDs return 500 (D/src/routes/tickets.mjs:15). Ran the original test command, blocked by spawn EPERM; fixture execution encountered mkdtemp EPERM. With --test-isolation=none, 19 unit/browser tests passed. In-memory model probes confirmed payload isolation, validation, three-attempt failure handling, responsiveness, and audit rollback."
+    },
+    "ranking": [
+      "X",
+      "W",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  }
+]

@@ -1,0 +1,152 @@
+[
+  {
+    "pair": "p1-r2",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong transaction handling (A/src/db.mjs:98), narrowly scoped model payloads (A/src/routes/model.mjs:37), and detailed usage documentation (A/README.md:93). In-memory probes confirmed authorization, validation order, audit rollback, retry limits, and no open transaction during model calls. Defects: login remains disabled and retains the password until response JSON finishes, rather than when fetch settles (A/public/app.js:116); MODEL_URL credentials are discarded (A/src/model-client.mjs:50). Timer-only deadline enforcement accepted a simulated reply after 2113 ms (A/src/model-client.mjs:78, A/src/model-client.mjs:99). Ran npm --prefix A test: runner blocked by sandbox spawn EPERM. Selected browser, unit, report, and local-stub model tests using node --test --test-isolation=none passed 111 tests; the filesystem-dependent report test was excluded."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable route separation and transaction pipeline (B/src/app.mjs:77), correctly restricted model payloads (B/src/routes/ai.mjs:33), and clear setup and model documentation (B/README.md:73). In-memory probes confirmed rollback, visibility, retries, and successful-only auditing. Defects: valid SQLite IDs above Number.MAX_SAFE_INTEGER are rejected, and listing such rows returns 500; reproduced with ID 9007199254740993 (B/src/validate.mjs:17, B/src/database.mjs:13). Passing MODEL_URL directly to http.request normalizes dot segments, violating the exact target requirement (B/src/model.mjs:37); an offline request-construction probe confirmed /a/../model becomes /model. An initial 401 with invalid JSON incorrectly leaves the error empty (B/public/app.js:143). Login reset waits for JSON parsing (B/public/app.js:99). A simulated reply after 2106 ms was accepted (B/src/model.mjs:31, B/src/model.mjs:51). Ran npm --prefix B test: runner blocked by sandbox spawn EPERM. All 8 browser tests passed with --test-isolation=none, but their coverage misses these edge cases (B/test/page.test.mjs:65)."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Most complete implementation: transactional startup initialization (C/src/startup.mjs:91), bounded database busy retries (C/src/db.mjs:43), exact model paths and URL credentials (C/src/model-url.mjs:47), restricted ticket payloads (C/src/handlers/ai.mjs:43), and prompt login reset (C/public/app.js:136). In-memory probes confirmed large-ID access, rollback, authorization, model retry limits, ignored request bodies, and audit behavior. Extensive tests and clear API/model documentation (C/test/ai-probes.test.mjs:68, C/README.md:105). Confirmed defect: the model deadline relies solely on a timer; response completion does not check elapsed time, so a simulated event-loop stall allowed a reply after 2107 ms (C/src/model-client.mjs:39, C/src/model-client.mjs:62). Ran npm --prefix C test: runner blocked by sandbox spawn EPERM. Selected browser, unit, report, and local-stub model tests using node --test --test-isolation=none passed 167 tests. File-backed integration and startup suites remain unverified."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Strengths: clearly separated modules, atomic bootstrap and rollback (A/src/database.mjs:76,86), bounded model retries (A/src/model.mjs:89), and useful configuration/API documentation (A/README.md:17,70). Defects: default SQLite Number reads make a valid externally inserted ticket ID 9007199254740993 cause 500 for both lookup and listing (A/src/handlers/common.mjs:45; A/src/handlers/tickets.mjs:28). A local model probe showed /a/../b?x=1 is normalized to /b?x=1, violating the exact MODEL_URL requirement (A/src/model.mjs:68). An overlapping PATCH produced an old-title summary but audit IDs ordered ticket.update before ticket.summary, violating serial execution equivalence (A/src/handlers/ai.mjs:25,37). Ran npm --prefix A test: sandbox spawn EPERM blocked the suite. In-process own page/chart/date subsets passed 11/11; shared in-memory API/authorization/report/rollback probes passed 32 checks. Full integration tests remain unverified."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: careful read-only inspection and transactional database preparation (B/db.mjs:73,111), asynchronous lock retries (B/busy-retry.mjs:17), exact model request paths, stale-report suppression (B/public/app.js:98), and thorough usage documentation (B/README.md:14,98). Defects: overlapping PATCH and summary returned the old title while audit IDs put ticket.update first; completion rechecks access but not the model's snapshot, so no serial order matches (B/handlers-ai.mjs:67,74). TextDecoder strips a leading UTF-8 BOM, accepting model JSON that should fail and retry; a local probe confirmed this and an own test endorses it (B/model-client.mjs:10,64; B/test/ai-model-client.test.mjs:151). The standard suite also requires an absent historical Git commit via git archive, making it non-self-contained (B/test/final1-existing-db.test.mjs:11,64). Ran npm --prefix B test: sandbox spawn EPERM blocked it. Isolated in-process model/busy/browser/report subsets passed 124/124; shared in-memory probes passed 32 checks. Full integration tests remain unverified."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strengths: modular routing/access controls, atomic bootstrap and rollback (C/src/db.mjs:104,137), BigInt-safe JSON (C/src/http.mjs:26), bounded asynchronous model transport (C/src/model-client.mjs:52), stale-report protection (C/public/app.js:103,151), and substantial usage documentation (C/README.md:19,147). Main defect: concurrent ticket edits restart entire model calls. An in-memory/local-model probe observed six HTTP attempts for one successful request; another observed three valid model replies followed by 503 database busy without any lock (C/src/model-route.mjs:59). Tests explicitly require this contract-breaking behavior (C/test/model-failures.test.mjs:241,280), also documented at C/README.md:183. A local HTTP probe with an unsupported Expect header returned empty 417 instead of the required route-check JSON error; the suite marks it TODO (C/server.mjs:58; C/test/e2e-probes.test.mjs:63). Ran npm --prefix C test: sandbox spawn EPERM blocked it. In-process frontend/report/model subsets passed 124/124; shared in-memory probes passed 32 checks. Full integration tests remain unverified."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strong transaction handling and rollback (A/src/db.mjs:137), precise large-integer serialization (A/src/http.mjs:26), restricted model payloads (A/src/model-route.mjs:13), and dashboard race handling (A/public/app.js:103). Main defect: ticket changes restart entire model calls (A/src/model-route.mjs:47,59). An in-memory SQLite/local-model probe produced nine model attempts and 503 database busy without any lock; A/test/model-failures.test.mjs:280 explicitly expects the spurious 503. HTTP probes also found Expect: custom causes 417 instead of the required route error, and CONNECT closes without a reply; A/server.mjs:58 lacks handlers for these cases. A/README.md:35 incorrectly promises bind failures leave the database unchanged, although initialization precedes binding. Ran npm --prefix A test: blocked before assertions by sandbox spawn EPERM across 21 files. Six original test files run in-process passed 124 tests, including model timeout/retry and frontend tests."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strongest overall: read-only inspection of existing databases (B/db.mjs:73), BigInt-safe queries and serialization (B/db.mjs:147,160), asynchronous lock retries (B/busy-retry.mjs:17), restricted model payloads (B/handlers-ai.mjs:49), and correct dashboard report sequencing (B/public/app.js:98). Detailed model documentation appears at B/README.md:119. Main defect: AI requests retain old ticket content but append audit entries after concurrent edits (B/handlers-ai.mjs:67,74,75). A memory/local-model probe returned the old title's summary while audit order was ticket.update then ticket.summary, contradicting both possible serial orders. B/test/ai-concurrency.test.mjs:100 misses this ordering problem. Also, TextDecoder silently strips a leading BOM, incorrectly accepting incoming and model JSON (B/http-utils.mjs:61; B/model-client.mjs:64); probes confirmed both. Ran npm --prefix B test: 32 files blocked by sandbox spawn EPERM. Seven original files run in-process passed 129/129 tests; adding report tests yielded 142 passes and nine cancellations from sandbox mkdtemp EPERM."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable modules, atomic ordinary writes (C/src/database.mjs:86), isolated model payloads with timeout/retry handling (C/src/model.mjs:48,64,89), and sound dashboard error/race handling (C/public/app.js:38,96,135). Main defects: AI snapshot and audit phases are not serializable (C/src/handlers/ai.mjs:25,32). A memory probe returned an old-title summary after a concurrent PATCH, with the update audit preceding the summary audit. Default integer reads fail on valid large SQLite IDs (C/src/handlers/common.mjs:45; C/src/handlers/tickets.mjs:26): seeded ID 9007199254740993 caused detail and list requests to return 500 with ERR_OUT_OF_RANGE. Fetch normalizes MODEL_URL paths (C/src/model.mjs:68); a local stand-in received /model instead of configured /v1/../model. HTTP probes found automatic 417 responses for custom Expect headers and no CONNECT reply (C/server.mjs:56). C/README.md:96 contains a stale one-transaction-per-request claim. Ran npm --prefix C test: five files blocked by sandbox spawn EPERM. In-process page tests passed 8/8 and chart tests passed 3/3; supplemental probes reproduced the defects."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "p1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strongest implementation. Atomic initialization (A/src/startup.mjs:92), bounded transaction retries (A/src/db.mjs:43), isolated model payloads and abortable retries (A/src/model-client.mjs:51), and comprehensive documentation (A/README.md:17). Minor defect: A/src/startup.mjs:119 validates ADMIN_PASSWORD before opening the writable connection at line 122; when a missing database cannot be created and the password is invalid, it reports the password error instead of the required database error. npm test was blocked by sandbox spawn EPERM. In-process page, unit, report-unit and model-client subsets produced 168 passes; two tests were blocked by temporary-directory permissions. An independent in-memory integration probe passed 14 assertions, including audit-trigger rollback. Browser and intercepted HTTP probes confirmed correct malformed-401 handling, prompt password clearing, and preservation of model URL paths and credentials."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Readable modules, centralized checks and transactional rollback (B/src/app.mjs:34; B/src/database.mjs:56), with clear usage and model documentation (B/README.md:18; B/README.md:73). Confirmed defects: B/src/validate.mjs:20 rejects valid SQLite IDs above the safe-number range; inserting ticket 9007199254740992 produced detail 404 and list 500 because integer reads lack BigInt support (B/src/routes/tickets.mjs:38). B/src/app.mjs:89 audits model success without rechecking the ticket: an overlapping deletion produced ticket.delete followed by successful ticket.summary, violating serial ordering. B/src/model.mjs:37 normalizes configured /a/../model to /model. B/public/app.js:143 suppresses the required error for malformed JSON on an initial 401; lines 99-104 delay button re-enabling and password clearing until JSON parsing finishes. npm --prefix B test was blocked by sandbox spawn EPERM. Its page suite passed 8/8 with --test-isolation=none; the other 35 declared tests remain unverified. In-memory and intercepted HTTP probes reproduced the listed defects."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong transactional request handling (C/src/app.mjs:51), exact SQLite integer handling (C/src/db.mjs:50), and model calls outside database transactions with access rechecks before auditing (C/src/routes/model.mjs:77). Comprehensive model documentation appears at C/README.md:101. Confirmed defect: C/src/model-client.mjs:50 discards MODEL_URL username/password credentials, and the request options at line 101 never restore them; intercepted requests lacked Authorization. C/public/app.js:116 delays login-button re-enabling and password clearing until response JSON parsing completes. npm --prefix C test was blocked by sandbox spawn EPERM. Seven in-process test-file runs produced 115 passes, with one additional test blocked by temporary-directory permissions. An independent in-memory probe passed 12 assertions covering rollback, permissions, reports and externally changed database rows."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  }
+]
