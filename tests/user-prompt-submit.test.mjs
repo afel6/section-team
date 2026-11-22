@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
+import { BOARD_GRACE_MS, modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
 import { readBriefHash, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
 import { briefHash, modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
@@ -89,6 +89,7 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
   const h = tempHome()
   const file = recordPath(h, 's1')
   recordMode(h, 's1', 'max')
+  boardLoaded(h) // the aged record would otherwise also bring the board-load line
   const dir = project('{not json')
   const e = event(dir)
   const cases = [
@@ -425,6 +426,66 @@ test('hook: the prompt from the hook input is saved and pointed to', () => {
 test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks
   assert.deepEqual(hooks.UserPromptSubmit, [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.mjs"' }] }])
+})
+
+// The board-load notice: a session whose Team Board never wrote its status file is told once, after the board had BOARD_GRACE_MS to write it.
+const BOARD_LINE = "section-team: the Team Board did not load in this session (Claude Code's early-access Mods API); /team and the Mode picker are unavailable, and .team/mode.json still sets the mode."
+const statusFile = (home, id) => join(home, '.claude', 'section-team', 'sessions', `${id}.json`)
+const markerFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.board-checked.json`)
+const boardLoaded = (home, id = 's1') => {
+  mkdirSync(dirname(statusFile(home, id)), { recursive: true })
+  writeFileSync(statusFile(home, id), '{}')
+}
+// The session's record as session start (or the last prompt) left it, ms ago.
+const recordedAgo = (home, ms, id = 's1') => {
+  recordMode(home, id, 'balanced')
+  const at = new Date(Date.now() - ms)
+  utimesSync(recordPath(home, id), at, at)
+}
+
+test('a session whose board wrote no status file is told once, after the grace', () => {
+  assert.equal(BOARD_GRACE_MS, 30000)
+  const home = tempHome()
+  const dir = project()
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [BOARD_LINE] })
+  assert.ok(existsSync(markerFile(home, 's1')), 'the marker ends in .json, so the weekly prune removes it')
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [] }, 'once per session')
+  recordedAgo(home, BOARD_GRACE_MS + 1000, 's2')
+  assert.deepEqual(promptCheck(event(dir, 's2'), home), { notice: null, warnings: [BOARD_LINE] }, 'another session is told too')
+})
+
+test('no board line inside the grace, with a status file, without a record or without a usable session id', () => {
+  const home = tempHome()
+  const dir = project()
+  recordedAgo(home, 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [] }, 'inside the grace')
+  assert.equal(existsSync(markerFile(home, 's1')), false, 'a check that waits claims nothing, so a later prompt checks')
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [BOARD_LINE] })
+
+  const loaded = tempHome()
+  boardLoaded(loaded)
+  recordedAgo(loaded, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), loaded), { notice: null, warnings: [] }, 'the board wrote its file')
+  assert.ok(existsSync(markerFile(loaded, 's1')), 'checked once either way')
+
+  assert.deepEqual(promptCheck(event(dir, 'fresh'), tempHome()), { notice: null, warnings: [] }, 'no record yet')
+  assert.deepEqual(promptCheck(event(dir, '../s1'), home), { notice: null, warnings: [NO_ID] })
+})
+
+test('hook: the board line is shown word for word, after the hook\'s own warnings', () => {
+  const home = tempHome()
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  const alone = run(promptInput(project()), home)
+  assert.equal(alone.status, 0)
+  assert.equal(alone.stderr, '')
+  assert.deepEqual(JSON.parse(alone.stdout), { systemMessage: BOARD_LINE })
+  const withWarning = tempHome()
+  recordedAgo(withWarning, BOARD_GRACE_MS + 1000)
+  const both = run(promptInput(project('{not json')), withWarning)
+  assert.deepEqual(JSON.parse(both.stdout), { systemMessage: `${PREFIX}mode switch check skipped: .team/mode.json: not valid JSON, so this session stays in Balanced mode ${BOARD_LINE}` })
 })
 
 test('an off project announces nothing, records nothing and saves no long prompt', () => {
