@@ -842,7 +842,36 @@ test('a names file that cannot be read shows the default names, /team name says 
   expect(later).toContain('Done')
   expect(seen.logs).toHaveLength(1)
   expect(seen.logs[0].text).toContain('EISDIR')
+  expect(seen.logs[0].text).toBe('Team Board: names read failed: EISDIR')
   expect(seen.logs[0].to).toBe('debug')
+})
+
+test('after a names read that failed, a rename or a reset saves nothing and says so, so it cannot wipe the other names', async ($, on) => {
+  const { seen } = world(on)
+  const torn = '{"v":1,"names":{"backend":"Nova","frontend":"No'
+  seen.disk[NAMES_PATH] = torn
+  const notSaved = 'Name not saved: names.json could not be read.'
+
+  await $.session.start(START)
+  expect(await teamText($ as never, 'name frontend Nova')).toBe(notSaved)
+  expect(await teamText($ as never, 'name frontend')).toBe(notSaved)
+  expect(seen.disk[NAMES_PATH]).toBe(torn)
+  const large = '{"v":1,"names":{"backend":"Nova"}}'.padEnd(8193)
+  seen.disk[NAMES_PATH] = large
+  expect(await teamText($ as never, 'name frontend Nova')).toBe(notSaved)
+  expect(seen.disk[NAMES_PATH]).toBe(large)
+  seen.denyNamesRead = 'EISDIR: illegal operation on a directory'
+  expect(await teamText($ as never, 'name frontend Nova')).toBe(notSaved)
+  expect(seen.writes.filter(w => w.path.endsWith('/names.json'))).toEqual([])
+})
+
+test('a names file with bad entries keeps its good names, and a rename saves them with the new one', async ($, on) => {
+  const { seen } = world(on)
+  seen.disk[NAMES_PATH] = '{"v":1,"names":{"backend":"Nova","chef":"X"}}'
+
+  await $.session.start(START)
+  expect(await teamText($ as never, 'name frontend Kit')).toBe('Iris is now Kit (frontend).')
+  expect(seen.disk[NAMES_PATH]).toBe('{"v":1,"names":{"frontend":"Kit","backend":"Nova"}}')
 })
 
 test('a names file that cannot be written says the name was not saved, and nothing is saved', async ($, on) => {

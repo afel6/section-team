@@ -4,7 +4,7 @@ import type { BoardCard, BoardData, ChatCard, ChatsData, Mode, SessionState, Ses
 import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { isHarnessFrame } from './lib/frames.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
-import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, parseNames, serializeNames, UNREADABLE_LINE } from './lib/names.mjs'
+import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, NOT_READ_LINE, parseNames, serializeNames, UNREADABLE_LINE, unread } from './lib/names.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 import { codeOf, MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
 import { officeAlt, officeSvg, ORDER } from './office.mjs'
@@ -150,14 +150,19 @@ async function readReports($: EngineInterface, ctx: Ctx, root: string) {
 
 // The office picture, rebuilt only when trackOffice says so: between rebuilds its source stays the same, so its motion never restarts.
 // Both maps hold all ten builders in ORDER, since trackOffice keys on their JSON as given. The track moves on only once the picture is
-// built, so a tick that fails here rebuilds on the next one.
-function officeFor(ctx: Ctx, cards: BoardCard[], now: number) {
+// built, so a tick whose drawing throws keeps the last picture and track, logs once, and rebuilds on the next one; the cards and the
+// status file carry on without it.
+function officeFor($: EngineInterface, ctx: Ctx, cards: BoardCard[], now: number) {
   const card = (id: string) => cards.find(c => c.kind === 'builder' && c.id === id)
   const states = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.state ?? 'asleep']))
   const names = Object.fromEntries(ORDER.map((id: string) => [id, card(id)?.name ?? '']))
-  const { track, rebuild } = trackOffice(ctx.office.track, { states, names, now })
-  if (rebuild) ctx.office.office = { source: officeSvg({ states, names, moves: track.moves, now }), alt: officeAlt({ states, names }) }
-  ctx.office.track = track
+  try {
+    const { track, rebuild } = trackOffice(ctx.office.track, { states, names, now })
+    if (rebuild) ctx.office.office = { source: officeSvg({ states, names, moves: track.moves, now }), alt: officeAlt({ states, names }) }
+    ctx.office.track = track
+  } catch (error) {
+    logFailure($, ctx, 'office draw', error)
+  }
   return ctx.office.office
 }
 
@@ -170,7 +175,7 @@ async function refresh($: EngineInterface, ctx: Ctx) {
   const { names } = await readNames($, ctx)
   const usage = sectionUsage({ agents, spawns: Object.fromEntries(ctx.spawns), usage: Object.fromEntries(ctx.usage) })
   const model = boardModel({ agents, reports, request: ctx.request, lastSummary, usage, names })
-  const next = { ...model, office: officeFor(ctx, model.cards, await $.clock.now()) }
+  const next = { ...model, office: officeFor($, ctx, model.cards, await $.clock.now()) }
   ctx.board = next
   const json = JSON.stringify(next)
   if (json !== ctx.lastJson) {
@@ -246,7 +251,8 @@ async function readNames($: EngineInterface, ctx: Ctx): Promise<{ names: Record<
   try {
     text = (await $.fs.exists(file)) ? await $.fs.read(file) : null
   } catch (error) {
-    logFailure($, ctx, 'names read', error, 'lastNamesLog')
+    // The code alone: the engine's message carries an absolute path.
+    logFailure($, ctx, 'names read', codeOf(error) ?? 'read refused', 'lastNamesLog')
     return { names: { ...DEFAULT_NAMES }, problem: UNREADABLE_LINE }
   }
   const parsed = parseNames(text)
@@ -256,10 +262,12 @@ async function readNames($: EngineInterface, ctx: Ctx): Promise<{ names: Record<
 }
 
 // `/team name` alone lists the ten names, under the file's problem when it has one. With a section it renames that builder, or gives it
-// its default name back when no name follows, and saves the names in the home folder. Returns the lines to show.
+// its default name back when no name follows, and saves the names in the home folder. Returns the lines to show. A file whose names
+// could not be read at all is never overwritten: saving the defaults plus one rename would wipe every other custom name in it.
 async function nameCommand($: EngineInterface, ctx: Ctx, section: string | undefined, raw: string | undefined): Promise<string> {
   const { names, problem } = await readNames($, ctx)
   if (section === undefined) return problem === null ? listNames(names) : `${problem}\n${listNames(names)}`
+  if (unread(problem)) return NOT_READ_LINE
   const { line, next } = applyName(names, section, raw)
   if (!next) return line
   const home = await homeDir($)
