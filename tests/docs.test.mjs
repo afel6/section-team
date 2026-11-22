@@ -28,6 +28,8 @@ const BASELINE = "Claude Code with the author's setup (plugin off; their CLAUDE.
 // The solo row label of rounds whose machine setup was not recorded (hq, fx and the second machine's p1 rounds).
 const UNRECORDED = 'Solo (plugin off; machine setup not recorded)'
 const FABLE_NOTE = 'Fable also planned and reviewed some of the fixes it judged.'
+// The README's Platform readiness section moved here.
+const LONG_DOC = 'docs/long-sessions.md'
 
 const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
@@ -65,29 +67,38 @@ test('the README mode table shows the picker labels, with no measured date', () 
   assert.ok(!readme.includes('(measured 2026-11)'), 'no date in a label')
 })
 
-test('the README says the docs section and final review apply in every mode', () => {
-  assert.ok(read('README.md').includes('In every mode the docs section comes after the builders report, and the final review starts the app and drives the critical flows'))
+test('the long-sessions doc says the docs section and final review apply in every mode', () => {
+  assert.ok(read(LONG_DOC).includes('In every mode the docs section comes after the builders report, and the final review starts the app and drives the critical flows'))
 })
 
-test('the README describes the foundation skill, fresh sections and the guard, and what is not measured', () => {
+test('the README points to the long-sessions doc, which keeps the Platform readiness text', () => {
   const readme = read('README.md')
+  assertIncludes(section(readme, 'Platform readiness (0.2.3)'), ['[docs/long-sessions.md](docs/long-sessions.md)'], 'README pointer')
+  assert.ok(section(readme, 'Platform readiness (0.2.3)').trim().split('\n').length <= 2, 'the pointer is short')
+  assert.ok(!readme.includes('**Context guard.**'), 'the details left the README')
+  assert.ok(read(LONG_DOC).includes('\n## Platform readiness (0.2.3)\n'), 'heading kept in the doc')
+})
+
+test('the long-sessions doc describes the foundation skill, fresh sections and the guard, and what is not measured', () => {
+  const readme = read(LONG_DOC)
+  assert.ok(read('README.md').includes('testing, docs, the security pass and advisors not counted'), 'README Use keeps the plan-first count')
   assertIncludes(readme, [
     // fresh sections and the shorter tool list
     'section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'builder heads have no project MCP servers', 'they use a CLI, or ask the supervisor',
     // what is measured, and what is not
     'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', '24.7K', 'where the difference is large',
-    'testing, docs, the security pass and advisors not counted', 'any saving in real use',
+    'any saving in real use',
     // brief rules and the foundation trigger
     "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'The p1 rounds ran the brief rules live, and from 0.3.0 on the foundation skill too', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
     // Plan H: the node-http skill, and Max's complex single-area work
     'section-team:node-http', 'In Max, a single-area task with new concurrent writes, protocol framing, auth or crypto also loads it',
     '0.2.3',
-  ], 'README')
+  ], 'long-sessions doc')
   assert.ok(!readme.includes('nor its figures') && !readme.includes('the saving in real use'), 'stale unmeasured wording is gone')
   assert.ok(!readme.includes('any work needing 3 or more builders'), 'the foundation skill no longer covers any 3-builder work')
   assert.ok(!readme.includes('the foundation skill and the brief rules have not been run live'), 'the p1 rounds ran them live')
   assert.ok(readme.includes('## Platform readiness'), 'Platform readiness heading missing')
-  const claims = readme.split('## Platform readiness')[1].split('## Develop')[0]
+  const claims = readme.split('## Platform readiness')[1]
   assert.deepEqual(claimSentences(claims), [], 'no saving or quality claim before the runs')
 })
 
@@ -203,17 +214,15 @@ test('the results doc links every published round with its recompute command, an
 })
 
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
-test('the README says the second Max final review reads the code, and slices that share nothing are built side by side', () => {
-  const readme = read('README.md')
-  assertIncludes(readme, [
-    "(the second is not shown the first's REPORT; it reads the code against the spec instead of probing again)",
-    'then builds one slice at a time, or slices that share nothing side by side, with a whole-stack check after each',
-  ], 'README')
-  assert.ok(!readme.includes('then builds one slice at a time with a whole-stack check after each'), 'old foundation line')
+test('the docs say the second Max final review reads the code, and slices that share nothing are built side by side', () => {
+  assert.ok(read('README.md').includes("(the second is not shown the first's REPORT; it reads the code against the spec instead of probing again)"), 'README Max row')
+  const doc = read(LONG_DOC)
+  assert.ok(doc.includes('then builds one slice at a time, or slices that share nothing side by side, with a whole-stack check after each'), 'long-sessions doc')
+  assert.ok(!doc.includes('then builds one slice at a time with a whole-stack check after each'), 'old foundation line')
 })
 
-test('the README says the guard refuses only finished heads, and what each caller is told', () => {
-  const guard = read('README.md').split('**Context guard.**')[1].split('\n')[0]
+test('the long-sessions doc says the guard refuses only finished heads, and what each caller is told', () => {
+  const guard = read(LONG_DOC).split('**Context guard.**')[1].split('\n')[0]
   assert.ok(!guard.includes('Any message') && !guard.includes('not to each other'), 'a working head still takes messages')
   assertIncludes(guard, [
     'refuses only a section that has finished', 'still working takes messages',
