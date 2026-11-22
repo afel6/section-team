@@ -347,13 +347,30 @@ test('a hook input that is not a JSON object gives one systemMessage line and de
   }
 })
 
-test('a rule that throws gives one systemMessage line and denies nothing', () => {
-  // Reading tool_input throws inside the advisor rule (a getter planted by --import); any rule that throws would do.
+test('a rule that throws gives one systemMessage line and denies nothing, except an advisor write, which is refused', () => {
+  // Reading tool_input throws inside the rules (a getter planted by --import); any rule that throws would do.
   const PLANT = "data:text/javascript,Object.defineProperty(Object.prototype,'tool_input',{get(){throw Object.assign(new Error('planted'),{code:'EPLANTED'})}})"
-  const run = spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: '{"agent_type":"section-team:ai-engineer","tool_name":"Write","cwd":"x"}', encoding: 'utf8', env: hookEnv(tempDir()) })
-  assert.equal(run.status, 0)
-  assert.equal(run.stderr, '')
-  assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: EPLANTED' })
+  const planted = input => spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: JSON.stringify(input), encoding: 'utf8', env: hookEnv(tempDir()) })
+  const failOpen = [
+    { agent_type: 'section-team:ai-engineer', tool_name: 'Agent', cwd: 'x' },
+    { agent_type: 'section-team:plan-advisor', tool_name: 'Agent', cwd: 'x' },
+    { tool_name: 'SendMessage', cwd: 'x' },
+    { agent_type: 'section-team:ai-engineer', tool_name: 'SendMessage', cwd: 'x' },
+  ]
+  for (const input of failOpen) {
+    const run = planted(input)
+    assert.equal(run.status, 0, JSON.stringify(input))
+    assert.equal(run.stderr, '')
+    assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: EPLANTED' }, JSON.stringify(input))
+  }
+  for (const id of ['ai-engineer', 'data-scientist', 'plan-advisor']) {
+    for (const tool of ['Write', 'Edit', 'MultiEdit']) {
+      const run = planted({ agent_type: `section-team:${id}`, tool_name: tool, cwd: 'x' })
+      assert.equal(run.status, 0)
+      assert.equal(run.stderr, '')
+      assert.deepEqual(JSON.parse(run.stdout), { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'section-team: the advisor check failed (EPLANTED), so this write was refused.' } }, `${id} ${tool}`)
+    }
+  }
   // A numeric cwd is ignored now, so it no longer throws: the write is denied as outside the memory folder.
   const numeric = spawnHook('{"agent_type":"section-team:ai-engineer","tool_name":"Write","tool_input":{"file_path":"x.md"},"cwd":5}')
   assert.equal(numeric.status, 0)

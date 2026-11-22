@@ -275,20 +275,33 @@ const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${M
 // The user's one line: the hook's own notes behind its name, then a rule's notice, which is a whole sentence of its own.
 const messageOf = (notes, ruleNotice) => [notes.length > 0 ? `${MESSAGE_PREFIX}: ${notes.join('; ')}` : null, ruleNotice].filter(Boolean).join(' ')
 
-// A hook that cannot check says so in one line and denies nothing.
+const denial = reason => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } })
+
+// An advisor's write is the one call that fails closed: the rule that would refuse it is the one that broke. Only agent_type and
+// tool_name are read here, so a broken tool_input cannot break this check too.
+const isAdvisorWrite = e => ADVISOR_IDS.includes(sectionIdFromType(e.agent_type)) && WRITE_TOOLS.has(e.tool_name)
+
+function onRuleError(e, err) {
+  if (isAdvisorWrite(e)) return process.stdout.write(JSON.stringify(denial(`section-team: the advisor check failed (${lineOf(err)}), so this write was refused.`)))
+  return notice(`no rule was checked: ${lineOf(err)}`)
+}
+
+// A hook that cannot check says so in one line and denies nothing, except an advisor's write.
 async function main() {
   const e = await readStdinJson()
   if (typeof e !== 'object' || e === null || Array.isArray(e)) return notice('the hook input is not a JSON object, so no rule was checked')
-  const notes = [guardNotice(e), ensureScratch(e)].filter(Boolean)
-  const { reason, notice: ruleNotice } = check(e)
-  const message = messageOf(notes, ruleNotice)
-  const out = {
-    ...(message ? { systemMessage: message } : {}),
-    ...(reason ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } } : {}),
+  try {
+    const notes = [guardNotice(e), ensureScratch(e)].filter(Boolean)
+    const { reason, notice: ruleNotice } = check(e)
+    const message = messageOf(notes, ruleNotice)
+    const out = { ...(message ? { systemMessage: message } : {}), ...(reason ? denial(reason) : {}) }
+    if (message || reason) process.stdout.write(JSON.stringify(out))
+  } catch (err) {
+    onRuleError(e, err)
   }
-  if (message || reason) process.stdout.write(JSON.stringify(out))
 }
 
 if (isMainModule(import.meta.url)) {
+  // Reaches here only when reading the input fails, or an agent_type or tool_name that cannot be read breaks the advisor test: no event to judge.
   main().catch(err => notice(`no rule was checked: ${lineOf(err)}`))
 }
