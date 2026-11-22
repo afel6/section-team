@@ -11,7 +11,7 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 - No section is granted `mcp__claude-in-chrome__*` (your own logged-in Chrome) any more. frontend, testing, uiux and ai-llm keep the built-in browser, chrome-devtools and playwright; the README lists every grant.
 
 **New**
-- A per-project off switch: `/team mode off`, the **Off** picker entry or `{"mode": "off"}` in `.team/mode.json`. That project's sessions get no brief and the plugin writes nothing there. It applies from the next session.
+- A per-project off switch: `/team mode off`, the **Off** picker entry or `{"mode": "off"}` in `.team/mode.json`. That project's sessions get no brief, and session start writes nothing there. It applies from the next session.
 - The Team Board office: ten desks with a named creature per builder section, which walk to their desk while their section works. `/team name <section> <name>` renames one; names are saved in `~/.claude/section-team/names.json`.
 - `SECURITY.md` with a private reporting route.
 
