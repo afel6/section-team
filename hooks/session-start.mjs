@@ -130,7 +130,8 @@ function briefStillHeld(source, home, sessionId, hash) {
   return attempt('brief record read', () => readBriefHash(home, sessionId) === hash)
 }
 
-// The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, then each failed side effect.
+// The session context, and the one-line warnings for the user: the mode file's problem, the retired-mode line, the project vetoes (a committed
+// Max or off mode file, .claude settings that set the install switch, a .team/ plan or summary left out), then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
 // source is the SessionStart source: on 'resume' an unchanged brief is left out; otherwise the full brief goes in and its hash is recorded.
 // now is the clock the prunes compare file times with.
