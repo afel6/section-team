@@ -88,3 +88,8 @@ test('SKILL.md says installs ask the user unless SECTION_TEAM_AUTO_INSTALL_SKILL
   assert.ok(skill.includes('empty when the plugin ships'))
   assert.ok(!skill.includes('`anthropics`, `vercel-labs`, `microsoft`'), 'no default owners named')
 })
+
+test("SKILL.md lets a searched skill install unattended only when the brief says installs are on, so a project's false holds", () => {
+  const skill = readFileSync(new URL('../skills/add-skill/SKILL.md', import.meta.url), 'utf8')
+  assert.ok(skill.includes("it installs unattended only if the brief's Mode section says automatic skill installs are on,"))
+})
