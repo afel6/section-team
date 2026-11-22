@@ -523,6 +523,7 @@ test('the how-it-works doc keeps the README details it took, and the README poin
     'An unknown mode is refused and nothing is saved.', 'On mobile the strip has no picker', 'Nothing opens by itself.',
     'Balanced is above the 8.60 scale ceiling', "the handback gate uses the new mode's pass mark at once", 'A change to `autoInstallSkills` applies from the next session.',
     'and prompts are not saved or checked', '(for example, its input names no project folder)', 'then on the two single-area tasks alone',
+    '- `npm test` — hook logic (node:test)', '- `node scripts/gen-agents.mjs --check` — agent files match the roster',
   ], 'how-it-works doc')
   assert.ok(!read(LONG_DOC).includes('the Results figures above'), 'no pointer to text that moved')
 })

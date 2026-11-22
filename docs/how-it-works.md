@@ -52,5 +52,9 @@ Section heads skip your global `CLAUDE.md` (it can cost many thousands of tokens
 - Recommended skills, preloaded by some sections: `frontend-design` (frontend), `tdd-workflow` (testing), `claude-api` (ai-engineer; ai-llm loads it when the job calls Claude), `web-design-guidelines` (uiux). Sections load `security-review` only when the branch shares history with an `origin/HEAD` ref (`git merge-base HEAD origin/HEAD` succeeds), because the skill runs `git diff origin/HEAD...` as it loads. Other skills a job names are loaded only if they are installed.
 
 ## Develop
+- `npm test` — hook logic (node:test)
+- `npm run test:board` — Team Board (claude plugin test)
+- `npm run validate` — plugin validation
+- `node scripts/gen-agents.mjs --check` — agent files match the roster
 - `node --test bench/*.test.mjs` — benchmark scorer. `bench/score.mjs` records each run's per-agent model split from the subagent transcripts; `bench/aggregate.mjs` reports the Opus share of cost (`opusSharePct`). `node bench/run.mjs --conds=...` takes `solo`, `team` and `max` (the team with that mode file set); `lean` stays only so old results still read, and blind judging labels up to four setups X, Y, Z and W. The [mode round](benchmark-modes-2026-11.md) of 2026-11 used them, and its raw data is in `bench/data/modes/`.
 - Design: `docs/specs/2026-11-01-quality-modes-design.md` (modes), `docs/specs/2026-10-24-solo-builder-sections-design.md` (v3), `docs/specs/2026-10-12-claude-team-design.md` · Plans: `docs/plans/2026-11-01-quality-modes-plan.md`, `docs/plans/2026-10-24-section-team-v3-plan.md` · Phase 0: `docs/phase0-results.md`
