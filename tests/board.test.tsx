@@ -602,6 +602,21 @@ test('in an off project the poll runs every 10 s, and the status file is still w
   expect(statusOf(seen, 's1').map(s => s.updatedAt)).toEqual([1000, 61000])
 })
 
+// The contract the hooks' board-load check reads: <home>/.claude/section-team/sessions/<$.session.id()>.json, in an off project too.
+const SESSION_ID = '0f6c2b1e-8d3a-4c5e-9b7f-2a1d3e4f5a6b'
+for (const [mode, text] of [['balanced', '{"mode":"balanced"}'], ['off', OFF]]) {
+  test(`the status file stays <home>/.claude/section-team/sessions/<session id>.json when the project is ${mode}`, async ($, on) => {
+    const { clock, seen } = world(on)
+    seen.sessionId = SESSION_ID
+    seen.disk[MODE_PATH] = text
+
+    await $.session.start(START)
+    await clock.advance(1000)
+    expect(seen.writes.map(w => w.path)).toEqual([`C:/Users/u/.claude/section-team/sessions/${SESSION_ID}.json`])
+    expect(statusOf(seen, SESSION_ID)[0].sessionId).toBe(SESSION_ID)
+  })
+}
+
 const FAST_AGAIN: Record<string, ($: never) => Promise<unknown>> = {
   'the Team Board opens': $ => team($, ''),
   "the strip's Board button opens it": async $ => (await mountStrip($)).press({ key: 'open-board' }),
