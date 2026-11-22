@@ -260,6 +260,18 @@ test('runGuard waits the whole grace on the clock, not a number of scans', async
   assert.equal(kills(f).length, 2, 'one SIGKILL, not one per scan')
 })
 
+test("the log redacts secrets in a stopped process's command and its parent's, before the command is clipped", async () => {
+  // Made-up values. The key block runs past the 400-character clip, so a clip before the redaction would cut off its END line.
+  const pem = `-----BEGIN PRIVATE KEY-----\n${'A'.repeat(500)}\n-----END PRIVATE KEY-----`
+  const parent = row(100, 50, 1000, 'claude.exe', 10 * MB, 'claude.exe --api-key=sk-ant-api03-abcdefghijklmnop1234')
+  const child = row(400, 100, 4000, 'node.exe', 2 * GB, `node seed.js --password=hunter2 "${pem}" MY_SECRET=abc`)
+  const f = fakes([[parent, child], [parent], GONE])
+  await runGuard({ ...f, ...GUARD })
+  const [line] = f.calls.filter(c => c[0] === 'log').map(c => c[1])
+  assert.match(line, /node seed\.js --password=\[redacted\] "\[redacted\]" MY_SECRET=\[redacted\] \| parent: claude\.exe --api-key=\[redacted\]$/)
+  assert.ok(!/hunter2|AAAA|abcdefghijklmnop/.test(line), line)
+})
+
 test('a process gone after SIGTERM, or a pid reused by another start, gets no SIGKILL', async () => {
   const gone = fakes([[ROW_ROOT, BIG], [ROW_ROOT], [ROW_ROOT], GONE])
   await runGuard({ ...gone, ...GUARD })

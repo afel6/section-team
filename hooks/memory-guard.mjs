@@ -7,6 +7,7 @@ import { dirname, isAbsolute } from 'node:path'
 import { createInterface } from 'node:readline'
 import { INTERVAL_MS, MB, SCAN_TIMEOUT_MS, listerCommand, oversized, parseTable, rootAlive, track } from './lib/memory-guard.mjs'
 import { isMainModule, lineOf } from './lib/paths.mjs'
+import { redact } from './lib/redact.mjs'
 
 const ROOT_GONE_SCANS = 2
 const MAX_FAILED_SCANS = 10
@@ -16,7 +17,8 @@ const LIST_BUFFER = 64 * MB
 export const KILL_GRACE_MS = 5000
 const EFFECTS = ['list', 'kill', 'log', 'sleep', 'now', 'touch', 'state', 'limit', 'own']
 
-const clip = text => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)
+// Redacted before it is cut, so a secret that runs past the cut (a PEM block) is still found whole.
+const clip = text => redact(text).replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)
 const key = p => `${p.pid}:${p.started}`
 const stampOf = now => new Date(now()).toISOString()
 

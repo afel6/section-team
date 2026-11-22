@@ -293,7 +293,7 @@ for (const to of MODES) {
 // --- a long pasted request is saved, so the supervisor points sections to it instead of re-typing it ---
 
 const LONG = `${'a'.repeat(2998)}é\n` // 3000 characters
-const POINTER = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+const POINTER = path => `The user's message is saved word for word, with any secret in it shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const SAVED_PATH = /`(\.team\/reports\/\d{4}-\d{2}-\d{2}\/\d{6}-user-request\.md)`/
 const gitInit = dir => {
   execFileSync('git', ['-C', dir, 'init', '-q'])
@@ -319,6 +319,15 @@ test('a 3000-character prompt in a git repo with .team/ is saved word for word a
   assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
   assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request.md')
   assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request-2.md')
+})
+
+test('a saved long prompt has its secrets redacted; the rest stays word for word', () => {
+  const dir = gitProject()
+  // Made-up values.
+  const prompt = `${LONG}Deploy with DEPLOY_TOKEN=abc123def and this key:\n-----BEGIN PRIVATE KEY-----\nMIIEvQ\n-----END PRIVATE KEY-----\nthen run it.\n`
+  const r = promptCheck(withPrompt(dir, prompt), tempHome())
+  const saved = readFileSync(join(dir, SAVED_PATH.exec(r.notice)[1]), 'utf8')
+  assert.equal(saved, `${LONG}Deploy with DEPLOY_TOKEN=[redacted] and this key:\n[redacted]\nthen run it.\n`)
 })
 
 test('a long prompt that is a harness frame (a hand-back, a task notification) is not saved as a user request', () => {

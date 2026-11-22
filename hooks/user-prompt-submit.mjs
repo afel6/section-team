@@ -6,6 +6,7 @@ import { isHarnessFrame } from './lib/frames.mjs'
 import { activeMode, modeName, readMode } from './lib/mode.mjs'
 import { assertSessionId, readRecord, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { isIgnored, isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+import { redact } from './lib/redact.mjs'
 
 const MESSAGE_PREFIX = 'section-team user-prompt-submit'
 const SKIPPED = 'mode switch check skipped'
@@ -23,7 +24,7 @@ function attempt(label, fn) {
 }
 
 const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n${REPLACES}\n\n${modeRules(mode)}`
-const pointerText = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+const pointerText = path => `The user's message is saved word for word, with any secret in it shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const isLong = prompt => typeof prompt === 'string' && prompt.length >= LONG_PROMPT
 const savable = prompt => isLong(prompt) && !isHarnessFrame(prompt)
 
@@ -59,13 +60,13 @@ function modeCheck(root, sessionId, home) {
   return { notice, warnings }
 }
 
-// Saves a long prompt word for word as .team/reports/<date>/<time>-user-request.md and returns that path relative to root,
+// Saves a long prompt word for word, its secrets redacted, as .team/reports/<date>/<time>-user-request.md and returns that path relative to root,
 // with forward slashes; null when the prompt is short, not a string or a harness frame, when git does not ignore the .team/ folder itself (outside git,
 // with .team/keep-in-git, or before session-start excluded .team/), or without a .team/ folder. Throws when the file cannot be written.
 export function saveRequest(root, prompt, ignored, now = new Date()) {
   if (!savable(prompt) || !ignored) return null
   if (statSync(join(root, '.team'), { throwIfNoEntry: false })?.isDirectory() !== true) return null
-  return relative(root, writeReport(root, 'user-request', prompt, now)).split(sep).join('/')
+  return relative(root, writeReport(root, 'user-request', redact(prompt), now)).split(sep).join('/')
 }
 
 // The mode check and the saved request: the notice and the pointer join with a blank line, and a failed save is one more warning.
