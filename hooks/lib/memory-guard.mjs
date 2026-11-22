@@ -40,6 +40,7 @@ while ($null -ne [Console]::In.ReadLine()) {
     }
     [Console]::Out.WriteLine((ConvertTo-Json -InputObject @($rows) -Compress))
   } catch {
+    # An empty line fails this scan on the Node side, where failed scans are counted and logged.
     [Console]::Out.WriteLine('')
   }
   [Console]::Out.Flush()

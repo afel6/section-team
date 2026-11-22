@@ -43,6 +43,7 @@ export function finalAgentText(transcriptPath) {
     try {
       row = JSON.parse(rows[i])
     } catch {
+      // A row cut off mid-write or not JSON holds no hand-back; the rows before it still do.
       continue
     }
     if (startsJob(row)) break
