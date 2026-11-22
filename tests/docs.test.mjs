@@ -4,6 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { MODE_LABELS } from '../hooks/lib/mode.mjs'
 import { HEAD_CONTEXT_LIMIT } from '../hooks/lib/head-context.mjs'
+import { userExtraFile } from '../scripts/assign-skill.mjs'
+import { MODEL } from '../scripts/gen-agents.mjs'
 
 const CLAIM_WORDS = /\b(sav(?:e|es|ed|ing|ings)|cheaper|cuts? cost|half|better code|higher quality|better quality|improv(?:es|ed)|reduces|lower cost|costs? less|much less|fewer tokens)\b|\d\s*%/i
 
@@ -44,7 +46,7 @@ test('the README opens with the cost and the gain, and the results doc keeps the
   const results = read(RESULTS_DOC)
   for (const text of [readme, results]) assert.ok(!STALE_COST_MULTIPLE.test(text), 'no stale 3.6 multiple')
   const quickstart = readme.split('\n## Quickstart\n')[1].split('\n## ')[0]
-  assertIncludes(quickstart, ['about 5× your normal Claude Code usage in Balanced', 'about 10× in Max, up to 13× on platform-sized tasks', 'the gain is blind-judged quality, mostly tests; hidden-test correctness ties', '/plugin install section-team --marketplace afel6/section-team', '/team mode off', 'claude plugin disable section-team@section-team', 'claude plugin uninstall section-team@section-team'], 'Quickstart')
+  assertIncludes(quickstart, ['about 5× your normal Claude Code usage in Balanced', 'about 10× in Max, up to 13× on platform-sized tasks', 'blind judges scored the plugin\'s code higher, the largest part (42-44% in the mode round) for bigger test suites', '/plugin install section-team --marketplace afel6/section-team', '/team mode off', 'claude plugin disable section-team@section-team', 'claude plugin uninstall section-team@section-team'], 'Quickstart')
   assertIncludes(readme, ['Lean, the third, was removed in 0.3.0', 'Measured on v0.2.1'], 'README')
   const needles = ['about 2.2 to 5.2 times', 'about 7.5 to 9.7 times in Max', 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', "plugin off, author's setup"]
   assertIncludes(results, needles, 'results doc')
@@ -87,7 +89,7 @@ test('the README describes the saved request, the short hand-back, the resume br
   const readme = read('README.md')
   assertIncludes(readme, [
     "Before it says done, the supervisor runs the testing section's one command that prints a PASS or FAIL line per critical flow.",
-    'a pasted message of 3000 characters or more is saved word for word to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
+    'a pasted message of 3000 characters or more is saved, with recognised secrets replaced by `[redacted]`, to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
     'so the supervisor points sections to it instead of re-typing it',
     'in a `-details.md` file there and keep at most 5 short lines above their REPORT',
     'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
@@ -250,4 +252,117 @@ test('the README lists every MCP grant in the agent files, and says no section g
 test('the README says how to turn the team off in one project, and that it applies from the next session', () => {
   const modes = read('README.md').split('\n## Modes\n')[1].split('\n## ')[0]
   assertIncludes(modes, ['**Turn it off in one project:**', '`/team mode off`', '`{"mode": "off"}`', 'applies from your next session', 'no brief'], 'Modes section')
+})
+
+// The text under one ## heading of a markdown file, up to the next ## heading.
+const section = (text, heading) => text.split(`\n## ${heading}\n`)[1]?.split('\n## ')[0] ?? ''
+
+// The value a source file gives a constant, read as text so the test runs no hook.
+const sourceConst = (path, name) => read(path).match(new RegExp(`const ${name} = (.*)`))?.[1]
+
+test('the Quickstart says what you get without overstating it, with the wall time', () => {
+  const readme = read('README.md')
+  const quickstart = section(readme, 'Quickstart')
+  assertIncludes(quickstart, [
+    'No meaningful correctness gain has been measured: hidden tests tied in most rounds, the plugin passed fewer in the first three p1 rounds, and at most 2 more of 148 on one hq task (2 runs).',
+    "On seeded near-miss bugs (mode round) its suites caught about as many as solo's: 21 and 19 against 20 of 24 on h6, and all 18 on h5",
+    'about 3 to 6× the wall time in Balanced and 6 to 12× in Max',
+  ], 'Quickstart')
+  for (const old of ['never came out ahead', 'mostly tests', 'mostly for its tests']) assert.ok(!readme.includes(old), `old sentence: ${old}`)
+})
+
+test('the Needs line at the Quickstart and at Install names the tested CLI, the alias floor, Node, git and the providers', () => {
+  const readme = read('README.md')
+  for (const name of ['Quickstart', 'Install']) {
+    assertIncludes(section(readme, name), [
+      '**Needs:** Claude Code 2.1.318 (tested; this release has not been run on an older one, and before 2.1.280 the `opus` alias did not mean Opus 5.5)',
+      'Node 20.16+ or 22.3+ and git 2.31+ on PATH (without Node every prompt and matched tool call shows a hook error)',
+      'first-party access to Opus 5.5 (Bedrock, Vertex and Foundry are untested; on Foundry the `opus` alias means Opus 4.6)',
+    ], name)
+  }
+  assert.ok(!readme.includes('2.1.275 or later'), 'the untested version floor is gone')
+})
+
+test('the README names the model aliases the agent files use, not a pinned Opus 5.5', () => {
+  const readme = read('README.md')
+  assert.equal(MODEL.builder, 'opus')
+  assert.equal(MODEL.advisor, 'opus')
+  assertIncludes(readme, ["Sections and the reviewer use the `opus` model alias (they follow your session's Opus version, or the alias default)", '(`opus` has meant Opus 5.5 since Claude Code 2.1.280)'], 'README')
+  assert.ok(!readme.includes('sections and the reviewer run on Opus 5.5'), 'old pinned-model sentence')
+})
+
+test('What changes says sections skip the global CLAUDE.md, counted from the agent files', () => {
+  const agents = new URL('../agents/', import.meta.url)
+  const files = readdirSync(agents)
+  const omitting = files.filter(file => /^omitClaudeMd: true$/m.test(readFileSync(new URL(file, agents), 'utf8')))
+  assert.equal(omitting.length, files.length, 'every agent file omits the global CLAUDE.md')
+  assert.ok(sourceConst('scripts/gen-agents.mjs', 'SAFETY').includes('never push, force-push, deploy'), "the builders' safety rule")
+  assertIncludes(section(read('README.md'), 'What changes in your sessions'), [
+    `**Sections skip your global \`~/.claude/CLAUDE.md\`** (\`omitClaudeMd\` in all ${files.length} agent files). Put rules you rely on in the project's CLAUDE.md or AGENTS.md. Builders carry their own rule: no push, force-push, deploy or destructive git without your yes.`,
+  ], 'What changes')
+})
+
+test('the off wording says what still runs, when off applies, and how to try the plugin in one project', () => {
+  const readme = read('README.md')
+  assertIncludes(section(readme, 'What changes in your sessions'), [
+    '**In a project set to off,** the hooks still start on every prompt and matched tool call (one git call per prompt) but do nothing for the supervisor',
+    "a project's first session may already have written `.team/` and the exclude lines",
+    'Off applies from your next session, `/clear` or `/compact`. To try the plugin in one project only, install it with `--scope local`.',
+  ], 'What changes')
+  assert.ok(!readme.includes('none of this happens except the strip'), 'old off sentence')
+  for (const name of ['Install', 'Modes']) assert.ok(section(readme, name).includes('applies from your next session, `/clear` or `/compact`'), name)
+})
+
+test('the README says where skill assignments and trusted owners live, and how to restore them after an update', () => {
+  const readme = read('README.md')
+  assert.equal(userExtraFile('~').replaceAll('\\', '/'), '~/.claude/section-team/roster-extra.json')
+  assert.ok(read('scripts/trusted-source.mjs').includes("'~/.claude/section-team/trusted-sources.json'"))
+  assert.ok(read('scripts/assign-skill.mjs').includes('--reapply'))
+  assertIncludes(readme, [
+    '`~/.claude/section-team/roster-extra.json`', '`~/.claude/section-team/trusted-sources.json`',
+    'after `claude plugin update`, run `node "<plugin root>/scripts/assign-skill.mjs" --reapply`',
+  ], 'README')
+  assert.ok(!readme.includes('are kept in `scripts/roster-extra.json`'), 'old assignment file')
+  assert.ok(!readme.includes('one you listed in `skills/add-skill/trusted-sources.json`'), 'old trusted-owner file')
+})
+
+test('the README quotes the board-load line the prompt hook shows, and the off switch without the board', () => {
+  const line = sourceConst('hooks/user-prompt-submit.mjs', 'BOARD_LINE')?.match(/^"(.*)"$/)?.[1]
+  assert.ok(line, 'BOARD_LINE found in the hook')
+  assertIncludes(section(read('README.md'), 'Requirements'), [line, 'tested on Claude Code 2.1.318', 'turn the team off with `{"mode": "off"}` in `.team/mode.json`'], 'Requirements')
+})
+
+test('the README says project settings that set the install switch, HOME or USERPROFILE keep installs off, in any letter case', () => {
+  const readme = read('README.md')
+  assert.ok(sourceConst('hooks/lib/project-settings.mjs', 'HOME_VARS').includes("['HOME', 'USERPROFILE']"))
+  const line = "a project's `.claude/settings.json` or `settings.local.json` that sets this variable, `HOME` or `USERPROFILE` (a key in any letter case counts) keeps automatic installs off, with one line saying so"
+  for (const name of ['What changes in your sessions', 'Modes']) assert.ok(section(readme, name).includes(line), name)
+  for (const old of ['can set environment variables too, this one included', "a project's own `.claude/settings.json` can set it too"]) assert.ok(!readme.includes(old), `old sentence: ${old}`)
+})
+
+test('the README says a .team/ plan or last summary git does not ignore is not pointed to', () => {
+  assert.ok(sourceConst('hooks/session-start.mjs', 'TEAM_UNIGNORED_LINE').includes('the project is not in git; its plan and last summary were not loaded as instructions'))
+  assert.ok(section(read('README.md'), 'Use').includes(
+    'In a project outside git, or one whose `.team/` git does not ignore or tracks (as with `.team/keep-in-git`), session start does not point the supervisor to `.team/notes/plan.md` or the last summary; one line tells you so.'))
+})
+
+test('the README describes the hooks as they are now: notices instead of silent allows, refused advisor writes, SIGTERM first, redaction, the slow off poll', () => {
+  const readme = read('README.md')
+  const grace = Number(sourceConst('hooks/memory-guard.mjs', 'KILL_GRACE_MS')) / 1000
+  assert.equal(sourceConst('hooks/register.tsx', 'OFF_POLL_MS'), '10 * 1000')
+  assertIncludes(readme, [
+    `(SIGTERM, then SIGKILL if it is still running ${grace} seconds later)`, 'every 10 s in a project set to off while neither board pane is open',
+    'if that check itself fails, the write is refused', 'a section transcript the context guard or the grade check cannot read gets one line too',
+    'with recognised secrets replaced by `[redacted]`',
+  ], 'README')
+  for (const old of ['allow silently', 'it allows the call if it crashes', 'stops (SIGKILL)', 'If the plugin cannot read the needed files, it allows the message.', 'If the result cannot be read, nothing is refused.']) {
+    assert.ok(!readme.includes(old), `old sentence: ${old}`)
+  }
+})
+
+test('the README says an off project saves no report where git does not ignore .team/, and names a committed Max or off mode file', () => {
+  assertIncludes(section(read('README.md'), 'Modes'), [
+    'only where git ignores `.team/`; elsewhere nothing is saved and one line says so',
+    'A committed `.team/mode.json` that sets Max or off is named in one line at session start.',
+  ], 'Modes')
 })
