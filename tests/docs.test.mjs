@@ -530,3 +530,26 @@ test('the README Support section says where to ask and how soon, and a question 
   const form = read('.github/ISSUE_TEMPLATE/question.yml')
   assertIncludes(form, ['name: Question', 'labels: [question]', 'id: question', 'required: true', 'id: plugin-line'], 'question form')
 })
+
+test('SECURITY.md says whether private reporting is on, and the issue config links only what works', () => {
+  const security = read('SECURITY.md')
+  const config = read('.github/ISSUE_TEMPLATE/config.yml')
+  const off = security.includes('Private vulnerability reporting: not enabled yet (checked 2026-11-23)')
+  assert.ok(off || /Private vulnerability reporting: enabled \(checked \d{4}-\d{2}-\d{2}\)/.test(security), 'SECURITY.md states the setting with a date')
+  if (off) {
+    assert.ok(!security.includes('Use GitHub\'s private reporting'), 'no instruction to use a form that is off')
+    assert.ok(!config.includes('security/advisories/new'), 'the issue config does not link the form while it is off')
+    assert.ok(config.includes('/blob/main/SECURITY.md'), 'the issue config links SECURITY.md')
+  }
+})
+
+test('SECURITY.md lists the known limits', () => {
+  const limits = section(read('SECURITY.md'), 'Known limits')
+  assert.ok(/^tools: Read, Grep, Glob, Bash$/m.test(read('agents/reviewer.md')), 'the reviewer holds Bash')
+  assert.ok(read('.claude-plugin/marketplace.json').includes('"source": "./"'), 'the marketplace serves the repo root')
+  assertIncludes(limits, [
+    'The reviewer holds Bash', 'process tree', '`bench/` ships in the plugin', 'can add hooks',
+    '`ANTHROPIC_DEFAULT_OPUS_MODEL`', 'for every section head', 'covers only the install switch (`SECTION_TEAM_AUTO_INSTALL_SKILLS`) and `HOME` or `USERPROFILE`',
+    'Every push to `main` ships', '`main` moves only at releases',
+  ], 'Known limits')
+})

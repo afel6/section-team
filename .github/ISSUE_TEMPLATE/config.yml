@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Report a security problem privately
-    url: https://github.com/afel6/section-team/security/advisories/new
-    about: Please do not open a public issue for a vulnerability; see SECURITY.md.
+  - name: Report a security problem
+    url: https://github.com/afel6/section-team/blob/main/SECURITY.md
+    about: Read SECURITY.md first; never put the details of a vulnerability in a public issue.
