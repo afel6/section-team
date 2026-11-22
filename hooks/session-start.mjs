@@ -11,17 +11,21 @@ import { statusDir } from './sessions-model.mjs'
 export const AUTO_INSTALL_ENV = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
 const MESSAGE_PREFIX = 'section-team session-start'
 
-const autoInstallNote = source => [
+const AUTO_INSTALL_NOTE = [
   '## Skill installs',
-  `- Automatic skill installs are on (${source}): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
+  `- Automatic skill installs are on (${AUTO_INSTALL_ENV}=1): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
-// Whether skill installs are automatic, and where that came from: the mode file wins, then the environment when it is set
-// (only exactly '1' turns installs on, and any other set value is named as the source of off), else off by default.
+export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set ${AUTO_INSTALL_ENV}=1 in your user settings instead`
+
+// Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
+// is named as the source of off). The mode file, which a cloned repo can commit, may turn them off but never on: its true is ignored,
+// with a notice when the environment does not turn them on anyway.
 function skillSetting(autoInstallSkills, env) {
-  if (autoInstallSkills !== null) return { on: autoInstallSkills, from: MODE_FILE }
-  if (env[AUTO_INSTALL_ENV] === undefined) return { on: false, from: null }
-  return { on: env[AUTO_INSTALL_ENV] === '1', from: AUTO_INSTALL_ENV }
+  if (autoInstallSkills === false) return { on: false, from: MODE_FILE, notice: null }
+  const on = env[AUTO_INSTALL_ENV] === '1'
+  const from = env[AUTO_INSTALL_ENV] === undefined ? null : AUTO_INSTALL_ENV
+  return { on, from, notice: autoInstallSkills === true && !on ? FILE_ON_IGNORED : null }
 }
 
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
@@ -38,6 +42,7 @@ function modeSection(mode, skills, problem, retired) {
     `- This project runs in ${modeName(mode)} mode (${mode === DEFAULT_MODE ? 'default' : `from ${MODE_FILE}`}).`,
     ...(retired === undefined ? [] : [`- ${RETIRED_LINE}`]),
     `- Automatic skill installs: ${skills.on ? 'on' : 'off'} (${skills.from === null ? 'default' : `from ${skills.from}`}).`,
+    ...(skills.notice === null ? [] : [`- ${skills.notice}.`]),
     `- ${UNGRADED_LINE}`,
     ...(problem === null ? [] : [`- ${problem}.`]),
   ].join('\n')
@@ -49,7 +54,7 @@ export function composeContext({ mode, autoInstallSkills, problem, retired }, en
   const skills = skillSetting(autoInstallSkills, env)
   return [
     briefKept ? BRIEF_KEPT_LINE : assembleBrief(mode),
-    skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
+    skills.on ? AUTO_INSTALL_NOTE : null,
     summary ? `Last team summary: ${summary}. Read it first.` : null,
     hasPlan ? PLAN_LINE : null,
     modeSection(mode, skills, problem, retired),
@@ -103,7 +108,8 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const held = briefStillHeld(source, home, sessionId, hash)
   const context = composeContext(setting, env, summary.value, hasPlan, { briefKept: held.value === true })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
-  const warnings = [setting.problem, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  const skillNotice = skillSetting(setting.autoInstallSkills, env).notice
+  const warnings = [setting.problem, skillNotice, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 
