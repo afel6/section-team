@@ -751,6 +751,31 @@ test('a plan in a .team/ that git does not ignore (keep-in-git, or no git) is no
   assert.deepEqual(plainStart.warnings, [TEAM_UNIGNORED])
 })
 
+const committedMode = name => `this repo's committed .team/mode.json sets ${name}; run /team mode balanced to change it`
+
+test('a committed mode file that sets Max still runs Max, and the user is told the repo chose it', () => {
+  const dir = withModeFile(repo(), '{"mode":"max"}')
+  commitFiles(dir, '.team/mode.json')
+  const { context, warnings } = startup(dir)
+  assert.ok(context.startsWith(`${assembleBrief('max')}\n\n`))
+  assert.deepEqual(warnings, [committedMode('Max')])
+  assert.equal(hookOut(run(startInput(dir))).systemMessage, `section-team session-start: ${committedMode('Max')}`)
+})
+
+test('a committed mode file that sets off gives the off line, then the committed line', () => {
+  const dir = withModeFile(repo(), '{"mode":"off"}')
+  commitFiles(dir, '.team/mode.json')
+  assert.deepEqual(startup(dir), { context: null, warnings: [OFF_LINE, committedMode('off')] })
+  assert.deepEqual(hookOut(run(startInput(dir))), { systemMessage: `section-team session-start: ${OFF_LINE}; ${committedMode('off')}` })
+})
+
+test('a mode file that is not committed, or a committed Balanced one, gives no committed line', () => {
+  assert.deepEqual(startup(withModeFile(repo(), '{"mode":"max"}')).warnings, [])
+  assert.deepEqual(startup(withModeFile(repo(), '{"mode":"off"}')).warnings, [OFF_LINE])
+  const plain = withModeFile(join(realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-nogit-'))), 'plain'), '{"mode":"max"}')
+  assert.deepEqual(startup(plain).warnings, [], 'outside git nothing is committed')
+})
+
 test('nothing to load means no line, whatever git says about .team/', () => {
   const dir = withModeFile(repo(), '{"mode":"balanced"}')
   commitFiles(dir, '.team/mode.json')

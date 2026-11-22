@@ -62,6 +62,17 @@ function teamNotice(root) {
   return tracked !== null && isIgnored(root, '.team/') ? null : TEAM_UNIGNORED_LINE
 }
 
+// The modes a committed mode file is named for: the repo, not the user, picked the costlier mode or turned the team off.
+const COMMITTED_NAMES = Object.freeze({ max: 'Max', [OFF_MODE]: 'off' })
+
+// The user's line when git tracks .team/mode.json and it sets Max or off; null otherwise. git is asked only for those two modes.
+function committedModeNotice(root, setting) {
+  const name = COMMITTED_NAMES[setting.off ? OFF_MODE : setting.mode]
+  if (name === undefined) return null
+  const committed = trackedTeamFiles(root)?.some(file => file.toLowerCase() === MODE_FILE) === true
+  return committed ? `this repo's committed ${MODE_FILE} sets ${name}; run /team mode balanced to change it` : null
+}
+
 function modeSection(mode, skills, problem, retired) {
   return [
     '## Mode',
@@ -124,8 +135,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
     ['status prune', () => pruneStatus(statusDir(home), now)],
     ['mode record prune', () => pruneStatus(modeRecordDir(home), now)],
   ].map(([label, fn]) => attempt(label, fn).warning)
+  const committedMode = committedModeNotice(root, setting)
   // A project switched off gets no brief and nothing else written: no git exclude edit, no notes folder, no records.
-  if (setting.off) return { context: null, warnings: [OFF_LINE, ...pruneWarnings].filter(warning => warning !== null) }
+  if (setting.off) return { context: null, warnings: [OFF_LINE, committedMode, ...pruneWarnings].filter(warning => warning !== null) }
   const steps = [
     ['git exclude update', () => ensureExcluded(cwd, root)],
     ...(excludeFile(cwd) ? [['notes folder', () => ensureNotes(root)]] : []), // a plain folder gets no .team/ until a section writes a note
@@ -144,7 +156,7 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const context = composeContext(setting, env, loadable ? summary.value : null, loadable && hasPlan, { briefKept: held.value === true })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
   const skillNotice = skillSetting(setting.autoInstallSkills, env).notice
-  const warnings = [setting.problem, skillNotice, retired, teamLine, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  const warnings = [setting.problem, skillNotice, retired, committedMode, teamLine, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 
