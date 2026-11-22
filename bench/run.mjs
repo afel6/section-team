@@ -11,7 +11,12 @@
 // Each attempt is archived, classified and checked as run-attempts.mjs says; evidence is copied into results/<id>/evidence/.
 // Usage: node bench/run.mjs --plugin=<absolute path of the worktree at the pinned ref> --tag=mo [--round=mo] [--plugin-ref=<git ref>] --conds=solo,team,max
 //          --tasks=h4,h5,h6 --reps=3 [--rerun=<id>,... --reason=<fix commit>] [--sync=<branch> [--redact-email] | --no-sync]
+//          [--base-plugin=<absolute path of the base worktree> --base-ref=<git ref>] [--config-dir=<absolute path of the profile>]
 //          [id-substring ...]
+//        (a round with the base setup, the control arm, loads it from --base-plugin at its own pinned ref; --config-dir runs
+//        every setup on that profile as CLAUDE_CONFIG_DIR; BENCH_RUNS names the run folders' root; SECTION_TEAM_LIVE_CHECKOUT
+//        names the user's own checkout, required on Windows; SECTION_TEAM_MEMORY_LIMIT_MB, when set, reaches every setup;
+//        all of them must match the preflight's pin)
 //        (needs results/preflight-<tag>.json and a clean worktree; --conds runs the setups in the order given; the ref is
 //        the pin's, and a --plugin-ref that differs is refused)
 //        --sync: after every run that finished or stopped, its results and solution folders are committed to <branch> and
@@ -30,10 +35,12 @@ import { fileURLToPath } from 'node:url'
 import { MODE_FILE, serializeMode } from '../hooks/lib/mode.mjs'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import {
-  SECTION_TEAM_VERSION, childEnv, claudeListing, cleanSettings, commonArgs, initOf, installedPluginKeys, outputMessages, pluginVersionOf, readPin, sha256Of,
+  SECTION_TEAM_VERSION, checkLiveCheckout, checkRoundSettings, checkRunsRoot, childEnv, claudeListing, cleanSettings, commonArgs, initOf, installedPluginKeys,
+  liveCheckoutOf, memoryLimitOf, outputMessages, pluginVersionOf, readPin, sha256Of,
 } from './clean-run.mjs'
 import {
-  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, finishAttempt, firstLine, nextAttempt, pendingRuns, projectDirFor, recordAttempt, runInitProblems,
+  BatchStop, EvidenceMissing, archiveAttempt, baseOf, classifyEnd, copyEvidence, exitCodeOf, filesAt, finishAttempt, firstLine, nextAttempt, pendingRuns, recordAttempt,
+  runInitProblems,
 } from './run-attempts.mjs'
 import { BRANCH, checkBranch } from './cloud-git.mjs'
 import { isAbsolutePath, samePath } from './os-paths.mjs'
@@ -52,7 +59,7 @@ export const RESULTS = process.env.BENCH_RESULTS || join(BENCH, 'results')
 export const SEEDS = join(BENCH, 'seeds')
 export const TASKS = ['easy', 'medium', 'hard']
 // Per stage for a two-stage task.
-export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 60 }
+export const TIMEOUT_MIN = { easy: 25, medium: 45, hard: 100, h1: 100, h2: 60, h3: 45, h4: 120, h5: 60, h6: 60, h7: 120, p1: 60, h8: 60, h9: 60, h10: 120 }
 // Staged tasks (stages.mjs) get each later prompt by --resume in the same session once the stage before ended ok.
 const PREFIX = 'AUTOMATED BENCHMARK TASK. No human will answer questions: the requirements below are complete and final, and any plan is approved in advance (OK). Work autonomously from start to finish without asking anything. Do not use the Fable model. Use only Node.js built-ins (no npm install). When you are finished, make sure the project\'s own tests pass, then stop.\n\n'
 const ALLOWED = 'Task,Agent,SendMessage,Read,Write,Edit,MultiEdit,Glob,Grep,TodoWrite,Skill,PowerShell,Bash(node *),Bash(npm *),Bash(npx *),Bash(git *),Bash(mkdir *),Bash(ls *),Bash(date *),Bash(cat *),Bash(rm *),Bash(mv *),Bash(cp *),Bash(curl *),Bash(sleep *)'
@@ -65,7 +72,8 @@ const FORCED_SUFFIX = '\n\nUse your section agents for this work: delegate the b
 // forced = plugin on, prompt asks the supervisor to delegate to sections
 // lean   = removed in 0.3.0: kept here so old results still read, and no new run can use it
 // max    = team, with the project's mode file set to max
-export const CONDITIONS = ['team', 'solo', 'forced', 'lean', 'max']
+// base   = team (Balanced), with the plugin from --base-plugin at --base-ref: the round's control arm
+export const CONDITIONS = ['team', 'solo', 'forced', 'lean', 'max', 'base']
 // The setups of a round without --conds: the three from before the modes, so earlier rounds plan the same runs.
 export const DEFAULT_CONDS = ['team', 'solo', 'forced']
 
@@ -104,7 +112,12 @@ export function parseArgs(argv) {
   const opt = name => argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
   const reps = opt('reps') ?? '2'
   const pluginRef = opt('plugin-ref')
-  if (pluginRef !== undefined && !BRANCH.test(pluginRef)) throw new RangeError(`--plugin-ref takes a branch, tag or commit, got "${pluginRef}"`)
+  const baseRef = opt('base-ref')
+  for (const [flag, ref] of [['plugin-ref', pluginRef], ['base-ref', baseRef]]) {
+    if (ref !== undefined && !BRANCH.test(ref)) throw new RangeError(`--${flag} takes a branch, tag or commit, got "${ref}"`)
+  }
+  const configDir = opt('config-dir') ?? null
+  if (configDir !== null && !isAbsolutePath(configDir)) throw new RangeError(`--config-dir takes the absolute path of the round's profile folder, got "${configDir}"`)
   if (!/^\d+$/.test(reps) || !Number.isSafeInteger(Number(reps)) || Number(reps) < 1) {
     throw new RangeError(`--reps must be a whole number of at least 1, got "${reps}"`)
   }
@@ -115,6 +128,9 @@ export function parseArgs(argv) {
     tasks: opt('tasks')?.split(',') ?? TASKS,
     plugin: opt('plugin') ?? '',
     pluginRef: pluginRef ?? '',
+    basePlugin: opt('base-plugin') ?? '',
+    baseRef: baseRef ?? '',
+    configDir,
     rerun: opt('rerun')?.split(',') ?? [],
     reason: opt('reason') ?? '',
     sync: opt('sync') ?? '',
@@ -225,21 +241,40 @@ export function checkPin(plugin, pin) {
 
 // What a batch's worktree must match: ref is the commit its pin recorded, so a branch that moves after the preflight stops
 // nothing, and name the pin's ref, which is what the user passed; a pin from before --plugin-ref has only the default tag.
-// A --plugin-ref that is not the pin's stops the batch.
-export function pinnedTarget(pin, passed = '') {
+// A --plugin-ref (or for the base arm --base-ref, flag) that is not the pin's stops the batch.
+export function pinnedTarget(pin, passed = '', flag = '--plugin-ref') {
   const name = pin.pluginRef ?? DEFAULT_PLUGIN_REF
-  if (passed !== '' && passed !== name) throw new Error(`--plugin-ref=${passed} is not the ref the round pinned: pass --plugin-ref=${name} or leave it out`)
+  if (passed !== '' && passed !== name) throw new Error(`${flag}=${passed} is not the ref the round pinned: pass ${flag}=${name} or leave it out`)
   return { ref: pin.pluginCommit ?? name, name }
 }
 
 // A batch's checks of the plugin under test, before any paid run, and what its runs need from them.
-export function batchPlugin(plugin, pin, passedRef, { git = gitLine, readVersion = pluginVersionOf } = {}) {
-  const { ref, name } = pinnedTarget(pin, passedRef)
+export function batchPlugin(plugin, pin, passedRef, { git = gitLine, readVersion = pluginVersionOf, checkBinary = checkPin, flag } = {}) {
+  const { ref, name } = pinnedTarget(pin, passedRef, flag)
   const pluginCommit = pluginCommitOf(plugin, { ref, name, git })
   checkPluginWorktree(plugin, { ref, name: `${name} (${pluginCommit})`, git })
-  checkPin(plugin, pin)
+  checkBinary(plugin, pin)
   return { pluginCommit, pluginVersion: readVersion(plugin) }
 }
+
+// The control arm's checks: its own worktree, apart from --plugin's, at the ref and commit the pin's base entry recorded.
+function baseArm({ plugin, basePlugin, baseRef, tag }, pin, deps) {
+  if (pin.base === undefined) throw new Error(`round ${tag} pinned no base setup: run its preflight with --conds naming base`)
+  if (basePlugin !== '' && samePath(basePlugin, plugin)) throw new Error(`--base-plugin= and --plugin= name one folder, ${basePlugin}: each arm needs its own worktree`)
+  const armPin = { ...pin, ...pin.base }
+  return { pluginDir: basePlugin, pluginRef: pinnedTarget(armPin, baseRef, '--base-ref').name, ...batchPlugin(basePlugin, armPin, baseRef, { ...deps, flag: '--base-ref' }) }
+}
+
+// The plugin each setup loads, and what its run.json records: team and max the --plugin worktree, base the --base-plugin
+// one, solo none (it still names --plugin's folder, with section-team off, as before the control arm). Before any paid run.
+export function batchArms({ plugin, pluginRef = '', basePlugin = '', baseRef = '', conds, tag = '', live = null }, pin, deps = {}) {
+  checkLiveCheckout(live, [plugin, ...(basePlugin === '' ? [] : [basePlugin])])
+  const team = { pluginDir: plugin, pluginRef: pinnedTarget(pin, pluginRef).name, ...batchPlugin(plugin, pin, pluginRef, deps) }
+  const base = conds.includes('base') ? baseArm({ plugin, basePlugin, baseRef, tag }, pin, deps) : null
+  return { team, base, solo: { pluginDir: plugin, pluginRef: null, pluginCommit: null, pluginVersion: null } }
+}
+
+export const armOf = (arms, base) => (base === 'solo' ? arms.solo : base === 'base' ? arms.base : arms.team)
 
 // ~/.claude/skills and ~/.claude/agents (synced/ left out), like the preflight's syncedListing: the user's own skills
 // and agents, which every init lists.
@@ -257,11 +292,13 @@ function changedEntriesLine(paths) {
 // One run of the batch with the user's skills and agents checked against the batch start, before and after it: a
 // change stops the batch naming the run and the entries, before another paid run starts on a setup unlike the pin.
 // A run that stops on its own keeps its stop (and exit code); a change it made, or a failure to list, is said with log.
-export function watchUserLists(one, { home, log = console.error } = {}) {
+// claudeDir: the round's profile when it has one; the batch watches the skills and agents its runs load.
+export function watchUserLists(one, { home, claudeDir = null, log = console.error } = {}) {
   required({ home })
-  const start = new Set(userListing(join(home, '.claude')))
+  const watched = claudeDir ?? join(home, '.claude')
+  const start = new Set(userListing(watched))
   const changeLine = (run, when) => {
-    const now = new Set(userListing(join(home, '.claude')))
+    const now = new Set(userListing(watched))
     const added = [...now].filter(path => !start.has(path))
     const removed = [...start].filter(path => !now.has(path))
     if (added.length + removed.length === 0) return null
@@ -291,10 +328,10 @@ export function watchUserLists(one, { home, log = console.error } = {}) {
 }
 
 // initProblems judges these setups only, so a round runs no other (forced included); the preflight checks each.
-export const ROUND_CONDS = ['solo', 'team', 'max']
+export const ROUND_CONDS = ['solo', 'team', 'max', 'base']
 export function checkConds(conds) {
   const other = conds.find(cond => !ROUND_CONDS.includes(cond))
-  if (other !== undefined) throw new RangeError(`a round runs solo, team and max only, got "${other}": pass --conds=${ROUND_CONDS.join(',')}`)
+  if (other !== undefined) throw new RangeError(`a round runs solo, team, max and base only, got "${other}": pass --conds=solo,team,max`)
 }
 
 const taskFiles = task => (isStaged(task)
@@ -336,12 +373,12 @@ export function freshRepo(dir, { seed = null, root } = {}) {
 
 // The --settings env value alone does not reach the plugin's hooks when the shell already sets the variable
 // (preflight, 2026-10-30), so builder runs get the round's switches in their process environment too.
-export const builderEnv = (env, { pluginDir }) => childEnv(env, { pluginDir })
+export const builderEnv = (env, { pluginDir, memoryLimitMb = null, configDir = null }) => childEnv(env, { pluginDir, memoryLimitMb, configDir })
 
 // stream-json writes the init as raw.json's first line, so a run killed at its time limit keeps it. Every setup
 // loads plugins from the worktree; only solo turns section-team off.
-export function builderArgs(base, prompt, { sessionId, resume = false, installedKeys, pluginDir }) {
-  const settings = cleanSettings({ installedKeys, sectionTeam: base !== 'solo', pluginDir })
+export function builderArgs(base, prompt, { sessionId, resume = false, installedKeys, pluginDir, memoryLimitMb = null }) {
+  const settings = cleanSettings({ installedKeys, sectionTeam: base !== 'solo', pluginDir, memoryLimitMb })
   return ['-p', prompt, '--output-format', 'stream-json', '--allowedTools', ALLOWED, ...commonArgs({ sessionId, resume }), '--settings', JSON.stringify(settings)]
 }
 
@@ -450,7 +487,7 @@ function runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeout
   const base = baseOf(run)
   const prompt = PREFIX + readFileSync(join(bench, 'tasks', promptFile(run.task, stage)), 'utf8') + (base === 'forced' ? FORCED_SUFFIX : '')
   const { binary } = ctx.pin
-  const args = builderArgs(base, prompt, { sessionId, resume: stage > 1, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir })
+  const args = builderArgs(base, prompt, { sessionId, resume: stage > 1, installedKeys: ctx.installedKeys, pluginDir: ctx.pluginDir, memoryLimitMb: ctx.memoryLimitMb ?? null })
   return new Promise((resolve, reject) => {
     const started = Date.now()
     const child = spawn(binary, args, spawnOptions(dir, env))
@@ -565,13 +602,45 @@ async function stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, up
   return { info: { ...info, wallMs: sum('wallMs'), startedAt: stages[0].startedAt, stages, snapshot, stagesAsked: last }, messages, extraReasons }
 }
 
+// Claude Code's project folder for a run folder under claudeDir (~/.claude, or the round's profile): transcripts and
+// auto-memory. For ~/.claude it is run-attempts.mjs's projectDirFor.
+export const projectDirIn = (claudeDir, runDir) => join(claudeDir, 'projects', runDir.replace(/[^a-zA-Z0-9]/g, '-'))
+const SESSION_ID = /^[A-Za-z0-9-]+$/
+
+// copyEvidence's evidence folder, for a run whose transcripts sit in claudeDir. With the round's profile they are there,
+// while the plugin's hooks still write the mode record under the home (hooks/lib/mode-record.mjs reads os.homedir()).
+// ponytail: copyEvidence (run-attempts.mjs) takes one home for both; fold claudeDir into it when that file is open.
+export function copyRunEvidence({ runDir, sessionId, outDir, base, home, claudeDir, bestEffort = false }) {
+  required({ home, claudeDir })
+  if (samePath(claudeDir, join(home, '.claude'))) return copyEvidence({ runDir, sessionId, outDir, base, home, bestEffort })
+  if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) throw new TypeError(`copyRunEvidence needs a plain session id, got "${sessionId}"`)
+  const project = projectDirIn(claudeDir, runDir)
+  const evidence = join(outDir, 'evidence')
+  const record = join('.claude', 'section-team', 'modes', `${sessionId}.json`)
+  const items = [
+    { from: join(project, `${sessionId}.jsonl`), to: join(evidence, `${sessionId}.jsonl`), required: true },
+    { from: join(project, sessionId), to: join(evidence, sessionId), required: false },
+    { from: join(home, record), to: join(evidence, record), required: base !== 'solo' },
+  ]
+  const missing = items.find(item => item.required && !existsSync(item.from))
+  if (missing && !bestEffort) throw new EvidenceMissing(`evidence missing for ${sessionId}: ${missing.from}`, missing.from)
+  return items.filter(item => existsSync(item.from)).flatMap(item => {
+    cpSync(item.from, item.to, { recursive: true })
+    return filesAt(item.to)
+  })
+}
+
+// What run.json records of the setup beside its commit: the arm's ref and version, the profile and the memory limit.
+const setupRecord = ctx => ({ pluginRef: ctx.pluginRef ?? null, pluginVersion: ctx.pluginVersion ?? null, configDir: ctx.configDir ?? null, memoryLimitMb: ctx.memoryLimitMb ?? null })
+
 // One attempt of a run: archive the earlier one, a fresh session id, the run, its evidence, then run.json or a stop.
-// ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit }, built once per batch by main; deps let tests replace the
+// ctx = { pin, installedKeys, pluginDir, pluginVersion, pluginCommit, pluginRef, configDir, memoryLimitMb }, built per setup by main; deps let tests replace the
 // spawn, the kill and the time limit. deps also name what a run moves or wipes (realRunDeps for a real batch), with no default.
 export async function runOne(run, outDir, ctx, deps = {}) {
   const { spawn, kill = killTree, timeoutMs = timeoutFor(run.task, baseOf(run)) * 60_000, home, dir, root, bench } = deps
   required({ outDir, home, dir, root, spawn })
-  archiveAttempt(outDir, projectDirFor(dir, home))
+  const claudeDir = ctx.configDir ?? join(home, '.claude')
+  archiveAttempt(outDir, projectDirIn(claudeDir, dir))
   mkdirSync(outDir, { recursive: true })
   const sessionId = randomUUID()
   const attempt = nextAttempt(outDir)
@@ -584,7 +653,7 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   }
   writeFileSync(join(outDir, 'session.json'), `${JSON.stringify({ sessionId, attempt }, null, 2)}\n`)
   prepareRun(run, { dir, root })
-  const env = builderEnv(process.env, { pluginDir: ctx.pluginDir })
+  const env = builderEnv(process.env, { pluginDir: ctx.pluginDir, memoryLimitMb: ctx.memoryLimitMb ?? null, configDir: ctx.configDir ?? null })
   console.log(`${new Date().toISOString()} start ${run.id} attempt ${attempt}`)
   const claude = stage => runClaude(run, dir, outDir, ctx, { sessionId, env, spawn, kill, timeoutMs, stage, bench })
   const { info, messages, extraReasons } = isStaged(run.task) ? await stagedRun(claude, { run, outDir, dir, sessionId, attempt, ctx, upTo: ctx.upTo }) : await singleStage(claude, outDir)
@@ -592,12 +661,12 @@ export async function runOne(run, outDir, ctx, deps = {}) {
   const bestEffort = ended === 'api-limit' || ended === 'api-other'
   let copied
   try {
-    copied = copyEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, bestEffort })
+    copied = copyRunEvidence({ runDir: dir, sessionId, outDir, base: baseOf(run), home, claudeDir, bestEffort })
   } catch (err) {
     throw err instanceof EvidenceMissing ? withInitProblems(err, { run, outDir, sessionId, attempt, messages, ctx }) : err
   }
   const evidenceTexts = copied.filter(file => file.endsWith('.jsonl')).map(file => readFileSync(file, 'utf8'))
-  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info, messages, ctx, evidenceTexts, extraReasons, env })
+  const { kind } = finishAttempt({ run, outDir, dir, sessionId, attempt, info: { ...info, ...setupRecord(ctx) }, messages, ctx, evidenceTexts, extraReasons, env })
   console.log(`${new Date().toISOString()} end   ${run.id} ${kind} exit=${info.exitCode} wall=${Math.round(info.wallMs / 1000)}s`)
 }
 
@@ -618,6 +687,16 @@ export function checkVolumes({ root, others } = {}) {
 const REAL_MEMORY = { root: MEMORY_ROOT, backup: MEMORY_BACKUP }
 const REAL_VOLUMES = { root: MEMORY_ROOT, others: [homedir(), RESULTS] }
 const realRunDeps = run => ({ home: homedir(), dir: runFolder(run), root: RUNS, spawn: nodeSpawn })
+
+// What a batch needs from the process environment and its pin, all checked before any paid run: the round's settings
+// match the pin, and each setup's worktree its pinned ref. Returns the ctx of each run's setup.
+function batchContexts(args, pin) {
+  const memoryLimitMb = memoryLimitOf()
+  checkRoundSettings({ conds: args.conds, configDir: args.configDir, memoryLimitMb, runsRoot: RUNS }, pin)
+  const arms = batchArms({ ...args, live: liveCheckoutOf() }, pin)
+  const shared = { pin, installedKeys: installedPluginKeys(homedir(), { configDir: args.configDir }), upTo: args.stages, configDir: args.configDir, memoryLimitMb }
+  return run => ({ ...shared, ...armOf(arms, baseOf(run)) })
+}
 
 function restoreMemory({ force = false } = {}) {
   checkVolumes(REAL_VOLUMES)
@@ -643,7 +722,8 @@ export function stopRunOnExit({ stop = stopActiveChild } = {}) {
 async function main() {
   const argv = process.argv.slice(2)
   if (argv.includes('--restore-memory')) return restoreMemory({ force: argv.includes('--force') })
-  const { tag, round, conds, tasks, reps, filters, plugin, pluginRef, rerun, reason, sync, noSync, redactEmail, stages } = parseArgs(argv)
+  const args = parseArgs(argv)
+  const { tag, round, conds, tasks, reps, filters, configDir, rerun, reason, sync, noSync, redactEmail } = args
   requireFlags(argv, ['tasks', 'reps'])
   checkRoundTag({ round, tag })
   const syncBranch = syncBranchOf({ sync, noSync })
@@ -653,13 +733,14 @@ async function main() {
   const problems = taskProblems(tasks)
   if (problems.length) throw new Error(`cannot run these tasks: ${problems.join('; ')}`)
   const pin = readPin(RESULTS, tag)
-  const ctx = { pin, installedKeys: installedPluginKeys(), pluginDir: plugin, upTo: stages, ...batchPlugin(plugin, pin, pluginRef) }
+  const ctxFor = batchContexts(args, pin)
+  checkRunsRoot(RUNS)
   const runs = plan({ tag, conds, tasks, reps }).filter(r => filters.length === 0 || filters.some(f => r.id.includes(f)))
   mkdirSync(RESULTS, { recursive: true })
   const todo = pendingRuns(runs, { results: RESULTS, rerun, reason, at: new Date().toISOString() })
   for (const run of runs.filter(r => !todo.includes(r))) console.log(`skip ${run.id} (done)`)
   const publish = syncBranch === null ? null : await publisher({ runs, tag, options: { branch: syncBranch, redactEmail } })
-  const one = watchUserLists(withPublish((r, o) => runOne(r, o, ctx, realRunDeps(r)), publish), { home: homedir() })
+  const one = watchUserLists(withPublish((r, o) => runOne(r, o, ctxFor(r), realRunDeps(r)), publish), { home: homedir(), claudeDir: configDir })
   await runAll(todo, { results: RESULTS, runOne: one })
   console.log('all runs finished')
 }

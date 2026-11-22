@@ -356,3 +356,20 @@ export function readPin(results, round) {
   if (typeof pin.binary !== 'string' || pin.binary === '') throw new Error(`the round ${round} pin names no binary: run node bench/preflight.mjs --round=${round} again`)
   return pin
 }
+
+// A batch runs on what its preflight pinned: the same profile, memory limit, run-folder root and setups (a subset of
+// them). A pin from before these fields pinned no profile and no limit, and any root and setups.
+export function checkRoundSettings({ conds, configDir, memoryLimitMb, runsRoot }, pin) {
+  const profile = pin.configDir ?? null
+  if (configDir === null ? profile !== null : profile === null || !samePath(configDir, profile)) {
+    const fix = profile === null ? 'leave --config-dir out' : `pass --config-dir=${profile}`
+    throw new Error(`--config-dir=${configDir ?? ''} is not the profile the round pinned (${profile ?? 'none'}): ${fix}`)
+  }
+  const limit = pin.memoryLimitMb ?? null
+  if (memoryLimitMb !== limit) throw new Error(`SECTION_TEAM_MEMORY_LIMIT_MB is ${memoryLimitMb ?? 'unset'}, but the round pinned ${limit ?? 'none'}: set it as the preflight had it`)
+  if (pin.runsRoot !== undefined && !samePath(runsRoot, pin.runsRoot)) {
+    throw new Error(`the run folders' root is ${runsRoot}, but the round pinned ${pin.runsRoot}: set BENCH_RUNS as the preflight had it`)
+  }
+  const unpinned = Array.isArray(pin.conds) ? conds.filter(cond => !pin.conds.includes(cond)) : []
+  if (unpinned.length > 0) throw new Error(`--conds names ${unpinned.join(', ')}, which the round's preflight did not run`)
+}

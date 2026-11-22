@@ -4,13 +4,34 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  BENCH_EFFORT, BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION, advisorProblems, checkLiveCheckout, childEnv, cleanSettings, commonArgs,
-  compacted, effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckoutOf, liveCheckouts, memoryLimitOf, outputMessages,
-  pluginVersionOf, readPin, resultOf,
+  BENCH_EFFORT, BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION, advisorProblems, checkLiveCheckout, checkRoundSettings, childEnv, cleanSettings,
+  commonArgs, compacted, effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckoutOf, liveCheckouts, memoryLimitOf,
+  outputMessages, pluginVersionOf, readPin, resultOf,
 } from './clean-run.mjs'
 
 // The user's own checkout in these tests (SECTION_TEAM_LIVE_CHECKOUT on a real round).
 const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
+
+// A batch runs on what its preflight pinned: the same profile, memory limit, run-folder root and setups.
+test('checkRoundSettings holds a batch to the pin\'s profile, memory limit, runs root and setups; an older pin to none of them', () => {
+  const pin = { conds: ['solo', 'base', 'team'], configDir: 'C:/bench-profile-nx', memoryLimitMb: '12288', runsRoot: 'C:/bench-runs-nx' }
+  const batch = { conds: ['solo', 'base', 'team'], configDir: 'C:/Bench-Profile-NX/', memoryLimitMb: '12288', runsRoot: 'C:/bench-runs-nx' }
+  assert.doesNotThrow(() => checkRoundSettings(batch, pin))
+  assert.doesNotThrow(() => checkRoundSettings({ ...batch, conds: ['team'] }, pin), 'a batch may run some of the pinned setups')
+  const cases = [
+    [{ configDir: null }, '--config-dir= is not the profile the round pinned (C:/bench-profile-nx): pass --config-dir=C:/bench-profile-nx'],
+    [{ configDir: 'C:/other' }, '--config-dir=C:/other is not the profile the round pinned (C:/bench-profile-nx): pass --config-dir=C:/bench-profile-nx'],
+    [{ memoryLimitMb: null }, 'SECTION_TEAM_MEMORY_LIMIT_MB is unset, but the round pinned 12288: set it as the preflight had it'],
+    [{ memoryLimitMb: '8192' }, 'SECTION_TEAM_MEMORY_LIMIT_MB is 8192, but the round pinned 12288: set it as the preflight had it'],
+    [{ runsRoot: 'C:/Users/me/bench-runs' }, 'the run folders\' root is C:/Users/me/bench-runs, but the round pinned C:/bench-runs-nx: set BENCH_RUNS as the preflight had it'],
+    [{ conds: ['solo', 'max'] }, '--conds names max, which the round\'s preflight did not run'],
+  ]
+  for (const [change, message] of cases) assert.throws(() => checkRoundSettings({ ...batch, ...change }, pin), { message }, message)
+  const older = { binary: 'b' }
+  assert.doesNotThrow(() => checkRoundSettings({ conds: ['solo', 'team', 'max'], configDir: null, memoryLimitMb: null, runsRoot: 'C:/anywhere' }, older))
+  assert.throws(() => checkRoundSettings({ conds: ['team'], configDir: 'C:/p', memoryLimitMb: null, runsRoot: 'C:/r' }, older),
+    { message: '--config-dir=C:/p is not the profile the round pinned (none): leave --config-dir out' })
+})
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {

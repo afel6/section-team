@@ -170,7 +170,7 @@ function refusingCli(t) {
   mkdirSync(results)
   mkdirSync(join(home, '.claude', 'plugins'), { recursive: true })
   writeFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), '{"plugins":{}}')
-  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, BENCH_RESULTS: results }
+  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, BENCH_RESULTS: results, SECTION_TEAM_LIVE_CHECKOUT: join(home, 'live') }
   const run = (script, ...args) => spawnSync(process.execPath, [join(import.meta.dirname, script), ...args], { cwd: home, env, encoding: 'utf8', windowsHide: true, timeout: 30_000 })
   return { home, results, run }
 }
