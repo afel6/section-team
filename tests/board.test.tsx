@@ -581,6 +581,64 @@ test('a failed status write is retried on the next tick, logged once to the debu
   expect(seen.logs).toHaveLength(1)
 })
 
+// A project set to off: the poll slows to every 10 s while no pane is open, and the status file /chats and the hooks read is still written.
+const OFF = '{"mode":"off"}'
+
+test('in an off project the poll runs every 10 s, and the status file is still written, its heartbeat included', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = OFF
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+  await clock.advance(9000)
+  expect(seen.agentList).toBe(1)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  // A working chat's 60 s heartbeat lands on the slow tick due with it.
+  await clock.advance(50000)
+  expect(seen.agentList).toBe(7)
+  expect(statusOf(seen, 's1').map(s => s.updatedAt)).toEqual([1000, 61000])
+})
+
+const FAST_AGAIN: Record<string, ($: never) => Promise<unknown>> = {
+  'the Team Board opens': $ => team($, ''),
+  "the strip's Board button opens it": async $ => (await mountStrip($)).press({ key: 'open-board' }),
+  'the Chats pane opens': $ => ($ as { command: { run: (e: never) => Promise<unknown> } }).command.run({ command: 'chats' } as never),
+  'the project is set back to balanced': $ => team($, 'mode balanced'),
+}
+
+for (const [what, act] of Object.entries(FAST_AGAIN)) {
+  test(`an off project polls every second again once ${what}`, async ($, on) => {
+    const { clock, seen } = world(on)
+    seen.disk[MODE_PATH] = OFF
+
+    await $.session.start(START)
+    await clock.advance(2000)
+    expect(seen.agentList).toBe(1)
+    await act($ as never)
+    await clock.advance(2000)
+    expect(seen.agentList).toBe(3)
+  })
+}
+
+test('a new session in an off project polls on its first tick, then every 10 s', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = OFF
+
+  await $.session.start(START)
+  await clock.advance(2000)
+  expect(seen.agentList).toBe(1)
+  seen.sessionId = 's2'
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  expect(statusOf(seen, 's2')).toHaveLength(1)
+  await clock.advance(9000)
+  expect(seen.agentList).toBe(2)
+})
+
 // The /chats dashboard: the status folder is answered beneath the plugin by world(), from seen.chats.
 const chat = (sessionId: string, change: object = {}) =>
   JSON.stringify({ sessionId, cwd: `C:/x/${sessionId}`, project: sessionId, request: `job ${sessionId}`, state: 'needs-you', sections: [], helpers: 0, tokens: 0, startedAt: T0 - 5 * MINUTE, updatedAt: T0 - MINUTE, ended: false, ...change })
@@ -631,8 +689,8 @@ test('closing the Chats pane stops the poll reading the status folder, and /chat
   const onClose = hookFor('ui.close', { id: 'team-chats' })
   expect(chatsRun).toBeDefined()
   expect(onClose).toBeDefined()
-  // Only the Chats pane has a close hook: closing the Team Board leaves the poll alone.
-  expect(registered.filter(r => r.event === 'ui.close')).toHaveLength(1)
+  // Each pane has its own close hook: closing the Team Board leaves the status folder alone (it only slows an off project's poll).
+  expect(registered.filter(r => r.event === 'ui.close').map(r => r.matcher)).toEqual([{ id: 'team-board' }, { id: 'team-chats' }])
 
   await chatsRun!($, { command: 'chats' })
   const opened = reads.lists
@@ -658,6 +716,55 @@ test('closing the Chats pane stops the poll reading the status folder, and /chat
   tick()
   await flush()
   expect(reads.lists).toBeGreaterThan(reopened)
+})
+
+test('closing the Team Board in an off project slows the poll to every 10 s again, and /team brings the 1 s poll back', async () => {
+  const registered: Registered[] = []
+  register(((event: string, matcher: unknown, hook?: Registered['hook']) => {
+    registered.push(hook ? { event, matcher, hook } : { event, matcher: undefined, hook: matcher as Registered['hook'] })
+  }) as never)
+  const hookFor = (event: string, matcher: unknown) => registered.find(r => r.event === event && JSON.stringify(r.matcher) === JSON.stringify(matcher))?.hook
+  let tick = () => {}
+  let now = T0
+  const polls = { n: 0 }
+  const disk: Record<string, string> = {}
+  // Enough engine for /team mode to save the file and for each poll to list the agents; the rest of a poll fails and is logged.
+  const $ = {
+    clock: { every: (_ms: number, run: () => void) => { tick = run; return {} }, now: async () => now },
+    env: { get: async () => undefined },
+    agent: { list: async () => { polls.n += 1; return [] } },
+    session: { cwd: async () => 'C:/proj', root: async () => 'C:/proj' },
+    process: { run: async () => ({ exitCode: 128, stdout: '', stderr: '' }) },
+    fs: {
+      stat: async () => { throw new Error('ENOENT') },
+      exists: async (path: string) => path in disk,
+      read: async (path: string) => disk[path],
+      write: async (path: string, text: string) => { disk[path] = text },
+      list: async () => [],
+    },
+    ui: { open: async () => ({ isPlaced: true }), log: () => {} },
+  }
+  const second = async () => { now += 1000; tick(); await flush() }
+  const teamRun = hookFor('command.run', { command: 'team' })
+  const onClose = hookFor('ui.close', { id: 'team-board' })
+
+  await teamRun!($, { command: 'team', args: 'mode off' })
+  expect(disk['C:/proj/.team/mode.json']).toBe(OFF)
+  await teamRun!($, { command: 'team' })
+  await second()
+  await second()
+  expect(polls.n).toBe(2)
+
+  const event = { id: 'team-board', origin: { kind: 'person' } }
+  expect(await onClose!($, event, async () => 'next-result')).toBe('next-result')
+  for (let i = 0; i < 9; i++) await second()
+  expect(polls.n).toBe(2)
+  await second()
+  expect(polls.n).toBe(3)
+
+  await teamRun!($, { command: 'team' })
+  await second()
+  expect(polls.n).toBe(4)
 })
 
 test('the Chats pane draws one card per good file, needs-you first, and skips a file cut off mid-write', async ($, on) => {
