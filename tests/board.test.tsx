@@ -765,6 +765,11 @@ test('/team name renames a builder in the home names file, the card shows it, an
   expect(seen.disk[NAMES_PATH]).toBe('{"v":1,"names":{"frontend":"Nova"}}')
   await clock.advance(1000)
   expect(await cardText($ as never, 'frontend')).toContain('● Nova · frontend')
+  const desk = await mountOn($ as never, 'desktop')
+  const [picture] = await desk.findAll({ type: 'Svg' })
+  await desk.unmount()
+  expect(picture.props.source).toContain('>Nova</text>')
+  expect(picture.props.alt).toContain('Nova (frontend)')
 
   expect(await team($ as never, 'name frontend')).toEqual({ text: 'Nova is back to Iris (frontend).' })
   expect(seen.disk[NAMES_PATH]).toBe('{"v":1,"names":{}}')
@@ -900,6 +905,7 @@ test('on desktop the board draws the office picture, with its alt text, in place
   const svgs = await ui.findAll({ type: 'Svg' })
   expect(svgs).toHaveLength(1)
   expect(svgs[0].props.alt).toMatch(/^The office:/)
+  expect(svgs[0].props.alt).toContain('Iris (frontend) running')
   for (const prop of ['width', 'height', 'isInteractive']) expect(svgs[0].props[prop]).toBeUndefined()
   expect(await ui.find({ key: 'asleep' })).toBeUndefined()
   expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('● Iris · frontend')
@@ -945,7 +951,7 @@ test('a builder that wakes walks to its desk, the walk carries on across a rebui
 
   seen.agents = [{ ...FRONTEND, status: 'waiting' }]
   await clock.advance(1000)
-  expect(await officeSource($ as never)).toContain('-1s both}')
+  expect(await officeSource($ as never)).toContain('.wk0{animation:wk0 2.2s ease-in-out -1s both}')
 
   await clock.advance(2500)
   expect(await officeSource($ as never)).not.toContain('.wk0{')
