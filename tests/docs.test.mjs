@@ -18,7 +18,7 @@ const assertIncludes = (text, needles, label) => {
 // Sentences that make a saving or quality claim without saying it is unmeasured.
 const claimSentences = text => text.split(/(?<=[.!?])\s+|\n/).filter(s => CLAIM_WORDS.test(s) && !DISCLAIMED.test(s))
 
-const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
+const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 test('the claim check catches claim words and accepts a disclaimed sentence', () => {
   for (const claim of ['It will save money.', 'Tokens were saved.', 'Quality improved.', 'It reduces the bill.', 'You get lower cost.', 'You get better quality.', 'It uses much less.']) {
