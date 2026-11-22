@@ -16,8 +16,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 26
       - name: Hook and agent tests
@@ -26,6 +26,12 @@ jobs:
         run: node scripts/gen-agents.mjs --check
       - name: Benchmark scorer tests
         run: node --test bench/*.test.mjs
+      # Informational: no threshold. Sums lcov LF/LH over hooks/ files only.
+      - name: hooks/ line coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          node --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info tests/*.test.mjs
+          awk -F: '/^SF:/{h=(index($2,"hooks/")==1)} h&&/^LF:/{f+=$2} h&&/^LH:/{l+=$2} END{if(f>0)printf "hooks/ line coverage: %.1f%% (%d of %d lines)\n",100*l/f,l,f; else print "hooks/ line coverage: no data"}' lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
   # The oldest Node versions the README promises. The hooks run on the user's Node; the bench harness does not.
   hooks-on-oldest-node:
@@ -35,9 +41,28 @@ jobs:
         node: ['20.16.0', '22.3.0']
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
       - name: Hook and agent tests
         run: npm test
+
+  # Time-boxed trial: needs the Claude Code CLI. continue-on-error so an auth requirement cannot fail the build.
+  # If a step needs login, delete that step; if both do, delete the job. README.md already says the board tests run only locally.
+  board-and-validate:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26
+      - name: Install Claude Code 2.1.318
+        run: npm install -g @anthropic-ai/claude-code@2.1.318
+      - name: Team Board tests
+        run: npm run test:board
+      - name: Plugin validation
+        if: ${{ !cancelled() }}
+        run: npm run validate
