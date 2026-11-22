@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 // The settings files Claude Code reads from a project folder. A cloned repo can commit either one, and Claude Code hands their env to the
 // hooks and to every command, so a value there cannot be told apart from one the user set in ~/.claude/settings.json.
@@ -38,4 +38,16 @@ export function projectEnvSets(root, name) {
     const text = settingsText(join(root, '.claude', file))
     return text !== null && textSets(text, name)
   })
+}
+
+// Whether two paths name one folder; Windows paths differ in letter case only.
+const sameFolder = (a, b) => {
+  const [x, y] = [resolve(a), resolve(b)]
+  return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y
+}
+
+// projectEnvSets for each project folder Claude Code may read settings from (the session's folder and the project root), skipping the
+// home folder: its .claude/settings.json is the user's own ~/.claude/settings.json, which is where the variable belongs.
+export function projectFoldersSet(folders, name, home) {
+  return folders.filter(folder => !sameFolder(folder, home)).some(folder => projectEnvSets(folder, name))
 }

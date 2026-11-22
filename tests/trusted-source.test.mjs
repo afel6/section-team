@@ -100,6 +100,16 @@ test("refusal: the project's .claude settings set SECTION_TEAM_AUTO_INSTALL_SKIL
   assert.equal(checkWith('anthropics', { home, dir: sub }).code, 1)
 })
 
+test("a project root that is the home folder reads ~/.claude/settings.json as the user's own, not as project settings", () => {
+  const home = writeFile(homeWith(JSON.stringify(LIST)), ['.claude', 'settings.json'], JSON.stringify({ env: ON }))
+  assert.deepEqual(checkWith('anthropics', { home, dir: home }), { code: 0 })
+  if (process.platform === 'win32') assert.deepEqual(checkWith('anthropics', { home, dir: home.toUpperCase() }), { code: 0 }, 'letter case')
+  execFileSync('git', ['-C', home, 'init', '-q'])
+  const below = join(home, 'projects', 'x')
+  mkdirSync(below, { recursive: true })
+  assert.deepEqual(checkWith('anthropics', { home, dir: below }), { code: 0 }, 'a plain folder in a home that is a git repo')
+})
+
 test('refusal: the owner is in neither list', () => {
   const r = checkWith('anthropic', { home: homeWith(JSON.stringify(LIST)) })
   assert.equal(r.code, 1)

@@ -827,6 +827,22 @@ test('project settings that cannot be read keep installs off, with one warning t
   assert.equal(lines.length, 1)
 })
 
+test("a session in the home folder reads ~/.claude/settings.json as the user's own, not as project settings", () => {
+  const home = withProjectSettings(tempHome())
+  const atHome = startContext(home, home, ENV_ON, 'sess-h', { source: 'startup' })
+  assert.ok(atHome.context.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.deepEqual(atHome.warnings, [])
+  if (process.platform === 'win32') assert.deepEqual(startContext(home.toUpperCase(), home, ENV_ON, 'sess-h', { source: 'startup' }).warnings, [], 'letter case')
+  // A home that is a git repo: a plain folder below it has the home as its project root.
+  const repoHome = withProjectSettings(tempHome())
+  execFileSync('git', ['-C', repoHome, 'init', '-q'])
+  const below = join(repoHome, 'projects', 'x')
+  mkdirSync(below, { recursive: true })
+  const belowStart = startContext(below, repoHome, ENV_ON, 'sess-h', { source: 'startup' })
+  assert.ok(belowStart.context.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.deepEqual(belowStart.warnings, [])
+})
+
 test('project settings without the variable change nothing', () => {
   const { context, warnings } = startup(withProjectSettings(repo(), 'settings.json', { OTHER: '1' }), ENV_ON)
   assert.ok(context.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))

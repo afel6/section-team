@@ -6,7 +6,7 @@ import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
-import { projectEnvSets } from './lib/project-settings.mjs'
+import { projectFoldersSet } from './lib/project-settings.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -153,7 +153,7 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   ]
   const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
   // Claude Code reads .claude settings from the session's folder and the repo root; either one setting the variable turns installs off.
-  const projectEnv = attempt('project settings check', () => [cwd, root].some(dir => projectEnvSets(dir, AUTO_INSTALL_ENV)))
+  const projectEnv = attempt('project settings check', () => projectFoldersSet([cwd, root], AUTO_INSTALL_ENV, home))
   const projectEnvSet = projectEnv.value !== false // a check that failed counts as set: refuse rather than guess
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))

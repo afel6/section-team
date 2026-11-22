@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { projectEnvSets } from '../hooks/lib/project-settings.mjs'
+import { projectEnvSets, projectFoldersSet } from '../hooks/lib/project-settings.mjs'
 
 const VAR = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
 const tempRoot = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-settings-')))
@@ -50,4 +50,15 @@ test('a .claude that is a file is no settings; a settings path that is a folder 
   const folder = tempRoot()
   mkdirSync(join(folder, '.claude', 'settings.json'), { recursive: true })
   assert.throws(() => projectEnvSets(folder, VAR), err => err?.code === 'EISDIR')
+})
+
+test('projectFoldersSet checks every folder but the home folder, whose .claude/settings.json is the user\'s own', () => {
+  const home = withSettings(tempRoot(), 'settings.json', settingsJson({ [VAR]: '1' }))
+  const project = withSettings(tempRoot(), 'settings.local.json', settingsJson({ [VAR]: '1' }))
+  const clean = tempRoot()
+  assert.equal(projectFoldersSet([home], VAR, home), false)
+  assert.equal(projectFoldersSet([join(home, '.'), clean], VAR, home), false, 'the same folder written another way')
+  assert.equal(projectFoldersSet([clean, project], VAR, home), true)
+  assert.equal(projectFoldersSet([home, project], VAR, home), true)
+  if (process.platform === 'win32') assert.equal(projectFoldersSet([home.toUpperCase()], VAR, home), false, 'letter case')
 })
