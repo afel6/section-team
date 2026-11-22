@@ -1,0 +1,12 @@
+{
+  "p1-r1": {
+    "X": "team-py",
+    "Y": "max-py",
+    "Z": "solo-py"
+  },
+  "p1-r2": {
+    "X": "max-py",
+    "Y": "solo-py",
+    "Z": "team-py"
+  }
+}

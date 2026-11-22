@@ -1,0 +1,452 @@
+[
+  {
+    "pair": "h7-r1",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran: npm test (39/39 pass, 9.5 s) plus my probes in scratch (startup 123/123, API 389 of 398 with 4 of the 9 misses being probe artefacts, migration 67/69, 20000-part/100000-move migration in 304 ms, 15 kill-during-migration runs all left v1 or v2 intact and restarted fine, page-script harness 107/109). Strengths: smallest and most readable build (about 870 source lines); single-transaction migration with legacy_alter_table that keeps other tools' indexes, triggers, views and the id sequence (lib/migrate.mjs:50-67); exact BigInt sums; correct check order, messages and statuses on every ordinary route; locks give 503 after about 3.0 s and triggers give 500 with full rollback. Defects: (1) server.mjs:37 uses a bare http.createServer, so a method Node's parser does not know is not routed: `FOO /nope` and `FOO /api/parts` got Node's bare `400 Bad Request` with no JSON, `CONNECT /nope` got no reply at all, `Expect: bogus` got 417; the spec says 404/405 whatever the method. (2) lib/app.mjs:76 runs the whole handler, body checks included, inside the lock-retrying transaction, so `POST /api/parts` with a wrong Content-Type on a locked database answered 503 after 3116 ms instead of 415 (B and C: 415 in 3 ms); the 50 ms busy_timeout slices also block the event loop (page GET took 677 ms during a lock). (3) public/app.js:111-117: Load more disables #more, and when that fetch is superseded by a search that fails, line 113 returns early and line 117 only re-enables for the appending fetch, so #more stays disabled although `next` is not null. (4) public/index.html:20 adds a `disabled` attribute the spec's `<button type=\"button\" id=\"more\">` does not have. (5) lib/migrate.mjs:70 refuses migration on any foreign_key_check row, so a pre-existing violation in another tool's unrelated tables gave `cannot migrate database`; lib/migrate.mjs:38 reads sqlite_sequence without BigInts, so a v1 file with an id above 2^53 is also refused. (6) lib/store.mjs:42 returns ids through Number(): id 9007199254740993 came back as ...992. (7) lib/http.mjs:46 decodes with TextDecoder, which strips a BOM, so a BOM-prefixed body is accepted where B and C answer 400 (spec ambiguous). (8) Cached statements (lib/store.mjs:8-32) give one extra stale 500 after another tool restores a table it had renamed away. Nits: lib/handle.mjs:8 holds raw combining characters in the regex instead of \\u escapes; server.mjs:33 swallows every uncaughtException. Tests: of 12 mutations I applied to a copy, 2 survived (report `<=` changed to `<`; `q` needle not lowercased), and test/migrate.test.mjs:60-71 has no try/finally around the server, so a failing assertion leaks the child process and the run hangs (the dropped-id-sequence mutation hit the 300 s timeout and left server processes behind). README is accurate but brief."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (360 pass, 1 skipped as non-Windows only, 7.2 s) plus my probes (startup 123/123, API 391 of 398 with 5 misses being probe artefacts, migration 71/71, big migration 241 ms, 15 kill runs all intact, page harness 112/112, lock/trigger/concurrency probe 37/39). Strengths: every ordinary route, error text and check order matched; unknown methods, CONNECT and unknown Expect are routed like any request (src/http-edge.mjs:92-135, `FOO /nope` gave 404 JSON, `FOO /api/parts` 405); lock waits retry on a timer without blocking the event loop (src/transaction.mjs:52-63; 503 after 3007-3046 ms, 415 still immediate under lock); ids and sums exact through BigInt and JSON.rawJSON (src/reply.mjs:28-30, id 9007199254740993 round-trips); migration compares foreign-key problems before and after instead of refusing on unrelated ones (src/migrate.mjs:46-49, 121) and keeps the id sequence (src/migrate.mjs:64-72); page script re-derives #more from the shown list after every outcome (public/app.js:85), so the superseded-load-more case works. Defects: (1) src/request.mjs:62 parses with a reviver and lines 63-66 rethrow anything that is not a SyntaxError, so a valid body nested about 2000 deep (about 4 KB, well under the 10000-byte limit) overflows the reviver's recursion and answers 500 `internal error`: `[[[...]]]` should be 400 `body must be a JSON object`, and a valid object with a deeply nested ignored key should be processed (both got 500 at depth 2000 and 4900; fine at 1500). (2) Cached statements (src/queries.mjs:31-44) give one extra stale 500 after another tool restores a table it had renamed away (C recovers on the first request). (3) Numbers are judged from their source text (src/request.mjs:79-92), so 1.0000000000000000000001 is refused although JSON.parse yields 1; defensible reading, noted only. Code: clear small modules with comments, but about 400 lines of hand-written HTTP framing (src/http-edge.mjs, src/raw-request.mjs) add real complexity. Tests: broad (361 cases across API, startup, migration, front-end harness); 11 of 12 of my mutations were caught, the survivor being the `q` needle no longer lowercased; they also miss the deep-nesting 500. README is complete and accurate (startup table, migration, API, tests)."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (349/349 pass, 12.9 s) plus my probes (startup 122/123, API 393 of 398 with all 5 misses being probe artefacts, migration 71/71, big migration 309 ms, 15 kill runs all intact, page harness 112/112, lock/trigger/concurrency probe 39/39). Strengths: the only build with no functional miss in my probes. Unknown methods, CONNECT, unknown Expect and even a refused request target are answered by the route rules (src/raw-requests.mjs:289-341); deep JSON nesting is safe because numbers are read by a non-recursive scanner instead of a reviver (src/body.mjs:44-52, src/json-members.mjs:52-68; depth 4900 handled, B fails here); lock retries are timer-based (src/tx.mjs:25-49; 503 after about 3.0 s, validation errors immediate); statements are prepared per request, so it recovers at once after another tool's schema change; migration checks the v1 column list, drops and recreates other tools' indexes and triggers, restores the sequence and verifies stored SQL, other schema rows and row counts before committing (src/migrate.mjs:124-150); a refused database is only ever opened read-only (src/db-inspect.mjs:92-105); ids exact above 2^53; page script correct in every overlap case, including #more after a superseded load-more (public/app.js:75-77, 106-117). Defects: (1) src/db-inspect.mjs:100 opens the file read-only, and for a refused WAL-mode database that leaves `-shm` and `-wal` files beside it (A and B leave none); the database file itself was byte-identical. (2) src/db-inspect.mjs:76-86 copies the whole database plus journal into os.tmpdir() whenever a side file exists (after every killed migration), a full extra copy of real data outside the working folder. (3) Like B it judges numbers from source text, so 1.0000000000000000000001 is refused (defensible, noted only). Code: well named and commented, but the heaviest of the three: src/raw-requests.mjs is 355 lines of hand-written HTTP framing, plus a custom JSON member scanner and the temp-copy inspection; statements are re-prepared on every call (src/parts.mjs:27). Tests: 349 cases with separate harnesses for server and page, large-migration, hot-journal and concurrency files; all 12 of my mutations were caught and failing runs ended cleanly. README (499 lines) is the most complete: full API reference with examples, schema, migration, page behaviour, tests, smoke script."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "h6-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (348 tests, 346 pass, 2 skipped on win32: test/cli.test.mjs:206-219 permission cases); my library probe scratch/libprobe.mjs (378 checks: pointer grammar, form-rule order, own-member rules, index grammar, move/copy semantics, test equality, -0, member order, __proto__, no sharing, frozen inputs, 200k-deep values) = 0 real failures; my CLI probe scratch/cliprobe.mjs (112 checks: usage, read errors incl. directory and file/x, 1048576 vs 1048577 bytes for files and stdin, BOM, 7 invalid-UTF-8 shapes, depth 1000/1001, 400k-deep input, check order, stdin left open, exit codes) = 0 real failures (the 1 reported mismatch in each probe was my own wrong expectation). Mutation run scratch/mutate.mjs: its tests killed 25 of 25 seeded bugs. Strengths: library is one self-contained file, iterative clone/equality (jsonpatch.mjs:56-96), own-member writes via defineProperty (jsonpatch.mjs:42-49), clear form check (jsonpatch.mjs:184-196); CLI reads at most limit+1 bytes from the handle and never trusts stat size (jsonpatch-cli.mjs:50-67), stdin untouched until the patch passes; README has full exit/message table. Defects: jsonpatch-cli.mjs:156 prints with native JSON.stringify, so a valid run whose result is about 4000 levels deep (doc 1000 deep plus two copy ops, scratch/deepout.mjs) fails with 'Error: unexpected failure' exit 1 (jsonpatch-cli.mjs:164) instead of printing; depth 3000 still works. Minor: jsonpatch.mjs:22 and jsonpatch-cli.mjs:20 throw classes that are not Error subclasses (no stack); the 'unexpected failure' line is undocumented in README. Linux-only paths (EACCES, ENOTDIR) reviewed by reading only, not run (Windows host)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 5,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran: npm test (15 tests, all pass); same probes as the others: scratch/libprobe.mjs 378 checks and scratch/cliprobe.mjs 112 checks, 0 real failures, so functional behaviour on the spec's named cases matches A and C. Strengths: compact, readable library (jsonpatch.mjs, 215 lines) with iterative deepCopy/deepEqual (jsonpatch.mjs:37-74), correct move order (from followed before the same-path shortcut, jsonpatch.mjs:185-186), chunked handle read counting real bytes (jsonpatch-cli.mjs:54-70). Defects: (1) jsonpatch-cli.mjs:142 uses native JSON.stringify and jsonpatch-cli.mjs:145 rethrows any non-CliError, so a valid run with a result about 4000 levels deep (doc 1000 deep plus two copy ops, scratch/deepout.mjs) dies with an uncaught RangeError: a 10-line stack trace on stderr, exit 1, nothing printed; depth 3000 works. (2) Tests are thin: 2 files, 15 tests (test/jsonpatch.test.mjs, test/cli.test.mjs); in my mutation run 4 of 25 seeded bugs survived: following inherited members, inherited path/from members, and both size-limit off-by-ones (no test of exactly 1048576 bytes; test/cli.test.mjs:49-51 only tests 1048577). No tests for object depth, stdin BOM, invalid UTF-8 on stdin, or most check-order cases. (3) test/cli.test.mjs:10 creates a temp dir and never removes it. Minor: unreachable default branch jsonpatch.mjs:199-200; index threaded through every helper (jsonpatch.mjs:81-140); checkForm returns string-or-object (jsonpatch.mjs:146-162). README is correct but brief (no list of operation failure reasons, no note on check order)."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (433 tests, 430 pass, 3 skipped on win32 chmod cases, test/cli.test.mjs:264-278); scratch/libprobe.mjs 378 checks and scratch/cliprobe.mjs 112 checks, 0 real failures. Mutation run: tests caught 25 of 25 seeded bugs. Distinguishing strength: output uses an iterative formatter (jsonvalue.mjs:82-105, called at jsonpatch-cli.mjs:173), so results deeper than native JSON.stringify can handle still print: depths 4000, 8000 and 16000 (512 MB output) all exit 0 with the exact expected text, where A and B fail (scratch/deepout.mjs). I fuzzed formatJson against JSON.stringify(v, null, 2) on 20000 random values plus __proto__/empty/-0/lone-surrogate cases: 0 mismatches (scratch/fmtfuzz.mjs). Other strengths: clean separation of value helpers (jsonvalue.mjs) from patch logic (jsonpatch.mjs), named reason constants, bounded read of limit+1 bytes (jsonpatch-cli.mjs:41-66), close failure reported as cannot read (jsonpatch-cli.mjs:82-86), thorough README with error tables, tests for stdin-left-open and deep output. Defects/risks: (1) jsonpatch.mjs:5 imports ./jsonvalue.mjs, so the library is not self-contained; copying only the two named files would break it (the task allows extra files, so not a spec breach). (2) Hand-written JSON serializer is extra code to maintain and builds per-level indent strings (jsonvalue.mjs:65-76), so output memory grows quadratically with depth. (3) test/cli.test.mjs:20-36 runCli never kills the child on timeout: with a seeded bug that reads the doc before checking the patch, the stdin-left-open test (test/cli.test.mjs:439) hung the whole suite for 9+ minutes until I killed the child, rather than failing. Minor: jsonpatch.mjs:126 detects same-path move by comparing raw pointer strings (correct because token escaping is one-to-one, but less obvious than comparing tokens). Linux-only paths (EACCES, ENOTDIR) reviewed by reading only."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "h6-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran: npm test (27/27 pass); scratch/lib-probe.mjs (377 spec cases: pointers, form-rule order, own/inherited members, __proto__, -0, member order, sharing, frozen inputs, bad index vs not found, move/copy/test) - all correct (the one flagged case was my own wrong expectation); scratch/fuzz.mjs (40000 random doc+patch runs, A/B/C results and errors identical, no input mutation); scratch/cli-probe.mjs (95 CLI cases: usage, step order, BOM, size limit 1048576/1048577 for file and stdin, invalid UTF-8, depth 1000/1001, directory, file/x, exit codes) - all correct; icacls-denied file/dir give 'cannot read'/'is a directory'; closed/endless stdin fine. Library jsonpatch.mjs is compact and correct: iterative deepClone/deepEqual (jsonpatch.mjs:49, :72), defineProperty for members (jsonpatch.mjs:39), form check before apply (jsonpatch.mjs:218). DEFECT: jsonpatch-cli.mjs:133 prints with JSON.stringify(result, null, 2), which throws RangeError once the result nests deeper than about 3000 levels; scratch/deep-probe.mjs (legal 1000-deep doc plus two copy ops -> depth 4000) gave exit 1, empty stdout and a 9-line stack trace on stderr, where B and C print the exact text. jsonpatch-cli.mjs:135 rethrows every non-CliError, so any unexpected failure is an uncaught exception with a stack trace instead of one line. Tests are the thinnest: 2 files, 313 lines; my mutation run (scratch/mutate.mjs, 24 mutants on a scratch copy) left 2 alive: stdin size limit off by one (test/cli.test.mjs:61 only tests 1048577 bytes on stdin, no exact-limit case) and an inherited `value` member accepted (no test). No tests for 'cannot read', BOM counted toward size (test/cli.test.mjs:66 only checks a BOM is ignored), deep output, or too-large-before-UTF-8. README is clear with exit-code table and examples."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran: npm test (346/346 pass); the same probes as for A: scratch/lib-probe.mjs 377 cases all correct, scratch/fuzz.mjs 40000 differential runs with no difference and no mutation, scratch/cli-probe.mjs 95 CLI cases all correct, icacls-denied file/dir, closed and endless stdin all correct. No spec deviation found. Strengths: iterative copy/equality (jsonpatch.mjs:116, :153); form rules in the spec's order (jsonpatch.mjs:71-98); own-member handling via Object.hasOwn and defineProperty (jsonpatch.mjs:59, :106); CLI has an iterative formatter (jsonpatch-cli.mjs:154-190) that matched JSON.stringify(...,null,2) byte for byte on 25 fuzzed docs and on results 2000-16000 levels deep (scratch/deep-probe.mjs) where A crashes; catch-all prints one line 'Error: unexpected failure' exit 1 (jsonpatch-cli.mjs:224-227), seen when the output exceeded the max string length at depth 32000. Bounded reads: files into a 1 MiB+1 buffer (jsonpatch-cli.mjs:47-54), stdin stopped at the limit (jsonpatch-cli.mjs:101-104). Weak points: stdin reader is hand-rolled with data/end/error listeners and removeAllListeners (jsonpatch-cli.mjs:81-109), more intricate than needed and with no 'close' path (theoretical unsettled promise; not reproduced). Tests: mutation run killed 24/24, but the copy-not-deep mutant was caught only by test/apply-ops.test.mjs never terminating (cyclic value, no guard). CLI tests (test/cli.test.mjs) have no 'cannot read' case and never exercise the custom formatter on a result deeper than JSON.stringify can print, nor too-large-before-invalid-UTF-8. README is accurate with message table and example."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran: npm test (301/301 pass, about 6 s); the same probes: scratch/lib-probe.mjs 377 cases all correct, scratch/fuzz.mjs 40000 differential runs identical to A and B with no input mutation, scratch/cli-probe.mjs 95 CLI cases all correct, icacls-denied file/dir, closed and endless stdin all correct. No spec deviation found. Strengths: iterative clone/equality (jsonpatch.mjs:78, :127); form check returns reason or normalized operation (jsonpatch.mjs:248-261); one bounded collector shared by file and stdin reads (jsonpatch-cli.mjs:38-48, :76-88); iterative stringifier (jsonpatch-cli.mjs:166-199) matched JSON.stringify byte for byte on 25 fuzzed docs and on results 2000-16000 levels deep (scratch/deep-probe.mjs); unexpected failures become one line, exit 1 (jsonpatch-cli.mjs:229-233). Best tests of the three: mutation run killed 23/23 cleanly; test/cli.test.mjs covers what the others skip - result too deep for JSON.stringify (:129), unreadable directory still 'is a directory' (:208), unreadable file 'cannot read' whatever its size (:263), too large before invalid UTF-8 (:241), BOM counted both sides of the limit (:233), deepest-branch depth (:392), per-test timeouts (:12). Weak points: internal failures are thrown as non-Error objects (jsonpatch.mjs:30 OperationFailure, jsonpatch-cli.mjs:24 CliFailure) and fail() is used as a throwing expression (jsonpatch.mjs:145-150), which is unusual; one 150-character line (jsonpatch.mjs:259); scripts/flows.mjs duplicates the test suite as a second smoke runner; tests shell out to icacls/chmod to change ACLs on temp files (test/cli.test.mjs:58-68), which is heavier and platform-dependent. README has usage, limits and an exit-code/message table."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "h7-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (349/349 pass, 13 s). Own probes in scratch/ (startup, api, moves, lock, leak, migrate, big, page, edge): no real failure found (startup 50/50, lock 22/22, migration 52/52, 20000 parts+100000 moves migrate in ~0.3 s, SIGKILL at 8 moments always left v1 intact and the next start finished, page script 73/73 in a strict fake DOM that only offers the allowed APIs, HTTP edge 25/25). Strengths: reads use all() so a BUSY never leaves a read lock (src/balance.mjs:26, src/parts.mjs:58) - the only solution where another tool could still write after a 503; exact JSON numbers taken from the source text without a reviver (src/body.mjs:46, src/json-members.mjs:52) so a body with an ignored key nested 4900 deep is still 201 and 1.0000000000000000001 is refused; migration refuses a v1 parts table with columns another tool added instead of dropping data (src/migrate.mjs:26-31) and verifies the result before commit (src/migrate.mjs:124-130); refused files are only read, via read-only open or a copy (src/db-inspect.mjs:92-105); parser-refused requests (unknown method, non-ASCII byte in <id>, CONNECT, unknown Expect) still get the spec's JSON reply (src/raw-requests.mjs:289-355); 415/400/404 answered in ms while the database is locked (src/parts.mjs:101-106); retry on a timer without blocking the event loop (src/tx.mjs:25-50). Defects (minor): a lot of machinery beyond the task - 355 lines of hand-rolled HTTP framing in src/raw-requests.mjs, and src/db-inspect.mjs:76-86 copies the whole database plus journal/WAL into os.tmpdir() whenever a side file exists (slow on big files, data briefly leaves its folder); package.json is one unformatted line; a UTF-8 BOM before the body gives 400 (spec is ambiguous). README (499 lines) is complete: env vars, exit cases with messages, schema, migration, every route, page behaviour, tests."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (360 pass, 1 skipped as Windows-only, 7 s). Probes: startup 50/50, lock timing 22/22, migration 50/52, big migration 11/11 (~0.3 s, kill test intact), page script 73/73, routes/order/messages/handles/report all pass. Defects: (1) src/request.mjs:62 parses with a recursive reviver (src/request.mjs:44): a valid object whose ignored key is nested >=2000 deep gets 500 internal error instead of 201 (scratch/probe-edge.mjs; A and C give 201). (2) Lock leak after a timeout: when GET /api/parts or GET /api/report ends in 503, the half-stepped cached statement (src/parts.mjs:29, src/report.mjs:11, .iterate()) keeps a SHARED lock as soon as any other request runs - another tool's BEGIN EXCLUSIVE failed with 'database is locked' for 12 s+ until the next list/report request reset it (scratch/probe-leak4.mjs). (3) Migration silently drops a column another tool added to parts: src/migrate.mjs:101-107 copies only id, sku, name with no column check; the server started and the data in the extra column was gone (A refuses with cannot migrate). (4) Only HPE_INVALID_METHOD is rescued (src/http-edge.mjs:128): a non-ASCII byte in <id> gets Node's bare 400 instead of 404 part not found. (5) After another tool's transient schema break is repaired the first GET part still answers 500 once (cached statements, src/queries.mjs:31-45). (6) public/app.js:68-71 lets encodeURIComponent throw on a lone surrogate. Strengths: exact number handling from source text (src/request.mjs:79-92), validation answered before any lock is needed (src/parts.mjs:52-58), non-blocking busy retry (src/transaction.mjs:52-63), unknown methods/CONNECT/Expect answered with JSON (src/http-edge.mjs:92-120), atomic migration with sequence carry-over (src/migrate.mjs:64-72), clean module split, good README with exit messages and routes. Tests are broad (API, startup, migration incl. kill and 20000/100000, frontend harness) but missed the deep-nesting 500 and the lock leak."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (39/39 pass, 8.5 s). Probes: startup 50/50, main API routes/order/messages/handles/report pass, big migration 11/11 (~0.3 s, kill test intact), migration 50/52, page 70/73. Defects: (1) Worst lock leak of the three: a GET /api/report that only waits 400 ms on a lock and then answers 200 leaves the server holding a read lock - another tool's INSERT failed 'database is locked' for 15 s+, even after further server GET and POST (scratch/probe-leak2.mjs, reproduced 3 times). Cause: lib/report.mjs:7-9 prepares a new statement per attempt and iterate()s it inside the retry loop lib/app.mjs:51-63; the same happens after a 503 on GET /api/parts (lib/store.mjs:59). (2) lib/app.mjs:34 takes BEGIN EXCLUSIVE before any check on write routes: with the database locked, POST /api/parts with text/plain, a bad sku, a '[]' body and DELETE /api/moves/abc all waited 3 s and got 503 instead of 415/400/400/404 (scratch/probe-lock2.mjs; A and B answer in ms). (3) lib/app.mjs:55 waits inside SQLite's blocking busy_timeout: with five waiting requests GET / took 2.5 s. (4) Whole-number checks run on doubles (lib/validate.mjs:61-63, 26-30): qty 1.0000000000000000001 and 999999999.9999999999999 and cost 1.00000000000000000001 are accepted. (5) Page: public/app.js:115-118 - a Load more superseded by a search that fails leaves #more disabled although next is not null; public/index.html:20 adds a disabled attribute to #more. (6) Nothing handles parser-refused requests: 'FOO /nope' gets Node's bare 400, CONNECT gets no reply, 'Expect: weird' gets 417 instead of 404/405 JSON. (7) Migration silently drops a column another tool added to parts (lib/migrate.mjs:50-67). (8) server.mjs:33-35 swallows every uncaughtException; ids and on_hand go through Number() (lib/store.mjs:42-46, lib/report.mjs:20). Strengths: compact, readable code (about 870 lines in lib/), correct startup order and messages (server.mjs:22-30), atomic and fast migration that keeps the id sequence and other tools' indexes/triggers/views (lib/migrate.mjs:37-67), correct handle rule (lib/handle.mjs:5-15), concise accurate README. Tests cover migration kill, 20000/100000, 503 timing and a fake DOM, but there are only 39 and none caught the defects above."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-04",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 9,
+      "notes": "Ran npm test (80 pass, stable over 3 runs), a 170-line HTTP probe battery (scratch/probe.mjs: both bug fixes, 413/400/404 order, unknown-field Object.keys order incl. __proto__, flag null, every entry rule and rule order, duplicate/already-recorded/skip_recorded examples, ids, dry_run, all-skipped no-write by bytes+mtime, concurrency, legacy data file, save failure), a raw-HTTP probe (scratch/probe2.mjs) and a real `node server.mjs` start. Output was byte-identical to C and matched the spec everywhere; no functional defect found. Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13 remainder to first people. lib/import.mjs is the simplest of the three: parseFields passes the already-parsed values so `to` is compared with the validated `from` (lib/import.mjs:59-63), duplicate before already-recorded with the key always recorded (lib/import.mjs:101-102), no state returned when nothing changes or dry_run (lib/import.mjs:136-137), and stored expenses with a non-text description are ignored instead of crashing (lib/import.mjs:88-90). Tests: mutation probe (scratch/mutate.mjs, 33 mutants of import/validate/ledger) killed 33/33, the best of the three; write-nothing check compares bytes and mtime (test/import.test.mjs:276-295); dry vs real body equality (test/import.test.mjs:326-338). Minor: dead test data, the 4th `different` case is never used (test/import.test.mjs:141-145); no legacy/non-ASCII/__proto__ cases. Docs: table row has the literal 201/200 and all statuses (README.md:36), all rules and both flags named, unknown-fields sentence limited (README.md:69); but the prose (README.md:50-60) is the least complete: it omits that the first unknown field is in Object.keys order, that an earlier duplicate/already-recorded/skipped entry still counts for `duplicate`, that amounts are compared in cents, and that null/arrays are not objects, so the spec's two-identical-entries example cannot be predicted from it."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test (61 pass, stable over 3 runs), the same probe batteries and a real server start. Spec behaviour identical to A and C on every API-reachable case (168 of 170 probe lines identical). Fixes: lib/validate.mjs:65 Math.round, lib/ledger.mjs:12-13. Defect: expenseKey calls description.trim() on every stored expense of the group (lib/import.mjs:83-84, used at lib/import.mjs:89), so one stored record with a non-string or missing description makes every import into that group answer 500 `internal error` (probe: TypeError description.trim is not a function); only reachable with a hand-edited data file, but A and C both guard it. Code otherwise clean and close to A: strict type comparison with an explaining comment (lib/import.mjs:75-76), no state returned when nothing changes (lib/import.mjs:135-136); literal 1 for the minimum (lib/import.mjs:27). Tests are the thinnest: mutation probe killed 31/33. Survivors: writing the store when every entry is skipped passes, because the test only compares file text, which a rewrite leaves identical (test/import.test.mjs:199-213); reversing `skipped` passes, since no test has two skipped indexes (test/import.test.mjs:188-197, 210). Also no test that 413/400-not-object win over an unknown group, and dry_run is checked via GET only. Good points: one dense 19-entry rule test (test/import.test.mjs:88-134), type [\"expense\"] case, the spec example (test/import.test.mjs:179-186). Docs: complete numbered contract (README.md:50-64) incl. Object.keys order, cents and duplicate-counting; row lists 201 (200 with dry_run), 400, 404, 413, 422 `import rejected` but is appended after settle-up rather than next to the other POST routes (README.md:38); unknown-fields sentence limited (README.md:73)."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm test (73 pass, stable over 3 runs), the same probe batteries (output byte-identical to A, all matching the spec) and a real server start; no functional defect found. Fixes: lib/validate.mjs:64 Math.round, lib/ledger.mjs:12-13. lib/import.mjs: typeof guard plus Map lookup for the type so prototype names are bad-type (lib/import.mjs:74-75), non-mutating parseFields (lib/import.mjs:34-45), stored expenses with non-text descriptions keep their value and match nothing instead of crashing (lib/import.mjs:81-84), duplicate before already-recorded with the key always recorded (lib/import.mjs:94-98), state only returned for a real change (lib/import.mjs:142-144). Slightly heavier than needed: the `allocate` reducer rebuilds arrays with spreads per entry (lib/import.mjs:104-117) where A/B use a map with an index. Tests are the broadest: __proto__ and numeric keys (test/import.test.mjs:87-93), raw JSON 4.3 vs 4.30 (test/import.test.mjs:175-176), non-ASCII trim/lowercase (test/import.test.mjs:215-225), legacy data file with stored 434 cents and a non-text description kept as is (test/import.test.mjs:227-239), deleted expenses (test/import.test.mjs:241-250), write-nothing proven by removing the data folder so any save would 500 (test/import.test.mjs:279-296), import vs POST-route equality (test/import.test.mjs:300-318), exhaustive 1..200000 cents parseAmount loop (test/validate.test.mjs:45-53). Mutation probe killed 32/33; survivor: sorting the body keys before picking the unknown field passes, because every Object.keys-order case in test/import.test.mjs:89-92 coincides with sorted order. Docs: full contract with order of checks, Object.keys order, cents, duplicate-counting, null examples (README.md:50-63), row with 201 (200 with dry_run), 400, 404, 413, 422 `import rejected` (README.md:36), unknown-fields sentence limited (README.md:72)."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-05",
+    "swapped": true
+  },
+  {
+    "pair": "h6-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm test: 433 tests, 430 pass, 3 skipped (chmod cases skipped on Windows, test/cli.test.mjs:264-278). My probes: scratch/lib.mjs (about 250 library cases: form-rule order, own/non-enumerable/inherited members, holes, String objects, __proto__/constructor names, index grammar, '-' handling, move/copy semantics, member order, test equality, sharing/-0/frozen inputs, 1000- and 200000-deep values, 16M-char pointers) - no real failures; scratch/fuzz.mjs (300000 random doc+patch cases) - A, B and C agree on every result, message, index and key order; scratch/cli.mjs (71 CLI cases: usage, BOM incl. double BOM and BOM counted in size, exact 1048576 vs 1048577 bytes for files and stdin, invalid UTF-8 variants, empty/whitespace/trailing JSON, depth 1000 vs 1001 for arrays/objects/mixed and patch values, 200000-deep input, step ordering, files named '-' via './-' and '--help') - all pass; scratch/cli2.mjs (stdin held open with bad patch exits at once, oversize open stdin, stdin as a file). Strength that sets it apart: output is written by an iterative formatter (jsonvalue.mjs:82-105, used at jsonpatch-cli.mjs:173), so a valid run whose result is deeper than native JSON.stringify can handle still succeeds: doc of 1000 nested arrays plus two copy ops gives a 4000-deep result, exit 0, 32000001 bytes, where B and C fail. scratch/depth2.mjs showed formatJson is byte-identical to JSON.stringify(v,null,2) on 20000 random values (lone surrogates, U+2028, -0, 1e21, __proto__, empty containers) and on chains up to depth 3000; native throws RangeError from depth 4000 on this Node 26. Library is clean: form check returns a normalized op or a reason (jsonpatch.mjs:157-176), private OperationFailure is mapped to PatchError in one place (jsonpatch.mjs:194-201), defineProperty for members so __proto__ is ordinary (jsonvalue.mjs:15-22), iterative copy/equality. CLI classifies open errors then stats for directory (jsonpatch-cli.mjs:28-38), reads at most limit+1 bytes (:41-66), unexpected errors print one line (:179-182). Defects, all minor: the library needs a third root file jsonvalue.mjs (jsonpatch.mjs:5), so copying only the two named files breaks it; re-implementing JSON.stringify is extra surface (well tested in test/format.test.mjs); move compares raw pointer strings instead of tokens (jsonpatch.mjs:126), correct only because the encoding is one-to-one; the unexpected-failure path reuses exit 1 (jsonpatch-cli.mjs:181). README is complete with exit-code table and ordering note."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 5,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran npm test: 15 tests, all pass. Same probes as A: library behaviour matched A and C on every scratch/lib.mjs case and all 300000 fuzz cases; scratch/cli.mjs 69 of 71 as expected (one of the two was my own wrong expectation; the real one is below). Compact, readable code: single-file library, form check at jsonpatch.mjs:146-162, iterative deepCopy/deepEqual (:37-74), CLI error classification equal to the others (jsonpatch-cli.mjs:43-52, 72-91), BOM stripped by TextDecoder default (:111). Defects: (1) jsonpatch-cli.mjs:140-145: output uses native JSON.stringify and any non-CliError is rethrown, so a valid run with a deep result crashes: doc of 1000 nested arrays plus two copy ops (result depth 4000) gave exit 1 with a 9-line RangeError stack trace on stderr and no stdout, instead of the result (A prints it). This breaks 'exactly one line to stderr' for any unexpected failure. (2) jsonpatch.mjs:5 and :20: TOKEN_RE /^(?:[^~]|~[01])*$/ overflows the regex stack on very long tokens: parsePointer('/' + 'a'.repeat(16000000)) throws RangeError 'Maximum call stack size exceeded' (not TypeError/SyntaxError), and applyPatch reports 'operation 0: bad path' for that valid path because tryParse swallows every error (jsonpatch.mjs:168-172); fine up to 8M chars, so not reachable through the 1 MiB CLI. (3) Tests are thin: 197 lines, 15 tests (test/jsonpatch.test.mjs, test/cli.test.mjs); no check of exact-size boundary acceptance, BOM counted in size, stdin BOM, object depth, ordering beyond one case, most bad-index tokens, or deep values; test/cli.test.mjs:10 makes a temp dir and never removes it. (4) Dead default branch at jsonpatch.mjs:199-200; move follows from twice (:185-187). README is short but accurate, exit codes listed without the exact message forms."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 348 tests, 346 pass, 2 skipped (permission cases skipped on Windows, test/cli.test.mjs:206-219). Same probes as A: library matched A and B on every scratch/lib.mjs case and all 300000 fuzz cases, including 16M-char pointers (no regex overflow: parsePointer uses a simple negative-lookahead test, jsonpatch.mjs:10, :31) and 200000-deep docs; scratch/cli.mjs 69 of 71 as expected (one was my own wrong expectation). Clean single-file library: childKey/locate/follow split (jsonpatch.mjs:99-127), APPLY table (:198-218), OperationFailure mapped to PatchError once (:234-241), pointerMember rethrows anything but SyntaxError (:173-181). CLI is tidy: one preallocated limit+1 buffer (jsonpatch-cli.mjs:51-67), directory check on open failure (:39-47), BOM stripped once (:99), non-CliFailure errors become one line 'Error: unexpected failure' exit 1 (:164-165). Defect: jsonpatch-cli.mjs:156 uses native JSON.stringify, which throws RangeError between depth 3000 and 4000 on this Node; doc of 1000 nested arrays plus two copy ops (valid inputs, result depth 4000) gave exit 1, stderr 'Error: unexpected failure', no stdout, where A prints the 32 MB result. It fails cleanly with one line, unlike B's stack trace, but it is still a wrong outcome for a successful patch. Its own test only covers a result about 2000 deep (test/immutability.test.mjs:170). Minor: checkForm copies op.value for every op, including remove/move (jsonpatch.mjs:195), harmless; a 1 MiB buffer is allocated per input even for tiny files (jsonpatch-cli.mjs:51); exit code for unexpected failure collides with read errors (:16). Tests are broad (about 1300 lines: pointer grammar, form rules, immutability, operations, CLI boundaries, ordering, 200000-deep input) though less exhaustive than A's. README clear with exit table."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-06"
+  },
+  {
+    "pair": "h5-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (77/77 pass, 8 repeat runs clean, import.mjs 98.5% line coverage); scratch/probe.mjs (70 HTTP steps: 404/413/400 order, every 400 message, all 11 rules and their order, __proto__/constructor keys, duplicate vs already-recorded with and without skip_recorded, ids per kind, dry_run, all-skipped no-write, restart, 20 parallel imports) - every reply matched the spec and was byte-identical to B and C; scratch/probe2.mjs (legacy and hand-edited data files); scratch/mutate.mjs (55 mutants of the import/bug-fix code run against each suite). Strengths: both bugs fixed minimally (lib/validate.mjs:65 Math.round, lib/ledger.mjs:10-13 remainder cents to the first people), legacy 434-cent record left untouched. lib/import.mjs:15-27 is a table of [field, rule, parser] per entry type that reuses the POST parsers, so field order and the allowed-field list (import.mjs:69) come from one place; import.mjs:36-40 treats a flag as absent only via Object.hasOwn; import.mjs:94-98 adds the key to `earlier` before deciding duplicate/already-recorded, which gives the spec example exactly; import.mjs:82-86 guards a stored expense whose description is not text (200 where C gives 500); import.mjs:135 returns no state for dry_run or an all-skipped import, so nothing is written; no mutation of inputs, 137 lines. README.md:38 table row and README.md:50-64 name every status, flag and rule and mirror the check order; README.md:74 limits 'unknown fields are ignored' to the other routes. Defects (all minor): tests killed 51/55 mutants - test/import.test.mjs:289 compares file bytes only, so an all-skipped import that rewrites an identical file survives; no test that nextPaymentId advances by the number of imported payments (payment ids only checked at test/import.test.mjs:358,377), none that inner white space is not collapsed, none that the saved description keeps its outer spaces. The Importing paragraph in the README is dense prose that is harder to scan than B's field bullets."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (88/88 pass, 8 repeat runs clean, import.mjs 97.5% line coverage); the same scratch/probe.mjs 70-step HTTP scenario (output byte-identical to A and C and matching the spec on every status, message, rule order, id and balance), scratch/probe2.mjs and scratch/mutate.mjs. Strengths: same minimal bug fixes (lib/validate.mjs:64, lib/ledger.mjs:10-13). lib/import.mjs:27 `field()` and import.mjs:29-33 read keys with Object.hasOwn so only an absent key counts as left out; import.mjs:56-70 check fields in the POST order with the shared parsers; import.mjs:108-116 records the key before classifying so duplicate/already-recorded/skip follow the spec example; import.mjs:90-93 returns undefined for a stored record without a text description, so a hand-edited data file does not crash the import; import.mjs:156 returns no state for dry_run or all-skipped. Best test suite of the three: killed 54/55 mutants (only 'description trimmed on save' survived, as in all three). test/import-helpers.mjs:6 uses a non-alphabetical member order to catch sorted balances, :47-54 snapshots file bytes plus GET replies around every failing or dry import, test/import.test.mjs:212-226 rewrites the data file compactly first so an all-skipped import that re-saves is detected, test/import-rules.test.mjs has one focused test per rule and precedence, and the suite checks that expense and payment counters advance separately (import.test.mjs:228-243) and across groups. README.md:38 table row, README.md:50-65 document the flags as bullets with defaults and every rule; README.md:75 limits the unknown-fields sentence. Defects (minor): import.mjs:17-22 and 47-54, 80-85 use a RuleError exception for ordinary control flow and classify/record (import.mjs:102-138) build results with mutable arrays and ++ counters, a bit more ceremony than A's table (157 lines); README does not say the unknown body field is the first in Object.keys order and its unknown-field bullet does not repeat the per-type field lists (they are in the entries bullet); the 201/200 success statuses are stated in the table and the dry_run bullet rather than in the success paragraph."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (59/59 pass, 8 repeat runs clean, import.mjs 98.6% line coverage); the same scratch/probe.mjs 70-step HTTP scenario (output byte-identical to A and B, every spec line probed held), scratch/probe2.mjs and scratch/mutate.mjs. Strengths: same minimal bug fixes (lib/validate.mjs:63-64, lib/ledger.mjs:10-13); lib/import.mjs:29-33 flags via Object.hasOwn; import.mjs:78-83 shape rules in the right order; import.mjs:101-106 records the key before classifying, giving the spec example; import.mjs:141-142 no state for dry_run or all-skipped; README.md:38 table row and README.md:50-65 a clear numbered check order naming every status, flag and rule, README.md:75 limits the unknown-fields sentence; test/import.test.mjs:220-226 checks the file mtime so an all-skipped rewrite is caught (A misses this). Defects: lib/import.mjs:46 expenseKey calls description.trim() on stored records with no type guard and import.mjs:88 runs it over every expense of the group, so a data file holding an expense without a text description (lib/store.mjs only checks the top-level shape) makes every import to that group 500 with a TypeError - probe2 'stored-desc-missing' and 'stored-desc-number' gave 500 {\"error\":\"internal error\"} where A and B reply 200. Code is the least tidy: checkPayment returns {value: {kind, fields}} (import.mjs:74) while checkExpenseFields returns {value: fields} (import.mjs:63); import.mjs:94-106 uses `return problems.push(...)` inside forEach as an early exit and a 130-character ternary with push side effects at :97; fields are mutated in place (import.mjs:57-62); rule names are derived implicitly as `bad-${name}` (import.mjs:59). Tests are the thinnest: killed 48/55 mutants - survivors include picking the unknown body field in sorted instead of Object.keys order (test/import.test.mjs:74-75 uses keys that sort the same way), unknown-field checked after the field rules, an earlier duplicate no longer counting for a later entry, an earlier bad entry counting for duplicate (import.test.mjs:176-183 does not really exercise it), collapsing inner white space, and nextPaymentId not advancing by the number of payments. One mega-test (import.test.mjs:108-156) covers most rules, so a failure there points less precisely than B's per-rule tests."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-07"
+  },
+  {
+    "pair": "h7-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (334/334 pass, 15.7 s) plus my own probes in scratch (api.mjs ~200 HTTP cases, startup.mjs, migrate.mjs, bigmig.mjs, busy.mjs, raw.mjs, page.mjs fake DOM, fuzz.mjs). Strengths: API output byte-identical to B on all ~200 probes (statuses, messages, check order 404-id > 415 > 413 > 400 > route rules, exact 10000-byte limit, byte-exact routing, handles, report, 2^63 ids). Startup order correct: bad PORT exits before the DB is touched; port-in-use exits 1 after creating the DB; refused files left byte-identical (src/db-open.mjs:24-32 inspects through a read-only connection, hot journal handled at :76-83). Numbers judged from JSON source text via reviver context.source (src/json.mjs:20-24, :39-56): 1000000000.0000000001, 0.999..., 1e-400 rejected; 24.7k fuzzed objects matched a reference. Busy wait is a non-blocking timer retry (src/transaction.mjs:84-100): 503 after 3.0 s, other requests answered meanwhile, validation errors answered at once under a lock. Unknown methods get the server's own 404/405 JSON (src/raw-requests.mjs:113-129, :147), bodies fully read before every reply (measured 800 ms late-body cases). Migration: one transaction, linear handle allocation (src/handle.mjs:44-55): 20000 parts/100000 moves in ~0.25 s even with 20000 identical names; kill at 11 points left v1 or v2 intact and restart finished; indexes/triggers/views/foreign tables/sqlite_sequence kept; refusals print 'cannot migrate database <name>' with bytes unchanged. Page script passed 77/77 fake-DOM checks, no disallowed browser API. Defects: (1) src/migrate.mjs:52-56 and :64 round-trip sku/name through JS strings, so text another tool stored that is not valid UTF-8 is rewritten during migration (x'41FF42' became x'41EFBFBD42') - a stored value is not kept. (2) src/migrate.mjs:58-69 silently drops any extra column another tool added to parts (v1 with a 'color' column migrated and the data was gone; B refuses). (3) Lock leak: after a list or report request ends in 503, the busy-failed iterate() statement (src/store.mjs:51, src/handlers-report.mjs:11) stays active, and the next successful read leaves a SHARED lock on the file until GC - another tool's BEGIN EXCLUSIVE kept failing for 3.7-4.5 s under traffic and still after 8 s idle. (4) public/app.js:126 and :138/:194 assume a well-formed 200 body; a 200 with an array body raises an unhandled rejection (cosmetic). (5) A user_version 0 file holding only sqlite_sequence is refused (src/db-open.mjs:55-58 counts internal tables) - debatable. Code is well split (17 small modules, JSDoc), README is thorough (20 KB, env, errors, API examples, migration, sharing)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (340/340 pass, 12.7 s; 'node --test' also executes the test/support helper files as empty tests - harmless but sloppy, package.json:8) plus the same scratch probes. Strengths: identical to A on every API, startup, raw-HTTP and page probe (203 API lines diff-free; unknown methods answered 404/405 JSON via lib/protocol.mjs:156-187, :234; late bodies awaited; 503 after 3.0 s with a timer retry in lib/tx.mjs:37-51; 500 + full rollback on failing triggers incl. the second insert of a transfer; 40 parallel -1 moves on stock 10 gave exactly 10x201). Best migration of the three: sku and name are copied inside SQLite (lib/migrate.mjs:51-60, :82) so invalid-UTF-8/NUL text kept byte-exact (A and C rewrote it); a v1 parts table with a column another tool added is refused with 'cannot migrate database' instead of losing the column (lib/migrate.mjs:28-32); sqlite_stat rows and a text-typed sequence counter are preserved (lib/migrate-objects.mjs:15-36, lib/migrate.mjs:62-74); linear handle allocator (lib/handle.mjs:38-53): 20000 parts/100000 moves in ~0.26 s for distinct, identical and mixed names; 11 kill points all left v1 or v2 intact; ids never reused after deleting the highest rows. Exact-number parsing matched the reference on 24.7k fuzzed objects. Page script 77/77 checks, no disallowed API, #more restored after every settled list fetch (public/app.js:113). Defects: (1) Lock leak, smaller than A/C: only the q-filtered list and the report use iterate() (lib/store.mjs:57, :32); after one of those ends in 503 the next successful read left a SHARED lock for ~3.6 s under traffic (still held after 8 s idle), blocking other tools' writes; the plain list uses .all() and did not leak. (2) Route validation runs inside the transaction (lib/parts-api.mjs:68-75 via lib/handler.mjs:49-60), so under a lock an invalid sku waits 3 s and gets 503 where A answers 400 at once - arguable. (3) lib/json.mjs:15-68 hand-rolls a JSON scanner to recover number text where a JSON.parse reviver's context.source would do - correct in fuzzing but needless complexity. (4) public/app.js:90 and :183 assume a well-formed 200 body (unhandled rejection on an array body). (5) lib/db.mjs:14-15 treats a version-0 file holding only sqlite_sequence as empty and writes the schema - debatable either way. README 22 KB: env, startup errors, every route with examples, migration, concurrency."
+    },
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (64/64 pass, 6.9 s) plus the same scratch probes. Strengths: compact and readable (~900 lines, 8 modules); ordinary API behaviour matched A/B on all but four of ~200 probes; startup order, refusals and file-unchanged checks all correct; migration is one transaction, kept ids, moves, sequences, other tools' indexes/triggers/views, and survived kills at 11 points; refusal messages exact; 500 + rollback on failing triggers; exact BigInt sums beyond 64 bits; page script validates reply shape (public/app.js:74-76, :175-177) and passed 76/77 fake-DOM checks. Defects: (1) Quadratic handle allocation in migration: lib/schema.mjs:53-60 calls freeHandle, which restarts at -2 for every part (lib/handle.mjs:20-27). 20000 parts all named 'Bolt' + 100000 moves took 36.4 s and 23.8 s on two runs (A/B: 0.25 s); half identical names took 9.6 s. That is at or over the 30 s limit, and README.md:35 claims 'well under a second'; its own perf test uses 500 rotating names (test/v1-fixture.mjs:36) so it misses this. (2) Blocking busy wait: lib/db.mjs:75-78 relies on the synchronous sqlite timeout, so a locked request freezes the event loop. A single request got 503 after 4.6 s (twice), not 3 s; nine concurrent requests took 23 s in total, with GET / and a 404 delayed 4-18 s. (3) No clientError handling (server.mjs:32-44): BREW /nope, BREW /api/parts and lowercase 'get /' return Node's bare 400 instead of 404/405 JSON ('whatever the method'); CONNECT gets no reply; 'Expect: nonsense' gets 417; a valid request pipelined before a bad-method one lost its reply. (4) Numbers are checked after double rounding (lib/validate.mjs:72-74): qty 1000000000.0000000001 and 0.99999999999999999999 are accepted and unit_cost_cents 1e-400 is stored as 0; a UTF-8 BOM before the JSON is accepted (lib/http.mjs:41 TextDecoder strips it; A/B answer 400). (5) lib/handlers.mjs:84 rejects from_part/to_part above 2^53 with 404 although such a row existed and A/B transferred from it. (6) Page: public/app.js:116-125 passes no failure callback to fetchList (:102-114), so when a search that superseded a pending Load more fails, #more stays disabled although next is not null. (7) Shared with A: migration rewrites non-UTF-8 sku/name bytes (lib/schema.mjs:79, :100) and silently drops an extra parts column (lib/schema.mjs:74-90). (8) Shared lock leak after a busy-failed iterate() (lib/store.mjs:62, :104): SHARED lock held 0.6-6.3 s under traffic after a list/report 503. Tests cover the main paths (startup, migration with kill, locking, fake DOM) but are a fifth the size of A/B (218 asserts vs ~800-900) and caught none of the above. README is short but accurate apart from the migration-speed claim."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-08"
+  },
+  {
+    "pair": "h7-r2",
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran npm test: 64/64 pass (6 s). Ran my probes in scratch/ (api.mjs ~220 API cases, startup.mjs, migrate*.mjs, rawbusy.mjs, raw2.mjs, page.mjs strict fake DOM, deep.mjs). Strengths: small, readable code (server.mjs 46 lines, lib/ ~900 lines); every status/message/order check in the API battery matched B and C except the items below; startup order, exact stderr lines, file-untouched refusals, schema DDL, id-never-reused, exact BigInt sums, 500+rollback on failing triggers, kill-mid-migration and hot-journal recovery all correct; page script uses only allowed browser APIs and passed all list/add/delete/report/overlap scenarios but one. Defects: (1) lib/schema.mjs:53-56 with lib/handle.mjs:21-23 restart the -2,-3.. search from 2 for every part, so migration is quadratic: 20000 parts all named 'Widget' + 100000 moves took 43.7 s and 52.4 s (spec: within 30 s; B and C 0.35 s); own fixture test/v1-fixture.mjs:36 uses `Part ${i % 500}` so the test misses it, and README.md:35 claims 'well under a second'. (2) lib/db.mjs:77 and :105 wait for locks synchronously (busy timeout inside the event loop): with the file held EXCLUSIVE and several requests in flight, a GET got its 503 only after 8 s, a concurrent POST and GET / got no reply within 8 s (single request: 503 after 3.4 s, fine). (3) server.mjs:32 leaves unknown methods to node: `FOO /api/parts` and `FOO /nope` give a bare 400 with no JSON instead of 405/404, CONNECT gets no reply, and a GET pipelined before an unknown method loses its reply. (4) lib/http.mjs:41 TextDecoder strips a UTF-8 BOM, so a BOM-prefixed body is accepted with 201 (B and C: 400 body must be a JSON object). (5) lib/schema.mjs:98 reads only id, sku, name through JS: a column another tool added to parts is silently dropped with its data, and invalid UTF-8 bytes in sku/name are rewritten (41FF42 -> 41EFBFBD42). (6) public/app.js:127-141 with :112: when a Load more is superseded by a search that then fails, #more stays disabled although next is not null. (7) lib/validate.mjs:73 Number.isInteger accepts 1.0000000000000000001 as 1 (debatable). Tests are real (child process, second SQLite connection, fake DOM) but thin next to B and C."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm test: 340/340 pass (13 s). Same probes as A. No spec deviation found in ~220 API cases, startup battery, migration probes, raw HTTP probes or the strict fake-DOM page run. Strengths: lib/tx.mjs:37-47 retries locked transactions on a timer, so under an EXCLUSIVE lock GET and POST both got 503 after 3.0-3.1 s while GET / answered in 46 ms; lock released at 1.2 s -> 201 after 1.2 s; lib/protocol.mjs:156-186 and :201 give JSON 405/404 for unknown methods and CONNECT, only after the whole body arrived, and keep pipelined order (GET then FOO -> 200,405); lib/handle.mjs:38 linear handle allocator (20000 same-name parts migrate in 0.35 s); lib/migrate.mjs:51 copies sku/name inside SQLite so stored bytes survive exactly (invalid UTF-8 and NUL kept, verified by hex()), lib/migrate.mjs:28-31 refuses a parts table with a column another tool added instead of dropping its data (file byte-identical, `cannot migrate database m.db`), lib/migrate-objects.mjs:15-36 keeps other tools' indexes, triggers and sqlite_stat1 rows; views, INSTEAD OF trigger, extra FK table, sqlite_sequence (ids 21 and 8 after deleted highest rows) all verified; kill at 30-400 ms and hot-journal starts leave v1 or v2 intact. lib/json.mjs:53 and :97 keep exact number text (1.0000000000000000001 and 1000000000.0000000001 rejected, 1e0/10e-1 accepted); a 150000-document fuzz against C's parser showed 0 mismatches, and 4900-deep nested arrays still give 201. README (359 lines) is accurate and complete, including the refusal cases. Weaknesses: more code than the task strictly needs: lib/json.mjs:53-68 is a hand-written top-level scanner and lib/protocol.mjs is 236 lines of raw socket handling; lib/parts-api.mjs:68 validates sku/name inside the write transaction, so an invalid POST during a lock waits 3 s for 503 instead of 400 (C answers 400 at once; spec does not decide); lib/db.mjs:14-15 does not count sqlite_ tables, so a version 0 file holding only sqlite_sequence gets the schema (A and C refuse; arguable either way); package.json:8 `node --test` also runs test/support/*.mjs as empty test files."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test: 334/334 pass (14 s). Same probes as A and B. Behaviour identical to B on the API battery (only key order differs), startup battery, raw HTTP probes (unknown methods and CONNECT get JSON 405/404 after the body, src/raw-requests.mjs:113 and :131), lock probes (src/transaction.mjs:84-95 timer retry: 503 after 3.0 s, page answered in 62 ms meanwhile) and the strict fake-DOM page run. Strengths: src/json.mjs:22 gets exact number text from the JSON.parse reviver context, much less code than B's scanner; src/handlers-parts.mjs:51 validates sku/name before taking the lock (400 at once even while locked); src/handle.mjs:44 linear handle giver, and its own test test/migrate-crash.test.mjs:98 uses the all-same-name worst case (0.32 s measured); src/db-open.mjs inspects read-only first and handles a hot journal; kill and hot-journal probes leave v1 or v2 intact; README (417 lines) thorough. Defects: (1) src/json.mjs:22-26: the reviver recurses, so a valid body under 10000 bytes with arrays nested 2000 or more deep throws RangeError, which is not a SyntaxError and is rethrown: POST /api/parts `{\"sku\":..,\"name\":..,\"x\":[[[...]]]}` gives 500 internal error instead of 201 (A and B: 201), and a deep top-level array gives 500 instead of 400; server stays up. (2) src/migrate.mjs:54 and :58-69 rebuild parts from id, sku, name read through JS: a column another tool added to a version 1 parts table is silently dropped with its data ('shelf-9' lost; B refuses and leaves the file), and invalid UTF-8 bytes in sku/name are rewritten (41FF42 -> 41EFBFBD42); sqlite_stat1 rows for parts are lost. (3) src/db-open.mjs:58 counts sqlite_sequence as a table, so a version 0 file with only that internal table is refused (arguable). Code is well split and documented; raw-requests.mjs/raw-framing.mjs add ~265 lines of raw socket handling."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-09",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (59/59 pass); scratch/probe.mjs (153 HTTP replies per solution: body 400 order, 404-before-400, 413 at 10241 bytes, every entry rule and its order, __proto__/constructor keys, duplicate/already-recorded/skip_recorded, ids, dry_run, all-skipped no-write, legacy 434-cent record, 20 parallel imports); scratch/mutate.mjs (44 mutants of one base implementation run against each suite). Strengths: both bugs fixed correctly (lib/validate.mjs:64 Math.round, lib/ledger.mjs:10-13 leftover cents to the first people); every spec probe gave the same reply as B and C and matched the spec, incl. the spec example ([already-recorded, duplicate] / [duplicate] with skip), ids E,E+1/P, all-skipped 201 with no write (lib/import.mjs:142), dry_run 200 without save (lib/import.mjs:141). Defects: lib/import.mjs:46 expenseKey calls description.trim() on stored records with no type guard, used at lib/import.mjs:88 -> a data-file expense in the group without a string description makes every import to that group answer 500 internal error (probe 'odd import': A 500 with TypeError stack on stderr, B and C 200); only reachable through a hand-edited data file, but the other two guard it. lib/import.mjs:94,97,100,104 use `return problems.push(...)` inside forEach as an early exit and line 97 is a side-effecting ternary; checkPayment (lib/import.mjs:74) and checkExpenseFields (lib/import.mjs:63) return differently shaped values; placeholder messages 'payer'/'from'/'to' passed to parseMember (lib/import.mjs:53,67,70). Tests (test/import.test.mjs, test/bugs.test.mjs) are sound but the thinnest: killed 37/44 mutants; survivors include flags checked before entries (test/import.test.mjs:81-84 never pairs a bad entries with a bad flag), unknown-field checked after field rules (test/import.test.mjs:116-117 only uses otherwise valid entries), first unknown body field picked from sorted keys (test/import.test.mjs:74-75), an earlier bad-split entry counted for duplicate, and upper-case or inner-white-space normalising of descriptions. Its all-skipped test does check mtime and bytes (test/import.test.mjs:219-226). README: table row and numbered check list are complete and name every rule (README.md:38, 50-65), 'Unknown fields are ignored' limited (README.md:75); it leaves out that an earlier duplicate/already-recorded/skipped entry still counts for duplicate and that skipped is ascending."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (88/88 pass); scratch/probe.mjs (153 replies, byte-identical to C, identical to A except A's 500 on a malformed stored record); scratch/mutate.mjs. Strengths: same correct bug fixes (lib/validate.mjs:64, lib/ledger.mjs:10-13); every probed spec line holds: 404 before 400, unknown field in Object.keys order ('7' before 'b', __proto__ own key reported), entries/dry_run/skip_recorded order, null flags refused via Object.hasOwn (lib/import.mjs:29-33), rule order not-an-object > bad-type > unknown-field > field rules > duplicate > already-recorded (lib/import.mjs:74-99, 108-116), bad-from before bad-to before bad-amount (lib/import.mjs:65-70), earlier entry always counted in `seen` (lib/import.mjs:112), no state returned for dry run or all-skipped (lib/import.mjs:156), separate id counters (lib/import.mjs:121-138). Own-property reads through field() (lib/import.mjs:27) and a guarded expenseKey (lib/import.mjs:90-93) so a malformed stored record matches nothing instead of crashing (probe 'odd import' 200). Tests are the strongest: killed 43/44 mutants (the one survivor is an equivalent rounding mutant); test/import-rules.test.mjs covers each rule alone plus its precedence, Unicode trim/lower-case edges and 'nothing more' (lines 110-122), deleted and other-group expenses; test/import.test.mjs rewrites the data file compact to prove an all-skipped import and a dry run do not write (lines 170-180, 212-226), checks reply key order, member order with a non-alphabetical group (test/import-helpers.mjs:6), restart persistence and ids after delete. Defects (minor): classify packs rule selection into a dense expression (lib/import.mjs:110-111) and the recorded Set can hold undefined; RuleError exceptions used for control flow next to result objects (lib/import.mjs:17-22, 80-85); record() uses mutable counters (lib/import.mjs:122-129); parseMember gets throwaway messages (lib/import.mjs:59,66,67). README is clear and complete (README.md:38, 50-65, 75, 84) though the unknown-field bullet does not restate which fields each type takes and dry_run text omits that the next POST still gets the first id; 'Every error is {error}' line (README.md:76) not adjusted for the 422 problems list (same in all three)."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (77/77 pass); scratch/probe.mjs (153 replies, byte-identical to B); scratch/mutate.mjs. Strengths: same correct bug fixes (lib/validate.mjs:65, lib/ledger.mjs:10-13); all probed spec lines hold (404 first lib/import.mjs:122-123; body 400 order lib/import.mjs:43-51; rule order lib/import.mjs:65-78; duplicate before already-recorded with the earlier entry always counted lib/import.mjs:94-98; no save for dry run or when nothing new lib/import.mjs:135-136). Cleanest design: one table of [field, rule, parser] per entry type (lib/import.mjs:15-27) from which the allowed-field list is derived (lib/import.mjs:69), immutable field accumulation (lib/import.mjs:54-61), entries mapped to one result each (lib/import.mjs:89-101), small newRecords helper (lib/import.mjs:104-105); stored records with a non-string description are filtered out instead of crashing (lib/import.mjs:82-86; probe 'odd import' 200). README is the most complete, close to the spec wording incl. the earlier-entry nuance and 'writes nothing' (README.md:38, 50-64, 74, 82). Defects: the test for 'every entry skipped writes nothing' only compares file text before and after (test/import.test.mjs:277-292), so an implementation that rewrites the same store passes it: mutant all-skipped-still-writes survived C's suite while A's and B's killed it. Killed 40/44 mutants; other survivors: upper-case and inner-white-space description normalising (plus the equivalent rounding mutant). PAYER_MESSAGE/PAYMENT_MESSAGE copy the texts of lib/expenses.mjs although the import never shows them (lib/import.mjs:10-11); entry fields are read with entry[name] rather than own-property checks (lib/import.mjs:56, 67), harmless for JSON-parsed objects (the __proto__ probes behaved correctly). README 'Every error is {error}' line not adjusted for the 422 problems list."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-10",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm test: 73/73 pass. Ran scratch/probe.mjs (about 150 HTTP probes over 9 scenarios: both reported bugs, legacy data file, 413/400/404/400/422 order, 47 single-rule entries, duplicate/already-recorded with and without skip_recorded, ids per kind, dry_run, all-skipped no-write via mtime, 20 concurrent imports): every reply matched the spec, output byte-identical to C. Bug fixes: lib/validate.mjs:64 Math.round instead of trunc (4.35 -> 435), lib/ledger.mjs:12-13 remainder cents to the first people (10.00 -> 3.34/3.33/3.33, balances 6.66/-3.33/-3.33); legacy record with 434 cents still shown as 4.34 and file untouched. Import: lib/import.mjs:16 Object.hasOwn so null flags get the 400; :23-29 unknown field -> entries -> dry_run -> skip_recorded order; :74 type looked up only when a string (no [\"expense\"] coercion); :95-98 duplicate before already-recorded and every valid expense counts for later duplicates; :83-84 a stored expense with a non-string description does not crash the import (probe: 201, where B gives 500); :142-144 no state returned for dry_run or an all-skipped import, so nothing is written. Defects, all minor: :104-117 allocate() is a reduce with spread copies, heavier than a filter+map; :142-144 three-way return is a little clumsy; parseMember messages reused as rule names (:50, :63). Tests (test/import.test.mjs, 29 tests): killed 41 of 43 behaviour mutants I injected into lib/import.mjs (survivors: type accepted by key lookup so [\"expense\"] passes - no test near :130; payment next id advanced by 1 only after a multi-payment import - :194-201 never POSTs a payment after importing several). Strong points: all-skipped no-write proven by deleting the data folder (:279-296), legacy 434-cent and non-string stored descriptions (:227-239), non-ASCII trim/lowercase (:215-225), dry-run vs real body on a twin app (:388-404), exhaustive parseAmount 1..200000 cents (test/validate.test.mjs:45-53). Missed: balances with a zero-balance member. README: table row README.md:36 with 201 (200 with dry_run), 400, 404, 413, 422 `import rejected`; full Importing section :50-62 with every rule, Object.keys order, id rules; unknown-fields sentence limited at :72. The row says '201 ... (200 with dry_run)' rather than the literal '201/200'."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test: 61/61 pass. Same probe battery: identical to A and C on every spec-covered case (bug fixes at lib/validate.mjs:65 and lib/ledger.mjs:12-13, check order, all 47 rule cases, duplicate/already-recorded, ids, dry_run, all-skipped no-write, concurrency). One real defect found by probe: lib/import.mjs:83-84 expenseKey calls description.trim() on every stored expense of the group (:89) with no type guard, so a data file holding an expense whose description is missing or not a string makes every import to that group answer 500 `internal error` (stderr: 'TypeError: description.trim is not a function at expenseKey import.mjs:84'); A and C answer 201 for the same file. The store loader only checks top-level shape, and the task says saved records stay as they are, so this is reachable only with a hand-edited or foreign file, but it is the only behavioural difference among the three. Code is otherwise clean and the smallest: :76 explicit string comparison of type with a comment on why, :104-116 applyImport by filter+map, :136 no state for dry_run or unchanged import. Minor: :36-38 mutates a local accumulator; throwaway messages 'payer'/'from'/'to' (:50, :58-61). Tests (test/import.test.mjs, 18 tests) are the thinnest: killed 40 of 43 mutants; survivors: unknown-field checked after the field rules (cases at :96-97 have otherwise valid fields), an all-skipped import that rewrites the file (:199-213 only compares file text, which is identical after a rewrite, so 'writes nothing' is not really proven), payment next id. In a second batch it also missed skipped listing a per-kind index (:190-194 uses index 1 for both), balances dropping zero-balance members, and has no test for odd stored data. Most rules are covered by a single 19-entry request (:88-134), which is efficient but gives few cases per rule. README: table row README.md:38, numbered Importing section :50-63 with every rule and field, unknown-fields sentence limited at :73; complete and clear."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 80/80 pass. Same probe battery: output byte-identical to A on all ~150 probes, all matching the spec. Bug fixes at lib/validate.mjs:64 (Math.round) and lib/ledger.mjs:12-13 (left-over cents to the first people); test/api.test.mjs:157-166 also pins that a legacy 434-cent record is read as saved. Import: lib/import.mjs:19 Object.hasOwn for flags; :26-32 400 checks in spec order; :77 strict type comparison; :59-63 parseTo compares against the already validated `from`; :88-90 saved expenses with a non-string description are filtered out, so odd stored data cannot crash (probe: 201); :101-102 duplicate before already-recorded, every valid expense added to `seen`; :127-131 skip handled at the end so a skipped entry still counts for duplicates; :136-137 no state for dry_run or all-skipped. Minor code nits: nested ternary at :101; PAYER_MESSAGE/PAYMENT_MESSAGE constants (:14-15) carry messages that never reach a client; :37-40 mutates a local accumulator. Tests (test/import.test.mjs, 36 tests): killed 41 of 43 mutants (survivors: type by key lookup - no [\"expense\"] case at :94; payment next id after a multi-payment import). Table-driven per-rule cases (:92-109), rule priority (:111-126), dry vs real on twin apps (:326-338), all-skipped checked by bytes and mtime (:276-295), zero-balance member in balances (:206). Gaps: no test for odd stored descriptions although the code guards it, no non-ASCII trim case; file is less tidy (helpers and fixtures defined mid-file at :209, :273; unused 4th element in `different` at :141). README: table row README.md:36 has the literal `201/200`, 400, 404, 413, 422 `import rejected`; Importing section :50-59 names both flags and all 11 rules and the unknown-fields sentence is limited at :69, but it is the most condensed: it does not say the unknown field named is the first in Object.keys order, that skipped is ascending, or that skipped entries take no id."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-11"
+  },
+  {
+    "pair": "h6-r2",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (301/301 pass, Node 26.2 on win32), scripts/flows.mjs (12/12 PASS), my scratch/lib-probe.mjs (399 library checks pass; the 2 reported failures were my own wrong expectations, identical on all three), scratch/cli-probe.mjs (107 CLI checks pass; the 2 failures were my own probe mistakes), plus deep-output, stdin, locked-file and mutation probes. Strengths: library exact on every spec line probed - form-rule order and own-member rule (jsonpatch.mjs:248-261), own-property walk with bad index vs not found (jsonpatch.mjs:143-151), defineProperty so __proto__ is an ordinary member and existing members keep their place (jsonpatch.mjs:69-71), iterative clone/equality (jsonpatch.mjs:78-134; 200000-deep values fine), move from==path only after from is found (jsonpatch.mjs:206-210). CLI: bounded read counting bytes actually read (jsonpatch-cli.mjs:38-48,76-88), ENOENT/ENOTDIR then directory then cannot read (jsonpatch-cli.mjs:71-74; an exclusively locked file gives 'cannot read'), one BOM stripped via fatal TextDecoder (jsonpatch-cli.mjs:129), patch fully checked before doc is touched (jsonpatch-cli.mjs:225-226; exits at once with stdin left open), iterative serializer byte-identical to JSON.stringify on tricky input and on 2998-deep output (jsonpatch-cli.mjs:166-199) so a result 8000 levels deep prints, and anything unexpected becomes one line 'Error: unexpected failure' exit 1 (jsonpatch-cli.mjs:230). Tests are the strongest: in my mutation run on scratch copies 30 of 31 applicable mutants were killed (the survivor, dropping ENOTDIR, is a no-op on Windows); they cover deep output (test/cli.test.mjs:129-146), double BOM, too-large-before-UTF-8, unreadable directory with platform skips. Defects (minor): EPIPE on a closed stdout is unhandled and prints a Node stack trace (jsonpatch-cli.mjs:227, shared by all three); internal OperationFailure is a thrown non-Error object (jsonpatch.mjs:30-38), a small indirection; hand-written stringifier (jsonpatch-cli.mjs:166-199) is extra code the spec did not strictly ask for; scripts/flows.mjs duplicates the tests. README is complete (exit table incl. 0 and 'patch must be an array')."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (346/346 pass), scratch/lib-probe.mjs (399 pass, same 2 probe-side false alarms), scratch/cli-probe.mjs (107 pass, same 2 probe-side false alarms), deep-output, stdin, locked-file and mutation probes. Behaviour was byte-for-byte the same as A on everything I ran. Strengths: form rules in spec order with Object.hasOwn (jsonpatch.mjs:71-98), correct pointer walk (jsonpatch.mjs:174-184), defineProperty member set (jsonpatch.mjs:106-113), iterative copy/equality (jsonpatch.mjs:116-169), move/copy follow from first (jsonpatch.mjs:257-265). CLI: reads at most limit+1 bytes and counts bytes read (jsonpatch-cli.mjs:45-56), open-error classification incl. stat fallback (jsonpatch-cli.mjs:35-43), stdin bounded with destroy on overflow and guarded process.stdin getter (jsonpatch-cli.mjs:81-109), single BOM strip (jsonpatch-cli.mjs:113-121), iterative formatter identical to JSON.stringify incl. 2998-deep check and same hash as A at 4000 deep (jsonpatch-cli.mjs:154-190), unexpected errors -> one line, exit 1 (jsonpatch-cli.mjs:224-226). Defects (minor): the failing index is threaded as a parameter through every helper (jsonpatch.mjs:174,186,192,198,220,232), noisier than needed; file input is synchronous while stdin is event-based, with removeAllListeners on process.stdin (jsonpatch-cli.mjs:92-97), heavier than an async iterator; decodeUtf8 sets ignoreBOM then strips by hand (jsonpatch-cli.mjs:116-120), a roundabout equivalent of the default; EPIPE on closed stdout is unhandled (jsonpatch-cli.mjs:218). Tests: 30 of 32 mutants killed; survivors were 'strip every leading BOM' (no double-BOM test in test/cli.test.mjs) and the Windows no-op; no CLI test for results deeper than the inputs (only a library one, test/apply-ops.test.mjs:297). README clear with exit table, but omits exit 0 and does not list 'patch must be an array' under exit 4."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (27/27 pass), scratch/lib-probe.mjs (399 pass, same 2 probe-side false alarms), scratch/cli-probe.mjs (107 pass, same 2 probe-side false alarms), deep-output, stdin, locked-file and mutation probes. Strengths: smallest and most readable code (220 + 138 lines) that still meets every spec line I probed - form rules (jsonpatch.mjs:160-178), childKey walk (jsonpatch.mjs:101-112), defineProperty set (jsonpatch.mjs:39-46), iterative clone/equality (jsonpatch.mjs:49-94), bounded chunked file read and stdin (jsonpatch-cli.mjs:40-82), ordered loadInput (jsonpatch-cli.mjs:98-115,121-122); all named error messages, exit codes, BOM, size and depth boundaries and step order matched A and B exactly. Defects: (1) the CLI prints with the recursive JSON.stringify (jsonpatch-cli.mjs:133) and rethrows anything that is not a CliError (jsonpatch-cli.mjs:135), so a valid run whose result is about 4000 levels deep (d1000.json plus two copy operations, each input within the 1000-level limit) dies with a 9-line RangeError stack trace on stderr and exit 1, where A and B print the result; results up to 2998 deep were fine. (2) Same rethrow means any unexpected error breaks the 'exactly one line to stderr' contract. (3) EPIPE on closed stdout unhandled (jsonpatch-cli.mjs:133, shared with A and B). Tests are compact and well aimed but thin (313 lines): 28 of 32 mutants killed; survivors were 'inherited value counts as present' (no test in test/jsonpatch.test.mjs form cases at :144-170), 'stdin limit off by one' (test/cli.test.mjs:58 only tests 1048577 bytes on stdin, never exactly 1048576), 'strip every leading BOM' (test/cli.test.mjs:63-66, titled 'ignored and counted' but only checks ignored), plus the Windows no-op; many assertions are bundled per test so one failure hides the rest. README is correct and has the exit table but does not mention the BOM, or that the patch is checked before the doc is read; package.json has no engines field."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-12",
+    "swapped": true
+  }
+]
