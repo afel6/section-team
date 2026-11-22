@@ -1,10 +1,17 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
 import { OFF_MODE, readMode } from './lib/mode.mjs'
-import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
+import { isIgnored, isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team subagent-stop'
 const PLUGIN_FILE = new URL('../.claude-plugin/plugin.json', import.meta.url)
+
+// Session start excludes .team/ from git only in a project that is not off, so a file saved in an off project can land in the user's tree.
+export const OFF_UNIGNORED = 'section-team: this project is off and git does not ignore .team/, so no report was saved.'
+
+// Whether nothing may be saved under root's .team/: the project is off and git does not ignore the folder. Outside git counts as not ignored,
+// as for a saved request. git is asked only for an off project.
+export const keepsOut = (root, setting = readMode(root)) => setting.off === true && !isIgnored(root, '.team/')
 
 // The plugin's version, or 'unknown': the stamp is a label, so a file it cannot read must not cost the REPORT.
 export function pluginVersion(file = PLUGIN_FILE) {
@@ -16,8 +23,7 @@ export function pluginVersion(file = PLUGIN_FILE) {
 }
 
 // A saved REPORT ends with what produced it, so a later audit can tell. parseReport ignores the field.
-function stamped(block, root) {
-  const setting = readMode(root)
+function stamped(block, setting) {
   const mode = setting.off ? OFF_MODE : setting.mode
   return `${block}Plugin:       section-team ${pluginVersion()}, mode ${setting.modeUsable ? mode : 'unknown'}\n`
 }
@@ -51,14 +57,20 @@ export function finalAgentText(transcriptPath) {
 
 // Every section REPORT is saved, ungraded ones too, at the root of the session's project (CLAUDE_PROJECT_DIR, else the event's cwd).
 // The clean-code gate is enforced earlier, when the REPORT is handed back (pre-tool-use.mjs): by the time a section stops, the supervisor already has its REPORT.
-export function saveFromEvent(e, now = new Date(), env = process.env) {
+// Returns the file, or null when nothing was saved; say gets the one line for the user when a REPORT is held back (keepsOut).
+export function saveFromEvent(e, now = new Date(), env = process.env, say = () => {}) {
   const id = sectionIdFromType(e?.agent_type)
   const dir = projectDirOf(e, env)
   if (!id || dir === null) return null
   const block = extractReport(e.last_assistant_message || finalAgentText(e.agent_transcript_path))
   if (!block) return null
   const root = projectRoot(dir)
-  return writeReport(root, id, stamped(block, root), now)
+  const setting = readMode(root)
+  if (keepsOut(root, setting)) {
+    say(OFF_UNIGNORED)
+    return null
+  }
+  return writeReport(root, id, stamped(block, setting), now)
 }
 
 // The line the hook shows when it cannot do its job, or null: input that is not JSON, or a section event with no usable project dir.
@@ -70,12 +82,13 @@ export function skipNotice(e, env = process.env) {
 }
 
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
+export const sayLine = line => process.stdout.write(JSON.stringify({ systemMessage: line }))
 
 if (isMainModule(import.meta.url)) {
   readStdinJson()
     .then(e => {
       const skipped = skipNotice(e)
-      if (skipped === null) saveFromEvent(e)
+      if (skipped === null) saveFromEvent(e, new Date(), process.env, sayLine)
       else notice(skipped)
     })
     .catch(err => notice(`the REPORT was not saved: ${lineOf(err)}`))
