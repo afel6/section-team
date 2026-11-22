@@ -403,4 +403,10 @@ describe('add-skill procedure', () => {
     assert.ok(procedure.includes('If it prints `already assigned`, say so.'), 'already-assigned comes from the script')
     assert.ok(procedure.includes('`node "<plugin root>/scripts/assign-skill.mjs" --reapply`'), 'the report says how to restore assignments after an update')
   })
+
+  test('the trusted-source check passes the owner and the project root, and only exit 0 installs unattended', () => {
+    assert.ok(procedure.includes('`node "<plugin root>/scripts/trusted-source.mjs" "<owner>" "<project root>"` exits 0 (any other exit means ask)'), 'two-argument contract')
+    assert.ok(!procedure.includes('an exit of 1 or 2 means ask'), 'old exit wording')
+    assert.ok(procedure.includes('`~/.claude/section-team/trusted-sources.json`'), 'where users add owners')
+  })
 })
