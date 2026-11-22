@@ -54,7 +54,7 @@ export function projectFoldersSet(folders, name, home) {
   return folders.filter(folder => !sameFolder(folder, home)).some(folder => projectEnvSets(folder, name))
 }
 
-// The variables os.homedir() reads: USERPROFILE on Windows, HOME elsewhere.
+// The variables os.homedir() reads: USERPROFILE on Windows (in any letter case; HOME, HOMEDRIVE and HOMEPATH are ignored there), HOME elsewhere.
 const HOME_VARS = ['HOME', 'USERPROFILE']
 
 // HOME or USERPROFILE when any of the folders' .claude settings set it, or null; throws as projectEnvSets does. No folder is skipped as

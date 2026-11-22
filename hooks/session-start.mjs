@@ -20,7 +20,8 @@ const AUTO_INSTALL_NOTE = [
 
 export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set ${AUTO_INSTALL_ENV}=1 in your user settings instead`
 
-// Claude Code hands a project's .claude settings env to the hooks, so the environment's value cannot be trusted when they set the variable.
+// Claude Code hands a project's .claude settings env to the hooks, so the environment's value cannot be trusted when they set the variable,
+// and the home folder cannot be trusted when they set HOME or USERPROFILE.
 const PROJECT_SETTINGS = "the project's .claude settings"
 const PROJECT_ENV_LINE = `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set; automatic skill installs stay off`
 const projectHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; automatic skill installs stay off`
@@ -35,8 +36,8 @@ function projectSettingsLine(folders, home) {
 
 // Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
 // is named as the source of off). The mode file, which a cloned repo can commit, may turn them off but never on: its true is ignored,
-// with a notice when the environment does not turn them on anyway. projectEnvSet (the project's settings set the variable, or could
-// not be read) turns them off as well.
+// with a notice when the environment does not turn them on anyway. projectEnvSet (the project's settings set the variable, HOME or
+// USERPROFILE, or could not be read) turns them off as well.
 function skillSetting(autoInstallSkills, env, projectEnvSet = false) {
   if (autoInstallSkills === false) return { on: false, from: MODE_FILE, notice: null }
   if (projectEnvSet) return { on: false, from: PROJECT_SETTINGS, notice: null }
