@@ -36,7 +36,7 @@ const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still ap
 
 export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session`
 
-const PLAN_LINE ='`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
+const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
 function modeSection(mode, skills, problem, retired) {
   return [

@@ -24,7 +24,7 @@ export function limitBytes(env, totalBytes, platform) {
   const value = env[LIMIT_VAR]
   if (value === undefined || value === '') return { bytes: unsetLimit(totalBytes, platform), problem: null }
   if (!WHOLE_MB.test(value)) {
-    return { bytes: unsetLimit(totalBytes, platform), problem: `${LIMIT_VAR} is not a whole number of MB, so the default applies` }
+    return { bytes: unsetLimit(totalBytes, platform), problem: `${LIMIT_VAR} is not a whole number of MB, so the default applies (off unless a platform turns it on)` }
   }
   const mb = Number(value)
   return { bytes: mb === 0 ? null : mb * MB, problem: null }
