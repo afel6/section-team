@@ -5,8 +5,9 @@ const keyOf = (states, names, moves, now) => JSON.stringify({
   states, names, walking: ORDER.filter(id => moves[id] && now - moves[id].at < WALK_MS),
 });
 
-// Decides who just started walking and whether the office picture must be rebuilt.
-export function trackOffice(prev, { states, names, now }) {
+// Decides who just started walking and whether the office picture must be rebuilt. A clock that is not finite counts as 0.
+export function trackOffice(prev, { states, names, now: clock }) {
+  const now = Number.isFinite(clock) ? clock : 0;
   const seats = seatsOf(states);
   const moves = { ...(prev?.moves ?? {}) };
   if (prev) {

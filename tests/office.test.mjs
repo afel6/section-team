@@ -4,9 +4,8 @@ import { ORDER, SEATED, WALK_MS, officeSvg, officeAlt, creatureSvg } from '../ho
 
 const NOW = 100000
 const WALK = '.wk1{animation:wk1 2.2s ease-in-out -1s both}'
-const allRunning = Object.fromEntries(ORDER.map(id => [id, 'running']))
-const worst = () => officeSvg({
-  states: allRunning,
+const worst = (state = 'running') => officeSvg({
+  states: Object.fromEntries(ORDER.map(id => [id, state])),
   names: Object.fromEntries(ORDER.map(id => [id, 'ABCDEFGHIJKL'])),
   moves: Object.fromEntries(ORDER.map(id => [id, { kind: 'arrive', at: NOW - 1000 }])),
   now: NOW,
@@ -19,8 +18,8 @@ test('exports', () => {
   assert.match(creatureSvg('backend', 'idle'), /^<svg /)
 })
 
-test('the office fits the Svg limit at its worst', () => {
-  assert.ok(worst().length < 131072)
+test('the office fits the Svg limit at its worst: every builder arriving at its desk with a problem', () => {
+  assert.ok(worst('problem').length < 131072)
 })
 
 test('the office holds only plain vector', () => {
@@ -74,6 +73,23 @@ test('a name outside the rules falls back to the default', () => {
   const evil = officeSvg({ names: { backend: 'a\\b url(x)' } })
   assert.ok(evil.includes('>Moss</text>') && !evil.includes('\\') &&!evil.includes('url('))
   assert.match(officeAlt({ states: { backend: 'running' }, names: { backend: '<&">' } }), /Moss \(backend\)/)
+  const href = officeSvg({ names: { backend: 'Href' } })
+  assert.ok(href.includes('>Moss</text>') && !/href/i.test(href))
+  assert.match(officeAlt({ states: { backend: 'running' }, names: { backend: 'xHREFx' } }), /^The office: Moss \(backend\) running/)
+})
+
+test('a clock that is not a number draws as time zero', () => {
+  for (const now of [NaN, Infinity, -Infinity]) {
+    assert.ok(!officeSvg({ now }).includes('NaN'))
+    assert.equal(officeSvg({ now }), officeSvg({ now: 0 }))
+  }
+})
+
+test('the clock hand keeps the real seconds across rebuilds', () => {
+  const hand = (now) => /\.of-hand\{[^}]*animation-delay:(-[\d.]+s)\}/.exec(officeSvg({ now }))?.[1]
+  assert.equal(hand(5000), '-5s')
+  assert.equal(hand(65000), '-5s')
+  assert.notEqual(hand(5000), hand(20000))
 })
 
 test('in-walk and walk-over strolls line up', () => {

@@ -33,6 +33,11 @@ test('the first tick after the walk ends rebuilds once, then never again while n
   assert.equal(step(end.track, { backend: 'waiting' }, 4300).rebuild, false)
 })
 
+test('a clock that is not a number tracks as time zero', () => {
+  const r = step(first({}, NaN).track, { backend: 'running' }, NaN)
+  assert.deepEqual(r.track.moves.backend, { kind: 'arrive', at: 0 })
+})
+
 test('done is free, so finishing records a leave', () => {
   const run = first({ backend: 'running' })
   const r = step(run.track, { backend: 'done' }, 9000)
