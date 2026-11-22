@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpath
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
+import { check, decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 
@@ -581,6 +581,22 @@ test('a graded handback whose transcript cannot be found allows', () => {
   assert.equal(decide({ ...e, agent_id: 'nobody' }, {}, tempDir()), null)
 })
 
+test('a transcript the hook cannot read allows the call and tells the user, in the spawned hook and in check', () => {
+  const handback = gradedHandback([readCall], DONE_AT('9/10 (reviewer)'))
+  const unreadHandback = { ...handback, agent_id: 'nobody' }
+  assert.deepEqual(check(unreadHandback, {}, tempDir()), { reason: null, notice: "section-team: could not read the section's transcript; this hand-back was not checked." })
+  const ran = spawnHook(JSON.stringify(unreadHandback))
+  assert.equal(ran.status, 0)
+  assert.deepEqual(JSON.parse(ran.stdout), { systemMessage: "section-team: could not read the section's transcript; this hand-back was not checked." })
+  const unreadMessage = sendMessageTo('section-team:backend', '{not json')
+  const sent = spawnHook(JSON.stringify(unreadMessage))
+  assert.equal(sent.status, 0)
+  assert.deepEqual(JSON.parse(sent.stdout), { systemMessage: "section-team: could not read the section's transcript; this message was not checked." })
+  // A message to a target that is no section of this session (main, a teammate) stays silent.
+  const toMain = spawnHook(JSON.stringify({ ...unreadMessage, tool_input: { to: 'main', message: 'hi' } }))
+  assert.equal(toMain.stdout, '')
+})
+
 test('the spawned hook denies a grade above the reviewer and stays silent on an honest one', () => {
   const refused = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(8), DONE_AT('9/10 (reviewer)'))))
   assert.equal(refused.status, 0)
@@ -598,7 +614,8 @@ test('the spawned hook denies resuming a finished oversized head and stays silen
   const out = JSON.parse(refused.stdout).hookSpecificOutput
   assert.equal(out.permissionDecision, 'deny')
   assert.match(out.permissionDecisionReason, /the backend section has finished at 450K tokens/)
-  for (const input of [sendMessageTo('section-team:backend', '{not json'), sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
+  // A transcript that is not JSON is allowed with a notice (the test above).
+  for (const input of [sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
     const allowed = spawnHook(JSON.stringify(input))
     assert.equal(allowed.status, 0)
     assert.equal(allowed.stdout, '')

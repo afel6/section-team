@@ -4,7 +4,7 @@ import { constants } from 'node:buffer'
 import { closeSync, mkdirSync, mkdtempSync, openSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { HEAD_CONTEXT_LIMIT, headContextRule } from '../hooks/lib/head-context.mjs'
+import { HEAD_CONTEXT_LIMIT, headContextCheck, headContextRule } from '../hooks/lib/head-context.mjs'
 import { ADVISOR_IDS, BUILDER_IDS } from '../hooks/lib/report.mjs'
 
 const SESSION = 'sid-1'
@@ -243,4 +243,43 @@ test('a target file too large to read whole still denies, because the read stays
 test('a last line longer than the 256 KB window allows', () => {
   const huge = JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: OVER }, content: 'x'.repeat(300 * KB) } })
   assert.equal(headContextRule(eventFor({ jsonl: lines(assistant(OVER), huge) })), null)
+})
+
+// Hooks fail open, but not in silence: a builder whose transcript cannot be read is allowed, and the user is told it went unchecked.
+const UNREAD = { reason: null, notice: "section-team: could not read the section's transcript; this message was not checked." }
+const QUIET = { reason: null, notice: null }
+
+test("a builder's transcript that cannot be read allows the message and says it was not checked", () => {
+  const folder = eventFor({ jsonl: null })
+  mkdirSync(join(folder.transcript_path.replace(/\.jsonl$/, ''), 'subagents', `agent-${TARGET}.jsonl`))
+  const cases = {
+    'no transcript file': eventFor({ jsonl: null }),
+    'a transcript that is a folder': folder,
+    'garbage after an over-limit turn': eventFor({ jsonl: lines(assistant(OVER), '{not json') }),
+    'a half-written last line': eventFor({ jsonl: `${assistant(OVER)}\n{"type":"assist` }),
+    'only garbage': eventFor({ jsonl: '\u0000\u0001 nope\n' }),
+  }
+  for (const [name, e] of Object.entries(cases)) {
+    assert.deepEqual(headContextCheck(e), UNREAD, name)
+    assert.equal(headContextRule(e), null, name)
+  }
+})
+
+test('a target not known to be a builder, or a readable transcript, says nothing', () => {
+  const quiet = {
+    'no meta file (main, a teammate)': eventFor({ meta: null }),
+    'no files at all': eventFor({ jsonl: null, meta: null }),
+    'a malformed meta file': eventFor({ meta: '{not json' }),
+    'an empty meta file': eventFor({ meta: '' }),
+    'a reviewer with no transcript': eventFor({ jsonl: null, meta: metaOf('section-team:reviewer') }),
+    'an empty transcript': eventFor({ jsonl: '' }),
+    'no assistant turn': eventFor({ jsonl: lines(user(), user()) }),
+    'a head still working': eventFor({ jsonl: lines(readCall) }),
+    'a path the event cannot give': { ...eventFor(), session_id: '../x' },
+  }
+  for (const [name, e] of Object.entries(quiet)) assert.deepEqual(headContextCheck(e), QUIET, name)
+  assert.deepEqual(headContextCheck({ ...eventFor(), tool_input: { to: 'main', message: 'hi' } }), QUIET)
+  const refused = headContextCheck(eventFor())
+  assert.match(refused.reason, /has finished at 450K/)
+  assert.equal(refused.notice, null)
 })

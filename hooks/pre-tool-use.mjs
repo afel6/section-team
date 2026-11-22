@@ -5,8 +5,8 @@ import { homedir, totalmem } from 'node:os'
 import nodePath from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, claimsDoneWithCode, extractReport, failsGate, needsGate, parseReport, reportHead, sectionIdFromType } from './lib/report.mjs'
-import { gradeRule } from './lib/grade.mjs'
-import { headContextRule } from './lib/head-context.mjs'
+import { gradeCheck } from './lib/grade.mjs'
+import { ALLOW, headContextCheck } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
 import { FRESH_MS, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
 import { isSessionId, modeRecordDir, readRecord } from './lib/mode-record.mjs'
@@ -65,22 +65,24 @@ function projectGate(e, env, home) {
 const HANDBACK_HEAD_MAX = 1200
 const LONG_HEAD_REASON = `section-team: your hand-back has more than ${HANDBACK_HEAD_MAX} characters above its REPORT block. Move the long part (probe logs, spec readings, flow output) to \`.team/reports/<date>/<time>-<your id>-details.md\`, name that file on the Next line, and hand back again with at most 5 short lines above the block.`
 
+const refuse = reason => ({ reason, notice: null })
+
 // The clean-code gate, enforced where the REPORT leaves the section: a code REPORT that is ungraded, claims done under the mode's pass mark,
 // claims a grade its own transcript does not back, or claims done while the reviewer scored an item under the mode's item minimum is refused.
 // A hand-back that claims done with a long text above its REPORT is refused first; partial, blocked and ungraded stay the
-// honest ways out, and one with no REPORT is not checked here.
+// honest ways out, and one with no REPORT is not checked here. Returns a verdict, or null when this is no builder hand-back with a REPORT.
 function handbackGate(id, e, env, home) {
   if (e.tool_name !== 'SubagentHandback' || !BUILDER_IDS.includes(id)) return null
   const message = e.tool_input?.message
   const block = extractReport(message)
   if (!block) return null
   const report = parseReport(block)
-  if (!HONEST_STATUSES.includes(report.status) && reportHead(message).length > HANDBACK_HEAD_MAX) return LONG_HEAD_REASON
+  if (!HONEST_STATUSES.includes(report.status) && reportHead(message).length > HANDBACK_HEAD_MAX) return refuse(LONG_HEAD_REASON)
   const gate = projectGate(e, env, home)
   const gradeAll = gate.gradeAll === true
-  if (needsGate(report, gradeAll)) return gateReasons(gate).ungraded
-  if (failsGate(report, gate.passOverall, gradeAll)) return gateReasons(gate).failing
-  return claimsDoneWithCode(report, gradeAll) ? gradeRule(e, report.quality, gate) : null
+  if (needsGate(report, gradeAll)) return refuse(gateReasons(gate).ungraded)
+  if (failsGate(report, gate.passOverall, gradeAll)) return refuse(gateReasons(gate).failing)
+  return claimsDoneWithCode(report, gradeAll) ? gradeCheck(e, report.quality, gate) : ALLOW
 }
 
 const FOREGROUND_REASON = 'section-team: run helpers in the foreground: pass `run_in_background: false` (or leave it out), never `true`. Independent helpers launched together in one message still run in parallel. A section that ends its turn while a helper runs is made to hand back unfinished.'
@@ -106,15 +108,19 @@ function advisorRule(id, e, env) {
   return null
 }
 
+// The verdict on one call: reason (deny with it) and notice (one line for the user when a rule could not check), each null when not given.
 // home is where the session mode records live; tests pass a temp folder.
-export function decide(e, env = process.env, home = homedir()) {
+export function check(e, env = process.env, home = homedir()) {
   // Before the agent_type test: a supervisor's call has no agent_type, and the rule words its refusal for either caller.
-  if (e?.tool_name === 'SendMessage') return headContextRule(e)
-  if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return null
+  if (e?.tool_name === 'SendMessage') return headContextCheck(e)
+  if (typeof e?.agent_type !== 'string' || !e.agent_type.startsWith(PREFIX)) return ALLOW
   const id = sectionIdFromType(e.agent_type)
-  if (!id) return null
-  return handbackGate(id, e, env, home) ?? advisorRule(id, e, env) ?? foregroundRule(e)
+  if (!id) return ALLOW
+  return handbackGate(id, e, env, home) ?? refuse(advisorRule(id, e, env) ?? foregroundRule(e))
 }
+
+// The deny reason alone, or null.
+export const decide = (e, env = process.env, home = homedir()) => check(e, env, home).reason
 
 // The session memory guard. The first Bash or PowerShell call by a section (not an advisor) claims the session's record and starts
 // one detached runner (memory-guard.mjs); the runner touches the record on every scan, so a fresh record means one is running.
@@ -266,17 +272,21 @@ export function ensureScratch(e, env = process.env) {
 
 const notice = text => process.stdout.write(JSON.stringify({ systemMessage: `${MESSAGE_PREFIX}: ${text}` }))
 
+// The user's one line: the hook's own notes behind its name, then a rule's notice, which is a whole sentence of its own.
+const messageOf = (notes, ruleNotice) => [notes.length > 0 ? `${MESSAGE_PREFIX}: ${notes.join('; ')}` : null, ruleNotice].filter(Boolean).join(' ')
+
 // A hook that cannot check says so in one line and denies nothing.
 async function main() {
   const e = await readStdinJson()
   if (typeof e !== 'object' || e === null || Array.isArray(e)) return notice('the hook input is not a JSON object, so no rule was checked')
-  const notes = [guardNotice(e), ensureScratch(e)].filter(Boolean).join('; ')
-  const reason = decide(e)
+  const notes = [guardNotice(e), ensureScratch(e)].filter(Boolean)
+  const { reason, notice: ruleNotice } = check(e)
+  const message = messageOf(notes, ruleNotice)
   const out = {
-    ...(notes ? { systemMessage: `${MESSAGE_PREFIX}: ${notes}` } : {}),
+    ...(message ? { systemMessage: message } : {}),
     ...(reason ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } } : {}),
   }
-  if (notes || reason) process.stdout.write(JSON.stringify(out))
+  if (message || reason) process.stdout.write(JSON.stringify(out))
 }
 
 if (isMainModule(import.meta.url)) {

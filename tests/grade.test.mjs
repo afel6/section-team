@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { gradeRule, senderOf } from '../hooks/lib/grade.mjs'
+import { gradeCheck, gradeRule, senderOf } from '../hooks/lib/grade.mjs'
 import { GATES } from '../hooks/lib/mode.mjs'
 import { decide } from '../hooks/pre-tool-use.mjs'
 
@@ -207,6 +207,33 @@ test('an event without what the path needs allows, and an agent id cannot leave 
     { ...e, transcript_path: 5 },
   ]
   for (const event of broken) assert.equal(gradeRule(event, 9), null, JSON.stringify(event))
+})
+
+// Hooks fail open, but not in silence: a graded hand-back whose transcript cannot be read is allowed, and the user is told it went unchecked.
+const UNREAD = { reason: null, notice: "section-team: could not read the section's transcript; this hand-back was not checked." }
+
+test('a transcript that cannot be read, or an event that cannot name it, allows the hand-back and says it was not checked', () => {
+  const folder = eventWith(null)
+  mkdirSync(join(folder.transcript_path.replace(/\.jsonl$/, ''), 'subagents', `agent-${SECTION}.jsonl`))
+  const e = eventWith([otherTool])
+  const cases = {
+    'no transcript file': eventWith(null),
+    'a transcript that is a folder': folder,
+    'a line that is not JSON': eventWith(['{not json', ...inToolResult(5)]),
+    'no agent id': { ...e, agent_id: undefined },
+    'an agent id that leaves the folder': { ...e, agent_id: `../subagents/agent-${SECTION}` },
+    'no transcript path': { ...e, transcript_path: undefined },
+  }
+  for (const [name, event] of Object.entries(cases)) {
+    assert.deepEqual(gradeCheck(event, 9, GATES.balanced), UNREAD, name)
+    assert.equal(gradeRule(event, 9, GATES.balanced), null, name)
+  }
+})
+
+test('a readable transcript gives its answer with no notice', () => {
+  assert.deepEqual(gradeCheck(eventWith(inToolResult(9)), 9, GATES.balanced), { reason: null, notice: null })
+  assert.deepEqual(gradeCheck(eventWith(inToolResult(8)), 9, GATES.balanced), { reason: mismatch(9, 8), notice: null })
+  assert.deepEqual(gradeCheck(eventWith([]), 9, GATES.balanced), { reason: null, notice: null }, 'an empty transcript is read, and proves nothing')
 })
 
 test('a reviewer call made through the Task tool name counts like one made through Agent', () => {
