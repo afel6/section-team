@@ -77,6 +77,25 @@ test('parse', () => {
   assert.equal(parseNames('{"v":1,"names":{"docs":"Iris"}}').problem, 'names.json had 1 bad entry, left out')
 })
 
+test('a file over 8192 characters is too large and gives all defaults', () => {
+  const text = '{"v":1,"names":{"backend":"Nova"}}'.padEnd(8193)
+  assert.deepEqual(parseNames(text), { names: D, problem: 'names.json is too large' })
+  assert.deepEqual(parseNames('{"v":1,"names":{"backend":"Nova"}}'.padEnd(8192)).names, { ...D, backend: 'Nova' })
+})
+
+test('a long value under a key that is no builder cannot stall the poll', () => {
+  const text = JSON.stringify({ v: 1, names: { chef: 'a' + '\u0300\u0316'.repeat(50000) } })
+  const start = performance.now()
+  parseNames(text)
+  assert.ok(performance.now() - start < 50)
+})
+
+test('a raw name over 128 characters is a bad name, even one that trims to a good name', () => {
+  assert.deepEqual(applyName(D, 'backend', 'Nova'.padEnd(129)), { line: BAD })
+  assert.equal(applyName(D, 'backend', 'Nova'.padEnd(128)).next.backend, 'Nova')
+  assert.deepEqual(parseNames(JSON.stringify({ v: 1, names: { backend: 'Nova'.padEnd(129) } })), { names: D, problem: 'names.json had 1 bad entry, left out' })
+})
+
 test('list', () => {
   const lines = listNames(D).split('\n')
   assert.equal(lines.length, 10)
