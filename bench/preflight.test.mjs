@@ -7,7 +7,33 @@ import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
 import { BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
-import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
+import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, profileProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
+
+// The round's clean profile (CLAUDE_CONFIG_DIR) holds a login and nothing that would shape a run: no user CLAUDE.md, no
+// skills, agents or commands of the user's, no plugin installed or enabled, no hooks.
+test('profileProblems passes a fresh logged-in profile and names everything that would shape a run', t => {
+  const profile = join(tempRoot(t), 'bench-profile-nx')
+  assert.deepEqual(profileProblems(profile), [`profile ${profile}: the folder does not exist: log in there first (CLAUDE_CONFIG_DIR=${profile} claude)`])
+  writeFile(join(profile, '.credentials.json'), '{}')
+  mkdirSync(join(profile, 'skills'))
+  writeFile(join(profile, 'settings.json'), JSON.stringify({ enabledPlugins: { 'a@market': false }, hooks: {} }))
+  assert.deepEqual(profileProblems(profile), [], 'an empty skills folder and plugins left off are clean')
+  writeFile(join(profile, 'CLAUDE.md'), 'rules')
+  for (const file of ['skills/tdd/SKILL.md', 'agents/helper.md', 'commands/go.md']) writeFile(join(profile, file), 'x')
+  writeFile(join(profile, 'settings.json'), JSON.stringify({ enabledPlugins: { 'a@market': true }, hooks: { Stop: [{ hooks: [] }] } }))
+  writeFile(join(profile, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'b@market': [] } }))
+  assert.deepEqual(profileProblems(profile), [
+    `profile ${profile}: holds CLAUDE.md`,
+    `profile ${profile}: holds skills/`,
+    `profile ${profile}: holds agents/`,
+    `profile ${profile}: holds commands/`,
+    `profile ${profile}: plugins installed: b@market`,
+    `profile ${profile}: plugins enabled in settings.json: a@market`,
+    `profile ${profile}: settings.json sets hooks`,
+  ])
+  writeFile(join(profile, 'settings.json'), '{')
+  assert.throws(() => profileProblems(profile), { message: `cannot read ${join(profile, 'settings.json')} (SyntaxError)` })
+})
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {

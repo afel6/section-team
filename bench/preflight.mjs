@@ -14,7 +14,7 @@
 //        passes --redact-email to every run, push and preflight command; the scan stays on.)
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { readRecord } from '../hooks/lib/mode-record.mjs'
@@ -93,6 +93,39 @@ export function pinInstalled({ version, run = spawnSync, which = npmClaude }) {
 
 // What claude.ai has synced into ~/.claude, as sorted paths relative to it; a run must leave it unchanged.
 export const syncedListing = claudeDir => claudeListing(claudeDir, SYNCED)
+
+// A file's JSON, or fallback when it does not exist; anything else unreadable is one line naming it.
+function readJsonOr(file, fallback) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch (err) {
+    if (err.code === 'ENOENT') return fallback
+    throw new Error(`cannot read ${file} (${err.code ?? err.name})`, { cause: err })
+  }
+}
+
+const isFullFolder = dir => existsSync(dir) && readdirSync(dir).length > 0
+const PROFILE_FOLDERS = ['skills', 'agents', 'commands']
+
+// The round's clean profile (--config-dir, CLAUDE_CONFIG_DIR): one line per thing in it that would shape a run, empty
+// when it holds only a login. Every setup runs on it, solo included, so it is checked before any paid call.
+export function profileProblems(configDir) {
+  const lines = existsSync(configDir) ? profileContents(configDir) : [`the folder does not exist: log in there first (CLAUDE_CONFIG_DIR=${configDir} claude)`]
+  return lines.map(line => `profile ${configDir}: ${line}`)
+}
+
+function profileContents(configDir) {
+  const settings = readJsonOr(join(configDir, 'settings.json'), {})
+  const enabled = Object.entries(settings?.enabledPlugins ?? {}).filter(([, on]) => on === true).map(([key]) => key)
+  const installed = installedPluginKeys(configDir, { configDir })
+  return [
+    ...(existsSync(join(configDir, 'CLAUDE.md')) ? ['holds CLAUDE.md'] : []),
+    ...PROFILE_FOLDERS.filter(folder => isFullFolder(join(configDir, folder))).map(folder => `holds ${folder}/`),
+    ...(installed.length > 0 ? [`plugins installed: ${installed.join(', ')}`] : []),
+    ...(enabled.length > 0 ? [`plugins enabled in settings.json: ${enabled.join(', ')}`] : []),
+    ...(Object.keys(settings?.hooks ?? {}).length > 0 ? ['settings.json sets hooks'] : []),
+  ]
+}
 
 function answerProblems(result) {
   if (!result) return ['no result message']
