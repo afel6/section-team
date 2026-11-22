@@ -18,8 +18,9 @@ From the repository root; the scripts only read these folders:
 ```
 node bench/data/hq/recompute.mjs
 node bench/data/fx/recompute.mjs
+node bench/data/p1/recompute.mjs ph py
 ```
 
-Each prints, per setup and then per task: total cost over its runs, cost as a multiple of solo, hidden tests passed per task (mean), and each judge's mean overall score with the number of cases that ranked the setup first. Rounds ph and py have p1's layout, so p1's per-run means apply to them.
+Each prints, per setup and then per task: total cost over its runs, cost as a multiple of solo, hidden tests passed per task (mean), and each judge's mean overall score with the number of cases that ranked the setup first. Rounds ph and py have p1's layout, so p1's per-run means apply to them (the third command prints them; py has no judges, so only cost and hidden tests).
 
-Known differences from the results doc, all rounding: hq solo's total prints $11.20 (the doc says $11.19; the unrounded sum is $11.197), fx's fix setup prints 2.93x solo (the doc says 2.94x; unrounded 2.933), and ph solo's mean cost is $3.62 per run where the doc says $3.63.
+Known differences from the results doc, all rounding (the printed value is the correctly rounded one; the doc is off by 0.01): hq solo's total prints $11.20 (the doc says $11.19; the unrounded sum is $11.197), fx's fix setup prints 2.93x solo (the doc says 2.94x; unrounded 2.933), and ph solo's mean cost is $3.62 per run where the doc says $3.63.
