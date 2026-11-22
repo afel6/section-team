@@ -18,6 +18,9 @@ const assertIncludes = (text, needles, label) => {
 // Sentences that make a saving or quality claim without saying it is unmeasured.
 const claimSentences = text => text.split(/(?<=[.!?])\s+|\n/).filter(s => CLAIM_WORDS.test(s) && !DISCLAIMED.test(s))
 
+// The round-by-round results moved out of the README into this file.
+const RESULTS_DOC = 'docs/benchmark-p1-hq-fx-2026-11.md'
+
 const read = path => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 test('the claim check catches claim words and accepts a disclaimed sentence', () => {
@@ -36,11 +39,15 @@ test('the stale cost multiple pattern matches 3.6 times, 3.6× and 3.6x but not 
   assert.ok(!STALE_COST_MULTIPLE.test('13.6 times'))
 })
 
-test('the README states the measured cost ranges, the round 17 label and no single stale cost multiple', () => {
+test('the README opens with the cost and the gain, and the results doc keeps the measured cost ranges and the round 17 label', () => {
   const readme = read('README.md')
-  assert.ok(!STALE_COST_MULTIPLE.test(readme), 'no stale 3.6 multiple')
-  const needles = ['about 2.2 to 5.2 times', 'about 7.5 to 9.7 times in Max', 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean, the third, was removed in 0.3.0']
-  assertIncludes(readme, needles, 'README')
+  const results = read(RESULTS_DOC)
+  for (const text of [readme, results]) assert.ok(!STALE_COST_MULTIPLE.test(text), 'no stale 3.6 multiple')
+  const quickstart = readme.split('\n## Quickstart\n')[1].split('\n## ')[0]
+  assertIncludes(quickstart, ['about 5× your normal Claude Code usage in Balanced', 'about 10× in Max, up to 13× on platform-sized tasks', 'the gain is blind-judged quality, mostly tests; hidden-test correctness ties', '/plugin install section-team --marketplace afel6/section-team', '/team mode off', 'claude plugin disable section-team@section-team', 'claude plugin uninstall section-team@section-team'], 'Quickstart')
+  assertIncludes(readme, ['Lean, the third, was removed in 0.3.0', 'Measured on v0.2.1'], 'README')
+  const needles = ['about 2.2 to 5.2 times', 'about 7.5 to 9.7 times in Max', 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', "plugin off, author's setup"]
+  assertIncludes(results, needles, 'results doc')
   assert.ok(!readme.includes('cleaner, better-tested and more robust'))
 })
 
@@ -61,7 +68,7 @@ test('the README describes the foundation skill, fresh sections and the guard, a
     'section-team:foundation', 'fresh Agent call', `${HEAD_CONTEXT_LIMIT.toLocaleString('en-US')} tokens`, 'builder heads have no project MCP servers', 'they use a CLI, or ask the supervisor',
     // what is measured, and what is not
     'Not measured yet', 'one-off replay of private local transcripts', 'replay itself is not in this repo', '71.8K tokens', '40.0K by default', '32.9K', 'one PC', '24.7K', 'where the difference is large',
-    'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', 'testing, docs, the security pass and advisors not counted', 'any saving in real use',
+    'testing, docs, the security pass and advisors not counted', 'any saving in real use',
     // brief rules and the foundation trigger
     "Max's security pass is unchanged", 'In Balanced, multi-area work touching auth, payments, uploads or secrets also wakes the security section', 'The p1 rounds ran the brief rules live, and from 0.3.0 on the foundation skill too', 'the grade check and the two-stage harness', 'a new platform or product with two or more builder areas', 'other work with 3 or more builders keeps the short plan',
     // Plan H: the node-http skill, and Max's complex single-area work
@@ -91,7 +98,7 @@ test('the README describes the saved request, the short hand-back, the resume br
 })
 
 test('the README records the p1 confirm round with its numbers and what is not measured', () => {
-  const readme = read('README.md')
+  const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A p1 confirm round (0.3.0, 2026-11-10).**',
     '| Plain Claude Code (solo) | $3.53 | 1.0 | 264 | 7.0 | 0 of 4 | 27 min | 149K to 152K |',
@@ -100,12 +107,12 @@ test('the README records the p1 confirm round with its numbers and what is not m
     'Missed: Balanced judged 1.0 above solo again, not 1.5',
     "`new TextDecoder('utf-8')`, which drops a leading byte order mark",
     "Commits 27db531, 44f5d45 and 68ffecb fix these in the sections' rules; the measure round below tests them.",
-  ], 'README')
+  ], 'results doc')
   assert.ok(!readme.includes('Their effect on usage is not measured yet.'), 'the unmeasured-usage sentence is gone')
 })
 
 test('the README records the p1 measure round with both judges and what is not measured', () => {
-  const readme = read('README.md')
+  const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A p1 measure round (0.3.0, 2026-11-11).**',
     '| Plain Claude Code (solo) | $4.03 | 1.0 | 264 | 7.0 | 7.0 | 0 of 4 | 8 min | 158K to 168K |',
@@ -114,13 +121,13 @@ test('the README records the p1 measure round with both judges and what is not m
     'Missed: Max judged level with Balanced by Codex and 0.75 below it by Fable, not 0.25 above.',
     'Commit 77edf80 keeps the answer after such a call',
     'checked its Node claims with probes; round tg below measured it.',
-  ], 'README')
+  ], 'results doc')
   assert.ok(!readme.includes("fix these in the sections' rules; not measured yet."), 'the confirm round fixes are measured now')
   assert.ok(!readme.includes('checked its Node claims with probes; not measured yet.'), '77edf80 is measured now')
 })
 
 test('the README records the p1 rounds tg to ph with both judges, what each measured and what was missed', () => {
-  const readme = read('README.md')
+  const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**The p1 rounds after the measure round (2026-11-11 to 2026-11-18).**',
     'Rounds tg, th, ti, tj, tk, tl and to ran on the main test machine (16 GB)',
@@ -138,14 +145,13 @@ test('the README records the p1 rounds tg to ph with both judges, what each meas
     'None of the judges\' points against the team builds was a missed target.',
     'Codex found both Balanced builds sending a model URL written with other than two slashes before the host to the wrong path',
     "and Node's bare 400 instead of the spec's 405 or 404 for methods Node refuses (CONNECT got no reply at all)",
-    'in rounds tg to ph Balanced cost 3.4 to 6.0 times and Max 8.4 to 13.0 times plain Claude Code',
-  ], 'README')
+  ], 'results doc')
   assert.ok(!readme.includes('design weight, not failed spec lines'), 'team defects are not called design weight')
   assert.ok(!readme.includes('Rounds tg to to ran'), 'round names are listed, not "tg to to"')
 })
 
 test('the README records round hq with both judges, its missed targets, and Max as the pick for platform work', () => {
-  const readme = read('README.md')
+  const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A held-out round on three other tasks (hq, 2026-11-19).**',
     '| Plain Claude Code (solo) | $11.19 | 1.0 | 25 / 47 / 146 | 7.92 | 7.17 | 0 / 0 of 12 | up to 140K |',
@@ -154,18 +160,29 @@ test('the README records round hq with both judges, its missed targets, and Max 
     'Missed: Balanced judged 1.33 above solo by Fable but 0.67 by Codex, under the 1.0 bar',
     'Balanced cost 5.2× solo over the three tasks, over 5×',
     'commit 2003125 has it written in place, not measured yet',
-    'so for platform-sized work Max is the stronger pick',
-  ], 'README')
+  ], 'results doc')
 })
 
 test('the README records round fx: the Balanced test-gap fix missed its bar and does not ship', () => {
-  const readme = read('README.md')
+  const readme = read(RESULTS_DOC)
   assertIncludes(readme, [
     '**A check of one Balanced fix on three new tasks (fx, 2026-11-20).**',
     'Codex 7.83 / 9.08 / 9.08, Fable 6.58 / 8.58 / 8.33',
     '2.94× solo and 1.02× Balanced without it',
     'so the fix does not ship',
-  ], 'README')
+  ], 'results doc')
+})
+
+test('the README Modes section keeps the p1 and h7 cost ranges and Max as the pick for platform work', () => {
+  const modes = read('README.md').split('\n## Modes\n')[1].split('\n## ')[0]
+  assertIncludes(modes, ['in rounds tg to ph Balanced cost 3.4 to 6.0 times and Max 8.4 to 13.0 times plain Claude Code', 'so for platform-sized work Max is the stronger pick'], 'Modes section')
+})
+
+test('the results doc says which rounds are published and which are reported only, and the h7 overlap with p1', () => {
+  const results = read(RESULTS_DOC)
+  assertIncludes(results, ['**reported, raw data not published**', 'node bench/data/p1/recompute.mjs', 'not publicly pre-registered', 'h7 is not fully held out'], 'results doc')
+  const readme = read('README.md')
+  assertIncludes(readme, ['Reported, raw data not published.', '[`bench/data/p1/`](bench/data/p1/)', 'shares a requirement word for word with p1'], 'README')
 })
 
 // Round tg: the second Max final review reads the code instead of probing again, and slices that share nothing are built side by side.
