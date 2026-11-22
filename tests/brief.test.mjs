@@ -73,7 +73,7 @@ test('every mode drops the advisor aside and the new skills section, and keeps a
 })
 
 test('every mode tells the supervisor to run project MCP calls for sections, under How to wake a section', () => {
-  const rule = '- Sections have no project MCP tools: when one asks, run the call yourself and reply to its agent id.'
+  const rule = "- Sections have no project MCP tools: when one asks, run a read-only call yourself and reply to its agent id; a write, send or delete needs the user's yes first."
   for (const mode of MODES) {
     const section = assembleBrief(mode).split('## How to wake a section\n')[1].split('\n## ')[0]
     assert.ok(section.split('\n').includes(rule), mode)
@@ -187,7 +187,7 @@ test('every mode sends small and single-area jobs to a builder section, and noth
     }
     const brief = assembleBrief(mode)
     assert.ok(brief.includes(BUILDER_LINE), mode)
-    assert.ok(!/(?<!not )\bbuild\b/i.test(brief), `${mode}: a sentence still tells the supervisor to build`)
+    assert.ok(!/(?<!not )\bbuild\b/i.test(brief.replace('wake specialist sections to build', '')), `${mode}: a sentence still tells the supervisor to build`)
     for (const old of ['Wake nobody', 'doing small work yourself', 'Wake no builder section']) assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
     assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
   }
@@ -283,7 +283,7 @@ test('max gates keep the balanced gate rules that do not depend on the mode', ()
 test('every mode tells the supervisor it writes no product code, tests or docs, and its gate is for sections', () => {
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
-    assert.ok(brief.split('\n')[1].endsWith(' You write no product code, tests or docs yourself.'), mode)
+    assert.ok(brief.includes('\n- Every job goes to a section you wake; you write no code, tests or docs yourself.\n'), mode)
     assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec'), mode)
     assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds.'), mode)
     assert.ok(brief.includes('- Tell each code builder to map every OS error its code can hit'), mode)
