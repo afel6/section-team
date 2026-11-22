@@ -1,0 +1,452 @@
+[
+  {
+    "pair": "h7-r1",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Strengths: readable modules, atomic request transactions with bounded lock retries (A/lib/app.mjs:33), exact BigInt valuations (A/lib/store.mjs:34), and clear migration documentation (A/README.md:22). In-memory probes reproduced two migration defects: the case-sensitive object query (A/lib/migrate.mjs:52) silently drops an external trigger declared ON PARTS; subsequent updates no longer populated its audit table. Reading sqlite_sequence without BigInt mode (A/lib/migrate.mjs:38) prevents migration after deleted ID 9007199254740993. Transfers also return 404 for an existing externally inserted part with ID 0 (A/lib/validate.mjs:27). Ran npm --prefix A test: sandbox EPERM blocked worker spawning; integration fallback encountered mkdtemp EPERM. With isolation disabled, page tests passed 8/8 and filtered handle tests passed 3/3. Migration tests cover preservation, interruption and scale (A/test/migrate.test.mjs:38), but miss the reproduced preservation defects."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: clear modular handlers, asynchronous lock retries and transactional rollback (B/src/transaction.mjs:36), exact BigInt totals (B/src/report.mjs:9), careful atomic migration (B/src/migrate.mjs:109), and comprehensive documentation (B/README.md:24). In-memory migration probes preserved the uppercase-target trigger and historical ID 9007199254740993. Defects: the recursive numeric JSON reviver (B/src/request.mjs:62) overflows on a valid 4034-byte object containing an ignored array nested 2000 levels. Dispatch returned 500 for POST /api/parts instead of 201 and PATCH /api/parts/999 instead of 404; ordinary requests afterward succeeded. Transfers reject an existing externally inserted part with ID 0 (B/src/moves.mjs:60), confirmed as 404. Ran npm --prefix B test: sandbox EPERM blocked workers; backend fallback could not create temporary directories. With isolation disabled, frontend and handle tests passed 102/102. Tests cover migration interruption and scale (B/test/migrate-big.test.mjs:148), but miss deeply nested ignored JSON."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Strengths: thorough atomic migration preserving external schema objects and historical counters (C/src/migrate.mjs:92, C/src/migrate.mjs:132), precise numeric handling and valuations (C/src/body.mjs:55, C/src/report.mjs:11), transactional rollback/retries (C/src/tx.mjs:17), and excellent migration, report and testing documentation (C/README.md:117, C/README.md:365, C/README.md:441). In-memory probes confirmed migration preservation, transfers involving ID 0, exact reports and rollback when triggers fail. Defect: balance validation occurs before insertion (C/src/moves.mjs:64), without checking the persisted result. A successful external AFTER INSERT trigger setting qty=-abs(qty) made a request with qty 1 return 201 and commit negative stock; B rejected and rolled back the same case. Trigger tests miss successful mutations (C/test/server-concurrency.test.mjs:92). Ran npm --prefix C test: sandbox EPERM blocked workers; backend fallback encountered mkdtemp EPERM. With isolation disabled, browser tests passed 99/99 and filtered handle tests passed 6/6. Extensive migration interruption/scale tests exist (C/test/server-migration-large.test.mjs:55), but file-based execution remained unverified."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "h6-r1",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear validation/application separation, iterative copying and equality, and safe special-name handling (A/jsonpatch.mjs:42, A/jsonpatch.mjs:56, A/jsonpatch.mjs:81). README documents behavior and exit codes well (A/README.md:20, A/README.md:47). Confirmed defect: A/jsonpatch.mjs:223 executes inherited operations at sparse patch indices instead of treating holes as undefined. A/jsonpatch-cli.mjs:156 cannot serialize a valid patch result grown to depth 6000; an in-memory CLI probe returned exit 1 and 'Error: unexpected failure'. npm test was blocked by sandbox spawn EPERM; running its four library suites without worker isolation passed all 286 tests. Direct CLI checks and 13 in-memory CLI boundary cases passed."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable implementation with iterative copying/equality, safe member writes, bounded reads and strict UTF-8 decoding (B/jsonpatch.mjs:28, B/jsonpatch.mjs:37, B/jsonpatch.mjs:56, B/jsonpatch-cli.mjs:54, B/jsonpatch-cli.mjs:111). Usage and exit codes are documented (B/README.md:25, B/README.md:33). Confirmed defects: B/jsonpatch.mjs:208 accepts inherited operations in sparse patch holes; B/jsonpatch-cli.mjs:142 throws RangeError when valid inputs produce a depth-6000 result, and line 145 rethrows it. B/test/jsonpatch.test.mjs:116 is vacuous because slice(0,0) removes the operation. npm test was blocked by sandbox spawn EPERM; its library suite passed all 10 tests without worker isolation. Direct CLI checks and 13 in-memory CLI boundary cases passed."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong implementation with safe member writes, iterative copying/equality, and iterative output formatting (C/jsonvalue.mjs:15, C/jsonvalue.mjs:27, C/jsonvalue.mjs:82, C/jsonvalue.mjs:111). CLI enforces byte limits, strict UTF-8, depth checks and input ordering (C/jsonpatch-cli.mjs:41, C/jsonpatch-cli.mjs:110, C/jsonpatch-cli.mjs:129, C/jsonpatch-cli.mjs:158); documentation is thorough (C/README.md:11, C/README.md:46). Confirmed defect: C/jsonpatch.mjs:183 executes inherited operations in sparse patch holes; ordinary-hole tests at C/test/form-rules.test.mjs:92 miss this case. npm test was blocked by sandbox spawn EPERM; all 360 library/format tests passed without worker isolation. Thirteen in-memory CLI boundary cases passed, and the depth-6000 result successfully emitted 72000001 characters. All solutions' original CLI suites were blocked by sandbox mkdtemp EPERM, not assertion failures."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "h6-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "A/jsonpatch.mjs:39 safely defines special member names; :49 and :73 implement iterative cloning and equality, preserving -0 and member order. A/README.md:9 documents library usage and :38 the CLI. Defects: A/jsonpatch.mjs:218 reads inherited array indices, so a sparse patch with prototype operation 0 returns {x:1} instead of PatchError('operation 0: not an object'). A/jsonpatch-cli.mjs:133 uses native JSON.stringify and :135 rethrows unexpected errors: a legal patch of input depth 1000 creating a depth-5500 result crashed with RangeError and empty stdout. Ran npm test (sandbox spawn EPERM), the library tests with isolation disabled (19/19 passed), and the original CLI suite (8 blocked by sandbox mkdtemp EPERM). Fourteen direct CLI probes passed, plus 26 in-memory CLI checks; the inherited-hole and deep-output probes confirmed both defects. A/test/cli.test.mjs:68 checks input depth but misses excessive result depth."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/jsonpatch.mjs:106 safely defines own members and :116 uses iterative copying; validation and operation helpers are clear. B/jsonpatch-cli.mjs:45 bounds actual bytes, :113 strictly decodes UTF-8, and :171 formats iteratively. B/README.md:35 explains CLI usage and errors. Defect: B/jsonpatch.mjs:43 reads inherited array indices; a sparse patch with prototype operation 0 incorrectly returns {x:1}, rather than operation 0: not an object. B/test/apply-forms.test.mjs:48 tests ordinary holes but misses inherited entries. Ran npm test (sandbox spawn EPERM), explicit library tests with isolation disabled (302/302 passed), and the original CLI suite (44 blocked by sandbox mkdtemp EPERM). Fourteen direct CLI probes and 31 in-memory CLI/format/depth checks passed. Depth-5500 output matched an independently generated expected byte count and SHA-256. Narrowly behind C because B/test/cli.test.mjs:255 checks input depth but lacks C's regression for output beyond the native serializer's stack limit and its permission-error cases."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "C/jsonpatch.mjs:69 safely defines own members; :78 and :127 copy and compare iteratively. C/jsonpatch-cli.mjs:76 bounds actual bytes, :144 validates depth iteratively, and :166 formats deep results without recursion. C/README.md:40 and :57 give clear usage and exit messages. Defect: C/jsonpatch.mjs:271 reads inherited patch-array indices; a hole with a prototype operation returns {x:1} instead of operation 0: not an object. C/test/patch-form.test.mjs:44 misses this variant. Ran npm test (sandbox spawn EPERM), explicit library tests with isolation disabled (247/247 passed), and the original CLI suite (54 cancelled by sandbox mkdtemp EPERM). Fourteen direct CLI probes passed. Depth-5500 output matched an independently generated expected byte count and SHA-256. Ranked first for the strongest CLI regression coverage, including deep output at C/test/cli.test.mjs:129, permission errors at :208 and :263, and byte boundaries at :221; the sandbox prevented executing that full suite."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "h7-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No confirmed in-scope defect found. Defensive atomic migration preserves external objects and historical ID counters (A/src/migrate.mjs:92, A/src/migrate.mjs:132); valuations use exact BigInt arithmetic (A/src/report.mjs:11). Focused modules and comprehensive usage/migration documentation (A/README.md:117). npm --prefix A test was blocked by sandbox spawn EPERM; explicit no-isolation runs passed 99 browser tests and 11 handle tests, while integration tests hit mkdtemp EPERM. Memory-only probes passed 27 check groups including rollback, cascades, collisions and exact totals; a 20000-part/100000-move migration took 155 ms with temp_store=MEMORY. Disk crash recovery remains unverified here."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Readable modular implementation with transactional migration (B/src/migrate.mjs:125), exact report arithmetic (B/src/report.mjs:9), broad browser tests and detailed documentation (B/README.md:51). Confirmed: a valid 4041-byte POST containing 2000 nested arrays in an ignored key returns 500 because JSON.parse's recursive reviver overflows (B/src/request.mjs:62). Migration also ignores a text-valued historical sqlite_sequence counter, allocating ID 2 instead of 101 (B/src/migrate.mjs:58). npm --prefix B test was blocked by sandbox spawn EPERM; explicit no-isolation runs passed 102 browser/handle tests, while filesystem tests hit mkdtemp EPERM. Memory-only probes confirmed these defects and passed ordinary migration object preservation, report arithmetic, transfer rollback and cascades."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Clear structure, bounded body collection and transactional retries (C/lib/http.mjs:13, C/lib/app.mjs:32); exact monetary totals (C/lib/report.mjs:11) and useful documentation (C/README.md:22). Confirmed data-preservation defect: case-sensitive object selection silently loses an external trigger declared ON Parts during migration (C/lib/migrate.mjs:52, C/lib/migrate.mjs:64). Reading the historical sequence as Number also prevents migration when it is 9007199254740993 (C/lib/migrate.mjs:38). Overlapping pagination and a failed search can leave Load more disabled (C/public/app.js:111, C/public/app.js:117). npm --prefix C test was blocked by sandbox spawn EPERM; separate no-isolation runs passed 8 browser and 3 handle tests; filesystem tests hit mkdtemp EPERM. Memory/VM probes confirmed the defects; 20000 parts/100000 moves migrated in 177 ms with temp_store=MEMORY."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-04",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "A/lib/validate.mjs:64 and A/lib/ledger.mjs:10 correctly fix cent conversion and ordered remainder allocation. A/lib/import.mjs:93 and A/lib/import.mjs:122 implement the required validation order, duplicate/recorded precedence, independent IDs, skipping and dry runs without mutating input state. A/README.md:36 meets the API documentation requirements. Minor weaknesses: A/test/validate.test.mjs:45 samples only a few problematic amounts; A/test/import.test.mjs:297 does not establish exactly one save; A/README.md:52 and A/README.md:56 omit some ordering and duplicate-source details documented by C. No required functional defect found. Ran npm --prefix A test: worker spawn EPERM. Retried without worker isolation: 17 passed; 63 HTTP/store tests blocked by sandbox mkdtemp EPERM. All 115 common in-memory body/route/transaction probe assertions passed."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/lib/validate.mjs:65 and B/lib/ledger.mjs:13 correctly fix monetary arithmetic. B/lib/import.mjs:72, B/lib/import.mjs:88 and B/lib/import.mjs:118 correctly implement the import contract; B/lib/import.mjs:136 prevents dry-run and all-skipped saves. B/README.md:38 and B/README.md:50 document the endpoint thoroughly. Robustness limitation: B/lib/import.mjs:84 assumes stored descriptions are strings; a probe with a numeric stored description caused TypeError even for a payment-only import, while A/C succeeded. Such records are outside normal service-generated data. B/test/import.test.mjs:205 checks unchanged bytes but cannot detect rewriting identical data, and lacks C's legacy-record regression. Ran npm --prefix B test: worker spawn EPERM. Without worker isolation: 18 passed; 43 HTTP/store tests blocked by sandbox mkdtemp EPERM. All 115 common in-memory probe assertions passed."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "C/lib/validate.mjs:64 and C/lib/ledger.mjs:10 correctly fix both reported money bugs. C/lib/import.mjs:88 and C/lib/import.mjs:121 preserve validation precedence, atomicity, IDs and dry-run/skip behavior. Strongest regression coverage: Unicode normalization at C/test/import.test.mjs:215, preserved legacy records at C/test/import.test.mjs:227, and actual no-save behavior at C/test/import.test.mjs:279; C/test/validate.test.mjs:45 checks 200000 cent amounts. C/README.md:36 and C/README.md:54 clearly document statuses and ordering. Minor code-quality cost: C/lib/import.mjs:109 and C/lib/import.mjs:113 repeatedly copy accumulator arrays, harmless with the 50-entry limit. No required functional defect found. Ran npm --prefix C test: worker spawn EPERM. Without worker isolation: 18 passed; 55 HTTP/store tests blocked by sandbox mkdtemp EPERM. All 115 common in-memory probe assertions passed."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-05",
+    "swapped": true
+  },
+  {
+    "pair": "h6-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong validation/application separation (A/jsonpatch.mjs:157,190), prototype-safe writes and iterative copying/equality/formatting (A/jsonvalue.mjs:15,27,82,111), bounded reads and strict decoding (A/jsonpatch-cli.mjs:41,110), and clear documentation (A/README.md:24,46,63). Defect: A/jsonpatch.mjs:183 reads inherited numeric properties of patch arrays; a hole with an inherited add operation executes instead of throwing operation 0: not an object. Ran npm --prefix A test: blocked by sandbox spawn EPERM. Its six library/format test files passed 360 tests using node --test --test-isolation=none. Own CLI setup was blocked by temporary-directory permissions. Thirteen independent real-CLI boundary/error probes passed. A legal patch producing 9911 object levels printed successfully, demonstrating the iterative formatter's advantage."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Readable implementation with iterative cloning/equality, safe member definitions and complete prevalidation (B/jsonpatch.mjs:28,37,56,204), bounded input handling (B/jsonpatch-cli.mjs:54,93,106), and useful documentation (B/README.md:8,25,34,40). Defects: B/jsonpatch.mjs:208 executes inherited operations in sparse patch holes. B/jsonpatch-cli.mjs:142 overflows JSON.stringify on a legal result with 9911 object levels; :145 rethrows it, producing exit 1 and a multiline RangeError stack trace. Reproduction: replace root with 900 nested a members, then ten root copies to '/a'.repeat(901); inputs remain within depth limits. B/test/jsonpatch.test.mjs:116 empties its purported move test using slice(0,0). Ran npm --prefix B test: blocked by sandbox spawn EPERM. Its library test file passed 10/10 using node --test --test-isolation=none. Own CLI tests require blocked temporary writes/subprocesses. Thirteen independent real-CLI boundary/error probes passed; inherited-hole and deep-result probes failed."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear helpers, prototype-safe own-member handling, iterative copying/equality and complete prevalidation (C/jsonpatch.mjs:42,56,81,107,220), bounded reads and strict decoding/depth checks (C/jsonpatch-cli.mjs:49,96,114), and thorough documentation (C/README.md:20,28,35,47). Defects: C/jsonpatch.mjs:223 executes inherited operations in sparse patch holes. C/jsonpatch-cli.mjs:156 overflows JSON.stringify on a legal result with 9911 object levels; :164 reports Error: unexpected failure, exit 1. Reproduction: replace root with 900 nested a members, then ten root copies to '/a'.repeat(901); inputs remain within depth limits. Ran npm --prefix C test: blocked by sandbox spawn EPERM. Its four library test files passed 286 tests using node --test --test-isolation=none. Own CLI setup was blocked by temporary-directory permissions. Thirteen independent real-CLI boundary/error probes passed; inherited-hole and deep-result probes failed. Broader meaningful tests than B, including actual token-prefix checks (C/test/form-rules.test.mjs:181)."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-06"
+  },
+  {
+    "pair": "h5-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "A/lib/validate.mjs:65 fixes cent conversion; A/lib/ledger.mjs:10 distributes remainder cents correctly. A/lib/import.mjs:89 implements duplicate/recorded precedence, and A/lib/import.mjs:135 suppresses writes for dry runs and all-skipped imports without mutating saved records. A/README.md:38 and A/README.md:50 document the complete contract. No functional defect found. Test weakness: A/test/import.test.mjs:277 checks unchanged bytes in an already formatted file, which cannot detect an unnecessary identical rewrite; its alphabetical member fixture at A/test/import.test.mjs:6 also weakens order assertions. Ran all 77 own tests with node:test isolation disabled: 17 passed, 60 hit sandbox EPERM creating temporary directories, so the full suite is unverified. All 433 independent HTTP reference cases passed with a substituted in-memory store, including write counts; physical persistence was not tested."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "B/lib/validate.mjs:64 and B/lib/ledger.mjs:10 fix both money bugs without migrating records. B/lib/import.mjs:102 cleanly separates classification from ID allocation at B/lib/import.mjs:121 and correctly avoids writes at B/lib/import.mjs:156. B/README.md:38 and B/README.md:50 cover the required endpoint and rules. Strongest tests: nonalphabetical member order at B/test/import-helpers.mjs:6, exact Unicode comparison at B/test/import-rules.test.mjs:110, and compact-file checks that detect unwanted rewrites at B/test/import.test.mjs:170 and B/test/import.test.mjs:212. No functional defect found. Ran all 88 own tests with node:test isolation disabled: 18 passed, 70 hit sandbox EPERM creating temporary directories, so the full suite is unverified. All 433 independent HTTP reference cases passed with a substituted in-memory store, including write counts; physical persistence was not tested."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "C/lib/validate.mjs:64 and C/lib/ledger.mjs:10 correctly fix money arithmetic. C/lib/import.mjs:87 preserves duplicate precedence and C/lib/import.mjs:112 allocates independent IDs; C/lib/import.mjs:141 implements dry-run and no-change replies correctly. C/README.md:38 and C/README.md:50 satisfy the documentation requirements. No functional defect found. Tests are less discriminating: C/test/import.test.mjs:176 claims to test invalid earlier expenses not causing duplicates, but includes no later valid matching expense; the alphabetical fixture at C/test/import.test.mjs:6 cannot catch sorting balances instead of preserving member order. Ran all 59 own tests with node:test isolation disabled: 17 passed, 42 hit sandbox EPERM creating temporary directories, so the full suite is unverified. All 433 independent HTTP reference cases passed with a substituted in-memory store, including write counts; physical persistence was not tested."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-07"
+  },
+  {
+    "pair": "h7-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong transactional migration preserves normal business rows, deleted-ID sequences and external indexes/triggers (A/src/migrate.mjs:58, A/src/migrate.mjs:103). Reports use exact BigInt arithmetic (A/src/handlers-report.mjs:8), and migration documentation is thorough (A/README.md:71). Preservation gaps: reading and reinserting parts through JS strings rewrites externally stored malformed UTF-8 TEXT; an in-memory probe changed hex 80 to EFBFBD (A/src/migrate.mjs:54, A/src/migrate.mjs:64). Dropping parts also discarded two ANALYZE statistics rows (A/src/migrate.mjs:61). Ran npm --prefix A test: sandbox spawn EPERM blocked isolation. An in-process retry produced 122 passes and five sandbox mkdtemp EPERM failures, with no assertion failures. Independent probes of the actual request listener passed 34 assertions covering handles, validation, stock rejection, exact reports and trigger-failure rollback."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "Most complete preservation implementation: transactional migration validates ledgers, copies stored values inside SQLite and retains ID high-water marks (B/lib/migrate.mjs:34, B/lib/migrate.mjs:51, B/lib/migrate.mjs:110). External indexes, triggers and ANALYZE statistics are restored (B/lib/migrate-objects.mjs:15). Exact reporting and independent UI request sequencing are well implemented (B/lib/report-api.mjs:17, B/public/app.js:108, B/public/app.js:184), with comprehensive migration guidance (B/README.md:335). No unambiguous functional defect found. Ran npm --prefix B test: sandbox spawn EPERM blocked execution. In-process runs passed all 98 handle/page tests; 29 migration tests hit sandbox mkdtemp EPERM. Independent in-memory probes passed byte-exact text preservation, external-object/sequence preservation, invalid-ledger rollback, exact reports and trigger-aborted transfers. A 20000-part/100000-move migration took 152 ms with temp_store=MEMORY; filesystem crash durability remains unverified here."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Readable modular implementation with atomic writes, sequence/object preservation and exact reports (C/lib/db.mjs:104, C/lib/schema.mjs:73, C/lib/store.mjs:101). Unsupported HTTP methods bypass JSON routing: raw probes found CONNECT closes without replying and BREW returns an empty 400 instead of JSON 405 (C/server.mjs:32). Transfers incorrectly reject an existing exactly representable part ID 9007199254740992 (C/lib/handlers.mjs:84). A failed search overlapping Load more leaves that button disabled despite a retained cursor, reproduced with the fake DOM (C/public/app.js:106, C/public/app.js:116). Migration rewrites externally stored malformed UTF-8 TEXT through JS strings (C/lib/schema.mjs:98, C/lib/schema.mjs:79). Collision allocation is quadratic: 20000 identical names took 24.661 seconds without moves, still below 30 seconds but contradicting the subsecond documentation claim (C/lib/schema.mjs:56, C/lib/handle.mjs:23, C/README.md:35). Ran npm --prefix C test: seven files blocked by sandbox spawn EPERM. In-process runs passed all 10 UI and nine handle tests. Independent preservation, exact-report and trigger-rollback probes passed."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-08"
+  },
+  {
+    "pair": "h7-r2",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Clear transactional database code and exact BigInt reports (A/lib/db.mjs:104; A/lib/store.mjs:101). Migration preserves ordinary rows, dependent objects and ID counters, but reading/reinserting text silently changes invalid UTF-8 bytes: SKU 41FF42 became 41EFBFBD42 (A/lib/schema.mjs:98,79). Virtual HTTP probes found FOO returns 400 instead of 405, and GET with Expect: foo returns 417 instead of 200 because protocol events are unhandled (A/server.mjs:32). Confirmed Load more stays disabled after an overlapping newer search fails (A/public/app.js:106,116,130). Transfers reject the valid existing ID 9007199254740992 (A/lib/handlers.mjs:84); BOM-prefixed JSON is incorrectly accepted (A/lib/http.mjs:41). A 20000-part/100000-move in-memory migration with identical names took 24.6s, meeting 30s but contradicting README's under-one-second claim (A/lib/handle.mjs:26; A/README.md:35). Ran npm test: sandbox spawn EPERM. Isolation-disabled own tests: 19 passed, 45 cancelled by mkdtemp EPERM. All 12 additional in-memory HTTP checks and the beyond-64-bit report probe passed."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Best migration: SQL-side copying preserves exact stored bytes, ID high-water marks and external objects/statistics, inside one transaction (B/lib/migrate.mjs:51,69,110; B/lib/migrate-objects.mjs:38). In-memory preservation/refusal probes passed; 20000 parts/100000 moves migrated in about 149ms. Exact reports and independent browser request sequencing are sound (B/lib/report-api.mjs:14; B/public/app.js:105,170); README is comprehensive (B/README.md:10,335). Defect: balances are checked only before writes; an AFTER INSERT trigger flipping qty committed negative stock with status 201, and an AFTER DELETE trigger also committed negative stock (B/lib/moves-api.mjs:59,65,102). Exact-source numeric validation rejects qty 1.00000000000000001 although ordinary JSON.parse yields valid integer 1 (B/lib/json.mjs:76,97). Ran npm test: sandbox spawn EPERM; full isolation-disabled tests hit mkdtemp EPERM. The executable own handle/page subset passed 98/98. All 12 additional in-memory HTTP checks, large-ID transfer and beyond-64-bit report probes passed."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Well-structured atomic migration, preserved ID counters/external objects, asynchronous lock retries, exact reports and independent list/report sequencing (C/src/migrate.mjs:59,103; C/src/transaction.mjs:84; C/src/handlers-report.mjs:8; C/public/app.js:106,181). Post-write balance validation correctly rolled back a trigger-induced negative move (C/src/handlers-moves.mjs:52). Main defect: migration decodes and reinserts existing text, silently changing SKU 41FF42 to 41EFBFBD42 and name 43FE44 to 43EFBFBD44 (C/src/migrate.mjs:54,64); rebuilding also discarded existing sqlite_stat1 rows (C/src/migrate.mjs:61,68). Exact-source parsing rejects numeric tokens that JSON.parse rounds to valid integers or zero (C/src/json.mjs:22,49). Thorough migration/crash and browser tests, plus detailed usage documentation (C/test/migrate-crash.test.mjs:38,95; C/README.md:17,71). Ran npm test: sandbox spawn EPERM. Selected isolation-disabled own tests: 122 passed, five blocked by mkdtemp EPERM; full-suite attempt met the same restrictions. All 12 additional in-memory HTTP checks, large-ID transfer and beyond-64-bit report probes passed."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-09",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Correct, focused money fixes (A/lib/validate.mjs:64; A/lib/ledger.mjs:12) and ordered, atomic import handling with separate IDs and dry-run/all-skipped save suppression (A/lib/import.mjs:86; A/lib/import.mjs:110; A/lib/import.mjs:129). README documents the endpoint and rules (A/README.md:38; A/README.md:50). Main limitations are test discrimination: the import fixture uses alphabetical member order (A/test/import.test.mjs:6), and dry-run tests do not inspect file bytes (A/test/import.test.mjs:232). A/lib/import.mjs:46 also assumes persisted descriptions are strings; this is only a defensive limitation for malformed stored records, not a defect for records the seed API creates. Ran its full node --test suite: default isolation hit spawn EPERM; --test-isolation=none hit read-only mkdtemp EPERM. Its ledger/validation subset passed 15/15, and 25 independent in-memory request-loop probes passed with filesystem operations mocked. No task-level functional defect found; real disk persistence could not be verified."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "Clear validation/classification/recording phases correctly implement rule precedence, duplicate tracking, independent counters, and no-save responses (B/lib/import.mjs:74; B/lib/import.mjs:102; B/lib/import.mjs:121; B/lib/import.mjs:140). Both money fixes are minimal (B/lib/validate.mjs:64; B/lib/ledger.mjs:12); documentation is comprehensive (B/README.md:38; B/README.md:50). Strongest tests: nonalphabetical member order (B/test/import-helpers.mjs:5), Unicode comparison boundaries (B/test/import-rules.test.mjs:110), numeric-key Object.keys order (B/test/import.test.mjs:60), and compact-file checks that expose unintended rewrites (B/test/import.test.mjs:170; B/test/import.test.mjs:212). Minor coverage gap: persistence assertions do not directly count writes or exercise import-specific save-failure rollback (B/test/import.test.mjs:109). Ran its full node --test suite: default isolation hit spawn EPERM; --test-isolation=none hit read-only mkdtemp EPERM. Ledger/validation passed 18/18; all 25 independent in-memory request-loop probes passed with filesystem operations mocked, including single-write and save-failure checks. No functional defect found; real disk persistence remains unverified."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Correct money rounding and remainder distribution (C/lib/validate.mjs:65; C/lib/ledger.mjs:12), with complete import classification, IDs, balances, and save suppression (C/lib/import.mjs:89; C/lib/import.mjs:108; C/lib/import.mjs:121). Documentation meets the endpoint/table/rule requirements (C/README.md:38; C/README.md:50). Broad tests cover edited/deleted records, global IDs, and dry-run behavior (C/test/import.test.mjs:209; C/test/import.test.mjs:225; C/test/import.test.mjs:352; C/test/import.test.mjs:361). Main maintainability limitation is the extra schema callback/result-object machinery and per-field copying (C/lib/import.mjs:15; C/lib/import.mjs:54). Its file-byte no-write checks begin with normally formatted data, so an identical rewrite could escape detection (C/test/import.test.mjs:277; C/test/import.test.mjs:361). Ran its full node --test suite: default isolation hit spawn EPERM; --test-isolation=none hit read-only mkdtemp EPERM. Ledger/validation passed 17/17; all 25 independent in-memory request-loop probes passed with filesystem operations mocked. No functional defect found; real disk persistence remains unverified."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-10",
+    "swapped": true
+  },
+  {
+    "pair": "h5-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Correct money fixes (A/lib/validate.mjs:64; A/lib/ledger.mjs:12). Import preserves validation precedence, duplicate semantics, independent IDs and atomic state updates (A/lib/import.mjs:88; A/lib/import.mjs:121). Especially strong coverage of Unicode matching, preserved stored cents and genuinely write-free skipped imports (A/test/import.test.mjs:215; A/test/import.test.mjs:227; A/test/import.test.mjs:279). Documentation covers the required contract (A/README.md:36; A/README.md:50). Minor complexity: allocation repeatedly copies growing arrays (A/lib/import.mjs:109). Ran all 73 own tests using node:test without process isolation: 18 passed, 55 failed solely because filesystem operations returned EPERM. All 91 in-process request probes passed using the original request listener and an in-memory storage substitute. No functional defect found."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 8,
+      "notes": "Correct rounding, remainder allocation and import behavior for valid saved records (B/lib/validate.mjs:65; B/lib/ledger.mjs:12; B/lib/import.mjs:118). Clear validation and allocation structure, with comprehensive documentation (B/lib/import.mjs:72; B/lib/import.mjs:104; B/README.md:50). Robustness defect: unconditionally trimming saved descriptions makes imports return 500 when an existing expense has a numeric, null or object description; targeted probes reproduced all three cases (B/lib/import.mjs:84). The all-skipped test checks unchanged bytes, which cannot detect an unnecessary identical rewrite (B/test/import.test.mjs:199). Ran all 61 own tests using node:test without process isolation: 18 passed, 43 failed solely with filesystem EPERM. All 91 standard in-process request probes passed with substituted storage."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Correct money fixes and readable import implementation, including safe handling of non-string saved descriptions (C/lib/validate.mjs:64; C/lib/ledger.mjs:12; C/lib/import.mjs:88). Validation, skipping, allocation and commit behavior follow the specification (C/lib/import.mjs:122). Broad tests cover rule precedence, cross-group IDs, persistence and dry runs (C/test/import.test.mjs:111; C/test/import.test.mjs:229; C/test/import.test.mjs:326). Documentation meets the requirements, but could explicitly explain that skipped or already-recorded predecessors still count as duplicate sources (C/README.md:56). Ran all 80 own tests using node:test without process isolation: 17 passed, 63 failed solely with filesystem EPERM. All 91 in-process request probes passed with substituted storage. No functional defect found; A has stronger adversarial and no-write coverage."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-11"
+  },
+  {
+    "pair": "h6-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Strong form prevalidation, prototype-safe member writes, and iterative cloning/equality (A/jsonpatch.mjs:69, A/jsonpatch.mjs:78, A/jsonpatch.mjs:267). Iterative CLI formatting handles results beyond input depth limits (A/jsonpatch-cli.mjs:166); thorough API/error/usage documentation (A/README.md:22). Defect: A/jsonpatch.mjs:271 reads inherited numeric properties of sparse patch arrays; a hole with an inherited add operation is applied instead of throwing operation 0: not an object. Own library tests passed 247/247 with node --test --test-isolation=none. Default npm test worker spawning and CLI fixture creation were blocked by environment EPERM, not implementation failures. Eight direct CLI encoding/size/depth/order probes passed; a valid 12,761-byte patch producing depth 4,496 also succeeded. Extensive CLI coverage, including generated deep output (A/test/cli.test.mjs:129), gives A the ranking edge."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Readable two-pass validation (B/jsonpatch.mjs:41), exact-number/prototype-safe iterative copying (B/jsonpatch.mjs:106, B/jsonpatch.mjs:116), and correct move/copy sequencing (B/jsonpatch.mjs:257). CLI bounds actual bytes, validates UTF-8/depth, and formats iteratively (B/jsonpatch-cli.mjs:45, B/jsonpatch-cli.mjs:113, B/jsonpatch-cli.mjs:170); clear README contracts and usage (B/README.md:20, B/README.md:37). Defect: B/jsonpatch.mjs:43 accepts inherited operations in sparse array holes instead of treating holes as undefined. Own library tests passed 302/302 with node --test --experimental-test-isolation=none. Default npm test worker spawning was blocked by environment EPERM; CLI fixtures require prohibited filesystem writes. Eight direct CLI encoding/size/depth/order probes passed, and the depth-4,496 generated result printed successfully. Broad library coverage; CLI tests (B/test/cli.test.mjs:69) are less comprehensive than A's."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Compact implementation with safe member writes, iterative cloning/equality, and prevalidation (C/jsonpatch.mjs:39, C/jsonpatch.mjs:49, C/jsonpatch.mjs:72, C/jsonpatch.mjs:217); bounded reading and ordered UTF-8/depth checks (C/jsonpatch-cli.mjs:40, C/jsonpatch-cli.mjs:98, C/jsonpatch-cli.mjs:121). Clear API and CLI documentation (C/README.md:25, C/README.md:38). Defects: C/jsonpatch.mjs:218 accepts inherited operations in sparse patch holes; C/jsonpatch-cli.mjs:133 uses recursive JSON.stringify, and line 135 rethrows its RangeError. Confirmed actual CLI exit 1 with a stack trace and no stdout for a valid 12,761-byte, depth-902 patch producing depth 4,496; A/B succeeded. Own library tests passed 19/19 with node --test --test-isolation=none. Default worker spawning and all eight CLI tests' fixture setup were blocked by environment EPERM. Eight direct CLI encoding/size/depth/order probes passed. Tests cover common and several difficult cases but miss the generated-output failure (C/test/cli.test.mjs:68)."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-12",
+    "swapped": true
+  }
+]
