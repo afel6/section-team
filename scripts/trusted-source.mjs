@@ -9,8 +9,12 @@ export function isTrusted(owner, list) {
     && list.some(o => typeof o === 'string' && o.toLowerCase() === owner.toLowerCase())
 }
 
-// Returns {code, message}: 0 trusted, 1 not trusted, 2 unusable list.
-export function check(owner, file = SOURCES_FILE) {
+// The user's switch for unattended installs; the same variable the session-start hook reads.
+const AUTO_INSTALL_ENV = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
+
+// Returns {code, message}: 0 trusted, 1 not trusted, 2 unusable list. Nobody is trusted unless the user turned automatic installs on.
+export function check(owner, file = SOURCES_FILE, env = process.env) {
+  if (env[AUTO_INSTALL_ENV] !== '1') return { code: 1, message: `automatic skill installs are off (${AUTO_INSTALL_ENV} is not 1), so ask the user` }
   let list
   try {
     list = JSON.parse(readFileSync(file, 'utf8'))

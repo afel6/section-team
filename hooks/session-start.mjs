@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { assembleBrief, briefHash } from './lib/brief.mjs'
-import { DEFAULT_MODE, MODE_FILE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { statusDir } from './sessions-model.mjs'
@@ -11,17 +11,21 @@ import { statusDir } from './sessions-model.mjs'
 export const AUTO_INSTALL_ENV = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
 const MESSAGE_PREFIX = 'section-team session-start'
 
-const autoInstallNote = source => [
+const AUTO_INSTALL_NOTE = [
   '## Skill installs',
-  `- Automatic skill installs are on (${source}): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
+  `- Automatic skill installs are on (${AUTO_INSTALL_ENV}=1): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
-// Whether skill installs are automatic, and where that came from: the mode file wins, then the environment when it is set
-// (only exactly '1' turns installs on, and any other set value is named as the source of off), else off by default.
+export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set ${AUTO_INSTALL_ENV}=1 in your user settings instead`
+
+// Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
+// is named as the source of off). The mode file, which a cloned repo can commit, may turn them off but never on: its true is ignored,
+// with a notice when the environment does not turn them on anyway.
 function skillSetting(autoInstallSkills, env) {
-  if (autoInstallSkills !== null) return { on: autoInstallSkills, from: MODE_FILE }
-  if (env[AUTO_INSTALL_ENV] === undefined) return { on: false, from: null }
-  return { on: env[AUTO_INSTALL_ENV] === '1', from: AUTO_INSTALL_ENV }
+  if (autoInstallSkills === false) return { on: false, from: MODE_FILE, notice: null }
+  const on = env[AUTO_INSTALL_ENV] === '1'
+  const from = env[AUTO_INSTALL_ENV] === undefined ? null : AUTO_INSTALL_ENV
+  return { on, from, notice: autoInstallSkills === true && !on ? FILE_ON_IGNORED : null }
 }
 
 // Every mode: a section that could not run its gate hands back ungraded work, which the supervisor grades from outside.
@@ -29,6 +33,8 @@ const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run it
 
 // The 2026-11-09 p1 round: each --resume re-sent the whole brief, which the resumed history already holds.
 const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still applies.'
+
+export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session`
 
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
@@ -38,6 +44,7 @@ function modeSection(mode, skills, problem, retired) {
     `- This project runs in ${modeName(mode)} mode (${mode === DEFAULT_MODE ? 'default' : `from ${MODE_FILE}`}).`,
     ...(retired === undefined ? [] : [`- ${RETIRED_LINE}`]),
     `- Automatic skill installs: ${skills.on ? 'on' : 'off'} (${skills.from === null ? 'default' : `from ${skills.from}`}).`,
+    ...(skills.notice === null ? [] : [`- ${skills.notice}.`]),
     `- ${UNGRADED_LINE}`,
     ...(problem === null ? [] : [`- ${problem}.`]),
   ].join('\n')
@@ -49,7 +56,7 @@ export function composeContext({ mode, autoInstallSkills, problem, retired }, en
   const skills = skillSetting(autoInstallSkills, env)
   return [
     briefKept ? BRIEF_KEPT_LINE : assembleBrief(mode),
-    skills.on ? autoInstallNote(skills.from === AUTO_INSTALL_ENV ? `${AUTO_INSTALL_ENV}=1` : MODE_FILE) : null,
+    skills.on ? AUTO_INSTALL_NOTE : null,
     summary ? `Last team summary: ${summary}. Read it first.` : null,
     hasPlan ? PLAN_LINE : null,
     modeSection(mode, skills, problem, retired),
@@ -87,6 +94,8 @@ function briefStillHeld(source, home, sessionId, hash) {
 export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source } = {}) {
   const root = projectRoot(cwd)
   const setting = readMode(root)
+  // A project switched off gets no brief and nothing written: no git exclude edit, no notes folder, no records.
+  if (setting.off) return { context: null, warnings: [OFF_LINE] }
   const steps = [
     ['git exclude update', () => ensureExcluded(cwd, root)],
     ...(excludeFile(cwd) ? [['notes folder', () => ensureNotes(root)]] : []), // a plain folder gets no .team/ until a section writes a note
@@ -103,7 +112,8 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const held = briefStillHeld(source, home, sessionId, hash)
   const context = composeContext(setting, env, summary.value, hasPlan, { briefKept: held.value === true })
   const recorded = held.value === true || !isSessionId(sessionId) ? { warning: null } : attempt('brief record', () => recordBriefHash(home, sessionId, hash))
-  const warnings = [setting.problem, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  const skillNotice = skillSetting(setting.autoInstallSkills, env).notice
+  const warnings = [setting.problem, skillNotice, retired, ...stepWarnings, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 
@@ -118,7 +128,7 @@ async function main() {
   const dir = projectDirOf(input)
   if (dir === null) return skipped(input === null ? 'the hook input is not JSON' : 'the hook input has no absolute cwd')
   const { context, warnings } = startContext(dir, homedir(), process.env, input?.session_id ?? null, { source: input?.source })
-  const output = { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
+  const output = context === null ? {} : { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }
   process.stdout.write(JSON.stringify(warnings.length === 0 ? output : { systemMessage: `${MESSAGE_PREFIX}: ${warnings.join('; ')}`, ...output }))
 }
 

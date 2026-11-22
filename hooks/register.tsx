@@ -3,7 +3,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { BoardCard, BoardData, ChatCard, ChatsData, Mode, SessionState, SessionStatus } from '../types'
 import { boardModel, emptyBoard, formatTokens, latestReportFiles, sectionUsage, stripLine } from './board-model.mjs'
 import { isHarnessFrame } from './lib/frames.mjs'
-import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
+import { DEFAULT_MODE, MODE_FILE, modeName, OFF_MODE, parseModeFile, serializeMode } from './lib/mode.mjs'
 import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, NOT_READ_LINE, parseNames, serializeNames, UNREADABLE_LINE, unread } from './lib/names.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
 import { codeOf, MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
@@ -62,16 +62,18 @@ async function readModeText($: EngineInterface, root: string): Promise<string | 
 
 // The mode file as the hooks read it, a file it cannot read being Balanced with the hooks' problem line.
 const shownModeFile = ($: EngineInterface, root: string) => readModeText($, root).then(parseModeFile, unreadableModeFile)
-// What /team mode shows: the mode the hooks will use and the two to pick from.
+// What /team mode shows: the mode the hooks will use (or Off) and the choices.
 const describeMode = async ($: EngineInterface, ctx: Ctx) => modeSummary(await shownModeFile($, await projectRoot($, ctx)))
 
 // Saves the project's mode where the command hooks read it, keeping the skill setting already there. Returns the one line to show.
 async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<string> {
   const unknown = unknownModeLine(mode)
   if (unknown !== null) return unknown
+  let fromOff = false
   try {
     const root = await projectRoot($, ctx)
     const previous = await readModeText($, root)
+    fromOff = parseModeFile(previous).off === true
     // $.fs has no rename, so this save is not atomic: a write cut off midway reads as Balanced with a problem line, as bad JSON does.
     await $.fs.write(`${root}/${MODE_FILE}`, serializeMode(previous, mode))
   } catch (error) {
@@ -79,7 +81,7 @@ async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<stri
   }
   // The file is saved; if the picker cannot be set now, the next poll tick sets it from the file.
   await update($, modeState, () => mode as Mode).catch(() => undefined)
-  return savedLine(mode)
+  return savedLine(mode, fromOff)
 }
 
 type Report = ReturnType<typeof parseReport>
@@ -295,7 +297,8 @@ async function pollChats($: EngineInterface, ctx: Ctx) {
 // read has already changed the picker since `before`: the older read then leaves it alone.
 async function refreshMode($: EngineInterface, ctx: Ctx) {
   const before = await read($, modeState)
-  const mode = (await shownModeFile($, await projectRoot($, ctx))).mode as Mode
+  const shown = await shownModeFile($, await projectRoot($, ctx))
+  const mode = (shown.off ? OFF_MODE : shown.mode) as Mode
   if (mode !== before) await update($, modeState, current => (current === before ? mode : current))
 }
 
@@ -323,7 +326,7 @@ export const register: Register = on => {
   const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)" })
+    await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max|off), or name a builder (/team name <section> <name>)" })
     await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
     resetCounts(ctx)

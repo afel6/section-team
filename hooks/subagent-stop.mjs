@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { extractReport, sectionIdFromType } from './lib/report.mjs'
-import { readMode } from './lib/mode.mjs'
+import { OFF_MODE, readMode } from './lib/mode.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson, writeReport } from './lib/paths.mjs'
 
 const MESSAGE_PREFIX = 'section-team subagent-stop'
@@ -18,7 +18,8 @@ export function pluginVersion(file = PLUGIN_FILE) {
 // A saved REPORT ends with what produced it, so a later audit can tell. parseReport ignores the field.
 function stamped(block, root) {
   const setting = readMode(root)
-  return `${block}Plugin:       section-team ${pluginVersion()}, mode ${setting.modeUsable ? setting.mode : 'unknown'}\n`
+  const mode = setting.off ? OFF_MODE : setting.mode
+  return `${block}Plugin:       section-team ${pluginVersion()}, mode ${setting.modeUsable ? mode : 'unknown'}\n`
 }
 
 // A job starts at a coordinator message (even though the harness flags it isMeta) or at a real user row.

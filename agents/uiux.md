@@ -5,7 +5,7 @@ model: claude-opus-5-5
 color: pink
 omitClaudeMd: true
 memory: local
-tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch, mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*
+tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch, mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__playwright__*
 skills:
   - web-design-guidelines
 ---

@@ -1,0 +1,152 @@
+[
+  {
+    "pair": "p1-r1",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran: npm test (76/76 pass, 29s) plus my scratch probes: startup 171/172, API 252/258, reports+lock 329/337 (5 of those my own wrong expectation), model 191/193, page-script fake DOM all behaviours pass, raw HTTP 21/23. Strengths: smallest and most readable build (~1100 src lines; clear pipeline src/app.mjs:25-36, route table src/router.mjs:18-70); startup order, exact messages, file-unchanged rules, check order 404/405/401/403/id/415/413/400, login throttling, last-admin, paging, report filters and SVG, model body shape, 2000 ms timeout incl. slow body, retries, redirects not followed, 500 rollback all verified correct. Defects: (1) src/db.mjs:71 uses SQLite busy_timeout with synchronous transactions (src/db.mjs:122), so a locked database blocks the whole event loop: a locked request took ~4.5 s here instead of 3 s, 404/405/401/GET / replies sent meanwhile were delayed 4.5 s, and 5 parallel locked requests took 22.6 s (B/C: 3.0 s, 3.2 s). (2) server.mjs:57 registers only a request listener: unknown methods (FOO, BREW, lowercase get) get Node's bare 400 instead of 404/405 JSON, CONNECT gets no reply, unknown Expect gets 417. (3) src/store.mjs:8-12 reads integers as Numbers: a row another tool wrote with id/time above 2^53 gives 500. (4) src/model.mjs:43 uses fetch: MODEL_URL with user:password passes startup but every call is 502, and the path is normalised (/a/../b sent as /b), not 'exactly as given'. (5) src/app.mjs:47 + src/routes/ai.mjs:46 write the audit entry after the model call without re-checking session/ticket (ticket deleted or logout mid-call still 200 + audit). (6) src/db.mjs:56 counts every sqlite_master object, so a version-0 database with only a view is refused though it has no tables. (7) public/app.js:114 re-enables #login only after the body is parsed, not when fetch settles; app.js:158 leaves #error empty for a 401 with an unparsable body. scryptSync inside the write transaction (src/security.mjs:10, routes/session.mjs:28) stalls other requests ~40 ms per login. Tests: caught 5 of my 6 mutations (missed an empty first sid= piece); far fewer cases than B/C, lock test does not check timing or concurrency. README (127 lines) is clear but brief."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (686/686 pass, 60s) plus scratch probes: startup 172/172, API 257/258 (only miss: request without Host header gets Node's 400, outside the spec), reports+lock all real checks pass, model 192/193 (the miss is my own test artefact), page-script fake DOM all pass, raw HTTP 23/23. Strengths: locked database waited on a timer, never inside SQLite (src/transactions.mjs:70-89, src/database.mjs stopWaitingInsideSqlite): 503 after 3.02 s while 404/405/401/static replies came in ~25-100 ms and 5 parallel locked requests finished in 3.2 s; scrypt derived asynchronously outside the transaction and the transaction re-run (src/transactions.mjs:22,80; src/handlers/session.mjs:25) so 12 parallel logins took 155 ms with GET / still answered in 50-130 ms; unknown methods and CONNECT answered 404/405 after draining the body (src/raw-requests.mjs:179,187); BigInt reads keep ids beyond 2^53 exact (src/database.mjs:96, src/replies.mjs toJson); model request sent to the raw path as given, credentials and odd URL forms all worked (src/model/model-url.mjs:9,29); session and ticket re-checked in the write transaction after the model call (src/app.mjs:58) giving 404/401 and no audit when the ticket was deleted or the user logged out mid-call; created_by of a non-user matches none even with orphan rows (src/reports/summary.mjs:17). Page script re-enables #login as soon as fetch settles and guards report generations twice. Defects/concerns: src/database.mjs:98 turns foreign-key enforcement off for the server's connection (no wrong behaviour found, comments are deleted explicitly, but the schema's REFERENCES are then unenforced for its own writes); the KeyNeeded throw-and-retry control flow (src/transactions.mjs:22-28,80-83) and the 200-line raw-request parser (src/raw-requests.mjs) are the most complex parts of any solution; static files are re-read from disk on every request (src/handlers/static-files.mjs). Tests: very broad (HTTP, units, fake DOM, stand-in model, smoke scripts); caught 5 of my 6 mutations (missed an empty first sid= cookie piece). README (296 lines) is thorough: env table, routes, filters, AI section, test layout."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (611/611 pass, 66s) plus scratch probes: startup 172/172, API 258/258, reports+lock all real checks pass, model 192/193 (the miss is my own test artefact), page-script fake DOM all pass, raw HTTP 23/23. Strengths: clean small modules with one clear pipeline (src/app.mjs:36-51, 66-88); locked database retried on a timer (src/transaction.mjs:50-66): 503 after 3.0-3.08 s, non-database replies in ~40-115 ms meanwhile, 5 parallel locked requests in 3.2 s; unknown methods, CONNECT, unknown Expect and requests without Host all go through the same answerer (src/http-server.mjs:73,87,106); BigInt reads (src/sql.mjs) keep large ids exact; model client with hard 2000 ms limit incl. slow bodies, abort, no redirects (src/model/client.mjs:47-75); session and ticket re-checked before the audit write (src/routes/ai.mjs:24,43); startup does the whole inspection and first user in one BEGIN IMMEDIATE and left every rejected file byte-identical (src/database.mjs:74-87). Defects: (1) src/passwords.mjs:9 uses scryptSync inside the write transaction (src/routes/session.mjs:33, routes/users.mjs hash): 12 parallel logins took 493 ms with GET / stalled 410-490 ms, and the write lock is held during key derivation (B avoids both). (2) src/model/target.mjs:8,20 mishandles a backslash-form MODEL_URL (http:\\hostpath, which new URL() accepts): request target sent as '\backslash', every attempt 400 -> 502. (3) src/routes/ai.mjs:24-30 duplicates the session/id checks of src/app.mjs checkAndRun instead of reusing them. (4) src/model/client.mjs:89 writes one stderr line per failed attempt (77 lines in my run; allowed, no secrets, but noisy). (5) created_by of a deleted user still counts orphan tickets (src/routes/reports.mjs COUNT_SQL) where the spec says a non-user's id matches none - only reachable through another tool breaking the foreign key. Static files re-read on every request (src/routes/static.mjs). Tests: very broad and precise; caught 6 of my 6 mutations (attempt count, bar height, body limit, from==to, empty first sid= piece, encodeURIComponent). README (240 lines) is complete and well ordered, including a dashboard walk-through."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test twice (619/619 pass, 59s and 19s). My probes in scratch/: startup.mjs 66/66 (PORT/MODEL_URL/DB/ADMIN_PASSWORD order, exact stderr lines, files unchanged), api.mjs all real checks pass (the 2 reported failures were my own miscounted 100001-byte body; boundary re-checked in reports.mjs: 100000 bytes accepted, 100001 -> 413), reports.mjs 113/113 (filters, date rules, chart geometry and rounding, page markup), model.mjs 79/79 (exact body/header/path, 3 attempts, 2s timeout, redirects, late replies, 502/503, audit), page.mjs 50/50 (app.js in node:vm with a fake DOM). Strengths: lib/transaction.mjs:55-69 retries a locked database on timers instead of blocking (503 at 3041ms; 4 parallel locked requests all ~3.1s; GET / answered meanwhile); lib/request-work.mjs:28-54 with lib/passwords.mjs:29-36 derives scrypt keys off the event loop and outside the transaction (GET / took 1-11ms during a 40-login flood); lib/store.mjs:14 reads integers as BigInt (ticket id 9007199254740993 from another tool listed exactly); lib/model-client.mjs:20-29 sends MODEL_URL's path byte for byte, :94 and :117 enforce the 2000ms limit on the whole reply; lib/handlers/model.mjs:23-29 re-checks session and ticket before the audit write (ticket deleted mid-call -> 404, no entry); lib/raw-requests.mjs:93-103 and :122-127 answer unknown methods and CONNECT with the API's 404/405 after reading the body; lib/http-server.mjs:28 accepts requests without Host; lib/handlers/reports.mjs:12 makes created_by of a non-user match nothing; server.mjs:4-9 keeps stderr clean on older Node. README (227 lines) documents env, startup failures, routes, model protocol and tests accurately. Defects (all minor): lib/http-io.mjs:75 sends Content-Length: 0 on 204 replies (observed header; HTTP says none on 204); lib/raw-requests.mjs:94-101 re-parses the whole rawPacket, so a valid request pipelined in the same packet before an unknown-method request is answered twice and the unknown method never (observed 404,404); lib/transaction.mjs:27-29 a failing ROLLBACK is not contained; the KeyNeeded throw-and-rerun flow (lib/request-work.mjs:30, lib/transaction.mjs:44,60-63) is clever and harder to follow; lib/model-client.mjs:97 uses the shared keep-alive agent, so a stale socket can cost one attempt."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test twice (55/55 pass, 15s). Probes: startup.mjs 66/66; api.mjs main-path checks pass (order of checks, messages, cookies, rate limit, last admin, paging, audit, 500 rollback); reports.mjs 112/113; model.mjs 74/79; page.mjs 49/50. Strengths: smallest and most readable code (~1300 lines; lib/app.mjs:22-62 route table, :82-102 checks in spec order), correct startup order and exact messages (server.mjs:24-36, lib/db.mjs:104-122), model body/headers/retries/timeouts right for normal URLs (lib/model.mjs:70-110), page markup and script behaviour right, tests use a stand-in model (test/fake-model.mjs). Defects: (1) lib/db.mjs:63 `timeout: BUSY_TIMEOUT_MS` plus synchronous lib/app.mjs:117-130 means the busy wait runs inside SQLite and blocks the event loop: a single locked request got 503 only after 4487ms (raw node:sqlite timeout 3000 measured 4.49s here), a lock held 3.6s gave 200 instead of 503, 4 parallel locked GETs answered at 4.4/8.9/13.4/17.8s, and GET / (no database) was stalled 17.6s; the model route's audit write against a database locked 4.2s returned 200. (2) No BigInt reads (lib/store.mjs:29, lib/routes/tickets.mjs:17-19): a ticket id 9007199254740993 written by another tool makes GET /api/tickets and GET /api/tickets/<id> answer 500. (3) lib/model.mjs:74 uses fetch, which normalises the URL: MODEL_URL path `/v1/../chat//x?...` was requested as `/chat//x?...`, and a MODEL_URL with user:pass@ passes startup (lib/model.mjs:25-34) but every call is 502 without contacting the model. (4) server.mjs:38 has no clientError/connect handling: unknown methods get Node's bare 400 and CONNECT a closed socket instead of 404/405, and the reply comes before the body is read. (5) lib/routes/reports.mjs:58 created_by for an id that is no user's still counts tickets carrying it. (6) public/app.js:110-112 re-enables #login and empties #password only after the body is read, not as soon as the request settles. (7) lib/secrets.mjs:11,26,32 scryptSync inside the transaction: 40 unknown-user logins blocked GET / for 1567ms. (8) lib/routes/assist.mjs:19-26 with lib/app.mjs:133-146 writes the audit entry with no re-check, so a ticket deleted or a session logged out during the call still gets 200 and an entry. Tests are compact (test/api.test.mjs 338 lines) and miss all of the above; README is clear but short and its '503 after 3 seconds' claim does not hold on this machine."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test twice (736/736 pass, 40s and 24s). Probes: startup.mjs 66/66; api.mjs all real checks pass except a request without a Host header (Node's bare 400, server.mjs:38 keeps the default; the spec's check order would give 401); reports.mjs 113/113; model.mjs 79/79; page.mjs 50/50. Strengths: src/transaction.mjs:55-66 timer-based busy wait on a monotonic clock (503 at 3038ms, 4 parallel locked requests ~3.1s, GET / served meanwhile) and :27-38 recovers from a failed rollback; src/handler.mjs:24-44 checks in spec order, :47-53 per-request memo keeps token and hash stable across retries; src/sql.mjs:15 BigInt reads (ids beyond 2^53 exact); src/model-target.mjs:25-35 sends MODEL_URL's path byte for byte, src/model-client.mjs:60-62 enforces 2000ms on the whole reply, src/model-target.mjs:62 agent:false gives each attempt its own connection; src/api/ai.mjs:47-56 re-runs session and ticket checks before the audit write; src/edge-requests.mjs:125-164 answers unknown methods and CONNECT with 404/405 after the body; src/api/reports.mjs:16 created_by of a non-user matches nothing; src/log.mjs:4-10 logs codes only. Largest test suite (concurrency.test.mjs, existing-database.test.mjs, strict markup and SVG parsers, test/smoke.mjs) and a thorough, accurate README (256 lines). Defects: src/passwords.mjs:13 scryptSync runs inside the write transaction (src/api/session.mjs:39, src/api/users.mjs:32,61), so 40 unknown-user logins blocked GET / for 1441ms where A stayed at 1-11ms: an unauthenticated caller can stall every other request; src/edge-requests.mjs:125-134 drops the reply of a valid request pipelined in the same packet before an unknown-method one (only the 405 arrived); package.json engines '>=26' is narrower than the code needs and there is no guard for the node:sqlite warning on older Node; src/api/tickets.mjs:58 and :86-90 build replies from request values instead of reading the row back; src/api/tickets.mjs:71-74 checks `values.title === null` after a conditional assignment, which reads awkwardly."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (611 pass, 0 fail, 28 s) and my own probes in scratch/ (p-startup 123/123, p-api 276/276, p-lock 35/35, p-reports all real checks pass, p-ai 96/96, p-page 59/59 in a strict fake DOM, p-misc, p-raw). Strengths: startup order and every exact stderr line hold, failed starts leave the file byte-identical (src/database.mjs:77-90, 96-117); the check order 404/405/401/403/id/415/413/400 holds in every combination I tried (src/app.mjs:31-45); a lock is waited for on a timer, so 503 came at 3040 ms while 404/405/401/static replies took 47 ms (src/transaction.mjs:49-65); trigger failure gives 500 with full rollback; BigInt ids stay exact (src/sql.mjs:10, src/reply.mjs:21-24); unknown methods, CONNECT, odd Expect and a missing Host all get the 404/405 JSON reply after the body is read (src/http-server.mjs:48-59, 87-102, 106); model call: exact body and URL path as given incl. credentials and dot segments (src/model/target.mjs:17-26, 39-51), 2000 ms limit covers slow and trickled bodies, retries at once, exactly 3 attempts, no transaction held, session and ticket rechecked before the audit entry (src/routes/ai.mjs:67-80); page script uses only the allowed APIs and re-enables buttons as soon as fetch settles (public/app.js:44-68). Defects: scryptSync runs inside the BEGIN IMMEDIATE transaction on the event loop (src/passwords.mjs:9, src/routes/session.mjs:33, src/transaction.mjs:32): 12 parallel failed logins made an unrelated GET wait 448 ms and hold the write lock meanwhile. created_by filter counts tickets whose creator id is no user's (orphan row from another tool): summary?created_by=999 answered open 1 where the spec says such an id matches none (src/reports/filters.mjs:22-27, src/routes/reports.mjs:7-12). Relies on the private socket._httpMessage field (src/http-server.mjs:67). Doc comment for checkAndRun sits above the wrong declaration (src/app.mjs:28-29). README (240 lines) is thorough."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (686 pass, 0 fail, 21 s) and the same probes (p-startup 123/123, p-api 276/276 on two clean runs; one earlier run showed 2 failures that I traced to a few ms of clock skew between my probe process and the server with 1 ms margins, measured the same skew on A and C, so not a defect; p-lock 35/35, p-reports, p-ai 96/96, p-page 59/59, p-misc, p-raw). Strengths: all startup lines, order and file-unchanged rules hold (server.mjs:66-91, src/database.mjs:90-122); check order exact (src/app.mjs:24-45); lock wait on a timer, 503 at 3033 ms with other replies in 26 ms (src/transactions.mjs:70-89); password keys are derived with async scrypt outside the transaction and the transaction is re-run (src/transactions.mjs:22-28, 80-83, src/secrets.mjs:24-28): 12 parallel failed logins took 167 ms and an unrelated GET waited 2 ms (A and C: about 440 ms); the only solution where created_by of an id that is no user's matches none even with an orphan ticket (src/reports/summary.mjs:15-19); BigInt ids exact (src/database.mjs:96, src/replies.mjs:10-12); unknown methods and CONNECT answered 404/405 after draining the body without private Node fields (src/raw-requests.mjs:136-168, 187-195); model call exact (body, path as given, credentials, 3xx not followed, 2000 ms incl. slow/trickled body, 3 attempts, recheck before audit: src/model/model-client.mjs:51-88, src/app.mjs:52-61); page script correct and strict, logout bumps the report generation before any further await (public/app.js:171-184). Defects: foreign key enforcement is switched off for the server's connection (src/database.mjs:98), so integrity rests only on the handlers' own checks. Exception-as-control-flow for key derivation (KeyNeeded, src/transactions.mjs:22-28) is clever rather than plain. A HTTP/1.1 request without Host gets Node's bare 400 instead of the JSON 404 (createServer without requireHostHeader: false, src/app.mjs:116). Failed model attempts are not logged at all (src/model/model-client.mjs:81-88), so a 502 leaves no trace of why. src/raw-requests.mjs is 200 lines of hand-written HTTP framing. README (296 lines) and test docs are thorough; npm run smoke and a coverage script are provided."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (76 pass, 0 fail, 7 s) and the same probes (p-startup 123/123, p-api 276/276, p-reports all real checks pass, p-ai 94/96, p-lock 33/35, p-page 57/59). Strengths: smallest and easiest to read (about 1,300 source lines); startup rules, check order, sessions, users, tickets, comments, audit, reports, chart and page markup all pass; model retries, 2000 ms abort incl. slow bodies and 3-attempt limit work (src/model.mjs:39-64). Defects: lock waiting is SQLite's blocking busy_timeout inside a synchronous transaction (src/db.mjs:71, 122-133): while one request waited on a locked database, six replies that must not use the database (404, 405, 401 without token, GET /, GET /app.js) were held for 4.3-4.4 s; the 503 came after about 4.5 s on this machine instead of 3; two requests waiting at once took 8.8 s because they wait one after the other. No handling of requests Node does not pass to the listener (server.mjs:57, src/app.mjs:77-95): an unknown method gets a bare 400 instead of 404/405, CONNECT gets no reply, an odd Expect header gets 417. The model is called with fetch (src/model.mjs:43-49): a MODEL_URL with user:password passes the startup check and then every call is 502; the path is normalised (/a/../b/./c sent as /b/c), so it is not sent exactly as given. After the model call nothing is rechecked (src/app.mjs:46-47, src/routes/ai.mjs:46-48): a ticket deleted during the call still got 200 and a ticket.summary audit entry. Integers are read as JS numbers (src/store.mjs:10-24): a ticket id above 2^53 written by another tool makes GET and the list answer 500 (A and B answer it exactly). Page script re-enables #login and #logout and empties #password only after the body is parsed, not when the request settles (public/app.js:110-115, 135-136), and a 401 with an unparsable body leaves #error empty (public/app.js:158). scryptSync inside the write transaction (src/security.mjs:10, src/routes/session.mjs:28) made an unrelated GET wait 435 ms during 12 parallel logins. Statements are prepared again on every call (src/store.mjs:11). Tests cover the breadth but are shallow next to A and B and miss all of the above. README (127 lines) is clear but its layout line for server.mjs omits the MODEL_URL check."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "p1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (736/736 pass, 49s) plus my own differential probes in scratch/ (p1 startup 45 cases, p2 ~360 API/raw-HTTP checks, p3 model stand-in ~55 checks, p4 locks/triggers/races, p6 page script on a strict fake DOM, p7-p9 misc). No spec deviation found. Startup order, exact stderr lines, files left unchanged/empty all correct. Lock wait is timer-based (src/transaction.mjs:55-67): 503 after 3.0s measured, 11 parallel requests during an EXCLUSIVE lock all finish in 3.2s and static/404/405/401-no-token answer at once. Trigger failure gives 500 with nothing changed. Model client sends MODEL_URL path/query byte for byte incl. dot segments and userinfo (src/model-target.mjs:25-35), 2000ms limit aborts the socket, 3xx not followed, 3 attempts max; model routes re-check session and ticket in the audit transaction (src/api/ai.mjs:47-56), so a ticket deleted mid-call gives 404 and no audit entry. Reads integers as BigInt (src/sql.mjs:15), so ids/times above 2^53 written by other tools come back exact. Unknown methods and CONNECT get the API's 404/405 JSON after the body is drained (src/edge-requests.mjs:137-149), and half-closing clients still get their reply (server.mjs:41) - the only solution of the three that always did. Page script re-enables #login when fetch settles, drops stale reports, uses only the allowed DOM members. Defects (minor): HTTP/1.1 request with no Host header gets node's bare 400 instead of the API reply (server.mjs:38, no requireHostHeader:false); a user_version 0 file holding only sqlite_sequence is treated as 'no tables' and given the schema (src/database.mjs:45-50), debatable; scrypt runs synchronously inside the transaction (src/passwords.mjs:13), blocking the loop for each login; a lot of hand-written HTTP framing code (src/body-framing.mjs, src/edge-requests.mjs) to maintain. README is complete and accurate (env, errors, API, AI, page, layout, tests)."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (55/55 pass, 25s) and the same probes. Core API is right: the ~360-line API transcript, startup cases, model body/instructions/retry/timeout behaviour and audit rows matched A and C exactly. Smallest and most readable code (1297 lines, lib/app.mjs route table). Defects found by running: (1) the lock wait is SQLite's synchronous busy timeout (lib/db.mjs:63, lib/app.mjs:117-130), which blocks the event loop: one locked request took 4.4-4.5s before 503 (spec: up to 3s; A and C 3.0s), 11 parallel requests took 22.4s, and GET /, /app.js, 404, 405 and 401-no-token were held up 17.5s behind them. (2) Unknown methods (FOO, BREW, lowercase get) get node's bare 400 before the body is read, CONNECT gets the socket closed, and an odd Expect gets 417, instead of 404/405 JSON (server.mjs:38 has no clientError/connect/checkExpectation handlers). (3) Integers are read as JS numbers (lib/store.mjs:27-33, lib/routes/tickets.mjs:9-22): a ticket another tool stored with id 9007199254740993 or 9223372036854775807 makes list/get and the next create answer 500. (4) Model call uses fetch (lib/model.mjs:74): MODEL_URL http://user:pass@host/... starts fine but every call is 502 with zero requests sent, and /a/./b/../c or %2e%2e is normalised, so the POST is not to MODEL_URL as given. (5) After the model call only the audit row is written, with no re-check (lib/app.mjs:133-146): a ticket deleted or a session logged out mid-call still gets 200 and an audit entry after the delete/logout entry, which no serial order produces; with a half-closing client the model route is audited but no reply is sent. (6) created_by filter counts tickets of an id that is no user's (lib/routes/reports.mjs:57-59). (7) Page script: #login/#logout are re-enabled and #password emptied only after reply.json() resolves, not when the request settles (public/app.js:49-56, 111-112), and a 401 with an unparseable body on load leaves #error empty (public/app.js:152). Tests are broad but thin (1174 lines) and miss all of the above. README is short but correct."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (619/619 pass, 30s) and the same probes. No spec deviation found: identical to A on every startup, API, model, lock, trigger, race and page-script check. Timer-based lock wait (lib/transaction.mjs:31-70): 503 after 3.0s, parallel requests not blocked, static/404/405 instant. Model path/query sent as given incl. dot segments and userinfo (lib/model-client.mjs:20-29); session and ticket re-checked before the audit row (lib/handlers/model.mjs:23-29). BigInt reads, exact half-up bar heights in BigInt (lib/report-chart.mjs:14-16). Unknown methods and CONNECT answered through the normal check order; requests without a Host header are answered too (lib/http-server.mjs:28), which A and B refuse with 400. scrypt runs off the main thread (lib/passwords.mjs:29-36). Defects: (1) clients that half-close after sending (socket.end(request)) get no reply whenever handling really waits: login, first GET /, model routes and a lock wait all returned an empty connection in scratch/p9-halfclose.mjs, while the login session and audit rows were still written (lib/http-server.mjs:28 leaves httpAllowHalfOpen off; A sets it). (2) The off-thread scrypt is done by throwing KeyNeeded out of the transaction, rolling back and re-running it (lib/request-work.mjs:11-16, lib/transaction.mjs:31-48): it works and stayed correct under 8 parallel logins, but it is the hardest control flow of the three to follow. (3) 204 replies carry Content-Length: 0 (lib/http-io.mjs:75), harmless. Hand-written framing code (lib/raw-requests.mjs, lib/body-drain.mjs) as in A. README is thorough, with a per-file test table."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  }
+]

@@ -1,10 +1,11 @@
 import { test, expect } from 'claude-code/testing'
-import { MODE_LABELS, MODES } from '../hooks/lib/mode.mjs'
+import { MODE_LABELS } from '../hooks/lib/mode.mjs'
+import { MODE_OPTIONS, OFF_LABEL } from '../hooks/mode-lines.mjs'
 import { BAND, mountStrip, slashes, START, world } from './board-world'
 
 // The project's mode: /team mode and the strip's picker save it to <project root>/.team/mode.json, where the plugin's command hooks read it.
 const MODE_PATH = 'C:/proj/.team/mode.json'
-const MODE_LIST = [MODE_LABELS.balanced, MODE_LABELS.max, 'Set it with /team mode balanced|max']
+const MODE_LIST = [MODE_LABELS.balanced, MODE_LABELS.max, OFF_LABEL, 'Set it with /team mode balanced|max|off']
 const modeWrites = (seen: { writes: { path: string; text: string }[] }) => seen.writes.filter(w => w.path.endsWith('/.team/mode.json'))
 const team = ($: { command: { run: (e: never) => Promise<unknown> } }, args: string) => $.command.run({ command: 'team', args } as never)
 
@@ -56,7 +57,7 @@ test('/team mode lean is refused with one friendly line and writes nothing, and 
 
   await $.session.start(START)
   await clock.advance(1000)
-  expect(await team($ as never, 'mode lean')).toEqual({ text: 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max' })
+  expect(await team($ as never, 'mode lean')).toEqual({ text: 'unknown mode "lean": Lean was removed in 0.3.0, pick balanced, max or off' })
   expect(modeWrites(seen)).toEqual([])
   expect(seen.disk[MODE_PATH]).toBe('{"mode":"lean","autoInstallSkills":true}')
   expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Balanced', ...MODE_LIST].join('\n') })
@@ -67,7 +68,7 @@ test('/team mode turbo names the modes to pick from and writes nothing', async (
   const { seen } = world(on)
 
   await $.session.start(START)
-  expect(await team($ as never, 'mode turbo')).toEqual({ text: 'unknown mode "turbo": pick balanced or max' })
+  expect(await team($ as never, 'mode turbo')).toEqual({ text: 'unknown mode "turbo": pick balanced, max or off' })
   expect(modeWrites(seen)).toEqual([])
   expect(seen.opened).toEqual([])
 })
@@ -76,7 +77,7 @@ test('/team with no arguments opens the board as before, and its description tel
   const { seen } = world(on)
 
   await $.session.start(START)
-  expect(seen.descriptions.team).toBe("Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)")
+  expect(seen.descriptions.team).toBe("Show the Team Board, set this project's mode (/team mode balanced|max|off), or name a builder (/team name <section> <name>)")
   expect(await team($ as never, '')).toEqual({ text: 'Team Board opened.' })
   // Only the word mode itself picks the mode command.
   expect(await team($ as never, 'modex')).toEqual({ text: 'Team Board opened.' })
@@ -127,7 +128,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mountStrip($ as never, BAND, surface)
     const picker = await ui.find({ key: 'mode' })
     expect(picker?.props.value).toBe('max')
-    expect(picker?.props.options).toEqual(MODES.map(value => ({ value, label: MODE_LABELS[value as keyof typeof MODE_LABELS] })))
+    expect(picker?.props.options).toEqual(MODE_OPTIONS)
 
     await ui.select({ key: 'mode', value: 'balanced' })
     expect(modeWrites(seen)).toEqual([{ path: MODE_PATH, text: '{"mode":"balanced"}' }])
@@ -232,7 +233,21 @@ test('on mobile, which draws no Select, the strip shows the mode as a button tha
   const ui = await mountStrip($ as never, BAND, 'mobile')
   expect((await ui.find({ key: 'mode' }))?.props.label).toBe('● Max')
   await ui.press({ key: 'mode' })
-  expect(seen.toasts).toEqual(['section-team mode: Max · /team mode balanced|max'])
+  expect(seen.toasts).toEqual(['section-team mode: Max · /team mode balanced|max|off'])
   expect(runs).toEqual([])
   expect(modeWrites(seen)).toEqual([])
+})
+
+test('/team mode off saves off, says it applies from the next session, and the picker and /team mode show Off', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = '{"mode":"max","autoInstallSkills":false}'
+
+  await $.session.start(START)
+  expect(await team($ as never, 'mode off')).toEqual({ text: 'section-team mode: Off (applies from your next session)' })
+  expect(seen.disk[MODE_PATH]).toBe('{"mode":"off","autoInstallSkills":false}')
+  await clock.advance(1000)
+  expect((await (await mountStrip($ as never)).find({ key: 'mode' }))?.props.value).toBe('off')
+  expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Off', ...MODE_LIST].join('\n') })
+  // Back on from off also waits for the next session: this one started without the team brief.
+  expect(await team($ as never, 'mode balanced')).toEqual({ text: 'section-team mode: Balanced (applies from your next session)' })
 })

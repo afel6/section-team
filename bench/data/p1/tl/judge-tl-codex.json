@@ -1,0 +1,152 @@
+[
+  {
+    "pair": "p1-r2",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong modular design, exact integer handling, asynchronous lock retries and detailed usage documentation (A/src/store.mjs:9; A/src/transaction.mjs:46; A/README.md:8). In-memory mocked-model probes reproduced a serializability violation: summary reads old text, PATCH succeeds, an audit read sees the update, then the old summary succeeds and is audited afterward (A/src/routes/ai.mjs:45,55). A mocked pipelined GET /missing followed by FOO /api/session produced the preceding request's 404 instead of 405 because rawPacket is reparsed from its start (A/src/edge.mjs:147). Ran npm test: worker spawning blocked by sandbox EPERM. Browser suites with --test-isolation=none passed 105/105; full integration setup was blocked by mkdtemp EPERM. Independent in-memory probes also verified isolation, report filters, retries and trigger-induced rollback."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable modules, parameterized SQL, password/token hashing and transactional rollback (B/src/app.mjs:47; B/src/security.mjs:16). Controlled in-memory probes reproduced the same stale-summary/audit serializability violation (B/src/handlers/ai.mjs:47; B/src/app.mjs:69). A mocked HTTP transport confirmed MODEL_URL /a/../model becomes /model, violating exact URL preservation (B/src/model.mjs:63). Fake-DOM testing confirmed malformed JSON on initial-session 401 incorrectly clears the error (B/public/app.js:52,109). In-memory probes showed maximum SQLite row IDs disappear from default/oversized-cursor lists (B/src/store.mjs:85; B/src/handlers/tickets.mjs:27), and created_by can count tickets whose owner does not exist (B/src/handlers/reports.mjs:63). Ran npm test: seven workers blocked by sandbox spawn EPERM; unit and app-script suites with --test-isolation=none passed 14/14."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Well-structured request checks, transactional rollback, asynchronous busy retries, exact model targets and thorough documentation (C/src/app.mjs:94; C/src/transaction.mjs:25; C/src/model-client.mjs:34). In-memory mocked-model probes reproduced the shared stale-summary/audit serializability violation (C/src/model-routes.mjs:32,41). The referenced test/fixtures/pre-dashboard.db is absent, so the two existing-database compatibility tests cannot run successfully; README claims it is included (C/test/existing-db.test.mjs:18,50; C/README.md:320). A local slow-body probe also received 405 after the ten-second drain timeout before sending its declared body byte (C/src/raw-requests.mjs:90,181). Ran npm test: worker spawning blocked by sandbox EPERM. With --test-isolation=none, page/model-task suites passed 98/98 and model-client tests passed 46/46; full integration setup was restricted by mkdtemp EPERM."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strong check ordering, transactional rollback and isolated model payloads (A/src/app.mjs:36; A/src/transaction.mjs:25; A/src/routes/model-routes.mjs:38), with detailed usage documentation (A/README.md:13). Defects: cookie text is hashed as Latin-1 (A/src/passwords.mjs:64); a UTF-8-hashed externally inserted session returned 401. Whitespace-wrapped MODEL_URL falls back to URL normalization (A/src/model.mjs:26), sending /model instead of /a/../model. npm test was blocked by sandbox spawn EPERM; the no-isolation integration retry hit read-only temporary-directory restrictions. The standalone page suite passed 79/79; in-memory API probes passed 26 assertions. Loopback probes confirmed the defects and correct handling of large SQLite IDs."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Best overall: atomic initialization, asynchronous lock retries and rollback (B/src/database.mjs:95; B/src/executor.mjs:40), bounded model attempts and authorization rechecks before auditing (B/src/model-client.mjs:49; B/src/routes/model-routes.mjs:63). Documentation is thorough (B/README.md:11). No functional defect was confirmed in the executed checks. npm test was blocked by sandbox spawn EPERM, and full no-isolation integration execution by temporary-directory permissions. Browser/page/session-rule suites passed 98/98. An in-memory SQLite/local-model probe passed 10 assertions covering retries, payload isolation, responsiveness, date validation and rollback. Additional comparative loopback probes confirmed URL credentials, exact paths, UTF-8 token lookup and large-ID handling."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable routing, transactional writes and narrowly scoped AI inputs (C/lib/app.mjs:95; C/lib/db.mjs:70; C/lib/handlers/ai.mjs:42), with useful configuration documentation (C/README.md:15). Confirmed defects: fetch normalizes MODEL_URL dot segments and rejects credential-bearing URLs, producing 502 without contacting the stand-in (C/lib/model.mjs:41). Default Number decoding makes valid ticket ID 9007199254740993 cause 500 for both GET and listing (C/lib/db.mjs:63). Malformed JSON in the initial 401 response incorrectly leaves the dashboard error empty (C/public/app.js:168). npm test was blocked by sandbox spawn EPERM; file-based fallback also hit read-only restrictions. Adapted in-memory execution of existing API/report/page callbacks passed 21 checks, with the lock test skipped; independent loopback and fake-DOM probes reproduced the listed defects."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-02"
+  },
+  {
+    "pair": "p1-r1",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Clean modular implementation, transactional rollback (A/lib/db.mjs:70), restricted model payloads (A/lib/handlers/ai.mjs:42), and useful documentation (A/README.md:80). Confirmed defects: default SQLite numeric reads return 500 for valid ticket ID 9007199254740993, affecting individual retrieval and listing (A/lib/db.mjs:63; A/lib/handlers/common.mjs:39). Initial session responses with HTTP 401 and malformed JSON silently suppress the required error message (A/public/app.js:168). Ran npm --prefix A test: all five file launches blocked by sandbox spawn EPERM. Seven extracted browser/report tests and 25 additional in-memory API, model and rollback checks passed."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No confirmed functional defect found. Strong transactional startup and rollback (B/src/database.mjs:95; B/src/executor.mjs:40), ordered validation (B/src/dispatch.mjs:80), strict model payload isolation and bounded retries/timeouts (B/src/routes/model-routes.mjs:43; B/src/model-client.mjs:49). Extensive adversarial tests and detailed usage/testing documentation (B/test/ai-flow.test.mjs:97; B/README.md:202). Ran npm --prefix B test: 20 file launches blocked by sandbox spawn EPERM. Running browser, HTML, session-rule and chart tests with node --test --test-isolation=none passed 106 tests. Another 25 in-memory API, model and rollback checks passed; large SQLite IDs were returned correctly."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong atomic startup, asynchronous lock handling and precise SQLite integer support (C/src/database.mjs:85; C/src/transaction.mjs:56,82). Model handling preserves payload isolation and releases transactions while waiting (C/src/routes/model-routes.mjs:38). Comprehensive tests and updated documentation (C/test/model.test.mjs:273; C/README.md:88). Confirmed protocol defects: PRI requests receive bare 400 instead of JSON 405, and recovery from an unknown pipelined method can select the preceding request and lose responses (C/src/raw-requests.mjs:105,151). Ran node --test --test-reporter=spec 'test/**/*.test.mjs': nine file launches blocked by sandbox spawn EPERM. The page suite with --test-isolation=none passed 79 tests; 25 additional in-memory API, model and rollback checks passed."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-03",
+    "swapped": true
+  },
+  {
+    "pair": "p1-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Strong transactional retries (A/src/transaction.mjs:35), isolated model input and transaction-free model waits (A/src/model-routes.mjs:25), and extensive documentation. A raw-socket probe received 405 after 10032 ms before sending the declared body: A/src/raw-requests.mjs:90 stops draining prematurely. A/test/existing-db.test.mjs:18 references absent test/fixtures/pre-dashboard.db and copies it at line 50; A/README.md:320 incorrectly describes that fixture as supplied. Ran npm --prefix A test: blocked by spawn EPERM. With test isolation disabled, model-client, model-tasks and page suites passed 144/144; filesystem integration setup remained blocked. In-memory API probes passed, including maximum SQLite IDs."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Clear ordered checks and rollback (B/src/app.mjs:32), atomic initialization (B/src/database.mjs:87), and useful usage/model documentation (B/README.md:12). In-memory probes confirmed that B/src/store.mjs:85 and B/src/handlers/tickets.mjs:27 omit ticket 9223372036854775807 from listings; direct lookup returns 500 because statement reads at B/src/store.mjs:18 cannot represent that integer. A local model probe confirmed B/src/model.mjs:63 normalizes configured dot segments. A fake-DOM probe confirmed B/public/app.js:109 suppresses the required error for a 401 with invalid JSON. Raw BREW requests return bare 400 instead of JSON 405 (B/server.mjs:42). Ran npm --prefix B test: blocked by spawn EPERM. Isolation-disabled unit, app-script and page suites passed 17/17; full integration execution remained blocked."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Best complete submission: coherent routing and transactions (C/src/app.mjs:128; C/src/transaction.mjs:28), exact SQLite integer handling (C/src/store.mjs:14), isolated model payloads and bounded attempts (C/src/routes/ai.mjs:35; C/src/model-client.mjs:39), broad regression tests (C/test/robustness.test.mjs:201), and accurate usage documentation (C/README.md:8). A raw-socket probe received 405 after 10082 ms with the declared body still unsent: C/src/edge.mjs:78 prematurely finishes draining. Ran npm --prefix C test: blocked by spawn EPERM. Isolation-disabled page-static, page-session and page-report suites passed 105/105; full-suite integration setup was blocked by mkdtemp EPERM. In-memory API probes passed, including maximum SQLite IDs; a local model probe preserved the configured request path."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  }
+]

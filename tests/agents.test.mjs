@@ -48,7 +48,8 @@ test('advisors cannot use shell tools, and their allowlist is unchanged', () => 
 })
 
 const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
-const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+// Isolated browsers only: claude-in-chrome drives the user's own logged-in Chrome, so no section gets it.
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__playwright__*'
 const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
 
 test('every builder has the base tool list, and only four have browser entries', () => {
@@ -56,6 +57,10 @@ test('every builder has the base tool list, and only four have browser entries',
     const { tools } = front(agentFile(id))
     assert.equal(tools, BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS, id)
   }
+})
+
+test("no agent is granted the user's logged-in Chrome (claude-in-chrome)", () => {
+  for (const file of readdirSync(AGENTS)) assert.ok(!readFileSync(new URL(file, AGENTS), 'utf8').includes('claude-in-chrome'), file)
 })
 
 test('helpers keep their tools', () => {

@@ -328,25 +328,41 @@ test('a saved lean starts as Balanced with the one retired line, once, and nothi
   assert.ok(out.hookSpecificOutput.additionalContext.includes(`- ${RETIRED_LINE}`))
 })
 
-test('the skill setting: the mode file wins, then SECTION_TEAM_AUTO_INSTALL_SKILLS, then off', () => {
+const FILE_ON_IGNORED = '.team/mode.json: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set SECTION_TEAM_AUTO_INSTALL_SKILLS=1 in your user settings instead'
+
+test('the skill setting: only SECTION_TEAM_AUTO_INSTALL_SKILLS=1 turns installs on, and a mode file can only turn them off', () => {
   const fileOff = contextFor('{"mode":"max","autoInstallSkills":false}', ENV_ON)
   assert.ok(!fileOff.includes('Automatic skill installs are on'))
   assert.ok(fileOff.includes('- Automatic skill installs: off (from .team/mode.json).'))
   const envOn = contextFor(null, ENV_ON)
   assert.ok(envOn.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(envOn.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
-  const fileOn = contextFor('{"autoInstallSkills":true}', {})
-  assert.ok(fileOn.includes('Automatic skill installs are on (.team/mode.json): install'))
-  assert.ok(fileOn.includes('- Automatic skill installs: on (from .team/mode.json).'))
-  assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
   assert.ok(contextFor('{"mode":"max"}', ENV_ON).includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(contextFor(null, {}).includes('- Automatic skill installs: off (default).'))
-  const fileOffEnvOn = contextFor('{"autoInstallSkills":false}', ENV_ON)
-  assert.ok(fileOffEnvOn.includes('- Automatic skill installs: off (from .team/mode.json).'))
-  assert.ok(!fileOffEnvOn.includes('Automatic skill installs are on'))
-  const fileOnEnvOff = contextFor('{"autoInstallSkills":true}', { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' })
-  assert.ok(fileOnEnvOff.includes('- Automatic skill installs: on (from .team/mode.json).'))
-  assert.ok(fileOnEnvOff.includes('Automatic skill installs are on (.team/mode.json)'))
+  // A file's true never turns installs on: with no variable they stay off, and the variable decides when it is set.
+  const fileOn = contextFor('{"autoInstallSkills":true}', {})
+  assert.ok(!fileOn.includes('Automatic skill installs are on'))
+  assert.ok(fileOn.includes('- Automatic skill installs: off (default).'))
+  assert.ok(fileOn.includes(`\n- ${FILE_ON_IGNORED}.`))
+  assert.ok(fileOn.includes('- This project runs in Balanced mode (default).'))
+  const fileOnEnvOn = contextFor('{"autoInstallSkills":true}', ENV_ON)
+  assert.ok(fileOnEnvOn.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.ok(!fileOnEnvOn.includes(FILE_ON_IGNORED), 'no notice when the variable already turns installs on')
+})
+
+test('SECTION_TEAM_AUTO_INSTALL_SKILLS=0 is a veto that a committed mode file cannot override', () => {
+  const dir = withModeFile(repo(), '{"mode":"max","autoInstallSkills":true}')
+  const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args])
+  git('add', '-f', '.team/mode.json')
+  git('commit', '-q', '-m', 'ship a mode file')
+  const vetoed = startContext(dir, tempHome(), { SECTION_TEAM_AUTO_INSTALL_SKILLS: '0' })
+  assert.ok(!vetoed.context.includes('Automatic skill installs are on'))
+  assert.ok(vetoed.context.includes('- Automatic skill installs: off (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
+  assert.ok(vetoed.context.includes('- This project runs in Max mode (from .team/mode.json).'), 'the mode itself still applies')
+  assert.ok(vetoed.warnings.includes(FILE_ON_IGNORED), 'the user is told the file was ignored')
+  const unset = startContext(dir, tempHome(), {})
+  assert.ok(!unset.context.includes('Automatic skill installs are on'))
+  assert.ok(unset.warnings.includes(FILE_ON_IGNORED))
 })
 
 for (const [text, problem] of [
@@ -618,4 +634,18 @@ test('a session started in a subfolder finds plan.md at the repo root', () => {
   const sub = join(dir, 'src', 'deep')
   mkdirSync(sub, { recursive: true })
   assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
+})
+
+const OFF_LINE = 'section-team is off in this project (.team/mode.json says "off"), so the team brief was not added; /team mode balanced turns it back on from your next session'
+
+test('an off project gets no brief, no files and no records, only the one off line for the user', () => {
+  const dir = withModeFile(repo(), '{"mode":"off"}')
+  const home = tempHome()
+  const result = startContext(dir, home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: '1' }, 'test-session', { source: 'startup' })
+  assert.deepEqual(result, { context: null, warnings: [OFF_LINE] })
+  assert.equal(existsSync(join(dir, '.team', 'notes')), false, 'no notes folder')
+  assert.ok(!readFileSync(excludeFile(dir), 'utf8').includes('.team/'), 'no git exclude edit')
+  assert.deepEqual(readdirSync(home), [], 'nothing written under the home folder')
+  const out = JSON.parse(run(startInput(dir), home).stdout)
+  assert.deepEqual(out, { systemMessage: `section-team session-start: ${OFF_LINE}` })
 })

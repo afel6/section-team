@@ -339,6 +339,8 @@ test('a saved REPORT names the mode of its project', () => {
   assert.equal(saveInMode('{"mode": "max"}'), stamped(REPORT, 'max'))
   assert.equal(saveInMode('{"mode": "max", "autoInstallSkills": "yes"}'), stamped(REPORT, 'max'))
   assert.equal(saveInMode('{"mode": "lean"}'), stamped(REPORT, 'balanced'))
+  // A section started by hand in a project switched off: the footer says off, not the Balanced stand-in.
+  assert.equal(saveInMode('{"mode": "off"}'), stamped(REPORT, 'off'))
 })
 
 test('a broken mode file still saves the REPORT, with the mode unknown', () => {

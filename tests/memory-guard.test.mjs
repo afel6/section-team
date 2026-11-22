@@ -21,10 +21,11 @@ const tempDir = () => {
 // One Windows row; started is the creation time in ms, bytes the private bytes.
 const row = (pid, ppid, started, name, bytes = 10 * MB, command = name) => ({ pid, ppid, started, bytes, name, command })
 
-test('limitBytes: unset is 75% of memory on win32 with a 4096 MB floor, and off on linux and darwin', () => {
-  assert.deepEqual(limitBytes({}, 16 * GB, 'win32'), { bytes: 12 * GB, problem: null })
-  assert.deepEqual(limitBytes({}, 4 * GB, 'win32'), { bytes: 4096 * MB, problem: null })
-  for (const platform of ['linux', 'darwin']) assert.deepEqual(limitBytes({}, 16 * GB, platform), { bytes: null, problem: null }, platform)
+test('limitBytes: the guard is opt-in, so unset or empty is off on every platform', () => {
+  for (const platform of ['win32', 'linux', 'darwin']) {
+    assert.deepEqual(limitBytes({}, 16 * GB, platform), { bytes: null, problem: null }, platform)
+    assert.deepEqual(limitBytes({ [VAR]: '' }, 16 * GB, platform), { bytes: null, problem: null }, platform)
+  }
 })
 
 test('limitBytes: a whole number of MB sets the limit on every platform, with no floor, and 0 turns it off', () => {
@@ -37,7 +38,7 @@ test('limitBytes: a whole number of MB sets the limit on every platform, with no
 test('limitBytes: a bad value gives the unset answer and a one-line problem naming the variable', () => {
   for (const bad of ['12GB', '-1', '1.5', ' 300', 'off', '1e4']) {
     const win = limitBytes({ [VAR]: bad }, 16 * GB, 'win32')
-    assert.equal(win.bytes, 12 * GB, bad)
+    assert.equal(win.bytes, null, bad)
     assert.ok(win.problem.includes(VAR) && !win.problem.includes('\n'), bad)
     const linux = limitBytes({ [VAR]: bad }, 16 * GB, 'linux')
     assert.equal(linux.bytes, null, bad)

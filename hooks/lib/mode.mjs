@@ -10,6 +10,10 @@ export const RETIRED_LINE = 'Lean was removed in 0.3.0; this project runs Balanc
 // The mode used when no mode file says otherwise.
 export const DEFAULT_MODE = 'balanced'
 
+// The per-project off switch, saved as a mode but not one of MODES: it reads as Balanced plus off: true, so a hook that does not
+// check the flag still runs Balanced. Session start adds no brief for it; the change applies from the next session.
+export const OFF_MODE = 'off'
+
 // The review gate settings for each mode, keyed in MODES order.
 export const GATES = Object.freeze({
   balanced: Object.freeze({ passOverall: 8, minItem: 6, fixRounds: 2, reviewerModel: null, nearMiss: false }),
@@ -57,6 +61,7 @@ function modeOf(data, ending) {
   if (data.mode === undefined) return { mode: DEFAULT_MODE, fault: null }
   if (MODES.includes(data.mode)) return { mode: data.mode, fault: null }
   if (data.mode === RETIRED_MODE) return { mode: DEFAULT_MODE, fault: null, retired: RETIRED_MODE }
+  if (data.mode === OFF_MODE) return { mode: DEFAULT_MODE, fault: null, off: true }
   return { mode: DEFAULT_MODE, fault: `unknown mode ${shown(data.mode)}, ${ending}` }
 }
 
@@ -83,28 +88,33 @@ export function parseModeFile(text, ending = BALANCED_ENDING) {
     return balancedBecause('not valid JSON', ending)
   }
   if (!isPlainObject(data)) return balancedBecause('not a JSON object', ending)
-  const { mode, fault: modeFault, retired } = modeOf(data, ending)
+  const { mode, fault: modeFault, retired, off } = modeOf(data, ending)
   const { autoInstallSkills, fault: skillsFault } = skillsOf(data)
   const faults = [modeFault, skillsFault].filter(fault => fault !== null)
   const problem = faults.length === 0 ? null : `${MODE_FILE}: ${faults.join('; ')}`
-  return { mode, autoInstallSkills, problem, modeUsable: modeFault === null, ...(retired === undefined ? {} : { retired }) }
+  return { mode, autoInstallSkills, problem, modeUsable: modeFault === null, ...(retired === undefined ? {} : { retired }), ...(off ? { off } : {}) }
 }
 
 // Throws one plain line unless mode is one of MODES.
-export function assertMode(mode) {
-  if (mode === RETIRED_MODE) throw new Error(`unknown mode "lean": Lean was removed in 0.3.0, pick balanced or max`)
-  if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: pick balanced or max`)
+export function assertMode(mode, pick = 'pick balanced or max') {
+  if (mode === RETIRED_MODE) throw new Error(`unknown mode "lean": Lean was removed in 0.3.0, ${pick}`)
+  if (!MODES.includes(mode)) throw new Error(`unknown mode ${shown(mode)}: ${pick}`)
+}
+
+// Throws one plain line unless mode is one a project can save: one of MODES, or off.
+export function assertSavable(mode) {
+  if (mode !== OFF_MODE) assertMode(mode, 'pick balanced, max or off')
 }
 
 // The display name of a mode: 'max' → 'Max'. Throws on an unknown mode.
 export function modeName(mode) {
-  assertMode(mode)
+  assertSavable(mode)
   return mode[0].toUpperCase() + mode.slice(1)
 }
 
-// The text to save for a mode: compact JSON that keeps a valid autoInstallSkills from the previous text. Throws on an unknown mode.
+// The text to save for a mode (or off): compact JSON that keeps a valid autoInstallSkills from the previous text. Throws on an unknown mode.
 export function serializeMode(previousText, mode) {
-  assertMode(mode)
+  assertSavable(mode)
   const { autoInstallSkills } = parseModeFile(previousText)
   return JSON.stringify(autoInstallSkills === null ? { mode } : { mode, autoInstallSkills })
 }
@@ -180,7 +190,7 @@ function replaceFile(dir, file, text) {
 
 // Saves the mode to .team/mode.json (keeping the skill setting) through a temp file in the same folder. Throws one plain line on failure; undefined on success.
 export function writeMode(root, mode) {
-  assertMode(mode)
+  assertSavable(mode)
   assertTeamFolder(root)
   const file = modeFile(root)
   replaceFile(teamDir(root), file, serializeMode(readPreviousText(file), mode))

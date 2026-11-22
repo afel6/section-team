@@ -1,11 +1,20 @@
 {
   "name": "section-team",
   "version": "0.5.0",
-  "description": "Supervisor plus 10 builder sections and 3 advisors, with saved reports and a Team Board",
+  "description": "Turns each Claude Code session into a supervisor that hands every job to Opus specialist agents (frontend, backend, testing and more) behind an Opus code-review gate, with saved reports and a live Team Board. Costs about 5x plain Claude Code in Balanced and 10x in Max; /team mode off turns it off for one project.",
   "author": {
     "name": "Raouf"
   },
-  "types": "./types/index.d.ts",
+  "homepage": "https://github.com/afel6/section-team#readme",
+  "repository": "https://github.com/afel6/section-team",
   "license": "MIT",
-  "repository": "https://github.com/afel6/section-team"
+  "keywords": [
+    "multi-agent",
+    "subagents",
+    "orchestration",
+    "code-review",
+    "supervisor",
+    "team-board"
+  ],
+  "types": "./types/index.d.ts"
 }
