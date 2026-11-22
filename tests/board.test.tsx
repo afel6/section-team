@@ -1004,6 +1004,34 @@ test('a names file with bad entries keeps its good names, and a rename saves the
   expect(seen.disk[NAMES_PATH]).toBe('{"v":1,"names":{"frontend":"Kit","backend":"Nova"}}')
 })
 
+// Another chat saves names.json while this one renames: the disk world() reads from swaps the file right after this chat's first
+// read of it, as a save landing between that read and the write would. (A test may not hook fs.read a second time.)
+const RACES = [
+  ['a rename it saved is kept', '{"v":1,"names":{"backend":"Kit"}}', 'Iris is now Nova (frontend).', '{"v":1,"names":{"frontend":"Nova","backend":"Kit"}}'],
+  ['a name it just took is refused', '{"v":1,"names":{"backend":"Nova"}}', 'Nova is taken by backend; pick another name.', undefined],
+  ['a file it left unreadable is not overwritten', '{"v":1,"names":{"backend":"No', 'Name not saved: names.json could not be read.', undefined],
+] as const
+
+for (const [what, other, line, saved] of RACES) {
+  test(`names.json is read again just before a rename is saved: ${what}`, async ($, on) => {
+    const { seen } = world(on)
+    const disk: Record<string, string> = { [NAMES_PATH]: '{"v":1,"names":{}}' }
+    let reads = 0
+    seen.disk = new Proxy(disk, {
+      get: (target, key: string) => {
+        const text = target[key]
+        if (key === NAMES_PATH && ++reads === 1) target[NAMES_PATH] = other
+        return text
+      },
+    })
+
+    await $.session.start(START)
+    expect(await teamText($ as never, 'name frontend Nova')).toBe(line)
+    expect(reads).toBeGreaterThan(0)
+    expect(disk[NAMES_PATH]).toBe(saved ?? other)
+  })
+}
+
 test('a names file that cannot be written says the name was not saved, and nothing is saved', async ($, on) => {
   const { seen } = world(on)
 

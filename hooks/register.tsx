@@ -278,8 +278,19 @@ async function nameCommand($: EngineInterface, ctx: Ctx, section: string | undef
   if (!next) return line
   const home = await homeDir($)
   if (!home) return NO_HOME_LINE
+  return saveName($, ctx, home, section, raw)
+}
+
+// Another chat may have saved names.json since the read above, so the file is read again and this one rename applied to it as it is
+// now: that chat's names are kept, a name it just took is refused, and a file it left unreadable is not overwritten.
+// ponytail: $.fs has no rename or lock, so a save landing between this read and the write is still lost; a lock file if that ever bites.
+async function saveName($: EngineInterface, ctx: Ctx, home: string, section: string, raw: string | undefined): Promise<string> {
+  const fresh = await readNames($, ctx)
+  if (unread(fresh.problem)) return NOT_READ_LINE
+  const { line, next } = applyName(fresh.names, section, raw)
+  if (!next) return line
   try {
-    // $.fs has no rename, so this save is not atomic, as the mode file's is not; the poll shows the new name on its next tick.
+    // Not atomic, as the mode file's save is not; the poll shows the new name on its next tick.
     await $.fs.write(namesFile(home), serializeNames(next))
   } catch (error) {
     // The code alone, as the mode line gives it: the engine's message carries an absolute path.
