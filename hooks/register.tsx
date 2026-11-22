@@ -20,6 +20,8 @@ const TITLE = 'Team Board'
 const CHATS_PANE = 'team-chats'
 const CHATS_TITLE = 'Chats'
 const POLL_MS = 1000
+// How often a project set to off is polled while neither pane is open.
+const OFF_POLL_MS = 10 * 1000
 const GIT_TIMEOUT_MS = 5000
 const HEARTBEAT_MS = 60 * 1000
 const MINUTE_MS = 60 * 1000
@@ -79,6 +81,8 @@ async function setMode($: EngineInterface, ctx: Ctx, mode: string): Promise<stri
   } catch (error) {
     return saveFailedLine(error)
   }
+  // The poll follows at once: leaving off brings the 1 s poll back on the next tick.
+  ctx.off = mode === OFF_MODE
   // The file is saved; if the picker cannot be set now, the next poll tick sets it from the file.
   await update($, modeState, () => mode as Mode).catch(() => undefined)
   return savedLine(mode, fromOff)
@@ -92,7 +96,7 @@ type Track = ReturnType<typeof trackOffice>['track']
 type Ctx = {
   root: string; rootFrom: string; request: string; lastJson: string; lastError: string; lastNamesLog: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
-  chatsOpen: boolean; lastChats: string
+  chatsOpen: boolean; lastChats: string; polling: boolean; off: boolean; boardOpen: boolean; lastPoll?: number
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
   office: { track?: Track; office?: BoardData['office'] }
 }
@@ -274,8 +278,19 @@ async function nameCommand($: EngineInterface, ctx: Ctx, section: string | undef
   if (!next) return line
   const home = await homeDir($)
   if (!home) return NO_HOME_LINE
+  return saveName($, ctx, home, section, raw)
+}
+
+// Another chat may have saved names.json since the read above, so the file is read again and this one rename applied to it as it is
+// now: that chat's names are kept, a name it just took is refused, and a file it left unreadable is not overwritten.
+// ponytail: $.fs has no rename or lock, so a save landing between this read and the write is still lost; a lock file if that ever bites.
+async function saveName($: EngineInterface, ctx: Ctx, home: string, section: string, raw: string | undefined): Promise<string> {
+  const fresh = await readNames($, ctx)
+  if (unread(fresh.problem)) return NOT_READ_LINE
+  const { line, next } = applyName(fresh.names, section, raw)
+  if (!next) return line
   try {
-    // $.fs has no rename, so this save is not atomic, as the mode file's is not; the poll shows the new name on its next tick.
+    // Not atomic, as the mode file's save is not; the poll shows the new name on its next tick.
     await $.fs.write(namesFile(home), serializeNames(next))
   } catch (error) {
     // The code alone, as the mode line gives it: the engine's message carries an absolute path.
@@ -298,6 +313,7 @@ async function pollChats($: EngineInterface, ctx: Ctx) {
 async function refreshMode($: EngineInterface, ctx: Ctx) {
   const before = await read($, modeState)
   const shown = await shownModeFile($, await projectRoot($, ctx))
+  ctx.off = shown.off === true
   const mode = (shown.off ? OFF_MODE : shown.mode) as Mode
   if (mode !== before) await update($, modeState, current => (current === before ? mode : current))
 }
@@ -313,22 +329,49 @@ async function poll($: EngineInterface, ctx: Ctx) {
   await pollChats($, ctx)
 }
 
+// A project set to off, with neither pane open, is polled every OFF_POLL_MS: its strip and status file lag that much. A session's
+// first tick always polls. ponytail: the 1 s timer keeps firing and a skipped tick costs one clock read; restart it at OFF_POLL_MS if that ever shows.
+const slowed = (ctx: Ctx, now: number) =>
+  ctx.off && !ctx.boardOpen && !ctx.chatsOpen && ctx.lastPoll !== undefined && now - ctx.lastPoll < OFF_POLL_MS
+
+// One tick of the timer. clock.every fires every period whatever the last call is doing, so a tick still running (a cold git, a slow
+// disk) makes the next ones skip: ticks never overlap. The flag is set before the first await, so a tick due meanwhile sees it.
+async function tick($: EngineInterface, ctx: Ctx) {
+  if (ctx.polling) return
+  ctx.polling = true
+  try {
+    const now = await $.clock.now()
+    if (slowed(ctx, now)) return
+    ctx.lastPoll = now
+    await poll($, ctx)
+  } finally {
+    ctx.polling = false
+  }
+}
+
+// The Team Board pane is open from here until its ui.close: an off project is polled every second meanwhile.
+async function openBoard($: EngineInterface, ctx: Ctx) {
+  ctx.boardOpen = true
+  await $.ui.open({ id: PANE, title: TITLE })
+}
+
 // The poll starts with the session (/team and section spawns call this too), once. The session.end hook below only
 // resets the counts on /clear; it never stops the poll (/clear starts no new session.start), and the timer ends with the process.
 function startPoll($: EngineInterface, ctx: Ctx) {
   if (ctx.stop) return
   ctx.stop = $.clock.every(POLL_MS, () => {
-    void poll($, ctx)
+    void tick($, ctx).catch(error => logFailure($, ctx, 'poll', error))
   })
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', polling: false, off: false, boardOpen: false, cache: new Map(), spawns: new Map(), usage: new Map(), office: {} }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max|off), or name a builder (/team name <section> <name>)" })
     await $.command.register({ name: 'chats', description: 'Show every open chat as a card' })
     ctx.root = ''
+    ctx.lastPoll = undefined
     resetCounts(ctx)
     // A new session's first poll records no moves: nobody walks from where the last session left them. A /clear keeps the track.
     ctx.office = {}
@@ -373,8 +416,14 @@ export const register: Register = on => {
     const nameArgs = /^name(?:\s+(\S+)(?:\s+(.+))?)?$/s.exec(args)
     if (nameArgs) return { text: await nameCommand($, ctx, nameArgs[1], nameArgs[2]) }
     startPoll($, ctx)
-    await $.ui.open({ id: PANE, title: TITLE })
+    await openBoard($, ctx)
     return { text: 'Team Board opened.' }
+  })
+
+  // The board is gone, however it closed: an off project's poll slows down again.
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    ctx.boardOpen = false
+    return next(e)
   })
 
   // From here on the poll reads the status folder; the first read is done now so the pane opens with the chats in it.
@@ -432,7 +481,7 @@ export const register: Register = on => {
       <Box key="strip" gap={1}>
         <Text wrap="truncate-end">{stripLine(data)}</Text>
         {picker}
-        <Button key="open-board" label="Board" onPress={() => $.ui.open({ id: PANE, title: TITLE })} />
+        <Button key="open-board" label="Board" onPress={() => openBoard($, ctx)} />
       </Box>
     )
   })
