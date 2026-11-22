@@ -1,5 +1,7 @@
 export type CardState = 'asleep' | 'running' | 'waiting' | 'done' | 'problem'
-export type BoardCard = { id: string; kind: 'builder' | 'advisor'; state: CardState; line: string; tokens: string; helpersLine: string }
+// name is the creature's name for a builder, the id for an advisor.
+export type BoardCard = { id: string; kind: 'builder' | 'advisor'; name: string; state: CardState; line: string; tokens: string; helpersLine: string }
+// office is the office picture (its SVG source and alt text), when the poll has built one.
 export type BoardData = {
   request: string
   lastSummary: string
@@ -7,6 +9,7 @@ export type BoardData = {
   counts: { active: number; done: number; problem: number }
   teamLine: string
   team: { tokens: number; helpers: number }
+  office?: { source: string; alt: string }
 }
 
 // One session's status file, read by the /chats dashboard. Times are milliseconds since the epoch.
