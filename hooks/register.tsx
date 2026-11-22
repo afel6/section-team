@@ -6,7 +6,7 @@ import { isHarnessFrame } from './lib/frames.mjs'
 import { DEFAULT_MODE, MODE_FILE, modeName, parseModeFile, serializeMode } from './lib/mode.mjs'
 import { applyName, DEFAULT_NAMES, listNames, namesFile, NO_HOME_LINE, parseNames, serializeNames, UNREADABLE_LINE } from './lib/names.mjs'
 import { parseReport, PREFIX } from './lib/report.mjs'
-import { MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
+import { codeOf, MODE_OPTIONS, modeHint, modeSummary, notAFolder, savedLine, saveFailedLine, unknownModeLine, unreadableModeFile } from './mode-lines.mjs'
 import { dashboardCards, HIDE_MS, parseStatus, statusDir, statusRecord } from './sessions-model.mjs'
 
 // The scan that lists a module's state reads an atom only when it is declared in this file.
@@ -247,7 +247,8 @@ async function nameCommand($: EngineInterface, ctx: Ctx, section: string | undef
     // $.fs has no rename, so this save is not atomic, as the mode file's is not; the poll shows the new name on its next tick.
     await $.fs.write(namesFile(home), serializeNames(next))
   } catch (error) {
-    return `Name not saved: ${error instanceof Error ? error.message : String(error)}`
+    // The code alone, as the mode line gives it: the engine's message carries an absolute path.
+    return `Name not saved: ${codeOf(error) ?? 'the file system refused it'}.`
   }
   return line
 }
@@ -408,7 +409,8 @@ export const register: Register = on => {
     const width = cardWidth(e.props.bodyColumns ?? 80)
     const card = (c: BoardCard) => (
       <Box key={`card-${c.id}`} width={width} flexDirection="column" paddingX={1} borderStyle={c.kind === 'advisor' ? 'dashed' : 'round'} borderColor={COLOR[c.state]}>
-        <Text bold color={COLOR[c.state]}>{c.kind === 'builder' ? `● ${c.name} · ${c.id}` : `● ${c.id}`}</Text>
+        {/* A board stored by an earlier version has no names on its cards: the header falls back to the id until the next tick. */}
+        <Text bold color={COLOR[c.state]}>{c.kind === 'builder' && c.name ? `● ${c.name} · ${c.id}` : `● ${c.id}`}</Text>
         <Text wrap="truncate-end" dimColor={c.state === 'asleep'}>{c.line}</Text>
         {c.tokens ? <Text wrap="truncate-end" dimColor>{c.tokens}</Text> : null}
         {c.helpersLine ? <Text dimColor>{c.helpersLine}</Text> : null}

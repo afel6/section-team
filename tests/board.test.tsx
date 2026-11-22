@@ -844,9 +844,19 @@ test('a names file that cannot be written says the name was not saved, and nothi
   const { seen } = world(on)
 
   await $.session.start(START)
-  seen.denyWrite = 'EPERM: operation not permitted'
+  seen.denyWrite = "EPERM: operation not permitted, open 'C:\\Users\\u\\.claude\\section-team\\names.json'"
   const text = await teamText($ as never, 'name frontend Nova')
-  expect(text.startsWith('Name not saved: ')).toBe(true)
-  expect(text).toContain('EPERM: operation not permitted')
+  // The code alone: the engine's message carries its own prefix and the absolute path.
+  expect(text).toBe('Name not saved: EPERM.')
+  expect(text).not.toMatch(/[\\/]|Users|names\.json|\$\.fs/)
   expect(NAMES_PATH in seen.disk).toBe(false)
+})
+
+test('a board stored by an earlier version, with no names on its cards, draws headers without undefined', async ($, on) => {
+  const old = { ...DATA, cards: DATA.cards.map(({ name: _name, ...card }) => card) }
+  on('state.get', { plugin: 'section-team', key: 'board' }, async () => ({ value: { value: old, version: 1 } }))
+  const ui = await mountBoard($ as never)
+  const header = (await ui.find({ key: 'card-frontend' }))?.text
+  expect(header).toContain('● frontend')
+  expect(header).not.toContain('undefined')
 })

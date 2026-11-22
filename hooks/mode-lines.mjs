@@ -28,7 +28,7 @@ export const notAFolder = () => Object.assign(new Error(NOT_FOLDER), { code: 'EN
 
 // An error's code ('EPERM'), from .code or its message, where the engine puts it after its own prefix
 // ("section-team: $.fs.write: EPERM: ... 'C:\x'"); else null. Nothing else of the message: it may carry an absolute path.
-const codeOf = error => {
+export const codeOf = error => {
   const code = error?.code
   if (typeof code === 'string' && /^E[A-Z]+$/.test(code)) return code
   return /(?:^|: )(E[A-Z]+): /.exec(typeof error?.message === 'string' ? error.message : '')?.[1] ?? null
