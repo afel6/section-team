@@ -23,12 +23,8 @@ const toRegExp = pattern => new RegExp(pattern.replace(/\\x\{([0-9A-Fa-f]+)\}/g,
 const hits = (pattern, text) => text.split('\n').some(line => toRegExp(pattern).test(line))
 const appliesTo = (scan, rel) => !scan.skillMdOnly || rel === 'SKILL.md'
 
-const fixtureFiles = dir => readdirSync(dir, { recursive: true, withFileTypes: true })
-  .filter(e => e.isFile())
-  .map(e => {
-    const file = join(e.parentPath, e.name)
-    return { file, rel: file.slice(dir.length + 1).replace(/\\/g, '/'), text: readFileSync(file, 'utf8') }
-  })
+// Each fixture is one flat folder; a subfolder would fail readFileSync loudly.
+const fixtureFiles = dir => readdirSync(dir).map(rel => ({ file: join(dir, rel), rel, text: readFileSync(join(dir, rel), 'utf8') }))
 const FIXTURE_DIRS = readdirSync(FIXTURES).map(name => join(FIXTURES, name))
 
 const CLEAN = [
