@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { MODE_LABELS } from '../hooks/lib/mode.mjs'
 import { HEAD_CONTEXT_LIMIT } from '../hooks/lib/head-context.mjs'
@@ -215,4 +215,17 @@ test('the README describes the office, walks, names and where names are saved', 
     '/team name <section> <name>', '`/team name <section>` gives back its default name', 'names.json', 'walks', 'strolls', 'advisors',
     'The terminal keeps the text board.',
   ], 'Team Board section')
+})
+
+test('the README lists every MCP grant in the agent files, and says no section gets the logged-in Chrome', () => {
+  const readme = read('README.md')
+  const agents = new URL('../agents/', import.meta.url)
+  const grants = new Set()
+  for (const file of readdirSync(agents)) {
+    const tools = readFileSync(new URL(file, agents), 'utf8').match(/^tools: (.*)$/m)?.[1] ?? ''
+    for (const tool of tools.split(', ')) if (tool.startsWith('mcp__')) grants.add(tool)
+  }
+  assert.ok(grants.size > 0, 'the agent files grant some MCP tools')
+  for (const grant of grants) assert.ok(readme.includes(`\`${grant}\``), `README does not list ${grant}`)
+  assert.ok(readme.includes('No section gets `mcp__claude-in-chrome__*`'))
 })

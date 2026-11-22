@@ -13,7 +13,8 @@ const ADVISOR_TOOLS = 'Read, Grep, Glob, WebSearch, WebFetch, Skill, SendMessage
 // Tool schemas are re-sent on every turn of a head, so a builder lists only the tools it uses instead of inheriting them all.
 // An allowlist drops every MCP tool not named, and `mcp__*` in `tools` grants nothing (measured on CLI 2.1.318), so heads reach project MCP servers only through `main`.
 const BUILDER_TOOLS = 'Read, Write, Edit, Grep, Glob, Bash, PowerShell, Skill, Agent, SendMessage, ToolSearch, Monitor, TaskStop, WebFetch, WebSearch'
-const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__claude-in-chrome__*, mcp__playwright__*'
+// Isolated browsers only: claude-in-chrome would drive the user's own logged-in Chrome, so no section gets it.
+const BROWSER_TOOLS = 'mcp__Claude_Browser__*, mcp__chrome-devtools__*, mcp__playwright__*'
 const BROWSER_HEADS = ['frontend', 'testing', 'uiux', 'ai-llm']
 const builderTools = id => (BROWSER_HEADS.includes(id) ? `${BUILDER_TOOLS}, ${BROWSER_TOOLS}` : BUILDER_TOOLS)
 
