@@ -860,3 +860,17 @@ test('a board stored by an earlier version, with no names on its cards, draws he
   expect(header).toContain('● frontend')
   expect(header).not.toContain('undefined')
 })
+
+test('a lasting names problem logs once even while another failure keeps happening', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[NAMES_PATH] = '{"v":1,"names":{"frontend":"No'
+  seen.denyWrite = 'disk full'
+
+  await $.session.start(START)
+  await clock.advance(3000)
+  expect(seen.agentList).toBe(3)
+  expect(seen.logs).toHaveLength(2)
+  expect(seen.logs.filter(l => l.text.includes('names.json is not valid'))).toHaveLength(1)
+  expect(seen.logs.filter(l => l.text.includes('disk full'))).toHaveLength(1)
+  expect(seen.logs.every(l => l.to === 'debug')).toBe(true)
+})

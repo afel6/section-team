@@ -85,7 +85,7 @@ type Spawn = { parentAgentId?: string; subagentType: string; model: string }
 type Used = { total: number; out: number }
 // spawns and usage live here, not in the atom: only the computed board is stored. Both are keyed by agent id.
 type Ctx = {
-  root: string; rootFrom: string; request: string; lastJson: string; lastError: string; stop?: Timer
+  root: string; rootFrom: string; request: string; lastJson: string; lastError: string; lastNamesLog: string; stop?: Timer
   board: BoardData; turnActive: boolean; mainTurnId: string; startedAt?: number; endedId?: string; lastStatus: string; lastWrite: number
   chatsOpen: boolean; lastChats: string
   cache: Map<string, { mtimeMs: number; report: Report }>; spawns: Map<string, Spawn>; usage: Map<string, Used>
@@ -208,16 +208,18 @@ async function refreshChats($: EngineInterface, ctx: Ctx) {
   ctx.lastChats = json
 }
 
-// Logged once per message, to the debug log only.
-function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown) {
+// Logged once per message, to the debug log only. Names problems keep a slot of their own (lastNamesLog): sharing lastError with
+// another failure that keeps happening would make both log every tick.
+function logFailure($: EngineInterface, ctx: Ctx, what: string, error: unknown, slot: 'lastError' | 'lastNamesLog' = 'lastError') {
   const message = error instanceof Error ? error.message : String(error)
-  if (message === ctx.lastError) return
-  ctx.lastError = message
+  if (message === ctx[slot]) return
+  ctx[slot] = message
   $.ui.log(`Team Board: ${what} failed: ${message}`, { to: 'debug' })
 }
 
 // The builders' names, saved per user under the home folder. Read as the mode file is, only when it exists. A file that cannot be read
-// gives the default names and UNREADABLE_LINE, one that is not valid the names it could keep and its problem; both are logged once.
+// gives the default names and UNREADABLE_LINE, one that is not valid the names it could keep and its problem; both are logged once while
+// they last. A clean read clears the slot, so a problem that comes back is logged again.
 async function readNames($: EngineInterface, ctx: Ctx): Promise<{ names: Record<string, string>; problem: string | null }> {
   const home = await homeDir($)
   if (!home) return { names: { ...DEFAULT_NAMES }, problem: null }
@@ -226,11 +228,12 @@ async function readNames($: EngineInterface, ctx: Ctx): Promise<{ names: Record<
   try {
     text = (await $.fs.exists(file)) ? await $.fs.read(file) : null
   } catch (error) {
-    logFailure($, ctx, 'names read', error)
+    logFailure($, ctx, 'names read', error, 'lastNamesLog')
     return { names: { ...DEFAULT_NAMES }, problem: UNREADABLE_LINE }
   }
   const parsed = parseNames(text)
-  if (parsed.problem !== null) logFailure($, ctx, 'names read', parsed.problem)
+  if (parsed.problem === null) ctx.lastNamesLog = ''
+  else logFailure($, ctx, 'names read', parsed.problem, 'lastNamesLog')
   return parsed
 }
 
@@ -291,7 +294,7 @@ function startPoll($: EngineInterface, ctx: Ctx) {
 }
 
 export const register: Register = on => {
-  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
+  const ctx: Ctx = { root: '', rootFrom: '', request: '', lastJson: '', lastError: '', lastNamesLog: '', board: emptyBoard() as BoardData, turnActive: false, mainTurnId: '', lastStatus: '', lastWrite: 0, chatsOpen: false, lastChats: '', cache: new Map(), spawns: new Map(), usage: new Map() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'team', description: "Show the Team Board, set this project's mode (/team mode balanced|max), or name a builder (/team name <section> <name>)" })
