@@ -2,7 +2,9 @@
 
 Each release's full notes are on the [GitHub releases page](https://github.com/afel6/section-team/releases).
 
-## 0.5.0 (not released yet)
+## 0.5.1 (2026-11-22)
+
+Version 0.5.0 was served from `main` for a few hours without the safer defaults below; 0.5.1 is the first release with them. If you installed 0.5.0, update with `claude plugin update section-team@section-team`.
 
 **Safer defaults. Read these first if you are upgrading.**
 - A project's `.team/mode.json` can no longer turn on automatic skill installs. Only the `SECTION_TEAM_AUTO_INSTALL_SKILLS=1` environment variable turns them on (a project's own `.claude/settings.json` can set environment variables too, so check that file in repos you clone); `"autoInstallSkills": false` in a project still turns them off there, and a `true` is ignored with a one-line notice.
