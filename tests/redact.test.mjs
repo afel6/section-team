@@ -194,6 +194,7 @@ const PLAIN = [
   'Run `gh auth login --token <token>`.', '--token <value>.', '--password <pw>)', 'echo "--token $GH_TOKEN"', 'gh auth login --token $GH_TOKEN; next',
   'see `--token $TOKEN`', 'mysql -u root -p<password>.', 'mysql -p${{ secrets.DB }} x', 'curl -u a:$env:PASS https://x',
   'gh auth login --token $env:GH_TOKEN', 'gh auth login --token ${{ secrets.GH_TOKEN }}', '{"password":"${secrets.wrong}"}', 'postgres://u:${db.pass}@h/d',
+  'mysqldump shop > out/$(date +%F | tr - _; mkdir -pv out).sql', 'mysql shop $(cat a | grep -px y)', 'curl https://x/$(echo a | docker run -u 1:2 img)',
 ]
 
 test('command lines and prose with no secret come back the same', () => {

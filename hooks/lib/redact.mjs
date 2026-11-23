@@ -28,8 +28,9 @@ const notAPlaceholder = end => String.raw`(?!${PLACEHOLDER}(?:${end}))`
 const SHELL_END = String.raw`[.,;:!?)\x60]*(?:[\s'"]|$)`
 // In a command the shell expands a variable inside double quotes too, so a double-quoted whole variable stays; a quoted literal does not.
 const NOT_A_SHELL_PLACEHOLDER = String.raw`(?!(?:${PLACEHOLDER}|"(?:${VARIABLE})")(?:${SHELL_END}))`
-// A shell value that starts with $( runs to its matching ), so a literal inside it is read with it, and a command does not end at a |
-// inside it. ponytail: one level of nested parens and no ) inside quotes; deeper or unclosed, the value is read as before.
+// A shell value that starts with $( runs to its matching ), so a literal inside it is read with it, and a mysql or curl command does
+// not end at a | inside one that starts a password (after -p or user:). ponytail: one level of nested parens and no ) inside quotes;
+// deeper or unclosed, the value is read as before.
 const SUBSTITUTION = String.raw`\$\((?:[^()\r\n]|\([^()\r\n]*\))*\)`
 // The password in scheme://user:password@host; the user and the host stay. Each part is bounded and stops at the first character it cannot use.
 const URL_PASSWORD = new RegExp(String.raw`\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:/?#@"'<>]{1,256}:)${notAPlaceholder('@')}[^\s/?#@"'<>]{1,256}@`, 'gi')
@@ -43,7 +44,7 @@ const JSON_SECRET_NAME = /(?:password|passwd|secret|token|(?:api|access|auth|cli
 // "it's ... doesn't" are plain characters. It always ends where it stops, so each character is read once, and an unclosed quote is
 // read as one character.
 const QUOTE_START = String.raw`(?<=[\s=]|-[pu])`
-const SEGMENT = String.raw`(?:${SUBSTITUTION}|[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
+const SEGMENT = String.raw`(?:(?<=-p|:)${SUBSTITUTION}|[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
 // mysql -p<password>, only in a MySQL or MariaDB client's command: elsewhere -p is mkdir -p, cp -pr or a port.
 const MYSQL_COMMAND = new RegExp(String.raw`\b(?:mysql|mariadb)[\w-]*${SEGMENT}`, 'g')
 const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${NOT_A_SHELL_PLACEHOLDER}(${SUBSTITUTION}[^\s'"]*|"[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
