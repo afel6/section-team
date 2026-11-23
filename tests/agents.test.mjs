@@ -124,10 +124,11 @@ test('builders learn they have no project MCP tools, right after the short-outpu
   for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes(line), id)
 })
 
-test('builders treat the approved foundation note as frozen; advisors write no notes', () => {
-  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.'
+// 0.6.0 grade: a cloned repository can ship its own foundation note, which no user approved in this project.
+test('builders treat the approved foundation note as frozen, a committed one only once the user says so; advisors write no notes', () => {
+  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it (one that came committed with the repository counts as approved only once the user says so): build to it and never edit it. If it must change, ask `main`.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(line), id)
-  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes(line), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes('`.team/notes/foundation.md` is frozen'), id)
 })
 
 test('committed files match the generator', () => {
@@ -888,10 +889,15 @@ test('no agent file calls the house rules the user\'s standards, and builders na
   }
 })
 
-test('the 10 builders and the coder all carry the SAFETY line', () => {
-  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this.'
-  assert.equal(BUILDERS_AND_CODER.length, 11)
-  for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).includes(safety), id)
+// 0.6.0 grade: the reviewer runs Bash too, and a delete outside the project folder is as hard to undo as destructive git.
+// Only what the job did not make: TIDY has sections remove their copies in the system temp folder, and tests their temp folders.
+test('the 10 builders, the coder and the reviewer carry the SAFETY line; advisors and the scout run no commands and do not', () => {
+  const safety = "Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services, and never delete a file or folder outside the project folder (the job's own repo) that the job, its helpers or its tests did not make; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this."
+  const carriers = [...BUILDERS_AND_CODER, 'reviewer']
+  assert.equal(carriers.length, 12)
+  for (const id of carriers) assert.ok(agentFile(id).includes(safety), id)
+  for (const id of [...ADVISOR_IDS, 'scout']) assert.ok(!agentFile(id).includes('Safety: '), id)
+  assert.ok(agentFile('reviewer').includes(`Where the project's own rules differ from the default rules, the project's rules win.\n${safety}\n`), 'the reviewer reads SAFETY right after the project-rules line')
 })
 
 test('a tests-first rule in the project or the job still holds; no agent says the user chose the order', () => {
@@ -926,6 +932,21 @@ const DIRECT_STEPS = [
 const DIRECT_SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
 // A Max session that loads the skill anyway learns it does not apply there; the description stays as the plan wrote it.
 const DIRECT_BALANCED_ONLY = 'Balanced mode only; in Max every job goes to a section.'
+// 0.6.0 grade (L1): the supervisor also holds the user's global CLAUDE.md, which sections skip (omitClaudeMd), so in the skill both win over the defaults.
+const SECTIONS_WIN = "section-team default rules (where the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, the project's rules win): "
+const DIRECT_WIN = "section-team default rules (where the user's global CLAUDE.md in your context or the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, those rules win): "
+const DIRECT_RULES = DIRECT_WIN + HOUSE_RULES.slice(SECTIONS_WIN.length)
+
+test("the direct-build skill lets the user's global CLAUDE.md and the project's rules win; sections keep the project-only line (L1)", () => {
+  const body = readFileSync(DIRECT_BUILD, 'utf8').split('\n')
+  assert.ok(HOUSE_RULES.startsWith(SECTIONS_WIN), 'the sections\' default rules open as before')
+  assert.ok(body.includes(DIRECT_RULES), 'the skill carries the default rules with both winning')
+  assert.ok(!body.includes(HOUSE_RULES), "the skill still carries the sections' line")
+  assert.ok(inNoAgent(DIRECT_WIN), 'an agent file carries the skill-only opening')
+  for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).split('\n').includes(HOUSE_RULES), `${id} lost the sections' line`)
+  // A headless round keeps the real HOME: a path would point the supervisor at the user's own file outside the clean profile.
+  assert.ok(!body.join('\n').includes('~/.claude'), 'the skill names a home path')
+})
 
 test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
   const text = readFileSync(DIRECT_BUILD, 'utf8')
@@ -936,12 +957,11 @@ test('the direct-build skill is generated: its frontmatter, six steps, then the 
   const body = text.split('\n---\n')[1].split('\n')
   assert.equal(body[0], DIRECT_BALANCED_ONLY, 'the body opens with the mode line')
   assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
-  const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
+  const rules = [SAFETY, DIRECT_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
   assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)
   // SAFETY says the supervisor asks the user; the skill's reader is the supervisor, so the next line says who asks. Sections never carry it.
   assert.equal(body[rules[0] + 1], DIRECT_SUPERVISOR_ASKS, 'the line after SAFETY')
   assert.ok(inNoAgent(DIRECT_SUPERVISOR_ASKS), 'an agent file carries the skill-only line')
-  assert.ok(agentFile('coder').split('\n').includes(HOUSE_RULES), 'the skill carries the same default rules as the sections')
   assert.ok(agentFile('backend').includes(SPEC_LITERAL) && agentFile('backend').includes(SAFETY), "the skill carries the builders' spec and safety rules")
 })
 
