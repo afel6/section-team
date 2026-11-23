@@ -1,6 +1,6 @@
 ---
 name: add-skill
-description: Add a Claude skill from a GitHub URL to section-team. Use when the user pastes a GitHub link to a skill or skill repo and wants it added, when a job needs a skill that is not installed, or runs /section-team:add-skill <url>. Reviews it for safety, installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1 and the review is clean, assigns it to the right section(s) and records that in the team roster.
+description: Add a Claude skill from a GitHub URL to section-team. Use when the user pastes a GitHub link to a skill or skill repo and wants it added, when a job needs a skill that is not installed, or runs /section-team:add-skill <url>. Reviews it for safety, installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1, the review is clean and the owner is trusted, assigns it to the right section(s) and records that in the team roster.
 argument-hint: <github-url>
 ---
 # Add a skill from GitHub

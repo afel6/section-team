@@ -237,7 +237,7 @@ test('an owner a section suggested is checked like any other: unlisted asks, lis
 test('SKILL.md says installs ask the user unless SECTION_TEAM_AUTO_INSTALL_SKILLS=1, and the owner list ships empty', () => {
   const skill = readFileSync(new URL('../skills/add-skill/SKILL.md', import.meta.url), 'utf8')
   const description = skill.split('\n').find(line => line.startsWith('description:'))
-  assert.ok(description.includes("installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1 and the review is clean"), description)
+  assert.ok(description.includes("installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1, the review is clean and the owner is trusted,"), description)
   assert.ok(skill.includes('empty when the plugin ships'))
   assert.ok(!skill.includes('`anthropics`, `vercel-labs`, `microsoft`'), 'no default owners named')
 })
