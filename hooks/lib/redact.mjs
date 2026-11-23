@@ -39,9 +39,9 @@ const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${NOT_A_VALUE}("[^"\r\n]*"|'[
 // curl -u user:password or --user user:password, only in a curl command: elsewhere -u is docker run -u 1000:1000 or git push -u.
 const CURL_COMMAND = new RegExp(String.raw`\bcurl\b${SEGMENT}`, 'g')
 const CURL_PASSWORD = new RegExp(String.raw`(\s(?:-u|--user(?![\w-]))(?:[ \t]{1,8}|=)?['"]?[^\s:'"]{1,256}:)${NOT_A_VALUE}([^\s'"]{1,256})`, 'g')
-// --password <value> and --token <value>. A value that starts with - is the next flag, and a plain word ("the --token flag",
-// "use --token instead.") is prose: both stay.
-const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?!-)${NOT_A_VALUE}("[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
+// --password <value> and --token <value>. A value that starts with - is the next flag, one that starts with [ or ( is usage text
+// ("--token [value]"), and a plain word ("the --token flag", "use --token instead.") is prose: all stay.
+const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?![-[(])${NOT_A_VALUE}("[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
 const PROSE_WORD = /^[A-Za-z]+(?:-[A-Za-z]+)*[.,;:!?)]*$/
 // NAME=value: the name starts where no name character comes before it, so each run of name characters is tried once.
 const ASSIGNMENT = /(?<![\w.-])([\w.-]{1,128})=("[^"]*"|'[^']*'|\S+)/g

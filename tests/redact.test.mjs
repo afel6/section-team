@@ -148,7 +148,7 @@ const PLAIN = [
   'postgres://user:<password>@host/db', 'postgres://user:${PGPASSWORD}@host/db', 'https://user:%PASS%@host/',
   'Set up `mysql`, then run `mkdir -pv data`.', 'Fetch it with `curl`, then `docker run -u 1000:1000 img`.',
   "With mysql it's easy: run `mkdir -pv data` if it doesn't exist.", "curl's fine, it doesn't matter: docker run -u 1000:1000 img", 'Start mysql. Then run mkdir -pv data.',
-  'Authorization: Basic credentials go in base64',
+  'Authorization: Basic credentials go in base64', '--token [value]', '--password (optional)',
   '{"tokens": 1350, "key": "ctrl+s", "keywords": ["a"], "max_tokens": 4096, "tokenizer": "bpe"}', '{"apiKey": "<YOUR_API_KEY>", "token": "${TOKEN}"}',
 ]
 
