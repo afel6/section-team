@@ -181,7 +181,7 @@ const WRITE_NOTES = [
   '   - One file per note in `.team/notes/` (create the folder if needed), about 80 lines max, plus one line for it in `.team/notes/INDEX.md`: `<file> — <owner section> — <one-line summary> — <date>`. Change only your own lines there.',
   '   - Log a shared decision by appending to `.team/notes/decisions.md`: date, section, decision, why. It is the only note several sections write.',
   '   - You own the notes you write. Never edit another section\'s note. Ask its owner instead.',
-  '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.',
+  '   - `.team/notes/foundation.md` is frozen once the user has approved it (one that came committed with the repository counts as approved only once the user says so): build to it and never edit it. If it must change, ask `main`.',
 ].join('\n')
 
 const BUILDER_COORDINATION = `${RELAY} If a question or fix list about your files or notes reaches you (directly, or forwarded by the supervisor with the asker's agent id), handle it and reply to the asker's agent id (when the job states a mode gate, a fix list that comes after your pass is the exception to not grading again: have the code you change for it graded once before you hand back, with your earlier GRADE block, and count it as no fix round); if the answer is a contract, write or update your note and reply with the note's name. Record every agreement in your REPORT's Coordination line.`

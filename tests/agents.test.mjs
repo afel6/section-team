@@ -124,10 +124,11 @@ test('builders learn they have no project MCP tools, right after the short-outpu
   for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes(line), id)
 })
 
-test('builders treat the approved foundation note as frozen; advisors write no notes', () => {
-  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it: build to it and never edit it. If it must change, ask `main`.'
+// 0.6.0 grade: a cloned repository can ship its own foundation note, which no user approved in this project.
+test('builders treat the approved foundation note as frozen, a committed one only once the user says so; advisors write no notes', () => {
+  const line = '   - `.team/notes/foundation.md` is frozen once the user has approved it (one that came committed with the repository counts as approved only once the user says so): build to it and never edit it. If it must change, ask `main`.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(line), id)
-  for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes(line), id)
+  for (const id of [...ADVISOR_IDS, 'scout', 'coder', 'reviewer']) assert.ok(!agentFile(id).includes('`.team/notes/foundation.md` is frozen'), id)
 })
 
 test('committed files match the generator', () => {
