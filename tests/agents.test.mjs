@@ -923,6 +923,7 @@ const DIRECT_STEPS = [
   '5. If the change grows past about 30 lines of non-test code (tests do not count) or needs a feature, stop and wake the builder with what you found.',
   "6. Answer with the files changed, the test added and the gate's grade.",
 ]
+const DIRECT_SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
 
 test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
   const text = readFileSync(DIRECT_BUILD, 'utf8')
@@ -934,6 +935,9 @@ test('the direct-build skill is generated: its frontmatter, six steps, then the 
   assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
   const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
   assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)
+  // SAFETY says the supervisor asks the user; the skill's reader is the supervisor, so the next line says who asks. Sections never carry it.
+  assert.equal(body[rules[0] + 1], DIRECT_SUPERVISOR_ASKS, 'the line after SAFETY')
+  assert.ok(inNoAgent(DIRECT_SUPERVISOR_ASKS), 'an agent file carries the skill-only line')
   assert.ok(agentFile('coder').split('\n').includes(HOUSE_RULES), 'the skill carries the same default rules as the sections')
   assert.ok(agentFile('backend').includes(SPEC_LITERAL) && agentFile('backend').includes(SAFETY), "the skill carries the builders' spec and safety rules")
 })

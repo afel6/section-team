@@ -267,10 +267,12 @@ const DIRECT_BUILD_STEPS = [
   'If the change grows past about 30 lines of non-test code (tests do not count) or needs a feature, stop and wake the builder with what you found.',
   "Answer with the files changed, the test added and the gate's grade.",
 ]
+// Skill only: SAFETY tells a section that the supervisor asks the user, and this skill's reader is the supervisor.
+const SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
 
 // Generated skills, keyed by their path under skills/.
 export function renderSkills() {
-  const lines = ['---', 'name: direct-build', `description: ${JSON.stringify(DIRECT_BUILD_DESCRIPTION)}`, '---', '# Direct job', '', ...numbered(DIRECT_BUILD_STEPS), '', SAFETY, '', HOUSE_RULES, '', SPEC_LITERAL]
+  const lines = ['---', 'name: direct-build', `description: ${JSON.stringify(DIRECT_BUILD_DESCRIPTION)}`, '---', '# Direct job', '', ...numbered(DIRECT_BUILD_STEPS), '', SAFETY, SUPERVISOR_ASKS, '', HOUSE_RULES, '', SPEC_LITERAL]
   return { 'direct-build/SKILL.md': `${lines.join('\n')}\n` }
 }
 
