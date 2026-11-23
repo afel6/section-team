@@ -636,7 +636,7 @@ test('a session started in a subfolder finds plan.md at the repo root', () => {
   assert.ok(buildContext(sub, tempHome(), {}).includes('`.team/notes/plan.md` exists'))
 })
 
-const OFF_LINE = 'section-team is off in this project (.team/mode.json says "off"), so the team brief was not added; /team mode balanced turns it back on from your next session'
+const OFF_LINE = 'section-team is off in this project (.team/mode.json says "off"), so the team brief was not added; /team mode balanced turns it back on from your next session, /clear or /compact'
 
 test('an off project gets no brief, no files and no records, only the one off line for the user', () => {
   const dir = withModeFile(repo(), '{"mode":"off"}')

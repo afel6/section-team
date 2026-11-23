@@ -52,7 +52,7 @@ const UNGRADED_LINE = "A section REPORT with `Status: ungraded` could not run it
 // The 2026-11-09 p1 round: each --resume re-sent the whole brief, which the resumed history already holds.
 const BRIEF_KEPT_LINE = 'Your team brief from the start of this session still applies.'
 
-export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session`
+export const OFF_LINE = `section-team is off in this project (${MODE_FILE} says "${OFF_MODE}"), so the team brief was not added; /team mode balanced turns it back on from your next session, /clear or /compact`
 
 const PLAN_LINE = '`.team/notes/plan.md` exists: read it first. `.team/` is at the project root, which is the main checkout in a worktree session.'
 
