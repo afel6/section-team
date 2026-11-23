@@ -99,6 +99,27 @@ test('settingsFolders: the folder, its git top folder and the main checkout, eac
   sameList(settingsFolders(below), [below, worktree, main])
 })
 
+test("settingsFolders: a GIT_DIR from the hook's env, naming another repo, still gives the real worktree's top folder", () => {
+  const main = tempRoot()
+  git(main, 'init', '-q')
+  git(main, 'commit', '-q', '--allow-empty', '-m', 'init')
+  const worktree = join(tempRoot(), 'wt')
+  git(main, 'worktree', 'add', '-q', worktree)
+  const below = join(worktree, 'packages', 'app')
+  mkdirSync(below, { recursive: true })
+  const other = tempRoot()
+  git(other, 'init', '-q')
+  const before = process.env.GIT_DIR
+  process.env.GIT_DIR = join(other, '.git')
+  try {
+    const folders = settingsFolders(below).map(f => f.toLowerCase())
+    assert.ok(folders.includes(worktree.toLowerCase()), folders.join(' | '))
+  } finally {
+    if (before === undefined) delete process.env.GIT_DIR
+    else process.env.GIT_DIR = before
+  }
+})
+
 test('settingsFolders throws, naming no path, when a .git is there but git cannot name the top folder', () => {
   const dir = withSettings(tempRoot(), 'settings.json', '{}')
   writeFileSync(join(dir, '.git'), 'gitdir: ./nowhere\n')

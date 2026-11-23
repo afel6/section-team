@@ -69,12 +69,18 @@ export function projectHomeVar(folders) {
 // Whether dir or a folder above it holds a .git: a folder, or the file a linked worktree or submodule has.
 const gitAbove = dir => existsSync(join(dir, '.git')) || (dirname(dir) !== dir && gitAbove(dirname(dir)))
 
+// git's location variables. A project's .claude settings env reaches the hook, and with one of these set git answers for another repo.
+const GIT_LOCATION_VARS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_CEILING_DIRECTORIES']
+
+// A copy of the process env without them, in any letter case (Windows reads Git_Dir as GIT_DIR).
+const gitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !GIT_LOCATION_VARS.includes(key.toUpperCase())))
+
 // The checkout's top folder (in a linked worktree, the worktree itself, which projectRoot never gives), or null with no repository
 // here. Throws one line naming no path when a .git is there but git cannot answer (no git, a timeout, a .git it cannot read): the
 // callers count that as set.
 function topFolder(dir) {
   try {
-    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim() || null
+    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, env: gitEnv() }).trim() || null
   } catch {
     if (!gitAbove(resolve(dir))) return null // no repository, so no top folder to read settings from
     throw new Error("git could not name this checkout's top folder")
