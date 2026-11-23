@@ -238,7 +238,7 @@ test('on mobile, which draws no Select, the strip shows the mode as a button tha
   expect(modeWrites(seen)).toEqual([])
 })
 
-test('/team mode off saves off, says it applies from the next session, and the picker and /team mode show Off', async ($, on) => {
+test('/team mode off saves off, says it applies from the next session start (a new session, /clear or /compact), and the picker and /team mode show Off', async ($, on) => {
   const { clock, seen } = world(on)
   seen.disk[MODE_PATH] = '{"mode":"max","autoInstallSkills":false}'
 
@@ -248,6 +248,6 @@ test('/team mode off saves off, says it applies from the next session, and the p
   await clock.advance(1000)
   expect((await (await mountStrip($ as never)).find({ key: 'mode' }))?.props.value).toBe('off')
   expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Off', ...MODE_LIST].join('\n') })
-  // Back on from off also waits for the next session: this one started without the team brief.
+  // Back on from off also waits for the next session start (a new session, /clear or /compact): this one started without the team brief.
   expect(await team($ as never, 'mode balanced')).toEqual({ text: 'section-team mode: Balanced (applies from your next session, /clear or /compact)' })
 })
