@@ -1,6 +1,6 @@
 // Recomputes a p1 round's means from the files in its folder. Read-only: it writes nothing and never touches bench/results.
 // Uses the harness's own judgeScores (bench/aggregate.mjs), so the judge math is the harness's.
-// Usage: node bench/data/p1/recompute.mjs [round ...]   (no rounds = all of them)
+// Usage: node bench/data/p1/recompute.mjs [round ...]   (no rounds = all p1 rounds; ph and py by name)
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -11,9 +11,10 @@ const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length
 const r2 = n => Math.round(n * 100) / 100
 const read = (dir, f) => JSON.parse(readFileSync(join(dir, f), 'utf8'))
 const ALL = ['pr', 'tm', 'tc', 'tf', 'tg', 'th', 'ti', 'tj', 'tl', 'to']
+const SIBLINGS = ['ph', 'py'] // rounds with p1's layout, kept in their own folders; run them by name
 
 function recompute(round) {
-  const dir = join(here, round)
+  const dir = SIBLINGS.includes(round) ? join(here, '..', round) : join(here, round) // ph and py sit beside p1
   const rows = read(dir, 'summary.json')
   const key = read(dir, `blind-key-${round}.json`)
   const prefix = `judge-${round}-`

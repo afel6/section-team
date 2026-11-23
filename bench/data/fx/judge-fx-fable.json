@@ -1,0 +1,452 @@
+[
+  {
+    "pair": "f3-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran: npm test (20/20 pass, 97% line coverage with --experimental-test-coverage) and my scratch probes p1-p6 against the real `node server.mjs`. Strengths: every spec line reachable with a method Node's parser knows behaves exactly as specified: 276/277 route/error/order checks (404 vs 405 + Allow, 413 at 16385 bytes and 16384 accepted, BOM/invalid UTF-8/empty body -> invalid JSON, unknown-field order, question-before-options, voter-before-option, body errors before poll 404, unknown option < poll closed < already voted < poll is full, DELETE voter not decoded, ids 01/+1/1.0 rejected, bodies ignored on other routes), 36/36 startup/persistence checks (cannot load <value as given> + exit 1 + empty stdout for directory/empty/non-JSON/foreign JSON, missing file = empty, 500 cannot save leaves state and next id untouched, 12 kill-right-after-reply rounds all survive, bad file + busy port still says cannot load), 150 concurrent voters -> exactly 100x201 + 50x409, 40 concurrent creates get consecutive ids. Smallest and clearest code: synchronous handlers on an immutable state make ordering obvious (src/handlers.mjs:1-91, src/polls.mjs), save is temp file + fsync + rename before the reply (src/store.mjs:89-105). Defects: (1) no clientError/connect/checkExpectation handling (src/main.mjs:33 only passes a request listener), so a method token Node does not know (`FOO /polls`, lower-case `get /polls`) gets Node's bare `400` with no JSON body and no Allow instead of 405/404, `CONNECT /polls` gets the socket dropped with no reply, `Expect: something` gets a bare 417, malformed requests and header overflow get non-JSON 400/431 -- against 'method not in the table gets 405' and 'every reply has a JSON body'. (2) Pipelined `POST /polls` followed by an unknown-method request: the poll is created but its 201 is never sent, the client sees only the bare 400 (same missing handler). (3) src/handlers.mjs:24 uses URLSearchParams, which strips a leading `?`, so `/polls??status=bogus` (parameter named `?status`) gets 400 instead of being ignored (same in B and C). (4) Load validation is looser than B/C: a file with the format marker but untrimmed question, invalid voter name, duplicate options or extra keys is accepted (src/store.mjs:69-83). (5) No directory fsync after rename (src/store.mjs:99); sync fs calls block the event loop per change. Unspecified but noted: PORT='' falls back to 3000 (src/main.mjs:11). Tests are decent but thin (test/http.test.mjs has 12 broad cases; nothing on unknown methods, chunked bodies, half-close, per-change save failure for vote/delete). README lists routes, env, every error message and durability approach."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran: npm test (119/119 pass) and scratch probes p1-p6. Strengths: same 276/277 and 36/36 results as the others on routes, messages, check order, limits, startup, persistence, save failure and kill-after-reply; concurrency exact (150 voters -> 100/50, 30x same voter -> 1x201, 40 creates consecutive, vote/close race consistent, file equals memory after restart). It is the only one that stays in spec on every wire-level probe: unknown method tokens get JSON 405 with the right Allow or JSON 404 (src/edge.mjs:105-127, src/routes.mjs:35-39), also when the request line is split across packets, has a Content-Length or chunked body, or follows pipelined valid requests (201, 201, 404 in order); CONNECT is answered as 405/404 JSON (src/edge.mjs:159-169); unknown Expect is ignored; half-closed clients still get replies (src/app.mjs:16); malformed requests get JSON 400, header overflow JSON 431, and with a small requestTimeout (in-process probe p5) headers/body that never finish get JSON 408 within the limit, truncated body + FIN gets JSON 400 at once. Changes run through a promise queue and become current only after the save (src/service.mjs:15-34); save is temp + fsync + rename + directory fsync (src/store.mjs:104-116); strict load validation rejected all 16 tampered-file variants incl. BOM (src/store.mjs:54-61). Survived a 300-request junk fuzz with empty stderr. Defects: (1) src/handler.mjs:15 URLSearchParams strips a leading `?`, so `/polls??status=bogus` gets 400 instead of 200 (shared with A and C). (2) The extra robustness costs ~300 lines of hand-written HTTP framing (src/framing.mjs, src/edge.mjs) that leans on Node internals (`socket.parser?.unconsume?.()` src/edge.mjs:67, `new ServerResponse(req)`/assignSocket src/edge.mjs:151-153) -- well tested (test/edge.test.mjs) but the most complex code of the three. (3) Every request's body is read to the end before even a 404/405 is sent (src/handler.mjs:43), so a slow body delays those replies until Node's request timeout. (4) Unspecified env edges: PORT='' exits 1 and DATA_FILE='' is passed through as an empty path (server.mjs:31-32). Tests: API, check-order, per-change save failure, concurrency, process-level kill/restart/BOM/port-in-use and raw-socket edge tests including the 408 timeout path. README lists routes, env, rules and reply format; does not enumerate error messages."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (177/177 pass, all black-box against a spawned server) and scratch probes p1-p6. Strengths: same 276/277 and 36/36 results on routes, exact messages/statuses, check order, 16384/16385 limit (also chunked), startup failures, persistence, 500 cannot save with unchanged state and id, 12 kill-after-reply rounds; concurrency exact (100/50 split, consecutive ids, file equals memory). Unknown method tokens get JSON 405 with the right Allow or JSON 404 (src/raw-requests.mjs:67-91), CONNECT is routed through the normal handler (src/raw-requests.mjs:109-119), unknown Expect ignored, half-close handled (src/raw-requests.mjs:123), malformed requests get JSON 400/431; survived the junk fuzz with empty stderr. Changes are serialized through a queue and kept only after the save (src/app.mjs:36-51); temp + fsync + rename + directory fsync (src/store.mjs:110-120); strict load validation rejected all 16 tampered variants and a BOM-prefixed file. Defects: (1) src/app.mjs:54 URLSearchParams strips a leading `?`: `/polls??status=bogus` -> 400 instead of 200 (shared). (2) Gaps in the hand-rolled socket takeover: a JSON reply queued with whenIdle waits for the in-flight response that will never finish (src/raw-requests.mjs:40-44, 93-107), so in the in-process probe with requestTimeout=1000 a POST /polls whose body never completes got no reply and the socket was only destroyed after ~2100 ms (two timeouts, src/raw-requests.mjs:53-56), a truncated body followed by FIN got no reply for a full timeout, and an unknown-method request line that never finishes is dropped silently (B answers 408/400 JSON in all three); with Node's default 300 s limit that is a connection held up to 10 minutes. No test covers these paths. (3) Unknown-method requests are answered from the request line alone without reading the declared body (src/raw-requests.mjs:59-64) -- worked in my probes thanks to socket.resume (line 63) but is less careful than B. (4) Fixed temp name `${file}.tmp` (src/store.mjs:111). (5) createApp is one ~115-line closure (src/app.mjs:31-148). (6) Unspecified env edges: PORT='' exits 1, DATA_FILE='' used as an empty path (server.mjs:36-37). Tests are the broadest matrix of the three (404/405 table, loopback-only check, chunked oversize, __proto__ and integer-like keys, non-ASCII trim, pipelining, every change kind after kill and after failed save). README is compact but complete: env table, routes table, rules, error list."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "f3-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran npm test: 177/177 pass. Ran my own probes (scratch/probe1-9.mjs): a 192-row request battery (404/405+Allow, 413 at 16385 with 16384 accepted, BOM/bad UTF-8/empty -> invalid JSON, non-object, unknown-field order incl. integer keys and __proto__, question/options/voter/option rules, check order steps 1-8, status filter, id forms, 100-vote cap, 204 without body or content-type) all matched the spec. Startup: directory/empty/non-JSON/{}/[]/truncated/BOM/tampered files all give 'cannot load <value as given>' on stderr, exit 1, nothing on stdout; PORT=0 prints the real port; 127.0.0.1 only. Kill -9 under load (8 rounds, 850 acknowledged changes): nothing lost, next id correct. Save failure: 500 cannot save, state unchanged, recovers. 150 parallel votes -> exactly 100x201 + 50 'poll is full'; 300 parallel creates -> 300 distinct ids. Strengths: serialized change queue that commits only after the save (src/app.mjs:36); strict loader reusing the field rules (src/store.mjs:50); atomic tmp+fsync+rename with a fixed tmp name that does not pile up after kills (src/store.mjs:111); unknown methods, CONNECT, unknown Expect and parse errors get JSON replies (src/raw-requests.mjs:93), e.g. 'FOO /polls' -> 405 with Allow; replies 404/405 at once without waiting for a body; largest and most systematic test suite. Defects: (1) src/raw-requests.mjs:40 and :100 - a hand-written error reply waits until every reply in progress on the socket is done, including the request whose body can never complete; measured in-process with requestTimeout 1.2s: incomplete body -> no reply at all and the socket is held 2x requestTimeout (10 min at defaults); incomplete body + FIN, or a bad chunk size -> no reply, held 1x requestTimeout, where plain Node answers 400 at once. (2) src/raw-requests.mjs:78 with :69 - the refused request line is taken from the last newline, so a pipelined request whose body contains a space followed by an unknown-method request gets 400 'bad request' instead of 405/404 (probe9: POST with question 'Best colour of all?' then FOO /polls -> 201 | 400). (3) Pipelined body-less requests overtake earlier requests that have a body (src/app.mjs:77 awaits the body before queuing; vote then delete on one connection gave 201 then 404 'vote not found') - still a valid serial order, but surprising. (4) A request without a Host header gets Node's empty non-JSON 400 (same in all three). (5) Relies on undocumented node:http internals (src/raw-requests.mjs:109-123: assignSocket, shouldKeepAlive, httpAllowHalfOpen). (6) PORT='' is an error and DATA_FILE='' starts a service whose every change is 500 (server.mjs:36-37 use ??). README lists routes, rules and errors clearly."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran npm test: 119/119 pass. Same probes as the others: the 192-row battery, startup and tampered-file checks, kill-under-load (835 acknowledged changes, none lost), save failure (500, state unchanged, logs 'cannot save: EPERM'), 150 parallel votes -> exactly 100, 300 parallel creates -> distinct ids: all matched the spec. Strengths: cleanest layering - pure state changes (src/polls.mjs), a service that runs changes one at a time and commits only after the save (src/service.mjs:15), table-driven handler (src/handler.mjs:13), strict loader (src/store.mjs:54). Best HTTP edge handling of the three: unknown methods, CONNECT, parse errors, header overflow and timeouts all get JSON replies; a hand-written reply only waits for requests that are complete (src/edge.mjs:22), so incomplete body -> 408 JSON at requestTimeout, incomplete body + FIN and bad chunk -> 400 JSON at once, and 'POST with spaces in body' + 'FOO /polls' pipelined -> 201 | 405 (the case A gets wrong). Pipelined vote,delete,delete,vote,vote on one connection was answered in arrival order (201,204,404,201,409). Tests cover these edges with short timeouts (test/edge.test.mjs:83, :121), inject a failing save, and check concurrency. Defects: (1) src/handler.mjs:43 reads the whole body before any reply, also on unmatched paths and wrong methods: 404/405 came only after the body arrived (495 ms against 1 ms for A and C when the body was sent 400 ms late), and when a declared body is never sent there is no 404/405 at all, only 408 at the request timeout. (2) src/store.mjs:105 uses a pid-suffixed temp name; a kill during a save leaves polls.json.<pid>.tmp behind for good (6 of 8 kill rounds left one). (3) src/framing.mjs is a hand-written request-head and chunked-body reader (120 lines), plus use of undocumented internals (src/edge.mjs:67 parser.unconsume, :151-154 assignSocket/shouldKeepAlive) - correct in every probe, but the heaviest code for a rare case. (4) Missing Host header -> Node's empty 400 (all three). (5) PORT='' and DATA_FILE='' are not treated as unset (server.mjs:31-32; DATA_FILE='' starts a service whose every change is 500). README lists routes and rules; fewer details on error messages than A and C."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran npm test: 20/20 pass. The 192-row battery, startup checks for the spec's examples, kill-under-load (870 acknowledged changes, none lost), save failure (500, unchanged, recovers), 150 parallel votes -> exactly 100, 300 parallel creates: all matched the spec. Strengths: smallest and easiest to read (about 470 lines of source); synchronous handlers plus a synchronous tmp+fsync+rename save (src/store.mjs:89) make one-at-a-time changes obviously correct; handlers declare their body fields (src/handlers.mjs:38, :55) so the route table drives body reading; the data file carries a format marker; start() takes env/stdout/stderr so tests run in-process; README has the fullest error list and a coverage script. Defects: (1) No clientError/connect/checkExpectation handling (src/main.mjs:33): a method Node's parser does not know gets Node's bare reply instead of the spec's 405 - 'FOO /polls' and 'get /polls' -> 'HTTP/1.1 400 Bad Request' with no body and no content-type; CONNECT /polls -> socket closed with no reply; unknown Expect -> 417 with empty body; malformed requests, header overflow (431) and timeouts (408) have no JSON body, against 'every reply other than 204 has a JSON body'. (2) Pipelined valid POST followed by an unparsable request: the client receives only the 400 although the poll was created (probe9). (3) The loader checks only types (src/store.mjs:72, :78): a file with an untrimmed question or a voter 'BAD NAME' is accepted (probe2), so the service can show values the API could never produce. (4) Errors are swallowed without a log: src/store.mjs:101 (a failed save gives 500 with nothing on stderr) and src/app.mjs:91. (5) src/store.mjs:90 pid-suffixed temp files stay behind after a kill (6 of 8 rounds). (6) Synchronous fsync on every change blocks all requests during the write (fine at this size). (7) Pipelined body-less requests overtake earlier ones with a body, as in A. Tests: dense, and they would catch most rule and order regressions, with real-process kill and load-failure tests, but only 20, sharing one server and its state across tests (test/http.test.mjs:21), and with no unknown-method, HEAD, chunked or 100-of-N concurrent-cap cases."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "f2-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (145/145 pass); scratch/probe1.mjs (300,125 parseCron inputs vs my own reference parser: 0 diffs, incl. NBSP/newline fields, 005, 7-SUN, 1/3 in day-of-week, non-ASCII digits); scratch/probe2.mjs (6,013 nextRuns cases vs a day-scan reference incl. 09:59:59.999, year rollover, 9899+100, leap days: 0 diffs, max 3 ms/call); scratch/probe3.mjs (82 CLI cases: usage/--from/--count/expression/shortfall order, exact stderr, exit codes: 82/82). Strengths: small documented functions (cron.mjs:36-91), check order expr->from->count correct (cron.mjs:170-172), limit taken from from's year not the first candidate's (cron.mjs:178), Object.hasOwn for duplicate options (cron-cli.mjs:40), catch-all plus stdout error handler (cron-cli.mjs:112,117), most complete README (field table, library, exit-code table). Defects: (1) cron.mjs:122 calls from.getTime() on anything that passes instanceof Date, so nextRuns('* * * * *', Object.create(Date.prototype), 5) throws the engine's TypeError 'this is not a Date object.' instead of 'from must be a valid Date' (C gets this right). (2) cron.mjs:23,95 trim regex /^[ \\t]+|[ \\t]+$/g is quadratic on a long blank run that is not at the end: nextRuns('* * * *'+' '.repeat(100000)+'\\n', d, 1) took 4.6 s and 200000 blanks 18.7 s, breaking 'each call returns within 2 seconds, whatever the arguments' (same defect in B and C). (3) cron-cli.mjs:9-10 unexpected failures share exit code 1 with the shortfall case. Tests: mutation run (53 mutants on a scratch copy) killed 47; real survivors only 'a-a range rejected' and '--count limited to 4 digits' (no test for 5-5 or for >4 leading-zero digits); no test for a Date.prototype object as from."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran: npm test (21/21 pass); same probes as the others: probe1 300,125 parseCron inputs 0 diffs, probe2 6,013 nextRuns cases 0 diffs, probe3 82/82 CLI cases; also invoked the CLI by relative path, differently-cased path, ../ path and through a directory junction to exercise the entry-point guard (all printed correctly). Behaviour is the same as A. Strengths: compact clear library (cron.mjs:29-103), validateArgs keeps the expr->from->count order (cron.mjs:120-129), CLI logic is a pure run() returning {stdout,stderr,code} (cron-cli.mjs:65-85), real-date check by round trip (cron-cli.mjs:44-45). Defects: (1) cron.mjs:122 same as A: Object.create(Date.prototype) as from yields TypeError 'this is not a Date object.' not 'from must be a valid Date'. (2) cron.mjs:84 same quadratic trim regex: 100000 interior blanks 4.6 s, 200000 18.0 s, over the 2 s limit. (3) cron-cli.mjs:94-104 main() only runs if realpath(import.meta.url) equals realpath(argv[1]); if that ever mismatches the tool prints nothing and exits 0, a silent failure mode the other two do not have; the extra exports and fs import exist only for testing. (4) No catch-all in main (cron-cli.mjs:87-92): an unexpected error becomes a raw stack trace. (5) cron-cli.mjs:74-79 parses the expression twice. Tests are the weakest: 21 tests, mostly in-process run() rather than the real process; mutation run killed 43/53 and let real bugs through: step 1 rejected ('*/1'), dayOfWeekStar computed as text === '*', 100-year limit counted from the first candidate's year instead of from's year, a misspelt weekday name in output (only Fri is checked), and a-a ranges. README is correct but terse (no error types for the library, exit codes in one sentence)."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran: npm test (181/181 pass); probe1 300,125 parseCron inputs 0 diffs vs my reference; probe2 6,013 nextRuns cases 0 diffs (max 3 ms/call); probe3 82/82 CLI cases (order of checks, exact stderr lines, exit codes 0/1/2/3, shortfall output). Strengths: the only one that returns the specified error for a non-Date object that passes instanceof Date: readTime uses Date.prototype.getTime.call in a try (cron.mjs:111-119), so Object.create(Date.prototype) gives TypeError 'from must be a valid Date' and an overridden getTime cannot fool it; simple day-stepped scan with an explicit [start, limit) window (cron.mjs:141-168); CLI failures carried by one CliFailure type with a separate exit code 70 for unexpected errors (cron-cli.mjs:23-28,112-121); README has an exit-code table and lists the library's error types. Defects: (1) cron.mjs:24,92 same quadratic trim regex as A and B: nextRuns('* * * *'+' '.repeat(100000)+'\\n', d, 1) took 4.6 s, 200000 blanks 18.1 s, over the 2 s limit. (2) cron.mjs:167 the limit is Date.UTC(year+101,0,1); for a from within ~100 years of the maximum Date it is NaN and the loop at cron.mjs:144 returns [] although runs exist (A and B return them) - outside the tested 1970-9899 range. (3) cron.mjs:28 CronError has no default for field, so new CronError('x').field is undefined (parseCron itself always passes null, cron.mjs:100). (4) cron.mjs:106-107 adds the star flags by assigning to the result after building it; minor style. (5) README does not mention exit code 70. Tests: largest and most pointed suite (Date-prototype object, 5.0 as count, from+100 boundary, year 9899, timing cases, independent weekday formula in test/cli.test.mjs:18-23); mutation run killed 48/53, real survivors only 'a-a range rejected' and '--count limited to 4 digits'; the 'leaves expr and count unchanged' test (test/cron.test.mjs:652) checks primitives and cannot fail."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "f2-r2",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (25/25 pass); my differential probe against an independent reference (scratch/j2/probe.mjs: 160 crafted + 300k fuzzed expressions, 3000 random nextRuns comparisons for from-years 1970-9899, argument-order checks, extremes); a 117-case CLI table (scratch/j2/cli.mjs); blank-run timing (scratch/j2/blanks.mjs); 22 mutants on a scratch copy. Strengths: parse results, error classes/messages/field, check order and all in-range nextRuns results matched the reference with 0 differences; CLI passed every case (usage/--from/--count/expression/shortfall order, verbatim values, exit codes 0/1/2/3); runCli is a pure function (cron-cli.mjs:68) which makes the CLI easy to test. Defects: (1) cron.mjs:89 trims with /^[ \\t]+|[ \\t]+$/g, which is quadratic on a blank run that is not at the end: a VALID expression with 100k blanks between two fields took 2744 ms and 200k took 11223 ms (B and C: 0 ms), breaking 'each call returns within 2 seconds, whatever the arguments'; its perf test (test/cron.test.mjs:183-190) never tries this. (2) cron.mjs:157 Date.UTC(y, mo, d) maps years 0-99 to 1900-1999: nextRuns('* * * * *', 0001-01-01, 5) returned times in 1901 (outside the tested year range, still wrong). (3) cron.mjs:125-127 pushes new Date(t) past 8.64e15: from = max date minus 5 min returned 995 Invalid Dates out of 1000. (4) cron.mjs:134 calls from.getTime() on any instanceof Date, so Object.create(Date.prototype) throws the native 'this is not a Date object.' instead of 'from must be a valid Date'. (5) cron-cli.mjs:104-108 has no stream error handling: a closed stdout gave a 23-line stack trace. (6) cron-cli.mjs:93-102 isMain realpath logic is extra machinery just to make the file importable. Tests: killed 21/22 mutants (survivor: unknown option treated as an expression, test/cli.test.mjs:38 only tries it next to an expression); far fewer cases than B or C. README is short but correct (usage, exit codes, syntax)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (151/151 pass); the same differential probe, CLI table, timing and mutation runs as for the others. Strengths: 0 library differences from my reference across all crafted and fuzzed expressions, 3000 random nextRuns comparisons and every extreme (max/min Date, years 0-99, 3M-blank inputs in 1-7 ms); cron.mjs:37-44 trims by index so blank runs stay linear; cron.mjs:117-126 validTime uses Date.prototype.getTime.call and was the only solution to give 'from must be a valid Date' for Object.create(Date.prototype); cron.mjs:152 and :170 guard the 8.64e15 limit so no Invalid Date is returned. CLI: correct check order, exit codes and formats on all ordinary cases; cron-cli.mjs:86-90 and :116-119 handle a closed stdout (one line 'error: could not write output', exit 1, where A and C print a stack trace); catch-all at cron-cli.mjs:120-124. Defects: (1) cron-cli.mjs:73-75 with :83 rewrites a line break inside a quoted value as the two characters backslash-n, so for --from '2026-11-19T00:00:00Z\\n', --count '5\\n' or an expression field containing a newline the stderr text is not the literal 'error: invalid --from: <value>' / 'error: <message>' (5 of my 117 CLI cases differed, all of this kind). It is a deliberate, documented and tested choice (README 'A line break inside a value...', test/cli.test.mjs:258) that keeps the 'exactly one line' rule, so the spec is arguable here, but a verbatim check would fail. (2) cron-cli.mjs:77 module-level 'replied' flag and stream listeners add state to an otherwise simple script. (3) Tests killed 21/22 mutants; survivor: unknown option treated as an expression (test/cli.test.mjs:174-184 has no lone unknown option). (4) package.json test script uses a quoted glob, which needs Node 21+ (declared in engines >=22). README is thorough: syntax tables, API errors, exit-code table, error lines."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (176/176 pass); the same differential probe, CLI table, timing and mutation runs as for the others. Strengths: library matched my reference on every crafted and fuzzed expression, all 3000 random nextRuns comparisons and all extremes (years 0-99, max/min Date with no Invalid Dates thanks to cron.mjs:173 and :177, 3M-blank inputs in 2-3 ms; cron.mjs:45-50 splits once with /[ \\t]+/ and drops the empty ends, so it is linear). CLI: 0 differences on all 117 cases, including verbatim values with newlines, the usage > --from > --count > expression > shortfall order and exit codes (cron-cli.mjs:89-113). Code is the cleanest of the three: small documented functions, named constants, CliFailure carrying line and exit code (cron-cli.mjs:25-30). Tests are the strongest: killed 22/22 mutants, cover lone unknown options (cron-cli.test.mjs:132-147) and include a long-blank-run timing test (cron.test.mjs:592-596) that would have caught A's defect. Defects: (1) cron.mjs:127 calls from.getTime() on anything instanceof Date, so Object.create(Date.prototype) throws the native TypeError 'this is not a Date object.' instead of 'from must be a valid Date' (right class, wrong message; the only library difference found). (2) cron-cli.mjs:95 writes to stdout with no stream error handler: with stdout closed early it exits 1 with a 25-line stack trace; the try/catch at :101-112 cannot catch that asynchronous error. (3) cron-cli.mjs:18 repeats the library's 100-year constant only to build a message; cron.mjs:14-15 has two identical patterns. (4) For a value containing a newline it prints two stderr lines (verbatim reading of the spec; B chose the opposite). README is complete: syntax, API errors, CLI, exit-code table."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  },
+  {
+    "pair": "f3-r2",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "Ran npm test (27/27 pass) plus my scratch probes (scratch/probe.mjs: 356 spec checks pass - startup/cannot-load messages as given, exact 404/405+Allow, 413 at 16385 vs 16384 accepted, UTF-8/BOM/empty body, Object.keys unknown-field order, check order 2->4->5->6->7, status first-parameter rule, canonical ids, 150 concurrent votes -> exactly 100, kill-right-after-reply restart, cannot-save 500 with id not consumed). Strengths: smallest and clearest design - pure poll operations returning {next} (src/polls.mjs:55-99), fully synchronous handle+save so requests serialise trivially and pipelined requests stay in order (src/service.mjs:36-53), strict data-file validation (src/store.mjs:44-52), README lists routes, errors, rules and layout. Defects: (1) save truncates the data file in place, no temp file/rename (src/store.mjs:77): in scratch/probe4.mjs a kill during concurrent creates left a 0-byte data.json on trial 118 of 250 and the restart answered 'cannot load', losing 1570 acknowledged polls; B and C survived 250 trials each. (2) No clientError/checkExpectation handling (src/http.mjs:41): a method token Node does not know (FOO /polls) gets Node's bare 400 with no JSON body instead of 405+Allow, unknown Expect gets a bare 417, CONNECT gets no reply. (3) PORT is not validated (server.mjs:10,28): PORT=abc/70000/-1 die with an uncaught ERR_SOCKET_BAD_PORT stack trace, PORT=0x10 listens on port 16. (4) Whole body is always read before routing, also for 404/405 (src/http.mjs:44); harmless but waits for the upload. Tests are sound but the leanest: no protocol-edge, PORT, pipelining or mid-save-kill coverage."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 6,
+      "tests": 9,
+      "robustnessSecurity": 5,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran npm test (188/188 pass) plus scratch probes (probe.mjs: 357 spec checks pass, including 405+Allow/404 JSON for unknown method tokens and CONNECT, which A fails; probe4.mjs: 250 kill-during-save trials, no corrupt file and no lost acknowledged change). Strengths: durable save via fsynced temp file + rename with retry (store.mjs:89-105), promise queue that commits only after the save (app.mjs:37-60), PORT validation with a plain message (server.mjs:21-25), exact-key data-file validation (store.mjs:17-55), by far the widest test suite (api, process and raw-socket tests, concurrency, restart, blocked temp path). Defects: (1) socket leak/hang in the hand-written client-error path: when a POST body is cut short (client FIN mid-body, request timeout, bad chunk size, Transfer-Encoding: gzip) raw-requests.mjs:136-138 strips the socket's listeners and answer() waits in whenIdle (raw-requests.mjs:33-47) for the open reply to close, while that request's readBody (app.mjs:15-34, :82) can no longer end or close - deadlock. Measured: no reply at all and scratch/leak.mjs showed 200 server-side sockets still open 2 s after 200 aborted uploads whose clients had fully closed (A and C: 0); probe3.mjs shows the same with a 1 s requestTimeout, so the timeout never frees them. Node's default behaviour (A) and C answer 400/408 and close. (2) GETs read state outside the queue (app.mjs:67-68), so a GET pipelined after a POST on one connection shows the pre-POST state (still a valid serial order). (3) About 200 lines of hand-rolled HTTP framing (raw-body.mjs, raw-requests.mjs) beyond what the task needs, flat root layout, and that extra code is where the bug lives. (4) Leaves <DATA_FILE>.tmp behind after a kill mid-save. README is clear: env table, routes, rules."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 7,
+      "overall": 8,
+      "notes": "Ran npm test (92/92 pass) plus scratch probes (probe.mjs: 357 spec checks pass, including JSON 405+Allow/404 for unknown method tokens and CONNECT; probe3.mjs/leak.mjs: every aborted, half-closed, timed-out or malformed request got a JSON 400/408 and the socket was closed, 0 leaked sockets; probe4.mjs: 250 kill-during-save trials, no corrupt file, nothing lost; 5 MB uploads on every route answered correctly and the keep-alive connection stayed usable). Strengths: pure decide functions returning {reply,next} (src/poll-decisions.mjs:19-59), change queue committing only after a successful save (src/poll-service.mjs:12-39), fsynced temp file + rename (src/data-file.mjs:118-130), format-tagged and exact-key file validation (src/data-file.mjs:54-70), PORT validation (server.mjs:23-27), protocol edges that only wait for complete earlier requests and mark unfinished ones abandoned (src/protocol-edges.mjs:59-75), modules small and commented. Defects: (1) routes with a body await the body before joining the queue while DELETE/close join at once (src/actions.mjs:24,51 vs 59-65), so pipelined requests on one connection can be applied out of arrival order: POST vote then DELETE of that vote on one socket returned 201 then 404 and the vote stayed (replies still match a serial order, so the task's concurrency rule holds). (2) 413 is sent as soon as byte 16385 arrives, before the upload ends (src/request-body.mjs:28-30); worked with fetch and raw sockets here, but relies on Node draining the rest. (3) A cut-short body on a body-less route gets its normal reply followed by an extra 400 on the same socket. (4) More protocol code than the task needs (request-framing.mjs 161 lines), leaves <DATA_FILE>.tmp after a kill mid-save, and the README lists routes and error examples but not the field rules (lengths, voter alphabet)."
+    },
+    "ranking": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-05",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r1",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "Ran: npm test (20/20 pass); scratch/probe.mjs (80 CLI cases: 75 pass); scratch/fuzz.mjs (6000 random logs vs brute force, 380 with >50 pairs, 3 with exactly 50: 0 mismatches); scratch/perf.mjs; scratch/mutate.mjs. Strengths: all three reported bugs fixed (lib/parse.mjs:33 midnight wrap, lib/report.mjs:4 inclusive --to, lib/format.mjs:7 padded minutes); also fixed the README mismatch that only spaces/tabs are blank (lib/parse.mjs:11,37,48); check output, ordering, 50-limit, 'and <k> more', singular/0 entries, usage/exit codes all correct in probes; COMMANDS table guarded with Object.hasOwn (lib/cli.mjs:28). Defects: (1) lib/cli.mjs:9,36 still looks options up on a plain object, so `report f toString 2026-01-01`, `__proto__`, `constructor`, `valueOf` are accepted as options and exit 0 with a report instead of the usage error the README demands (4 probe failures; B and C fixed this). (2) lib/check.mjs:24-31 enumerates every overlapping pair and re-sorts the kept list every 4096 pushes: 20000 identical entries took 4.7 s and 60000 took 46 s versus ~0.15 s for B/C. (3) lib/parse.mjs:10-11 regex /^[ \\t]+|[ \\t]+$/g is quadratic on a long interior run of spaces: one line with 200k spaces before a note took 24 s, 1M spaces timed out at 120 s (SEED's trim and B are instant) - a regression for report too. (4) lib/check.mjs:4 re-declares MINUTES_PER_DAY as 24 * 60 instead of sharing parse.mjs; lib/check.mjs:47 exports checkLines only for tests; odd comment at lib/check.mjs:28. Tests: test/check.test.mjs (5 tests) and test/fixes.test.mjs (5) cover the main rules and the 50/55/exact-50 boundary and killed 12 of 13 mutants, but dropping the secondary sort by <b> (lib/check.mjs:9) survived because test/check.test.mjs:16-28 happens to yield sorted order; no test for prototype-named options (test/check.test.mjs:64 only tests toString as a command) and no large-input test. README check section is accurate and has all required literals; it omits the 0-entries wording (not required)."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (43/43 pass); scratch/probe.mjs (80/80 pass after correcting one wrong expectation of mine that all three agreed on); scratch/fuzz.mjs (6000 random logs vs brute force: 0 mismatches); scratch/perf.mjs; scratch/mutate.mjs. Strengths: three reported bugs fixed (lib/parse.mjs:35 duration, lib/report.mjs:4, lib/format.mjs:7); also fixed latent README mismatches: only spaces/tabs are padding via a linear hand-written trim (lib/parse.mjs:23-32,45,56-59) and prototype-named options are now usage errors via a Map (lib/cli.mjs:9,22). check counts pairs in O(n log n) with two sorted arrays and binary search (lib/check.mjs:16-33) and only enumerates until 50 pairs are found (lib/check.mjs:36-46): 60000 identical entries (1.8e9 pairs) in 0.17 s with the correct 'and 1799969950 more'; 200k-entry logs in ~0.35 s. Only solution unaffected by a 1M-space line (68 ms; A and C time out). Decode failures other than invalid UTF-8 (file too large for a string) map to 'cannot read' rather than a false 'not valid UTF-8' (lib/cli.mjs:55-58). Usage/exit-code order and exact messages all correct. Defects (minor): lib/cli.mjs:43,49-51 rethrows a read error that has no string code, which would crash with a stack trace instead of exit 3 (theoretical; Node fs errors carry codes) and makes readLog wordier than needed; checkLines returns the pair count under the name `overlaps` used as a boolean in lib/cli.mjs:73; lib/check.mjs:32 count expression is terse. Tests: table-driven overlap cases (test/check.test.mjs:44-64: midnight, year end, leap day, CRLF, containment), limit boundary at 45/50/51/66 pairs with an independent expected-output generator (test/check.test.mjs:92-121), a large-log guard (test/check.test.mjs:123-133), prototype-option test (test/cli.test.mjs), \\r and interior-BOM parse cases (test/parse.test.mjs). 12 of 13 mutants killed; survivor: listing a 0-minute touching pair when another real overlap exists (lib/check.mjs:42 `> 0` to `>= 0`), since no test mixes a touching pair with an overlapping one. README check section is the most complete (0/1/n entries wording, example, exit codes, error table updated) and has all required literals."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (38/38 pass); scratch/probe.mjs (80/80 pass after correcting one wrong expectation of mine); scratch/fuzz.mjs (6000 random logs vs brute force: 0 mismatches); scratch/perf.mjs; scratch/mutate.mjs. Strengths: three reported bugs fixed (lib/parse.mjs:42, lib/report.mjs:4, lib/format.mjs:8); latent README mismatches also fixed: spaces/tabs-only blanks (lib/parse.mjs:10,34,46) and prototype-named options via a Map (lib/cli.mjs:9,22). check counts pairs in O(n log n) (lib/check.mjs:17-33) and lists only the first 50 (lib/check.mjs:36-47): 60000 identical entries in 0.17 s, 200k-entry logs in ~0.38 s, all outputs correct. Non-UTF-8 decode failures map to 'cannot read' (lib/cli.mjs:44-48). cli.mjs change is the smallest and cleanest of the three (lib/cli.mjs:32-38, 51-56). Defects: (1) lib/parse.mjs:10,34 trims with /^[ \\t]+|[ \\t]+$/g, which is quadratic on a long interior run of spaces/tabs: one line with 200k spaces before a note took 11.6 s and 1M spaces timed out at 120 s (SEED's trim and B are instant) - a regression that hits report as well. (2) lib/check.mjs:41 copies spans.slice(i + 1) and collects every pair of that row before slicing to 50 at line 46 instead of stopping at the limit (bounded, but wasteful); overlaps(s) binary searches are recomputed in firstPairs (lib/check.mjs:40). Tests: thorough CLI-level check tests (test/check.test.mjs: usage, read/encoding/line errors, touching, midnight/month/year/leap day, ordering not by discovery order at :110, exact 50 / 51 / 66 pairs, first-50 when early entries are clean at :154) plus regression tests for the three bugs, prototype options and folders (test/cli.test.mjs). 12 of 13 mutants killed; same survivor as B (0-minute touching pair listed when another overlap exists, lib/check.mjs:43). No large-input or long-line test, so the regex cost went unnoticed. README check section is accurate with example and exit codes, all required literals present; omits the explicit 0-entries wording (not required)."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-06",
+    "swapped": true
+  },
+  {
+    "pair": "f3-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 7,
+      "overall": 9,
+      "notes": "Ran: npm test (92/92 pass, 2.6s); my scratch/j2 probes: api.mjs 347/347 (every route, exact bodies and key order, 404/405+Allow matrix, 16384/16385 bytes, BOM, invalid UTF-8, non-objects, unknown-field order, question/options/voter/option rules, id forms, check order, 100-vote limit, status parameter), sys.mjs 69/69 (exact stdout line, not on ::1, 16 bad DATA_FILE cases -> exact 'cannot load <as given>' + exit 1 + no stdout, load checked before listen, SIGKILL-after-reply persistence and next id, failed requests leave file bytes untouched, cannot save -> 500 with state and id unchanged then recovery, 150 concurrent votes -> exactly 100x201/50x'poll is full', one-winner races for same voter/delete/close), raw-socket and timeout probes. Strengths: changes run through one promise queue and are committed in memory only after the save succeeds (src/poll-service.mjs:12-22, 32-39); durable save via temp file + fsync + rename with retry (src/data-file.mjs:107-130); strict data-file validation incl. ids ascending and < nextId (src/data-file.mjs:54-70); pure decision functions in spec order (src/poll-decisions.mjs:27-41); 413 sent as soon as the limit is passed while the rest is still drained (src/request-body.mjs:25-31) and the connection stays usable (slow 413 then GET on same socket both answered). Only solution that is clean on every protocol edge I tried: unknown methods (BREW, lowercase get) get JSON 405 + Allow or 404, CONNECT answered, malformed request/431/408 are JSON (src/protocol-edges.mjs:119-143), unknown Expect ignored, half-closed client still gets 201 (src/create-server.mjs:54), stalled body gets JSON 408 at requestTimeout and the socket is freed, client FIN mid-body gets 400 and is closed (20/20), valid POST followed by junk still gets its 201 first. PORT validated with a plain message (server.mjs:23-36). Defects: heavy machinery for the edges - a hand-written HTTP framing parser with chunk parsing implemented twice (src/request-framing.mjs:40-53 and 93-119), ~300 lines beyond what the spec strictly needs; README lists routes and shapes but not the field rules or most 400 messages (README.md:36-44); no unit tests for the framing parser itself, only socket-level ones (tests/protocol.test.mjs)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 7,
+      "tests": 9,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Ran: npm test (188/188 pass, 4.7s); same probes: api.mjs 347/347, sys.mjs 69/69 (all startup, persistence, cannot-save and concurrency checks pass), raw-socket and timeout probes. Strengths: same sound core as the best solution - serialized change queue with commit after save (app.mjs:37-60), temp file + fsync + rename (store.mjs:89-105), strict stored-state validation (store.mjs:17-55), fields read with Object.hasOwn (polls.mjs:39-41), unknown methods/CONNECT/malformed requests answered with JSON 405/404/400/431 (raw-requests.mjs:124-149), half-close supported (app.mjs:97); most thorough test suite of the three (process.test.mjs covers default polls.json in cwd, ::1, relative DATA_FILE echoed as given, hard kill, temp-path save failure, invalid PORT; api.test.mjs covers check order and UTF-16 length). README lists routes, rules and errors. Defects: (1) connection leak, reproduced: the handler only replies after the whole body arrived, for every route (app.mjs:81), and the clientError path strips the socket's data/end/timeout listeners and then waits for that in-flight response before writing (raw-requests.mjs:33-48, 135-138), which can never finish. Result: a client that sends FIN mid-body gets no reply and the server never closes (0 of 20 sockets closed in 4s on the real server, the other two close 20/20); a stalled body is never timed out (no 408 after requestTimeout=1s, still open at 12s, where the others send 408), and server.getConnections stayed at 20/40 even after the clients destroyed their sockets - a permanent fd leak that Node's default behaviour would not have. Its own test 'the server stays up after a client resets mid-body' (test/raw-requests.test.mjs:178) does not catch it. (2) reads and waits for the full body even on routes where it is ignored and on 404/405 (app.mjs:80-83), so those replies are delayed by a slow body. (3) routeReply is an if-chain mixing routing and dispatch (app.mjs:62-75), flat root layout with handlers.mjs re-exporting polls.mjs (handlers.mjs:93)."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran: npm test (27/27 pass, 1.0s); same probes: api.mjs 347/347 with properly framed bodies, sys.mjs 69/69 (startup messages, kill persistence, cannot save, concurrency all pass; 25 rounds of SIGKILL under load never produced an unloadable file), raw-socket and timeout probes. Strengths: smallest and easiest to read (~430 lines of src); fully synchronous handle-then-save so serialization is trivially right (src/service.mjs:36-53); state committed only after save; frozen immutable state (src/polls.mjs:59-71); strict load validation (src/store.mjs:26-52); clear README with routes, rules, error list and layout. Defects: (1) no clientError/connect/checkExpectation handling at all (src/http.mjs:40-61), so replies the spec says must be JSON are Node's bare ones: unknown method 'BREW /polls' and lowercase 'get /polls' get 'HTTP/1.1 400 Bad Request' with no body or content-type instead of 405 + Allow, CONNECT /polls closes with no reply, unknown Expect gets a body-less 417, 431 and 408 are body-less. (2) a committed change can lose its reply: a valid POST /polls followed by stray bytes on the same connection (also DELETE with an unframed body, which is what Node's http client sends for DELETE/OPTIONS bodies without Content-Length) creates the poll / removes the vote but the client receives a bare 400 (verified: poll count and vote total changed); the other two send the 201/204 first. (3) save is a plain writeFileSync over the live file, no temp file, rename or fsync (src/store.mjs:75-78), so a crash mid-write can leave a truncated file that then fails with 'cannot load' (not reproduced in 25 kill rounds, but unprotected). (4) data file read with readFileSync(file,'utf8') (src/store.mjs:58), so invalid UTF-8 is silently replaced rather than rejected. (5) PORT is Number(text) with no check (server.mjs:10): PORT=abc dies with an uncaught RangeError stack trace. (6) waits for the whole body before any reply, including 404/405 (src/http.mjs:44). Tests are well aimed but thin (27): no raw-socket, unknown-method, half-close, check-order-on-closed/full or UTF-16 length cases, concurrency only for votes and creates (test/api.test.mjs:234-252)."
+    },
+    "ranking": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-07"
+  },
+  {
+    "pair": "f2-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (176/176 pass); scratch/probe-lib.mjs (120k parseCron checks, fixed + fuzz, against my own reference: 0 mismatches; nextRuns vs brute force, 1500 random cross-checks, 100-year limit cases, timing worst 3.8 ms); scratch/probe-cli.mjs (102 spawned CLI cases incl. arg order, check order, bad --from/--count, exit codes, 1000 lines: 102/102 as the spec states them literally); scratch/mutate.mjs (27/27 hand mutations killed by its own tests). Strengths: table-driven parser with small functions (cron.mjs:27-33, 53-109); linear field splitting (cron.mjs:45-50), 200k blanks parse in <1 ms and its own test covers that (cron.test.mjs:592); day-stepping search bounded by year and by max Date (cron.mjs:170-183); CLI prints values verbatim and a catch-all gives a clean one-line failure (cron-cli.mjs:110); README is complete (syntax table, API errors, exit codes). Defects: cron.mjs:127 calls from.getTime() directly, so nextRuns('* * * * *', Object.create(Date.prototype), 5) throws the native 'TypeError: this is not a Date object.' instead of 'from must be a valid Date' (object is instanceof Date). cron-cli.mjs:95 has no stream error handler: with stdout closed early (probe-pipe.mjs) it dies with a 25-line Node stack trace on stderr, exit 1. Minor: YEAR_LIMIT duplicated in cron-cli.mjs:18 and cron.mjs:7; tests sit at the project root next to the sources (fine, just less tidy)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (151/151 pass); probe-lib.mjs (120k parseCron checks: 0 mismatches; every nextRuns argument case correct, including Object.create(Date.prototype) -> 'from must be a valid Date' via cron.mjs:117-126; brute-force and random differential all agree; worst nextRuns 2.4 ms; 200k blanks <2 ms; extreme dates near +/-8.64e15 return no Invalid Dates); probe-cli.mjs (100/102 literal cases); mutate.mjs (27/27 mutations killed). Strengths: only solution with no library defect found; manual linear trim (cron.mjs:37-44); lookup-table day matcher (cron.mjs:128-145); CLI uses Object.hasOwn for options (cron-cli.mjs:25) and handles a closed stdout with exactly one line 'error: could not write output', exit 1 (cron-cli.mjs:86-90, probe-pipe.mjs), tested at test/cli.test.mjs:272; README documents argument reading rules, every error line and exit codes. Defects: cron-cli.mjs:73-75 and :83 rewrite a line break inside a quoted value as backslash-n / backslash-r, so `--from \"2026-01-01T00:00Z<LF>\"` prints 'error: invalid --from: 2026-01-01T00:00Z\\\\n' rather than the value as written, and an expression field containing a newline prints a message that differs from the CronError message (the 2 probe-cli misses). This is a deliberate reading of 'exactly one line' (README.md:129, test/cli.test.mjs:258) but it is invented escaping that a literal `error: <message>` check would reject; the spec wording conflicts here, so I count it as a small deviation. Minor: new CronError('x').field is undefined, not null (cron.mjs:26-29; internal calls always pass it); module-level mutable `replied` flag (cron-cli.mjs:77) adds a little state to the CLI; package.json test script needs Node glob support (engines >=22 is declared)."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "Ran: npm test (25/25 pass); probe-lib.mjs (120k parseCron checks: 0 mismatches on ordinary input; nextRuns results agree with A, B and brute force in the 1970-9899 range; worst search 0.4 ms thanks to month skipping at cron.mjs:155-169); probe-cli.mjs (102/102 literal CLI cases, relative-path launch works with the isMain guard at cron-cli.mjs:93-102); mutate.mjs (24/27 killed; survivors: dayOfWeekStar computed with includes('*') instead of startsWith, Saturday label changed in the weekday table, plus one mutant that is equivalent here). Defects: cron.mjs:89 trims with /^[ \\t]+|[ \\t]+$/g, which is quadratic on long blank runs inside the string: nextRuns with 100,000 blanks between two fields took 2718 ms and 200,000 took 11843 ms (probe-extreme.mjs), breaking 'each call returns within 2 seconds, whatever the arguments' (A and B: <1 ms); its speed test (test/cron.test.mjs:183) has no such case. cron.mjs:134 gives the native 'this is not a Date object.' TypeError for Object.create(Date.prototype) instead of 'from must be a valid Date'. cron.mjs:157 uses Date.UTC(y, mo, d), which maps years 0-99 to 1900-1999: from 0050-06-01 returns runs in 1950 (outside the tested year range, still wrong). cron.mjs:125-127 never checks the Date ceiling: from = new Date(8.64e15 - 1) returns 1 valid run followed by Invalid Date objects. cron-cli.mjs:106 crashes with a Node stack trace when stdout is closed early. Strengths: compact readable parser; runCli returns {stdout, stderr, exitCode} so the CLI is testable in-process (cron-cli.mjs:68-91); round-trip calendar check for --from (cron-cli.mjs:49-50). Tests are much thinner than A/B (3 spawned CLI tests, rest in-process). README (53 lines) covers usage, exit codes and syntax but not the argument-reading rules or the exact error lines."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-08",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (38/38 pass); scratch/probe.mjs, a process-level differential probe of 186 cases (3 reported bugs, usage/exit-code order, read/UTF-8/line errors for both commands, whitespace/BOM/CRLF rules, check semantics incl. year 0000/9999, leap days, 49/50/51 pairs, 80 random logs vs a brute-force reference): 185/186, the one miss being my own wrong expectation (tool's 6000:00 is right). Strengths: all three reported bugs fixed (lib/parse.mjs:42 midnight wrap, lib/report.mjs:4 inclusive --to, lib/format.mjs:8 padded minutes); also fixes two unreported README disagreements: only space/tab is blank (lib/parse.mjs:10,34,46) and prototype-named options such as `report f constructor x` now give usage via a Map (lib/cli.mjs:9,22). check is correct and scalable: pair total by binary search (lib/check.mjs:28-33), only first 50 pairs enumerated (lib/check.mjs:36-47); 60000 identical entries (1.8e9 pairs) in 0.16 s with correct `and 1799969950 more`. Usage for check with extras correct (lib/cli.mjs:36). README documents check, format, limit line, exit codes 0/1 and updates the errors table. Defects: the new trim regex /^[ \\t]+|[ \\t]+$/g (lib/parse.mjs:10, used at :34) is quadratic on a long space run inside a line - a note with 200000 spaces takes 11.3 s for report and check (SEED and B: 0.07 s), a regression. firstPairs copies spans.slice(i+1) per row and does not stop the inner loop at the limit (lib/check.mjs:41-44), so one row can push n pairs before slicing (harmless but wasteful). Tests: mutation run (scratch/mutate.mjs) killed 17/19; survivors were minutes>=0 in firstPairs (no test mixes a touching pair with a real overlap) and day%365 (no far-apart-dates test); no large-input test."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (43/43 pass); scratch/probe.mjs 185/186 with the single miss being my own wrong expectation; perf and whitespace-run probes. Strengths: all three reported bugs fixed (lib/parse.mjs:35 duration, lib/report.mjs:4, lib/format.mjs:7); also fixes both unreported README disagreements: space/tab-only blanks via a linear hand-written trimPadding (lib/parse.mjs:26-32,45,56-59) and prototype-named options via a Map (lib/cli.mjs:9,22). check is correct on every probe (midnight, year end, leap day, year 0000/9999, identical entries, touching ends, 49/50/51 pairs, 80 random logs vs brute force) and scales: counts by binary search (lib/check.mjs:28-33), stops enumeration exactly at 50 pairs (lib/check.mjs:38-40); 60000 identical entries in 0.16 s. Only solution with no input-size regression: a line with 200000 spaces parses in 0.07 s (A 11 s, C 22 s). readLog distinguishes invalid UTF-8 from other decode failures and rethrows unexpected errors instead of swallowing them (lib/cli.mjs:45-59). README documents check fully, including `0 entries`/`1 entry`, the limit line and exit codes, and updates the errors table. Tests are the strongest: table of overlap cases, pair-limit cases at 45/50/51/66 pairs, ordering by line not time, a 20000-entry and 3000-identical-entry test that guards performance (test/check.test.mjs:123-133), prototype-option and whitespace regressions; mutation run killed 17/18 (survivor: minutes>=0 in firstPairs, masked by the counter). Defects (minor): bound() takes a boolean flag parameter (lib/check.mjs:16) which reads less clearly than two helpers; test/check.test.mjs defines helpers (lines 92-102) after the tests that use them (lines 82-85) and is densely written; padStart(2,'0') literal in lib/format.mjs:7; checkLines returns `overlaps` as a count that the CLI only uses as a boolean (lib/cli.mjs:72-73)."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "Ran: npm test (20/20 pass); scratch/probe.mjs 182/186 (one miss is my own wrong expectation; 3 real failures). Strengths: all three reported bugs fixed (lib/parse.mjs:33 durationOf, lib/report.mjs:4, lib/format.mjs:7); fixes the unreported space/tab-only blank rule (lib/parse.mjs:10-11,37,48); check output is correct on every functional probe (midnight, year end, leap day, identical, touching, 49/50/51 pairs, 80 random logs vs brute force); command table with Object.hasOwn rejects `toString f` (lib/cli.mjs:18-29); README documents check, format, limit line and exit codes. Defects: (1) left the seed's option lookup on a plain object (lib/cli.mjs:9,36), so `report f constructor 2026-01-01`, `report f __proto__ x`, `report f toString x` print a report with exit 0 instead of the usage error the README requires for an unknown option - A and B fixed this. (2) check enumerates every overlapping pair in a sweep (lib/check.mjs:24-33), so time is quadratic in dense logs: 20000 identical entries take 4.4 s and 60000 take 38.9 s, versus 0.1-0.16 s for A and B; the TRIM_AT re-sort (lib/check.mjs:7,30) bounds memory but not time. (3) The trim regex /^[ \\t]+|[ \\t]+$/g (lib/parse.mjs:10) is quadratic and applied twice per line (:37, :48): one line with 200000 spaces takes 22 s (SEED 0.07 s), a regression. (4) Redundant extra export checkLines (lib/check.mjs:47) used only by tests; MINUTES_PER_DAY duplicated in lib/check.mjs:4 and lib/parse.mjs:8; inline comment 'local accumulator, never shared' (lib/check.mjs:28) justifies a mutation rather than explaining logic. Tests: fewest and mostly unit-level (test/check.test.mjs has one CLI test, lines 52-67); mutation run killed 18/20 - sorting pairs by <a> only survived (no test where discovery order of <b> differs), as did day%365; no test for prototype-named options, no performance test, no 51-pair boundary via the CLI."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-09"
+  },
+  {
+    "pair": "f2-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "Ran: npm test (181/181 pass); my differential fuzz vs an independent reference (500k parseCron inputs incl. names, steps, nbsp/newline, bad items; 3.8k nextRuns cases vs brute-force minute stepping; 4k full-100-year three-way comparisons, max 3.6 ms/call) = 0 diffs; a 100-case CLI table (arg order, option-takes-next-value, duplicate/missing/unknown options, empty and single-dash expressions, --from calendar/format/year bounds, --count digits/leading zeros, check order, short-run exit 1 output) = all per spec. Strengths: only solution that gives the specified error for an object that passes instanceof Date but is not a real Date: cron.mjs:111-119 reads the time with Date.prototype.getTime.call in a try/catch, so nextRuns('* * * * *', Object.create(Date.prototype), 1) throws TypeError 'from must be a valid Date' (B and C leak the engine message); it is also immune to a subclass overriding getTime/getUTCFullYear (cron.mjs:166 re-derives the year from the time). Day scan in plain ms arithmetic (cron.mjs:141-156) is simple and correct for years 0-99 too. CLI is a clean throw-CliFailure design with one exit point and a distinct exit 70 for unexpected errors (cron-cli.mjs:17,112-122); exit via process.exitCode so 1000-line output is not truncated. Tests are the strongest: mutation run on a scratch copy killed 38 of 39 mutants (only survivor: rejecting an a-a range such as 5-5, no test for equal range ends); test/cron.test.mjs:384 even covers the Date-prototype object. Defects (all outside the range the task says is tested): cron.mjs:166-167 builds the limit with Date.UTC(limitYear,0,1), which remaps years 0-99 and is NaN near the Date maximum, so from in year -50 returns 1000 yearly runs up to year 950 (limit ignored) and from in year 275700 returns [] although 60 runs exist. cron-cli.mjs runs on import (no entry guard), harmless here. MAX_COUNT/limits duplicated between cron.mjs:7-8 and cron-cli.mjs:7-8. README is accurate with exit-code table, slightly less detailed on syntax than C's."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Ran: npm test (21/21 pass); same fuzz, three-way comparison and 100-case CLI table as the others = identical output to A and the reference on every in-range case, including check order and exact messages/exit codes. Strengths: compact, readable library; CLI split into pure exported parseArgs/parseFrom/parseCount/run(argv, now) returning {stdout, stderr, code} (cron-cli.mjs:16-85), which makes the default-from case testable with an injected clock (test/cli.test.mjs:25); --from validated by Date round-trip (cron-cli.mjs:44-45). The isEntryPoint realpath guard (cron-cli.mjs:94-101) worked when I ran it by relative path, absolute path, lower-case drive letter, upper-cased directory, mixed-case file name, ../ path and through a directory junction. Defects: cron.mjs:122 calls from.getTime() on anything that passes instanceof Date, so nextRuns('* * * * *', Object.create(Date.prototype), 1) throws TypeError 'this is not a Date object.' instead of 'from must be a valid Date'. cron.mjs:106,115,135 use Date.UTC(year,...) with the loop year, so a from in years 0-99 returns runs in 1951+ (outside the tested 1970-9899 range); near the Date maximum it is fine. cron-cli.mjs:74-79 parses the expression twice and rethrows non-CronError errors with no handler (raw stack trace, exit 1) where A and C print one line. Tests are the thinnest: mutation run killed 32 of 38 real mutants (one more was equivalent because of the round-trip check); survivors were dayOfWeekStar === '*' instead of startsWith, includes('*') for both star flags, a-a ranges rejected, Tue/Wed swapped in the weekday table (only Fri is ever asserted, test/cli.test.mjs:17) and a lower-case z accepted in --from. test/cron.test.mjs:39-40 rely on an invisible non-breaking space inside the literal, which is hard to read. README is correct but brief (no exit-code table, one-line syntax summary)."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (145/145 pass); same fuzz, three-way comparison and 100-case CLI table = identical output to A and the reference on every in-range case. Strengths: well-commented library with JSDoc (cron.mjs:99-103,162-168); CLI uses Object.hasOwn for option bookkeeping (cron-cli.mjs:40), catches unexpected errors with a one-line message (cron-cli.mjs:112-113) and handles stdout write errors (cron-cli.mjs:117-120); best README (field table, step rules, OR/AND rule, exit-code table). Tests are thorough and split into three files; mutation run killed 36 of 39 mutants (survivors: includes('*') instead of startsWith for both star flags, i.e. no '5,*' style case, and a-a ranges rejected). Defects: cron.mjs:122 calls from.getTime() on anything that passes instanceof Date, so nextRuns('* * * * *', Object.create(Date.prototype), 1) throws TypeError 'this is not a Date object.' instead of 'from must be a valid Date' (A gets this right). cron.mjs:134,144,153 use Date.UTC(year,...) with the loop year, so a from in years 0-99 returns runs in 1951+ (outside the tested range). cron-cli.mjs:9-10 give the unexpected-failure exit the same code 1 as the fewer-runs case, so a caller cannot tell them apart (README documents this). cron-cli.mjs:60 checks seconds against MAX_MINUTE (works, misleading name) and cron-cli.mjs:14,19 duplicate MAX_COUNT/YEAR_LIMIT from the library. package.json requires node >=22 for the quoted test glob."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-10",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran npm test (32/32 pass), a 40-case CLI script against SEED/A/B/C, and a differential fuzz of `check` vs a brute-force reference (4000 small + 150 large logs, 399+135 of them over the 50-pair cap): 0 mismatches. All three reported bugs fixed (lib/parse.mjs:30 overnight minutes, lib/report.mjs:4 inclusive --to, lib/format.mjs:8 padding) plus the unreported README mismatch that String#trim treated \f/NBSP/extra \r as blank (lib/parse.mjs:33,48-51). check: usage/3/4 errors, BOM, CRLF, year/leap crossings, touching vs 1-minute overlap, singular/plural, exactly 50 vs 51 all correct (lib/check.mjs:16-53, lib/cli.mjs:36,59-63). Defects: lib/cli.mjs:23-24 keeps the seed's `OPTIONS[rest[i]]` prototype lookup, so `report w.log toString x`, `constructor 2026-01-01` and `__proto__ 2026-01-01` exit 0 with a report instead of the usage error the README promises for an unknown option (reproduced; C fixes it). lib/check.mjs:18-28 enumerates every overlapping pair, so time grows with the pair count: 20k identical entries 1.1 s, 60k 8.3 s, 200k did not finish in 60 s (C: 0.5 s). lib/cli.mjs:36 tests args.length rather than the file, so run(['check', undefined]) answers `cannot read undefined` (not reachable from the shell). lib/cli.mjs:54 rethrows non-TypeError decode failures as a raw stack trace. Tests (test/check.test.mjs, 137 lines, all through the process) killed 16/17 of my mutations (touching, date ignored, limit 49/51, unsorted, a/b swapped, singular, exit code, extra args, --to, padding, trim, overnight, containment, more-count); the one survivor is removing the bounded-insert condition at lib/check.mjs:37, because the >50-pair test (test/check.test.mjs:131) feeds pairs already in line order. README check section is clear with an example, exit codes and an updated error table (README.md:45-81). Clean, small helper split (parseRange/reply)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Ran npm test (22/22 pass), the same 40-case CLI script and the differential fuzz: 0 mismatches against the brute-force reference, including logs with thousands of pairs that exercise the TRIM_AT path (lib/check.mjs:28). The three reported bugs are fixed (lib/parse.mjs:23, lib/report.mjs:4, lib/format.mjs:7) and so is the spaces-and-tabs-only trimming (lib/parse.mjs:21,47). check output, ordering, cap, exit codes and all error paths match the spec (lib/check.mjs:17-43, lib/cli.mjs:33-37,50-53); the command table with Object.hasOwn at lib/cli.mjs:33 is tidy and guards the command name. Defects: the option lookup at lib/cli.mjs:20-21 is still the seed's prototype-prone `OPTIONS[rest[i]]`, so `report w.log toString x` / `constructor ...` / `__proto__ ...` exit 0 instead of usage (reproduced) even though B's own test adds `toString` only as a command (test/cli.test.mjs:14). lib/check.mjs:21-30 enumerates every pair and re-sorts a 1000-element buffer every ~950 pairs: slowest of the three, 20k identical entries 3.6 s, 60k 34.7 s, 200k not finished in 60 s. lib/cli.mjs:44-45 keeps bare catch-alls (any decode failure is reported as invalid UTF-8). COMMANDS is used at lib/cli.mjs:33 before its definition at :50 (works, but reads backwards); lib/check.mjs:12 is one long dense line. Tests are the thinnest (test/check.test.mjs 79 lines + test/fixes.test.mjs 45): they killed all 17 behaviour mutations I tried, but the exactly-50 case is asserted only in-process (test/check.test.mjs:58-66), there is no BOM/folder/leap-day check case, and a deliberately broken trim step (pairs.slice instead of keepFirst at lib/check.mjs:28) survived because no test produces 1000+ pairs out of order. README check section is complete with example and exit codes (README.md:45-60) and the error table is updated."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran npm test (36/36 pass, 6.9 s), the 40-case CLI script and the differential fuzz: 0 mismatches against the brute-force reference on all 4150 logs. Fixes the three reported bugs (lib/parse.mjs:30, lib/report.mjs:4, lib/format.mjs:8), the spaces-and-tabs-only trimming (lib/parse.mjs:33,49), and is the only solution that also fixes the seed's prototype-key option hole with Object.hasOwn (lib/cli.mjs:22-24): `report w.log toString x`, `constructor 2026-01-01`, `__proto__ 2026-01-01` now give the usage line and exit 2 as the README says (A and B exit 0), with tests for it (test/cli.test.mjs:48-54). check is correct on every spec line I probed (usage for missing/extra args, exit 3/4 lines, BOM, CRLF, midnight/year/leap crossings, touching, identical, singular/plural, exactly 50 vs 51, `and <k> more`). It counts pairs by complement with binary search (lib/check.mjs:28-32) and collects only the first 50 in file order (lib/check.mjs:36-55), so it stays fast where the others blow up: 60k identical entries 0.37 s, 200k (2e10 pairs, exact `and 19999899950 more`) 0.5 s, an adversarial 100k-line log 0.48 s. Defects: the algorithm is harder to follow than A/B and leans on the under-24h invariant (comment at lib/check.mjs:34-35); MINUTES_PER_DAY is redefined with bare literals at lib/check.mjs:4 instead of reusing lib/parse.mjs:8; timelog.mjs:7-13 adds an unrequested catch-all that turns any internal error into `error: unexpected failure` exit 70, hiding the stack (it is documented, README.md:72); the decode catch at lib/cli.mjs:55 is still bare. Tests are the strongest (test/check.test.mjs 137 lines, all through the process, including a 200000-entry case at :131-137, 20 identical entries at :124-129, six crossing cases at :66-77); they killed all 17 mutations I applied. README check section, example, error table and exit codes are complete (README.md:45-72)."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-11",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Ran: npm test (36/36 pass, ~7s); scratch/probe.mjs (67 process-level cases: usage, exit codes, error lines, BOM/CRLF/whitespace rules, the 3 reported bugs, check semantics, 50/51/55 pair limits) -> 0 failures; scratch/fuzz.mjs (3000 random logs vs brute-force reference) -> 0 mismatches; scratch/perf*.mjs; scratch/mutate*.mjs (20 source mutations on a scratch copy) -> 20/20 killed by its own tests. Strengths: all three reported bugs fixed (lib/parse.mjs:30 midnight wrap, lib/report.mjs:4 inclusive --to, lib/format.mjs:8 padding); also fixed README disagreements nobody reported: only space/tab trimmed or blank (lib/parse.mjs:33, :49) and the only solution that fixed prototype-named options being accepted as options (lib/cli.mjs:22-24 Object.hasOwn; `report f constructor x` now gives usage/exit 2). check is exact: `check` with extra args -> usage (lib/cli.mjs:34-36), count by sorting + binary search (lib/check.mjs:28-32) and only the first 50 pairs enumerated (lib/check.mjs:45-55), so 100k identical entries (5e9 pairs) answer in 0.24s with the exact `and 4999949950 more`. Tests are process-level and thorough (test/check.test.mjs:67-78 midnight/month/year/leap, :116-137 exact 50, 51, 190 and 200000-entry cases; test/cli.test.mjs:49-54 prototype option names). README documents check with all required literals and exit codes (README.md:45-58, :66, :72). Defects: lib/check.mjs is the most intricate of the three (separate counting and enumeration paths that must agree, lib/check.mjs:14-40), though commented and fully covered by tests. timelog.mjs:5-13 adds an unrequested catch-all that prints `error: unexpected failure` and exits 70, hiding the stack trace of any programming error; documented (README.md:72) but untested and outside the task. Tests embed invisible literal characters (BOM at test/check.test.mjs:38, NBSP in test/parse.test.mjs:50-53), which is hard to read/review."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Ran: npm test (22/22 pass); scratch/probe.mjs -> 5 failures of 67, all one defect; scratch/fuzz.mjs -> 0 mismatches in 3000 random logs; perf and mutation probes. Strengths: three reported bugs fixed (lib/parse.mjs:23, lib/report.mjs:4, lib/format.mjs:7); space/tab-only trimming fixed (lib/parse.mjs:21, :47); check output, ordering, 50-line cap, singular/plural, exit codes and usage handling all correct in every probe (lib/check.mjs:17-43, lib/cli.mjs:33-37); command lookup hardened with Object.hasOwn (lib/cli.mjs:33, tested at test/cli.test.mjs:14); README is the clearest on exit codes (README.md:45-61 with an explicit exit-code sentence, :68, :74). Defects: the option parser kept the seed bug the README rules out (unknown option -> usage): lib/cli.mjs:20-21 uses `OPTIONS[rest[i]]`, so `report ok.log constructor x`, `toString x`, `__proto__ x`, `valueOf 2026-01-01` exit 0 with a report instead of usage/exit 2, and `report ok.log hasOwnProperty x --from zz` gives `bad date for --from` instead of usage - inconsistent with the hasOwn fix one function below. check is O(number of overlapping pairs) (lib/check.mjs:21-30): 20000 identical entries took 4.2s and 100000 identical entries did not finish in 60s (killed), where A took 0.24s. The trim-back path for >=1000 pairs (lib/check.mjs:7, :28) is never exercised by its tests: mutating it to `pairs.slice(0, limit)` (wrong pairs kept) survived npm test (16/17 mutants killed); largest tested case is 55 pairs (test/check.test.mjs:44-55). Fewer check edge cases than A/C: no folder, BOM, leap-day or 51-pair CLI test; the exact-50 and touching cases go through the module, not the process (test/check.test.mjs:20, :59-67). Minor: check.mjs returns the exit code from the logic module (lib/check.mjs:39-42), long one-liners (lib/check.mjs:12, lib/cli.mjs:52), COMMANDS declared after its first use site (lib/cli.mjs:50)."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Ran: npm test (32/32 pass); scratch/probe.mjs -> 5 failures of 67, all one defect; scratch/fuzz.mjs -> 0 mismatches in 3000 random logs; perf and mutation probes. Strengths: three reported bugs fixed (lib/parse.mjs:30, lib/report.mjs:4, lib/format.mjs:8); space/tab-only trimming fixed for both entries and skipped lines (lib/parse.mjs:33, :48-51); check output, a<b ordering, sorting, 50-line cap, counts and exit codes correct in every probe (lib/check.mjs:16-53); clean, readable sweep with a small bounded `shown` buffer (lib/check.mjs:32-42); readLog only maps expected failures to exit 3 and rethrows the rest (lib/cli.mjs:43-57); process-level tests cover usage, folder, invalid UTF-8, BOM, touching/one-minute, midnight, year end, leap day, exact 50, 51 and 66 pairs (test/check.test.mjs:19-137). README documents check fully with required literals and exit codes (README.md:45-67, :75, :81). Defects: same seed bug left in the option parser as B: lib/cli.mjs:23-24 uses `OPTIONS[rest[i]]`, so `report ok.log constructor x`, `toString x`, `__proto__ x`, `valueOf 2026-01-01` exit 0 with a report instead of usage/exit 2, and `hasOwnProperty x --from zz` reports a bad date instead of usage (README says an unknown option is a usage error). check is O(number of overlapping pairs) (lib/check.mjs:18-28): 20000 identical entries 1.2s, 100000 identical entries 35s versus A's 0.24s. The branch that lets a later-found smaller pair displace a shown one (lib/check.mjs:37) is not covered: replacing the condition with `shown.length < limit` survived npm test (15/16 mutants killed), because every >50-pair test finds pairs already in line order (test/check.test.mjs:125-137). Minor: `CHECK_ARG_COUNT = 2` with `args.length ===` (lib/cli.mjs:10, :36) is a roundabout way to say no extra arguments; NBSP literals embedded invisibly in test/parse.test.mjs:44-46."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-12"
+  }
+]

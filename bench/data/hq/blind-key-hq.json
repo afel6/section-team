@@ -1,0 +1,32 @@
+{
+  "h5-r1": {
+    "X": "team-hq",
+    "Y": "max-hq",
+    "Z": "solo-hq"
+  },
+  "h5-r2": {
+    "X": "max-hq",
+    "Y": "solo-hq",
+    "Z": "team-hq"
+  },
+  "h6-r1": {
+    "X": "max-hq",
+    "Y": "solo-hq",
+    "Z": "team-hq"
+  },
+  "h6-r2": {
+    "X": "solo-hq",
+    "Y": "team-hq",
+    "Z": "max-hq"
+  },
+  "h7-r1": {
+    "X": "solo-hq",
+    "Y": "team-hq",
+    "Z": "max-hq"
+  },
+  "h7-r2": {
+    "X": "team-hq",
+    "Y": "max-hq",
+    "Z": "solo-hq"
+  }
+}
