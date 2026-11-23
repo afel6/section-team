@@ -1,11 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import { ROSTER, RELAY, render, renderAll, renderHelper, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE } from '../scripts/gen-agents.mjs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { ROSTER, RELAY, render, renderAll, renderHelper, renderSkills, writeSkills, HELPER_AGENTS, RUBRIC_ITEMS, PASS_RULE, SAFETY, HOUSE_RULES, SPEC_LITERAL } from '../scripts/gen-agents.mjs'
 import { BUILDER_IDS, ADVISOR_IDS, ADVISOR_HELPERS } from '../hooks/lib/report.mjs'
 
 const GEN = fileURLToPath(new URL('../scripts/gen-agents.mjs', import.meta.url))
@@ -192,7 +194,7 @@ test('every builder gets the solo-builder job flow: notes, plan, parallel helper
     'If it still fails, finish with `Status: partial` and the grade; never call it done.',
     'To grade again, start a new foreground reviewer call and put the earlier GRADE block and what you changed for each fix into its request, so it checks those fixes and does not start over. Never SendMessage a helper: that resumes it in the background, and a section waiting on it is made to hand back unfinished.',
     'A pass ends the gate: apply its fixes of a few lines if you like (never left: code that breaks a stated requirement or a security rule the grade names, or crashes, where you fix the code; a doc sentence the code contradicts, where you fix the sentence, or the code when the spec states that sentence; a test a busy machine can fail, or a test of an outside wait that a second reading of a value the spec fixes once for a request would pass, where you fix the test; and, only when the job states a mode gate, a spec line whose tests a named wrong implementation would pass, where the test is added as the walk above says, unless another section writes the tests: with no mode gate, a test gap a pass still lists goes under Next as optional), rerun the tests once, and do not grade again. List every other larger fix under Next in your REPORT instead of doing it: larger work is a new job, and the supervisor decides.',
-    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the house rules, every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds (for tests a coder wrote, the gate checks the test clause, not this walk). A test that this walk or a grade finds missing in a test file you have not read goes to a coder, all of them in one brief with their spec lines: reading that file into your context costs more than the coder's whole run. A fix after the gate costs far more than care now.",
+    "Before your first grade, walk your code once: every call that can fail handles the error, every outside input is validated (replies from the project's own server only as far as the spec states; no input the spec accepts is refused), every stored value and every wait on something outside follows the default rules, every spec line has a test that a wrong implementation you can name would fail, every doc sentence about what you changed still holds (for tests a coder wrote, the gate checks the test clause, not this walk). A test that this walk or a grade finds missing in a test file you have not read goes to a coder, all of them in one brief with their spec lines: reading that file into your context costs more than the coder's whole run. A fix after the gate costs far more than care now.",
     'If the job says another section writes the tests (the testing section in multi-area work), tell the reviewer so: it then scores tests as n/a and leaves them out of the overall.',
     "Never edit another section's note.",
     'Helpers never spawn agents.',
@@ -469,7 +471,7 @@ test('reviewer is an Opus read-only grader, not a section', () => {
   assert.ok(text.includes('Never edit files and never spawn agents.'))
   assert.ok(text.includes('Run the full suite at most once in a grade, and not at all when only docs changed; run it a second time only when that run fails, to tell a test a busy machine fails from a broken one;'))
   assert.ok(text.includes('Project rules: read and follow whichever of these exist in the project: CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md, AGENTS.md, .claude/rules/*.md, plus any files they @-import; in a monorepo also the CLAUDE.md/AGENTS.md of parent folders up to the repo root.'), 'reviewer project rules')
-  assert.ok(text.includes("Where the project's own rules differ from the house rules, the project's rules win."))
+  assert.ok(text.includes("Where the project's own rules differ from the default rules, the project's rules win."))
   assert.ok(text.includes('Score each item 1–10:'))
   assert.ok(!text.includes('0–10'))
 })
@@ -562,7 +564,7 @@ test('round tg: one clock reading per request; the spec and the rules outrank ad
     assert.ok(agentFile(id).includes(OUTRANK), `${id} spec outranks advice`)
     assert.ok(agentFile(id).includes(LIMIT), `${id} no limit from memory`)
   }
-  const ADVICE = "Your REPORT's Quality line is always `n/a (no code)`. Your advice keeps the spec and the house rules above: every value, step and order the spec names stays exactly as given (a URL sent as configured, a value the spec fixes once for a request taken once), you name the spec line behind each choice, and you leave the choice of library call to the builder unless you have checked that call against that line."
+  const ADVICE = "Your REPORT's Quality line is always `n/a (no code)`. Your advice keeps the spec and the default rules above: every value, step and order the spec names stays exactly as given (a URL sent as configured, a value the spec fixes once for a request taken once), you name the spec line behind each choice, and you leave the choice of library call to the builder unless you have checked that call against that line."
   for (const id of ADVISOR_IDS) {
     assert.ok(agentFile(id).includes(ADVICE), `${id} advice keeps the spec`)
     assert.ok(!agentFile(id).includes('outrank advice'), `${id} has no builder rule`)
@@ -678,7 +680,7 @@ test('round tg: the reviewer keeps re-grades consistent, asks for nothing the sp
 // Round tg: four leftovers a reading finds passed two final reviews as optional, and the second review repeated the first one's flows.
 test('round tg: testing reads the code for what probes miss, asks for one whole-product review, and a second final review does not probe again', () => {
   const te = agentFile('testing')
-  const READ = "(with fetch, decode await res.arrayBuffer() that way). Probes miss what does not show from outside, so also read the code this job covers once against the spec and the house rules, and put each of these on its owner's failing fix list with its file:line, never among the optional findings: a value the spec fixes once for a request (its time, an id, a token) that is taken again; a spec line the code breaks only at a rare moment (two requests at the same time, replies in an order a user cannot cause by hand), which is no smaller for that (a case a rule in this file settles, such as content that changed during an outside call or a session's expiry judged at the clock reading the request took, is settled by that rule); a refusal, a failure, a startup step or a file the product writes that neither the spec, a rule in this file nor the job asks for; a doc sentence, list or count the code does not keep; a flag, hook or branch in shipped code that exists only to change behaviour under test (a dependency passed in, such as a clock, a client or a store, is design); a scratch file or empty folder left in the project outside `.team/`. For multi-section tasks you own the final review"
+  const READ = "(with fetch, decode await res.arrayBuffer() that way). Probes miss what does not show from outside, so also read the code this job covers once against the spec and the default rules, and put each of these on its owner's failing fix list with its file:line, never among the optional findings: a value the spec fixes once for a request (its time, an id, a token) that is taken again; a spec line the code breaks only at a rare moment (two requests at the same time, replies in an order a user cannot cause by hand), which is no smaller for that (a case a rule in this file settles, such as content that changed during an outside call or a session's expiry judged at the clock reading the request took, is settled by that rule); a refusal, a failure, a startup step or a file the product writes that neither the spec, a rule in this file nor the job asks for; a doc sentence, list or count the code does not keep; a flag, hook or branch in shipped code that exists only to change behaviour under test (a dependency passed in, such as a clock, a client or a store, is design); a scratch file or empty folder left in the project outside `.team/`. For multi-section tasks you own the final review"
   assert.ok(te.includes(READ), 'read-through')
   assert.ok(te.includes("run the reviewer in one call over every section's changed files, yours included, with the spec you were given, and ask it for a whole-product review (Agent `section-team:reviewer`, with `run_in_background: false`): each section's own gate graded its lines, and this call reads the product as one codebase. The final review runs the whole test suite"), 'whole-product review')
   assert.ok(te.includes("Report what you found. When the job says it is the second final review, write no new probes and add a test only for a spec break you find: run the suite and the project's flow command once (write one only if none exists), then spend the job reading all the product code and docs yourself, not through a scout, against the spec as above, and on the whole-product review; read no earlier final review's files in `.team/reports/`. The section that wrote a file owns it: if the final pass fails or your reading found failing items, send each owning section its part of the fix list"), 'second final review')
@@ -692,11 +694,11 @@ test('round tg: tests come first, reuse what exists, and a security pass adds a 
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes(TESTS), `${id} reuses tests`)
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder']) assert.ok(agentFile(id).includes('no hardcoded secrets; a number with a meaning has a name; no console.log in shipped code;'), `${id} named numbers`)
   assert.ok(agentFile('reviewer').includes('\n- naming: descriptive names that say what a thing is or does, consistent with the surrounding code; a number with a meaning has a name.\n'), 'naming item')
-  const FIRST = '   - Tests (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your interfaces (file names, signatures): every expected value comes from the spec, never from what the code does. Its brief names the spec file and lines to cover instead of copying them (with no spec file, the requirements themselves) and asks for each a test that a wrong implementation the coder can name would fail. When the job states no mode gate (no pass mark other than your quality gate\'s own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; this is section-team\'s default order for this mode; a tests-first rule in the project\'s CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message; each runs its own tests against the code, decides every failure from the spec line, corrects a test only where it contradicts a spec line it can quote, and hands back its file names, its pass and fail totals and the code\'s failures, each with its spec line; you fix the code and make one full run. When the job states a mode gate, the tests come first: a test coder starts before the code exists. Where helpers run in the foreground, it blocks you, so you cannot work meanwhile: launch it in the same message as the coders that write the code, or, when you write the code yourself, launch it first and write the code after it returns; where they run in the background, write the code while it runs. While the code is missing it runs only a syntax check, and it hands back only its file names. Make the first full run yourself once the code is in. When more than a couple of tests fail, do not work through them in your own context: a coder takes the failing names and the spec, decides from the spec line whether each test or the code is wrong, corrects only the tests that contradict a spec line it can quote, and hands you the code\'s failures, each with its spec line. Never brief the tests of code you are about to build as checks of code already written. In both orders a test coder\'s tests are the one exception to reviewing a helper\'s diff: the reviewer judges them at your gate, so read only the tests a failing run points you to.'
+  const FIRST = '   - Tests (not when the job says another section writes the tests): when you build new behaviour, a coder writes its tests from the spec lines and your interfaces (file names, signatures): every expected value comes from the spec, never from what the code does. Its brief names the spec file and lines to cover instead of copying them (with no spec file, the requirements themselves) and asks for each a test that a wrong implementation the coder can name would fail. When the job states no mode gate (no pass mark other than your quality gate\'s own), the code comes first (the tests-first order of the default rules, and of any skill you load or the job names, gives way here; this is section-team\'s default order for this mode; a tests-first rule in the project\'s CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message; each runs its own tests against the code, decides every failure from the spec line, corrects a test only where it contradicts a spec line it can quote, and hands back its file names, its pass and fail totals and the code\'s failures, each with its spec line; you fix the code and make one full run. When the job states a mode gate, the tests come first: a test coder starts before the code exists. Where helpers run in the foreground, it blocks you, so you cannot work meanwhile: launch it in the same message as the coders that write the code, or, when you write the code yourself, launch it first and write the code after it returns; where they run in the background, write the code while it runs. While the code is missing it runs only a syntax check, and it hands back only its file names. Make the first full run yourself once the code is in. When more than a couple of tests fail, do not work through them in your own context: a coder takes the failing names and the spec, decides from the spec line whether each test or the code is wrong, corrects only the tests that contradict a spec line it can quote, and hands you the code\'s failures, each with its spec line. Never brief the tests of code you are about to build as checks of code already written. In both orders a test coder\'s tests are the one exception to reviewing a helper\'s diff: the reviewer judges them at your gate, so read only the tests a failing run points you to.'
   for (const id of BUILDER_IDS) assert.ok(agentFile(id).split('\n').includes(FIRST), `${id} tests first`)
   for (const id of ADVISOR_IDS) assert.ok(!agentFile(id).includes('Tests (not when the job says another section writes the tests)'), `${id} hands out no code`)
   for (const id of BUILDER_IDS) {
-    for (const s of ["When the job states no mode gate (no pass mark other than your quality gate's own), the code comes first (the tests-first order of the house rules, and of any skill you load or the job names, gives way here; this is section-team's default order for this mode; a tests-first rule in the project's CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message;", 'When the job states a mode gate, the tests come first: a test coder starts before the code exists.', 'every expected value comes from the spec, never from what the code does.']) assert.ok(agentFile(id).includes(s), `${id} test order: ${s.slice(0, 40)}`)
+    for (const s of ["When the job states no mode gate (no pass mark other than your quality gate's own), the code comes first (the tests-first order of the default rules, and of any skill you load or the job names, gives way here; this is section-team's default order for this mode; a tests-first rule in the project's CLAUDE.md or AGENTS.md, or a job message that asks for tests first, still holds; the tests still come from the spec): once it is in, launch the test coders together in one message;", 'When the job states a mode gate, the tests come first: a test coder starts before the code exists.', 'every expected value comes from the spec, never from what the code does.']) assert.ok(agentFile(id).includes(s), `${id} test order: ${s.slice(0, 40)}`)
   }
   for (const id of [...BUILDER_IDS, ...ADVISOR_IDS, 'coder', 'reviewer']) for (const s of ['   - Tests first (not when', 'your planned interfaces']) assert.ok(!agentFile(id).includes(s), `${id} drops ${s}`)
   const PASS = "review the changed files directly. In a security pass or review of other sections' code, report what you checked and what you found. A finding that breaks a spec line or a security rule in this file, or lets a request succeed on a secret, a role or a session the server stores in a way no one-at-a-time order of the requests gives (where a password change ends the user's sessions, a login on the old password that leaves a session alive after it; not a claim a signed token carries by design), is a failing item however rare the moment it needs (two requests at the same time), never a low or optional one (a case a rule in this file settles, such as content that changed during an outside call or a session's expiry judged at the clock reading the request took, is settled by that rule). Fix a finding of a few lines yourself, test first: the test fails before the fix and goes in the test file that covers that feature. A larger fix goes on your REPORT's Problems line as a failing fix list for the owning section, and you finish with `Status: partial`. Write no other tests: covering the spec belongs to the builders and the testing section. A pass that changes no file needs no grade."
@@ -867,7 +869,7 @@ test('round tg e3: late replies by kind, own work under a row lock, stored answe
     assert.ok(agentFile(id).includes("waits on an outside call that changes nothing outside (a model, also one run on this machine, a lookup)"), id + ' local model')
     assert.ok(agentFile(id).includes("it never replaces an answer stored from newer data than it was sent (it keeps beside it the version of that data it came from, such as a revision or an updated time, and checks and writes in one statement)"), id + ' stored answer version')
   }
-  assert.ok(agentFile('coder').includes("End with a short result: files changed, tests run and their result, anything unclear, and a Next line for anything the house rules say to name there."), 'coder next line')
+  assert.ok(agentFile('coder').includes("End with a short result: files changed, tests run and their result, anything unclear, and a Next line for anything the default rules say to name there."), 'coder next line')
   for (const id of ALL) {
     for (const old of ['is always applied', 'a login on an old password whose session outlives the change', 'or a check read have changed', 'where the work has no blocking form and the store locks no rows', 'it keeps what the answer came from beside it', 'a page shows nothing from before a logout unless', 'a model run on this machine counts as an outside call']) {
       assert.ok(!agentFile(id).includes(old), id + ' old text: ' + old)
@@ -880,13 +882,14 @@ const BUILDERS_AND_CODER = [...BUILDER_IDS, 'coder']
 
 test('no agent file calls the house rules the user\'s standards, and builders name them section-team default rules', () => {
   assert.ok(inNoAgent("the user's standards"))
+  assert.ok(inNoAgent('house rules'), 'every sentence says the default rules')
   for (const id of BUILDERS_AND_CODER) {
     assert.ok(agentFile(id).includes("section-team default rules (where the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, the project's rules win): "), id)
   }
 })
 
 test('the 10 builders and the coder all carry the SAFETY line', () => {
-  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user.'
+  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this.'
   assert.equal(BUILDERS_AND_CODER.length, 11)
   for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).includes(safety), id)
 })
@@ -907,4 +910,45 @@ test('sections use the opus alias, and no Fable consultant file or branch is lef
   assert.ok(inNoAgent('fable-consultant'))
   assert.ok(inNoAgent('as a consultant; if Fable'))
   assert.ok(agentFile('backend').includes('the supervisor decides with the user whether to consult a stronger model'))
+})
+
+// 0.6.0 W2 PR-B (L1): in Balanced the supervisor does a direct job itself, from the generated section-team:direct-build skill.
+const DIRECT_BUILD = new URL('../skills/direct-build/SKILL.md', import.meta.url)
+const DIRECT_DESCRIPTION = 'section-team supervisor only: how to do a direct job yourself (a question, a read, or a change of about 30 lines or less of non-test code that adds no feature), test first, then the reviewer gate.'
+const DIRECT_STEPS = [
+  '1. Read only the files the change needs.',
+  "2. If it changes behaviour, first write a test that fails because of the bug or request, with expected values from the report or spec and never from what the code does. Run it, see it fail, fix the code, then run the project's whole suite once.",
+  '3. The rules below apply to every line you change.',
+  '4. Run the reviewer gate from your brief on your changed files.',
+  '5. If the change grows past about 30 lines of non-test code (tests do not count) or needs a feature, stop and wake the builder with what you found.',
+  "6. Answer with the files changed, the test added and the gate's grade.",
+]
+
+test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
+  const text = readFileSync(DIRECT_BUILD, 'utf8')
+  assert.equal(text, renderSkills()['direct-build/SKILL.md'], 'the committed skill matches the generator')
+  const fm = front(text)
+  assert.equal(fm.name, 'direct-build')
+  assert.equal(JSON.parse(fm.description), DIRECT_DESCRIPTION)
+  const body = text.split('\n---\n')[1].split('\n')
+  assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
+  const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
+  assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)
+  assert.ok(agentFile('coder').split('\n').includes(HOUSE_RULES), 'the skill carries the same default rules as the sections')
+  assert.ok(agentFile('backend').includes(SPEC_LITERAL) && agentFile('backend').includes(SAFETY), "the skill carries the builders' spec and safety rules")
+})
+
+test('writeSkills writes the skill into its folder, and a check names it while it is missing or stale', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'st-skills-'))
+  try {
+    const target = pathToFileURL(`${dir}/`)
+    assert.deepEqual(writeSkills({ dir: target, check: true }), ['direct-build/SKILL.md'])
+    assert.equal(existsSync(join(dir, 'direct-build')), false, 'a check writes nothing')
+    assert.deepEqual(writeSkills({ dir: target }), ['direct-build/SKILL.md'])
+    assert.deepEqual(writeSkills({ dir: target, check: true }), [])
+    writeFileSync(join(dir, 'direct-build', 'SKILL.md'), 'stale\n')
+    assert.deepEqual(writeSkills({ dir: target, check: true }), ['direct-build/SKILL.md'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
