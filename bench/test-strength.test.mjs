@@ -330,6 +330,32 @@ test('main measures the nx tasks h8, h9 and h10 for solo, base and team', t => {
     { 'h10-base-nx-r2': ['h10', 'base-nx'], 'h8-base-nx-r1': ['h8', 'base-nx'], 'h8-team-nx-r1': ['h8', 'team-nx'], 'h9-solo-nx-r1': ['h9', 'solo-nx'] })
 })
 
+// h8 is seeded: its seed holds lib/ files, its own test/ files and a test helper; its reference replaces lib files and
+// has its own test file; each near-miss breaks one lib file. The seed's unchanged tests are not the solution's, and the
+// reference's own test never reaches the variant.
+test('main measures a seeded h8 run: seed, then reference without its tests, then only the solution\'s own tests', t => {
+  const seeds = folder(t, {
+    'h8/main.mjs': 'seed', 'h8/lib/a.mjs': 'seed bug', 'h8/lib/b.mjs': 'seed bug',
+    'h8/test/seed.test.mjs': 'main.mjs=seed', 'h8/test/helpers.mjs': 'seed helper',
+  })
+  const root = folder(t, {
+    'h8/reference/lib/a.mjs': 'ref', 'h8/reference/lib/b.mjs': 'ref', 'h8/reference/test/ref.test.mjs': 'lib/a.mjs=ref',
+    'h8/near-miss/n1/lib/a.mjs': 'n1', 'h8/near-miss/n2/lib/b.mjs': 'n2',
+  })
+  const solution = folder(t, {
+    'main.mjs': 'seed', 'lib/a.mjs': 'fixed', 'lib/b.mjs': 'fixed',
+    'test/seed.test.mjs': 'main.mjs=seed', 'test/helpers.mjs': 'seed helper', 'test/new.test.mjs': 'test/helpers.mjs=seed helper\nlib/a.mjs=ref',
+  })
+  const results = folder(t, { 'h8-team-nx-r1/run.json': JSON.stringify({ dir: solution }) })
+  const calls = []
+  const out = runMain(t, ['--round=nx'], { results, root, seeds, run: fakeRun(calls) })
+  assert.deepEqual([out.exitCode, out.errors, out.logs], [undefined, [], ['h8-team-nx-r1  caught 1/2 (0.50)  valid 1/1']])
+  assert.deepEqual([...new Set(calls.map(c => c.file))], ['test/new.test.mjs'], 'only the solution\'s own test runs')
+  assert.deepEqual(calls[0].files, ['lib/a.mjs', 'lib/b.mjs', 'main.mjs', 'test/helpers.mjs', 'test/new.test.mjs', 'test/seed.test.mjs'])
+  assert.deepEqual(JSON.parse(readFileSync(join(results, 'test-strength-nx.json'), 'utf8'))['h8-team-nx-r1'].nearMisses,
+    [{ name: 'n1', caught: true }, { name: 'n2', caught: false }])
+})
+
 test('main also measures h7 runs, on their final code', t => {
   const root = folder(t, taskFiles('h7'))
   const solution = folder(t, { 'a.test.mjs': 'lib.mjs=ref' })
