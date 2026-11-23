@@ -773,9 +773,9 @@ test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an
   }
   // The variable turns it on outside Windows.
   const linux = guardDeps({ platform: 'linux' })
-  ensureGuard(guardEvent(), { [VAR]: '300' }, linux.deps)
+  ensureGuard(guardEvent(), { [VAR]: '2048' }, linux.deps)
   assert.equal(linux.spawned.length, 1)
-  assert.equal(readGuardRecord(linux.deps.home).limit, 300 * GUARD_MB)
+  assert.equal(readGuardRecord(linux.deps.home).limit, 2048 * GUARD_MB)
 })
 
 test('a failed listing and an unknown host write the failure, say so once, and are not retried within 10 minutes', () => {
@@ -835,6 +835,18 @@ test('the said-once marker ends in .json, so the weekly prune of the modes folde
   ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }, deps)
   const names = readdirSync(join(deps.home, '.claude', 'section-team', 'modes'))
   assert.deepEqual(names, ['sess-1.limit-said.json'])
+})
+
+// --- a tiny limit is raised to the floor ---
+
+test('a limit of 1 MB is raised to the 1024 MB floor, said once when the guard starts', () => {
+  const { deps, spawned } = guardDeps()
+  const line = ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps)
+  assert.match(line ?? '', /^SECTION_TEAM_MEMORY_LIMIT_MB is 1 MB, under the 1024 MB floor/)
+  assert.ok(!line.includes('\n'))
+  assert.equal(spawned.length, 1)
+  assert.equal(readGuardRecord(deps.home).limit, 1024 * GUARD_MB)
+  assert.equal(ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps), null, 'a running guard says nothing more')
 })
 
 test("decide gives the same answers with a session id on a builder's Bash call", () => {
