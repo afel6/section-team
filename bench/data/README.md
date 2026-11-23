@@ -2,6 +2,8 @@
 
 The data behind [docs/benchmark-2026-10-24.md](../../docs/benchmark-2026-10-24.md), rounds 1–17. Later rounds have their own folders: [`heldout/`](heldout/) (the held-out round), [`modes/`](modes/) (the mode round), [`p1/`](p1/) (the p1 rounds and their recompute script), [`ph/`](ph/) and [`py/`](py/) (two more p1 rounds in p1's layout), [`hq/`](hq/) and [`fx/`](fx/). [`hq/README.md`](hq/README.md) explains hq, fx, ph and py and how to recompute them.
 
+[`nx/`](nx/) is for round nx (v0.6.0-rc.1 against v0.5.1 and Claude Code with the author's setup, on h8 to h10). For now it holds only its recompute script, `bench/data/nx/recompute.mjs`. The round's data arrives after the round: `summary.json`, `judge-nxcx.json` and `blind-key-nxcx.json` (Codex, the primary judge), `test-strength-nx.json`, `cost-by-role-nx.json`, `mode-check-nx.json`, `bars-nx.json` and `preflight-nx.json`. Then `node bench/data/nx/recompute.mjs` prints the round's tables from that folder alone.
+
 | File | What it holds |
 |---|---|
 | `summary.json` | One row per run (126 runs: 21 setups × 3 tasks × 2 runs): cost, tokens, wall time, agents spawned, hidden-test and own-test results, code size. |
