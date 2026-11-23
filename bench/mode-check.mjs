@@ -20,8 +20,9 @@ import { collectRolesFrom, isFileFailure, runSession } from './score.mjs'
 import { required } from './section-memory.mjs'
 
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
-// The setup in a run's condition, the part before its round tag ('team-mo' is team).
+// The setup in a run's condition, the part before its round tag ('team-mo' is team), and the round tag after it.
 const setupOf = cond => /^(solo|lean|team|max|base)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
+const roundOf = cond => /^(?:solo|lean|team|max|base)-([A-Za-z0-9]+)$/.exec(cond)?.[1] ?? null
 // The direct-job tasks: there team (the plugin with the direct tier) may do the fix itself, behind its own reviewer gate.
 // h8 is the round's; h5p is the pilot's L1 probe (h5's seed, its first bug report only).
 const DIRECT_TASKS = ['h8', 'h5p']
@@ -30,6 +31,10 @@ const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
 // The single-area tasks (the mode round's h5 and h6, the nx round's h9) and the multi-area ones (h4, h7, nx's h10).
 const SMALL_TASKS = ['h5', 'h6', 'h9']
 const MULTI_AREA_TASKS = ['h4', 'h7', 'h10']
+// The rounds whose Balanced arms (base at v0.5.1, team at the rc) run a brief that sends a small or single-area task to
+// the matching builder section and no other builder section (brief/tiers-balanced.md, the same lines at v0.5.1): the nx
+// round and its pilot pnx. Every earlier round keeps the mode round's rule (testing and no other section).
+const ONE_BUILDER_ROUNDS = ['nx', 'pnx']
 const NEAR_MISS = '.team/near-miss/'
 const toPosix = path => path.split(sep).join('/').replaceAll('\\', '/')
 
@@ -142,7 +147,8 @@ function gateRules(roles, mode, max) {
   ])
 }
 
-// The sections a mode must wake on a task, and on the single-area tasks (SMALL_TASKS) the only ones it may wake.
+// The sections a mode must wake on a task, and on the single-area tasks (SMALL_TASKS) the only ones it may wake: the
+// mode round's rule, which every run keeps except a one-builder run (oneBuilderRules).
 function sectionPlan(mode, task) {
   const small = SMALL_TASKS.includes(task)
   if (mode === 'max') return { need: ['testing', 'security'], only: small ? ['testing', 'security'] : null }
@@ -157,6 +163,19 @@ function sectionRules(mode, task, woken) {
   const extra = only === null ? [] : [...sections].filter(head => !only.includes(head))
   const allowed = only?.length ? `only ${listed(only)} allowed` : 'none allowed'
   return [...missing, ...(extra.length ? [`${task} woke ${listed(extra)} (${allowed})`] : [])]
+}
+
+// A Balanced run on a single-area task in a round of ONE_BUILDER_ROUNDS.
+const isOneBuilderRun = (mode, task, cond) => mode === 'balanced' && SMALL_TASKS.includes(task) && ONE_BUILDER_ROUNDS.includes(roundOf(cond))
+
+// The builder sections main itself woke, each once, in wake order: a section's own wake-ups are not the supervisor's choice.
+const mainBuilders = woken => [...new Set(woken.filter(w => w.caller === 'main' && BUILDERS.includes(w.section)).map(w => w.section))]
+
+// A one-builder run: main wakes exactly one builder section; testing, docs, security and advisors are allowed.
+function oneBuilderRules(task, woken) {
+  const builders = mainBuilders(woken)
+  if (builders.length === 0) return ['no builder woken']
+  return builders.length > 1 ? [`${task} woke ${listed(builders)} (one builder allowed)`] : []
 }
 
 // A testing-section tool call wrote into .team/near-miss/: a Write, Edit or MultiEdit of a file under the run's
@@ -175,9 +194,10 @@ function nearMissRules(roles, runDir) {
 }
 
 // The tier the supervisor chose: only its own wake-ups count, not a section's (testing waking backend). Team on the
-// direct-job task with no section woken is the direct tier.
-const tierOf = (woken, direct = false) => {
+// direct-job task with no section woken is the direct tier; a one-builder run with one builder woken is single.
+const tierOf = (woken, direct = false, oneBuilder = false) => {
   const own = woken.filter(w => w.caller === 'main')
+  if (oneBuilder && mainBuilders(woken).length === 1) return 'single'
   if (own.some(w => BUILDERS.includes(w.section))) return 'multi'
   if (own.some(w => w.section === 'testing')) return 'single'
   return direct && woken.length === 0 ? 'direct' : 'small'
@@ -197,7 +217,8 @@ export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
   const mode = modeOfCond(setupOf(cond)) // base, the control arm, is Balanced like team and held to its rules
   if (mode === null) throw new Error(`unknown setup "${cond}"`)
   const woken = wakeUps(roles)
-  const tier = tierOf(woken, setupOf(cond) === 'team' && DIRECT_TASKS.includes(task))
+  const oneBuilder = isOneBuilderRun(mode, task, cond)
+  const tier = tierOf(woken, setupOf(cond) === 'team' && DIRECT_TASKS.includes(task), oneBuilder)
   const gate = gateFor(mode, pluginVersion)
   const broken = [
     ...recordRules(mode, record),
@@ -205,7 +226,7 @@ export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
     ...(MULTI_AREA_TASKS.includes(task) ? multiAreaRules(roles, woken, runDir) : []),
     ...reviewerRules(roles, mode),
     ...gateRules(roles, mode, gate.fixRounds),
-    ...sectionRules(mode, task, woken),
+    ...(oneBuilder ? oneBuilderRules(task, woken) : sectionRules(mode, task, woken)),
     ...(gate.nearMiss ? nearMissRules(roles, runDir) : []),
     ...(tier === 'direct' ? directRules(roles) : []),
   ]

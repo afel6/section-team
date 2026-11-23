@@ -548,17 +548,7 @@ test('h7 is held to the rules of h4, the other multi-area task', t => {
 })
 
 // The nx round's other tasks: h9 is single-area (a library and a CLI, like h6), h10 multi-area (an API, a page and a
-// JSON file, like h4). Each gets its kind's rules, for the control arm base as for team.
-test('h9 is held to the rules of h5 and h6, the single-area tasks, for team and base', t => {
-  const dir = runDir(t)
-  for (const cond of ['team-nx', 'base-nx']) {
-    const check = roles => checkRun({ cond, task: 'h9', roles, runDir: dir, record: 'balanced' })
-    assert.deepEqual(check(teamH6()), { faithful: true, broken: [], tier: 'single' }, cond)
-    assert.deepEqual(check(teamH6([wake(9, 'backend')])), { faithful: false, broken: ['h9 woke backend (only testing allowed)'], tier: 'multi' }, cond)
-    assert.deepEqual(check([main_()]).broken, ['testing not woken'], cond)
-  }
-})
-
+// JSON file, like h4). Each gets its kind's rules, for the control arm base as for team (h9's are further down).
 test('h10 is held to the rules of h4 and h7, the multi-area tasks, for team and base', t => {
   const dir = runDir(t)
   for (const cond of ['team-nx', 'base-nx']) {
@@ -599,6 +589,72 @@ test('base is held to Balanced\'s rules like team; on h8 team\'s direct job is f
   assert.equal(check('base-nx', [main_(write(1, 'src/server.mjs', 'Edit'))]).tier, 'small', 'base keeps the old rules and labels on h8')
   assert.equal(checkRun({ cond: 'team-nx', task: 'h9', roles: direct(), runDir: dir, record: 'balanced' }).tier, 'small', 'the direct tier is h8\'s')
   assert.equal(checkRun({ cond: 'team-pnx', task: 'h5p', roles: direct(), runDir: dir, record: 'balanced' }).tier, 'direct', 'and the pilot probe\'s, h5p')
+})
+
+// The nx round and its pilot pnx: both arms' Balanced brief (brief/tiers-balanced.md, the same lines at v0.5.1) says a
+// small or single-area task wakes the matching builder section and no other builder section. There h5, h6 and h9 are
+// faithful when main woke exactly one builder, at tier single; testing, docs, security and advisors are allowed.
+const twoBuilders = () => [
+  main_(wake(1, 'backend'), wake(2, 'frontend')),
+  section('backend', 'b1', [userLine(3, 'job'), wake(4, 'reviewer')]),
+  section('frontend', 'f1', [userLine(3, 'job'), wake(4, 'reviewer')]),
+  ...reviews('b1', [[5, 9]]), ...reviews('f1', [[6, 9]]),
+]
+
+test('nx and pnx hold Balanced on h5, h6 and h9 to one builder woken by main, at tier single, for base and team', t => {
+  const dir = runDir(t)
+  for (const cond of ['base-nx', 'team-nx', 'base-pnx', 'team-pnx']) {
+    for (const task of ['h5', 'h6', 'h9']) {
+      const check = roles => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+      const at_ = `${cond} ${task}`
+      assert.deepEqual(check(viaBackend()), { faithful: true, broken: [], tier: 'single' }, at_)
+      assert.deepEqual(check(twoBuilders()), { faithful: false, broken: [`${task} woke backend, frontend (one builder allowed)`], tier: 'multi' }, at_)
+      assert.deepEqual(check(teamH6()), { faithful: false, broken: ['no builder woken'], tier: 'single' }, `${at_}: testing alone is no builder`)
+      assert.deepEqual(check([main_()]), { faithful: false, broken: ['no builder woken'], tier: 'small' }, at_)
+    }
+  }
+})
+
+test('the one-builder rule allows testing, docs, security and advisors, counts a builder woken twice once, and reads only main\'s wake-ups', t => {
+  const dir = runDir(t)
+  const check = roles => checkRun({ cond: 'base-nx', task: 'h9', roles, runDir: dir, record: 'balanced' })
+  const others = [wake(6, 'testing'), wake(7, 'docs'), wake(8, 'security'), wake(9, 'ai-engineer')]
+  assert.deepEqual(check(viaBackend().map(r => (r.role === 'main' ? main_(...r.messages, ...others) : r))), { faithful: true, broken: [], tier: 'single' })
+  assert.deepEqual(check([main_(wake(1, 'backend'), wake(9, 'backend')), ...viaBackend().slice(1)]), { faithful: true, broken: [], tier: 'single' })
+  const sectionWoke = [main_(wake(1, 'backend')), section('backend', 'b1', [userLine(2, 'job'), wake(3, 'frontend'), wake(4, 'reviewer')]), ...reviews('b1', [[5, 9]])]
+  assert.deepEqual(check(sectionWoke), { faithful: true, broken: [], tier: 'single' }, 'a builder a section woke is not the supervisor\'s choice')
+})
+
+test('every round before nx keeps the mode round\'s rule on h5, h6 and h9; max and h8, h5p and h10 rows are unchanged in nx', t => {
+  const dir = runDir(t)
+  for (const cond of ['team-mo', 'team-sm']) {
+    const check = (task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+    assert.deepEqual(check('h5', teamH6()), { faithful: true, broken: [], tier: 'single' }, `${cond}: testing alone is still faithful`)
+    assert.deepEqual(check('h9', viaBackend()), { faithful: false, broken: ['testing not woken', 'h9 woke backend (only testing allowed)'], tier: 'multi' }, cond)
+  }
+  const max = checkRun({ cond: 'max-pnx', task: 'h5', roles: maxH5(), runDir: maxDir(t), record: 'max' })
+  assert.deepEqual(max, { faithful: true, broken: [], tier: 'single' }, 'max keeps its own rule')
+  const nx = (cond, task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+  assert.deepEqual(nx('base-nx', 'h8', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(nx('base-pnx', 'h5p', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(nx('team-nx', 'h10', [...teamH4(dir, [], ['backend', 'testing', 'docs'])]), { faithful: false, broken: ['main did not wake frontend'], tier: 'multi' })
+})
+
+test('modeCheck applies the one-builder rule by the round it reads: --round=pnx does, --round=mo does not', t => {
+  const results = runDir(t)
+  const dir = runDir(t)
+  writeRun(results, 'h5-base-pnx-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  writeRun(results, 'h6-team-pnx-r1', { dir, roles: teamH6(), record: 'balanced' })
+  writeRun(results, 'h5-team-mo-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  writeRun(results, 'h6-team-mo-r1', { dir, roles: teamH6(), record: 'balanced' })
+  assert.deepEqual(modeCheck({ results, round: 'pnx' }), {
+    'h5-base-pnx-r1': { cond: 'base-pnx', task: 'h5', faithful: true, broken: [], tier: 'single' },
+    'h6-team-pnx-r1': { cond: 'team-pnx', task: 'h6', faithful: false, broken: ['no builder woken'], tier: 'single' },
+  })
+  assert.deepEqual(modeCheck({ results, round: 'mo' }), {
+    'h5-team-mo-r1': { cond: 'team-mo', task: 'h5', faithful: false, broken: ['testing not woken', 'h5 woke backend (only testing allowed)'], tier: 'multi' },
+    'h6-team-mo-r1': { cond: 'team-mo', task: 'h6', faithful: true, broken: [], tier: 'single' },
+  })
 })
 
 // A pin with solo's built-in agents and each arm's commit, and a run.json as run.mjs writes it.

@@ -607,9 +607,20 @@ test('CONTRIBUTING lists the generated direct-build skill and documents the roun
   ], 'CONTRIBUTING harness')
 })
 
+// The round settings are the ones the harness reads before any paid run and the preflight pins (bench/preflight.mjs
+// roundPin); --task-reps is read only by bench/anonymize.mjs after the round, so it sits with the anonymize sentence.
+test('CONTRIBUTING keeps --task-reps out of the round settings the preflight pins, beside the anonymize sentence', () => {
+  const text = read('CONTRIBUTING.md')
+  const settings = text.slice(text.indexOf('- Round settings'), text.indexOf('\n## Rules'))
+  assert.ok(settings.startsWith('- Round settings ('), 'the round settings list')
+  assert.ok(!settings.includes('--task-reps'), 'the round settings list names --task-reps, which no preflight pins')
+  const bench = text.split('\n').find(line => line.startsWith('- `bench/` is the benchmark harness.')) ?? ''
+  assert.ok(bench.includes('`bench/anonymize.mjs --round=`') && bench.includes('`--task-reps=<task>:<n>,...`'), 'the anonymize sentence names --task-reps')
+})
+
 test('the data README describes the nx folder as it exists: a recompute script, data after the round', () => {
   assertIncludes(read('bench/data/README.md'), ['[`nx/`](nx/)', 'node bench/data/nx/recompute.mjs'], 'data README nx')
   const nx = read('bench/data/README.md').split(String.fromCharCode(10)).find((l) => l.includes("[`nx/`](nx/)")) ?? ""
   assert.ok(nx.includes('plain Claude Code'), 'nx arm is plain Claude Code on the clean profile')
-  assert.ok(!nx.includes('BASELINE') && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
+  assert.ok(!nx.includes(BASELINE) && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
 })

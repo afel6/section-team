@@ -364,9 +364,12 @@ test('max tells the second final review that it is the second, at no cost in cha
 test('balanced carries the direct tier first in its tiers, its gate line, and stays within 8,900 characters', () => {
   assert.equal(lines(part('tiers-balanced'))[0], DIRECT_TIER)
   const gate = lines(part('gate-balanced'))
+  // A failed direct job stays with the supervisor: a section woken for it would be a builder on a direct job. Read from
+  // the file itself, before the exact-text check, so an edit to both the line and DIRECT_GATE still meets it.
+  const directLine = gate.find(line => line.startsWith('- A direct job'))
+  assert.ok(directLine, 'gate-balanced.md has a direct-job line')
+  assert.ok(!/section(?!-team:reviewer)|builder|wake/i.test(directLine), `the direct-job gate hands nothing to a section: ${directLine}`)
   assert.ok(gate.indexOf(DIRECT_GATE) > 0, 'the direct-job gate line is in gate-balanced.md, after the first line')
-  // A failed direct job stays with the supervisor: a section woken for it would be a builder on a direct job.
-  assert.ok(!DIRECT_GATE.replace('section-team:reviewer', '').includes('section'), 'the direct-job gate hands nothing to a section')
   const balanced = assembleBrief('balanced')
   for (const text of ['except a direct job', 'section-team:direct-build', DIRECT_GATE]) assert.ok(balanced.includes(text), `balanced lacks "${text.slice(0, 60)}"`)
   assert.ok(balanced.length <= 8900, `balanced brief is ${balanced.length} chars`)
