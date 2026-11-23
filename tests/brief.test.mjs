@@ -14,8 +14,6 @@ const MODES = ['balanced', 'max']
 const JOB_GATE = "Every job message states this mode's gate"
 const NEAR_MISS_RULE = '- The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.'
 const LITERAL = "- costs $& and $1 and $$ and $'"
-const DIRECT_TIER = '- You write no code, tests or docs yourself, except a direct job: a question, a read, or a change of about 30 lines or less of non-test code in existing code that adds no feature (a reported bug, a typo, a rename, a config value). Load `section-team:direct-build` for it; wake no section. When unsure, wake the builder.'
-const DIRECT_GATE = '- A direct job that changes behaviour gets this gate too: you run `section-team:reviewer` on your changed files (no `model`), fix a fail yourself and re-grade, at most 2 fix rounds, then tell the user what is left; docs, rename and config-value edits skip it.'
 const temps = []
 
 const part = name => readFileSync(join(BRIEF_DIR, `${name}.md`), 'utf8')
@@ -190,7 +188,7 @@ test('every mode sends small and single-area jobs to a builder section, and noth
     }
     const brief = assembleBrief(mode)
     assert.ok(brief.includes(BUILDER_LINE), mode)
-    assert.ok(!/(?<!not )\bbuild\b/i.test(brief.replace('wake specialist sections to build', '').replace('section-team:direct-build', '')), `${mode}: a sentence still tells the supervisor to build`)
+    assert.ok(!/(?<!not )\bbuild\b/i.test(brief.replace('wake specialist sections to build', '')), `${mode}: a sentence still tells the supervisor to build`)
     for (const old of ['Wake nobody', 'doing small work yourself', 'Wake no builder section']) assert.ok(!brief.includes(old), `${mode}: still says "${old}"`)
     assert.ok(brief.length < 9000, `${mode} brief is ${brief.length} chars`)
   }
@@ -273,8 +271,8 @@ test('every line of the mode rules is a line of the assembled brief', () => {
 })
 
 test('max gates keep the balanced gate rules that do not depend on the mode', () => {
-  // Max grades every changed file, so Balanced's docs-only skip is not one of them, and Max has no direct job.
-  const shared = lines(part('gate-balanced')).filter(line => !line.includes('Pass:') && !line.includes('fix round') && !line.startsWith('- Docs-only') && !line.startsWith('- A direct job'))
+  // Max grades every changed file, so Balanced's docs-only skip is not one of them.
+  const shared = lines(part('gate-balanced')).filter(line => !line.includes('Pass:') && !line.includes('fix round') && !line.startsWith('- Docs-only'))
   assert.ok(shared.length > 0)
   for (const mode of ['max']) {
     const own = new Set(lines(part(`gate-${mode}`)))
@@ -283,13 +281,10 @@ test('max gates keep the balanced gate rules that do not depend on the mode', ()
 })
 
 // p1 round: the supervisor building code itself drove its chat to 189K-205K. Its gate is the one it gives sections and runs on ungraded work.
-// 0.6.0 L1: Balanced makes one exception, the direct job; Max keeps every job in a section.
-test('every mode tells the supervisor which code, tests or docs it writes, and its gate is for sections', () => {
-  assert.ok(assembleBrief('max').includes('\n- Every job goes to a section you wake; you write no code, tests or docs yourself.\n'))
-  assert.ok(assembleBrief('balanced').includes(`\n${DIRECT_TIER}\n`))
-  assert.ok(!assembleBrief('balanced').includes('Every job goes to a section you wake'))
+test('every mode tells the supervisor it writes no product code, tests or docs, and its gate is for sections', () => {
   for (const mode of MODES) {
     const brief = assembleBrief(mode)
+    assert.ok(brief.includes('\n- Every job goes to a section you wake; you write no code, tests or docs yourself.\n'), mode)
     assert.ok(brief.includes('\n## Reviewer gate\n- On a `Status: ungraded` REPORT, run Agent `section-team:reviewer` on its changed files and the spec'), mode)
     assert.ok(brief.includes('- If it fails, send the fix list to the section and grade again with the earlier GRADE block: at most 2 fix rounds.'), mode)
     assert.ok(brief.includes('- Tell each code builder to map every OS error its code can hit'), mode)
@@ -360,22 +355,7 @@ test('max tells the second final review that it is the second, at no cost in cha
   assert.ok(max.length <= 8950, `max brief is ${max.length} chars: an addition must be paid for by a cut`)
 })
 
-// 0.6.0 L1 (U5): in Balanced the supervisor does a direct job itself and gates it when it changes behaviour.
-test('balanced carries the direct tier first in its tiers, its gate line, and stays within 8,900 characters', () => {
-  assert.equal(lines(part('tiers-balanced'))[0], DIRECT_TIER)
-  const gate = lines(part('gate-balanced'))
-  // A failed direct job stays with the supervisor: a section woken for it would be a builder on a direct job. Read from
-  // the file itself, before the exact-text check, so an edit to both the line and DIRECT_GATE still meets it.
-  const directLine = gate.find(line => line.startsWith('- A direct job'))
-  assert.ok(directLine, 'gate-balanced.md has a direct-job line')
-  assert.ok(!/section(?!-team:reviewer)|builder|wake/i.test(directLine), `the direct-job gate hands nothing to a section: ${directLine}`)
-  assert.ok(gate.indexOf(DIRECT_GATE) > 0, 'the direct-job gate line is in gate-balanced.md, after the first line')
-  const balanced = assembleBrief('balanced')
-  for (const text of ['except a direct job', 'section-team:direct-build', DIRECT_GATE]) assert.ok(balanced.includes(text), `balanced lacks "${text.slice(0, 60)}"`)
-  assert.ok(balanced.length <= 8900, `balanced brief is ${balanced.length} chars`)
-})
-
-// PR-B guard: the direct tier is Balanced-only; Max and gate-max.md stay exactly as at v0.5.1 (043e00d).
+// PR-B guard: Max has no direct tier, and gate-max.md stays exactly as at v0.5.1 (043e00d).
 test('max has no direct tier and gate-max.md is unchanged', () => {
   const max = assembleBrief('max')
   assert.ok(!max.includes('direct job') && !max.includes('direct-build'))
