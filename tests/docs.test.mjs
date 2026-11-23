@@ -611,5 +611,5 @@ test('the data README describes the nx folder as it exists: a recompute script, 
   assertIncludes(read('bench/data/README.md'), ['[`nx/`](nx/)', 'node bench/data/nx/recompute.mjs'], 'data README nx')
   const nx = read('bench/data/README.md').split(String.fromCharCode(10)).find((l) => l.includes("[`nx/`](nx/)")) ?? ""
   assert.ok(nx.includes('plain Claude Code'), 'nx arm is plain Claude Code on the clean profile')
-  assert.ok(!nx.includes('BASELINE') && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
+  assert.ok(!nx.includes(BASELINE) && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
 })
