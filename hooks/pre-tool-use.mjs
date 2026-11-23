@@ -244,7 +244,8 @@ export function ensureGuard(e, env, deps) {
   if (bytes === null) return problem === null ? null : badLimitOnce(deps.home, e.session_id, problem)
   const record = nodePath.join(modeRecordDir(deps.home), `${e.session_id}${GUARD_SUFFIX}`)
   const mtime = mtimeOrNull(record)
-  if (mtime !== null && deps.now() - mtime < FRESH_MS) return null
+  // A running guard, or a failed start waiting its RETRY_MS (claim would refuse it too), costs no project settings check.
+  if (mtime !== null && (deps.now() - mtime < FRESH_MS || recentFailure(record, deps.now()))) return null
   // ponytail: a vetoed session checks its folders again (a few git calls) on each section shell call; keep a marker here if that shows.
   const veto = projectGuardVeto(e, env, deps.home)
   if (veto !== null) return badLimitOnce(deps.home, e.session_id, veto)

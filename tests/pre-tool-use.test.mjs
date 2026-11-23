@@ -895,6 +895,16 @@ test('project settings that cannot be checked keep the guard off, with one line 
   assert.equal(spawned.length + listed.length, 0)
 })
 
+test('while a failed start waits its 10 minutes, the project settings are not checked again', () => {
+  const cwd = tempDir()
+  writeFileSync(join(cwd, '.git'), 'gitdir: ./nowhere\n') // a check here would give its line and write the said-once marker
+  const { deps, spawned, listed } = guardDeps()
+  writeGuardRecord(deps.home, { failed: { at: Date.now(), problem: 'ETIMEDOUT' } }, 60 * 1000)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.deepEqual(readdirSync(join(deps.home, '.claude', 'section-team', 'modes')), ['sess-1.guard.json'], 'no check, so no marker')
+  assert.equal(spawned.length + listed.length, 0)
+})
+
 // A bench run folder: a git repo with an 'init' commit, the seed committed on top, .team/mode.json left uncommitted, no .claude/.
 const benchRunFolder = () => {
   const dir = tempDir()
