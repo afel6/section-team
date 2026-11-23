@@ -531,7 +531,12 @@ test('the how-it-works doc keeps the README details it took, and the README poin
     'Balanced is above the 8.60 scale ceiling', "the handback gate uses the new mode's pass mark at once", 'A change to `autoInstallSkills` applies from the next session.',
     'and prompts are not saved or checked', '(for example, its input names no project folder)', 'then on the two single-area tasks alone',
     '- `npm test` — hook logic (node:test)', '- `node scripts/gen-agents.mjs --check` — agent files match the roster',
+    'a fresh-profile run of the marketplace install, disable and uninstall has not been recorded yet',
+    "its notes are not your approved decisions until you confirm them",
+    'The coder and the reviewer carry the same safety rule.', 'on one Windows laptop',
   ], 'how-it-works doc')
+  assert.ok(read('hooks/session-start.mjs').includes("its notes are not the user's approved decisions until the user confirms them"), 'the notes line the supervisor gets')
+  assert.ok(sourceConst('scripts/gen-agents.mjs', 'SAFETY').includes('never delete a file or folder outside the project folder'), 'the safety rule covers deletes')
   assert.ok(!read(LONG_DOC).includes('the Results figures above'), 'no pointer to text that moved')
 })
 
@@ -564,9 +569,66 @@ test('SECURITY.md lists the known limits', () => {
   assert.ok(read('.claude-plugin/marketplace.json').includes('"source": "./"'), 'the marketplace serves the repo root')
   assertIncludes(limits, [
     'The reviewer holds Bash', 'process tree', '`bench/` ships in the plugin', 'can add hooks',
-    '`ANTHROPIC_DEFAULT_OPUS_MODEL`', 'for every section head', 'covers only the install switch (`SECTION_TEAM_AUTO_INSTALL_SKILLS`) and `HOME` or `USERPROFILE`',
+    '`ANTHROPIC_DEFAULT_OPUS_MODEL`', 'for every section head',
+    'covers only the install switch (`SECTION_TEAM_AUTO_INSTALL_SKILLS`), the memory limit (`SECTION_TEAM_MEMORY_LIMIT_MB`) and `HOME` or `USERPROFILE`',
+    "in the session's folder, its checkout's top folder (a linked worktree's own) and the main checkout",
     'Every push to `main` ships', '`main` moves only at releases',
   ], 'Known limits')
+  // The memory guard asks the same check as the install switch, over the same folders.
+  assert.ok(read('hooks/pre-tool-use.mjs').includes('settingsVeto(dir, LIMIT_VAR, home)'), 'the guard veto')
+  assert.ok(read('hooks/lib/project-settings.mjs').includes('[cwd, topFolder(cwd), projectRoot(cwd)]'), 'the folders checked')
+  const out = section(read('SECURITY.md'), 'Out of scope')
+  assert.ok(out.includes('other than the four the plugin checks') && !out.includes('the three the plugin checks'), 'Out of scope count')
+})
+
+test('the README memory guard line gives the floor, the project veto and the Windows stop, as the code does', () => {
+  const floor = sourceConst('hooks/lib/memory-guard.mjs', 'LIMIT_FLOOR_MB')
+  assert.equal(floor, '1024')
+  assert.ok(read('hooks/memory-guard.mjs').includes('On Windows every signal ends the process at once'), 'the runner says why SIGTERM is enough there')
+  const guard = section(read('README.md'), 'Use').split('**Memory guard (opt-in).**')[1]?.split('\n')[0] ?? ''
+  assertIncludes(guard, [
+    `and 1 to ${floor - 1} runs as ${floor} MB, with one line`,
+    'Project `.claude` settings that set the limit, `HOME` or `USERPROFILE` keep the guard off, one line per session.',
+    'on Windows any stop signal ends the process at once',
+  ], 'memory guard entry')
+})
+
+test('the docs say a suggested skill installs unattended only with a trusted owner, and session start names the reapply command', () => {
+  assert.ok(read('skills/add-skill/SKILL.md').includes("A section's `Suggested skill:` and a skill found by the search section below skip this question only when all three hold"), 'add-skill step 6')
+  assert.ok(read('hooks/session-start.mjs').includes("scripts', 'assign-skill.mjs')}\" --reapply"), 'session start prints the command')
+  const readme = read('README.md')
+  assert.ok(section(readme, 'What changes in your sessions').includes('unless you set `SECTION_TEAM_AUTO_INSTALL_SKILLS=1` in your user settings and trust its owner'), 'What changes')
+  assertIncludes(section(readme, 'Sections'), [
+    '(session start shows the exact command when the agents lack it)',
+    'With automatic installs on, a suggested or found skill installs without asking only if its owner is listed in `~/.claude/section-team/trusted-sources.json`',
+  ], 'README Sections')
+  const how = read(HOW_DOC)
+  assert.ok(!how.includes('To let it install without asking whenever the review finds no red flag'), 'old how-it-works sentence')
+  assertIncludes(how, ['and list its GitHub owner in `~/.claude/section-team/trusted-sources.json`', 'session start shows that exact command, with the real path,'], 'how-it-works')
+})
+
+test('the docs say the status file redacts recognised secrets in the request it keeps', () => {
+  assert.ok(read('hooks/sessions-model.mjs').includes('request: redact(request)'), 'statusRecord redacts')
+  assert.equal(sourceConst('hooks/sessions-model.mjs', 'REQUEST_MAX'), '80')
+  assert.ok(section(read('README.md'), 'What changes in your sessions').includes('the first 80 characters of your latest request with recognised secrets replaced by `[redacted]`'), 'README')
+  assert.ok(read(HOW_DOC).includes('the first line of your latest request (recognised secrets replaced by `[redacted]`, cut to 80 characters)'), 'how-it-works')
+})
+
+// Docs pass 2 fills or drops the direct-tier placeholder: change the two placeholder pins below then, red first.
+test('the changelog opens with a 0.6.0 section, grouped, with one placeholder for the direct tier', () => {
+  const log = read('CHANGELOG.md')
+  const headings = log.split('\n').filter(line => line.startsWith('## '))
+  assert.ok(headings[0].startsWith('## 0.6.0 ('), headings[0])
+  assert.equal(headings[1], '## 0.5.1 (2026-11-22)')
+  const next = log.split(`\n${headings[0]}\n`)[1].split('\n## ')[0]
+  for (const group of ['Safety and trust', 'Behaviour', 'Board', 'Install and updates', 'Benchmark']) assert.ok(next.includes(`\n**${group}**\n`), group)
+  assert.equal(next.split('\n').filter(line => line === '- (pending the nx round) Balanced direct tier.').length, 1, 'one placeholder line')
+  assert.ok(!/direct (?:tier|job)/i.test(next.replace('- (pending the nx round) Balanced direct tier.', '')), 'no other direct-tier line')
+  assert.ok(read('scripts/roster-extra.json').trim() === '{}', 'the shipped roster is empty')
+  assertIncludes(next, ['`scripts/roster-extra.json`', 'assign-skill.mjs" <skill> <section>', '--reapply', '1024 MB', 'recognised secrets', 'trusted-sources.json', 'linked worktree', '`opus` model alias'], '0.6.0 section')
+  // redact.mjs also keeps a plain word after --password/--token or Authorization: Basic, so only placeholder-like values need to be whole.
+  assert.ok(next.includes('a value that looks like a placeholder is kept only when it is a whole one, such as `$NAME`'), 'narrow placeholder clause')
+  assert.ok(!next.includes('a value is kept only when it is a whole placeholder'), 'old clause overstates what is redacted')
 })
 
 test('the bug report asks for the Plugin: line and the install method, not a commit', () => {
