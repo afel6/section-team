@@ -33,7 +33,7 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 - A rename re-reads `names.json` first, so names another chat saved are kept, and a poll tick is skipped while the last one still runs.
 
 **Install and updates**
-- The plugin ships an empty roster (`scripts/roster-extra.json`), so the go-to skills 0.5.1 added to some sections are gone, and so is any skill you assigned under 0.5.1; to keep one, assign it again once with `node "<plugin root>/scripts/assign-skill.mjs" <skill> <section>`.
+- The plugin ships an empty roster (`scripts/roster-extra.json`), so sections lose the extra go-to skills 0.5.1's roster gave them and any assignment you made under 0.5.1 (the skills stay installed in `~/.claude/skills/`); to keep one, assign it again once with `node "<plugin root>/scripts/assign-skill.mjs" <skill> <section>`.
 - Your skill assignments are saved in `~/.claude/section-team/roster-extra.json`, outside the plugin folder: after a later `claude plugin update`, `node "<plugin root>/scripts/assign-skill.mjs" --reapply` restores them, and session start shows that exact command when the agents lack one.
 - add-skill no longer commits in the plugin folder.
 

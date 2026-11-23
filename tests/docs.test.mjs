@@ -614,12 +614,13 @@ test('the docs say the status file redacts recognised secrets in the request it 
   assert.ok(read(HOW_DOC).includes('the first line of your latest request (recognised secrets replaced by `[redacted]`, cut to 80 characters)'), 'how-it-works')
 })
 
-test('the changelog opens with an unreleased 0.6.0 section, grouped, with one placeholder for the direct tier', () => {
+// Docs pass 2 fills or drops the direct-tier placeholder: change the two placeholder pins below then, red first.
+test('the changelog opens with a 0.6.0 section, grouped, with one placeholder for the direct tier', () => {
   const log = read('CHANGELOG.md')
   const headings = log.split('\n').filter(line => line.startsWith('## '))
-  assert.equal(headings[0], '## 0.6.0 (unreleased)')
+  assert.ok(headings[0].startsWith('## 0.6.0 ('), headings[0])
   assert.equal(headings[1], '## 0.5.1 (2026-11-22)')
-  const next = log.split('\n## 0.6.0 (unreleased)\n')[1].split('\n## ')[0]
+  const next = log.split(`\n${headings[0]}\n`)[1].split('\n## ')[0]
   for (const group of ['Safety and trust', 'Behaviour', 'Board', 'Install and updates', 'Benchmark']) assert.ok(next.includes(`\n**${group}**\n`), group)
   assert.equal(next.split('\n').filter(line => line === '- (pending the nx round) Balanced direct tier.').length, 1, 'one placeholder line')
   assert.ok(!/direct (?:tier|job)/i.test(next.replace('- (pending the nx round) Balanced direct tier.', '')), 'no other direct-tier line')
