@@ -27,8 +27,9 @@ const setupOf = cond => /^(solo|lean|team|max|base)-[A-Za-z0-9]+$/.exec(cond)?.[
 const DIRECT_TASKS = ['h8', 'h5p']
 const REVIEWER = 'section-team:reviewer'
 const REVIEWER_MODEL = { lean: 'sonnet', balanced: 'opus', max: 'opus' }
-const SMALL_TASKS = ['h5', 'h6']
-const MULTI_AREA_TASKS = ['h4', 'h7']
+// The single-area tasks (the mode round's h5 and h6, the nx round's h9) and the multi-area ones (h4, h7, nx's h10).
+const SMALL_TASKS = ['h5', 'h6', 'h9']
+const MULTI_AREA_TASKS = ['h4', 'h7', 'h10']
 const NEAR_MISS = '.team/near-miss/'
 const toPosix = path => path.split(sep).join('/').replaceAll('\\', '/')
 
@@ -109,7 +110,7 @@ function mainWrites(roles, runDir) {
   return [...new Set(inside)].filter(rel => !allowed(rel))
 }
 
-// h4 and h7, every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
+// The multi-area tasks (MULTI_AREA_TASKS), every mode: main wakes backend and frontend, someone wakes docs, and main writes no source itself.
 function multiAreaRules(roles, woken, runDir) {
   const byMain = new Set(woken.filter(w => w.caller === 'main').map(w => w.section))
   const missing = ['backend', 'frontend'].filter(head => !byMain.has(head)).map(head => `main did not wake ${head}`)
@@ -141,7 +142,7 @@ function gateRules(roles, mode, max) {
   ])
 }
 
-// The sections a mode must wake on a task, and on h5 and h6 the only ones it may wake.
+// The sections a mode must wake on a task, and on the single-area tasks (SMALL_TASKS) the only ones it may wake.
 function sectionPlan(mode, task) {
   const small = SMALL_TASKS.includes(task)
   if (mode === 'max') return { need: ['testing', 'security'], only: small ? ['testing', 'security'] : null }

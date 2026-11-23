@@ -547,6 +547,30 @@ test('h7 is held to the rules of h4, the other multi-area task', t => {
   assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'])
 })
 
+// The nx round's other tasks: h9 is single-area (a library and a CLI, like h6), h10 multi-area (an API, a page and a
+// JSON file, like h4). Each gets its kind's rules, for the control arm base as for team.
+test('h9 is held to the rules of h5 and h6, the single-area tasks, for team and base', t => {
+  const dir = runDir(t)
+  for (const cond of ['team-nx', 'base-nx']) {
+    const check = roles => checkRun({ cond, task: 'h9', roles, runDir: dir, record: 'balanced' })
+    assert.deepEqual(check(teamH6()), { faithful: true, broken: [], tier: 'single' }, cond)
+    assert.deepEqual(check(teamH6([wake(9, 'backend')])), { faithful: false, broken: ['h9 woke backend (only testing allowed)'], tier: 'multi' }, cond)
+    assert.deepEqual(check([main_()]).broken, ['testing not woken'], cond)
+  }
+})
+
+test('h10 is held to the rules of h4 and h7, the multi-area tasks, for team and base', t => {
+  const dir = runDir(t)
+  for (const cond of ['team-nx', 'base-nx']) {
+    const check = roles => checkRun({ cond, task: 'h10', roles, runDir: dir, record: 'balanced' })
+    assert.deepEqual(check(teamH4(dir)), { faithful: true, broken: [], tier: 'multi' }, cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'docs'])).broken, ['testing not woken'], cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'testing', 'docs'])).broken, ['main did not wake frontend'], cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'testing'])).broken, ['docs not woken'], cond)
+    assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'], cond)
+  }
+})
+
 test('a round under any tag is checked: the setup comes from the part before the tag', t => {
   const dir = runDir(t)
   assert.deepEqual(checkRun({ cond: 'team-sm', task: 'h7', roles: teamH4(dir), runDir: dir, record: 'balanced' }), { faithful: true, broken: [], tier: 'multi' })
