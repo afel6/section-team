@@ -302,6 +302,25 @@ test('gateStats counts lean and max runs from evidence and leaves solo out', () 
   }
 })
 
+// The nx round's control arm: base runs v0.5.1 in Balanced, so its gate is read like team's.
+test('gateStats gives base runs a Balanced row beside team, and still leaves solo out', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-gate-base-'))
+  try {
+    const results = join(root, 'results')
+    evidenceRun(results, root, 'h8-base-nx-r1', 's-base', [review('2026-11-25T10:00:00Z', itemGrade(8, { size: 5 }))])
+    evidenceRun(results, root, 'h8-team-nx-r1', 's-team', [review('2026-11-25T10:00:00Z', itemGrade(9, { size: 6 }))])
+    evidenceRun(results, root, 'h8-solo-nx-r1', 's-solo', [review('2026-11-25T10:00:00Z', itemGrade(10, {}))])
+    const rows = gateStats({ results, round: 'nx', home: join(root, 'empty-home') })
+    assert.deepEqual(rows.map(r => [r.id, r.mode, r.noData, r.firstTryPasses, r.firstTryMeetsMark]), [
+      ['h8-base-nx-r1', 'balanced', false, 1, 0],
+      ['h8-team-nx-r1', 'balanced', false, 1, 1],
+    ])
+    assert.equal(modeOfCond('base'), 'balanced')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('a timed-out run with evidence but no result is a row, not a throw', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-gate-timeout-'))
   try {

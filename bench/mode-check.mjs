@@ -22,8 +22,6 @@ import { required } from './section-memory.mjs'
 export { BUILDERS, HEADS, gates, reviewerCalls, toolUses, wakeUps }
 // The setup in a run's condition, the part before its round tag ('team-mo' is team).
 const setupOf = cond => /^(solo|lean|team|max|base)-[A-Za-z0-9]+$/.exec(cond)?.[1] ?? null
-// base is the control arm: an older section-team in Balanced, held to team's rules.
-const modeOfSetup = setup => modeOfCond(setup === 'base' ? 'team' : setup)
 // The direct-job tasks: there team (the plugin with the direct tier) may do the fix itself, behind its own reviewer gate.
 // h8 is the round's; h5p is the pilot's L1 probe (h5's seed, its first bug report only).
 const DIRECT_TASKS = ['h8', 'h5p']
@@ -195,7 +193,7 @@ const failedRow = line => ({ faithful: false, broken: [line], tier: null })
 export function checkRun({ cond, task, roles, runDir, record, pluginVersion }) {
   if (setupOf(cond) === 'solo') return { faithful: true, broken: [], tier: null }
   if (roles === null) return failedRow('no data')
-  const mode = modeOfSetup(setupOf(cond))
+  const mode = modeOfCond(setupOf(cond)) // base, the control arm, is Balanced like team and held to its rules
   if (mode === null) throw new Error(`unknown setup "${cond}"`)
   const woken = wakeUps(roles)
   const tier = tierOf(woken, setupOf(cond) === 'team' && DIRECT_TASKS.includes(task))
