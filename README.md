@@ -4,7 +4,7 @@
 
 A Claude Code plugin that turns every session into a **supervisor** of a small engineering team: every job goes to a specialist builder **section**, three advisors give advice without changing files, and code passes a **reviewer gate** before it comes back. Each project picks a **mode** (Balanced or Max) or turns the team **off**, and a live **Team Board** shows who is working. Terms: [Glossary](#glossary).
 
-Current version: 0.5.1. What changed: [CHANGELOG.md](CHANGELOG.md).
+Current version: 0.6.0. What changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Quickstart
 - **What it does:** every request goes to an Opus specialist agent (a *section*), whose code must pass an Opus reviewer before it comes back to you.
