@@ -42,6 +42,7 @@ test('bench/bars-nx.json holds the plan\'s bars and keep rule', () => {
   assert.deepEqual([bar('C1').maxRatio, bar('Q1').minGap, bar('T1').minus, bar('V6').min, bar('V6').minTask], [0.75, -0.25, 1, 8, 4])
   assert.deepEqual(bar('H1').atLeast, [{ vs: 'solo', minus: 0 }, { vs: 'base', minus: 1 }])
   assert.deepEqual(CONFIG.tasks, { h8: { reps: 5 }, h9: { reps: 2 }, h10: { reps: 2 } })
+  assert.equal(bar('V4').held, 'main and every section whose agent file declares opus or claude-opus-* answer as claude-opus-5-5; other roles are reported, not checked', 'the pre-registration says what V4 checks')
 })
 
 test('a world that meets every bar keeps L1, and reports h9 and h10', () => {

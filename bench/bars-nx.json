@@ -13,7 +13,7 @@
     { "id": "V1b", "kind": "controlValid", "task": "h8", "setup": "base" },
     { "id": "V2", "kind": "plainBaseline", "setup": "solo" },
     { "id": "V3", "kind": "commits" },
-    { "id": "V4", "kind": "models" },
+    { "id": "V4", "kind": "models", "held": "main and every section whose agent file declares opus or claude-opus-* answer as claude-opus-5-5; other roles are reported, not checked" },
     { "id": "V5", "kind": "timeLimits" },
     { "id": "V6", "kind": "usableGroups", "min": 8, "task": "h8", "minTask": 4 }
   ],
