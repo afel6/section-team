@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { redact } from '../hooks/lib/redact.mjs'
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 // Every value here is made up for the test.
 test('NAME=value is redacted when the name says key, token, secret or password, in any case, and keeps its name', () => {
@@ -74,4 +80,37 @@ test('a long run of name characters with no = stays fast', () => {
   assert.equal(redact(run), run)
   assert.equal(redact(`${run}=x`).endsWith('=x'), true, 'a name longer than the limit is not read as a name')
   assert.ok(performance.now() - started < 1000, `took ${performance.now() - started} ms`)
+})
+
+// The false-positive gate: command lines and text that hold no secret come back exactly as they are.
+const PLAIN = [
+  'mkdir -p dir', 'mkdir -pv a/b', 'cp -pr src dst', 'ls -la', 'npm test', 'node --test x.mjs', 'grep -rn foo .', 'find . -print -prune',
+  'docker run -p 8080:80 img', 'docker run -u 1000:1000 img', 'ssh -p 22 host', 'psql -U user -d db', 'pip install -r requirements.txt',
+  'git -c user.name=X commit', 'git push -u origin main', 'docker login --password-stdin', 'mysql -u root -p shop', 'mysql --port=3306 -h db',
+  'curl -sS https://example.com', 'curl -u admin https://example.com', 'https://example.com/path?q=1#frag', 'http://localhost:3000/@scope/pkg',
+  'ssh://git@github.com/org/repo.git', 'git@github.com:org/repo.git',
+  'Enter your password when asked, and keep the API token safe.', 'a basic internationalization layer', 'Send an Authorization: Basic header with credentials.',
+  'the --token flag is required', 'use --token instead.', '--password --verbose', 'pass --token <value> or --token $GITHUB_TOKEN',
+  '{"tokens": 1350, "key": "ctrl+s", "keywords": ["a"], "max_tokens": 4096, "tokenizer": "bpe"}',
+]
+
+test('command lines and prose with no secret come back the same', () => {
+  for (const text of PLAIN) assert.equal(redact(text), text)
+  assert.equal(redact('max_tokens=4096'), 'max_tokens=[redacted]', 'today a NAME=value whose name says token is redacted, so it is not in the list above')
+})
+
+// JSX key= attributes in two old plans already match NAME=value; that pattern is not weakened, so those two files keep exactly that change.
+const KEY_ATTRIBUTE = /(?<![\w.-])key=("[^"]*"|'[^']*'|\S+)/g
+const KEY_ATTRIBUTE_FILES = new Set(['docs/plans/2026-10-12-claude-team-plan.md', 'docs/plans/2026-10-24-section-team-v3-plan.md'])
+
+// Every tracked task prompt and doc, read at test time, so a prompt added later is checked too. A failure names the file only,
+// never its text: some task files are written blind.
+test('every tracked bench task, README.md, CONTRIBUTING.md and doc comes back the same', () => {
+  const files = execFileSync('git', ['ls-files', '-z', '--', 'bench/tasks/*.md', 'README.md', 'CONTRIBUTING.md', 'docs/*.md'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean)
+  assert.ok(files.includes('README.md') && files.some(f => f.startsWith('bench/tasks/')) && files.some(f => f.startsWith('docs/')), 'the corpus is not empty')
+  for (const file of files) {
+    const text = readFileSync(join(ROOT, file), 'utf8')
+    const expected = KEY_ATTRIBUTE_FILES.has(file) ? text.replace(KEY_ATTRIBUTE, 'key=[redacted]') : text
+    assert.ok(redact(text) === expected, `${file} is changed by redact`)
+  }
 })
