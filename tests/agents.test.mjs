@@ -924,6 +924,8 @@ const DIRECT_STEPS = [
   "6. Answer with the files changed, the test added and the gate's grade.",
 ]
 const DIRECT_SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
+// A Max session that loads the skill anyway learns it does not apply there; the description stays as the plan wrote it.
+const DIRECT_BALANCED_ONLY = 'Balanced mode only; in Max every job goes to a section.'
 
 test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
   const text = readFileSync(DIRECT_BUILD, 'utf8')
@@ -932,6 +934,7 @@ test('the direct-build skill is generated: its frontmatter, six steps, then the 
   assert.equal(fm.name, 'direct-build')
   assert.equal(JSON.parse(fm.description), DIRECT_DESCRIPTION)
   const body = text.split('\n---\n')[1].split('\n')
+  assert.equal(body[0], DIRECT_BALANCED_ONLY, 'the body opens with the mode line')
   assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
   const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
   assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)

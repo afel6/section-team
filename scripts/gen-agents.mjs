@@ -269,10 +269,12 @@ const DIRECT_BUILD_STEPS = [
 ]
 // Skill only: SAFETY tells a section that the supervisor asks the user, and this skill's reader is the supervisor.
 const SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
+// The body's first line: the skill is installed in every mode, and Max keeps every job in a section (brief/tiers-max.md).
+const BALANCED_ONLY = 'Balanced mode only; in Max every job goes to a section.'
 
 // Generated skills, keyed by their path under skills/.
 export function renderSkills() {
-  const lines = ['---', 'name: direct-build', `description: ${JSON.stringify(DIRECT_BUILD_DESCRIPTION)}`, '---', '# Direct job', '', ...numbered(DIRECT_BUILD_STEPS), '', SAFETY, SUPERVISOR_ASKS, '', HOUSE_RULES, '', SPEC_LITERAL]
+  const lines = ['---', 'name: direct-build', `description: ${JSON.stringify(DIRECT_BUILD_DESCRIPTION)}`, '---', BALANCED_ONLY, '', '# Direct job', '', ...numbered(DIRECT_BUILD_STEPS), '', SAFETY, SUPERVISOR_ASKS, '', HOUSE_RULES, '', SPEC_LITERAL]
   return { 'direct-build/SKILL.md': `${lines.join('\n')}\n` }
 }
 

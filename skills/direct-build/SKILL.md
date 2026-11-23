@@ -2,6 +2,8 @@
 name: direct-build
 description: "section-team supervisor only: how to do a direct job yourself (a question, a read, or a change of about 30 lines or less of non-test code that adds no feature), test first, then the reviewer gate."
 ---
+Balanced mode only; in Max every job goes to a section.
+
 # Direct job
 
 1. Read only the files the change needs.
