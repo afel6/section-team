@@ -1,12 +1,14 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
 import { settingsVeto } from './lib/project-settings.mjs'
+import { SECTION_IDS } from './lib/report.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -121,6 +123,54 @@ export function composeContext({ mode, autoInstallSkills, problem, retired }, en
   ].filter(part => part !== null).join('\n\n')
 }
 
+// The running plugin's root, from this file's own place: never CLAUDE_PLUGIN_ROOT, which a project's .claude settings env might set, and
+// which would then name the script the user is told to run.
+const PLUGIN_ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+// gen-agents writes a section's go-to skills on one sentence; a name may hold '.' and ':', so the list ends at a '.' before a space or the end.
+const GO_TO = /Go-to skills, only when the job needs one its list lacks: (.*?)\.(?:\s|$)/m
+
+// The go-to skills an agent file lists; none when the file is missing. Another read error throws.
+function goToSkills(file) {
+  let text
+  try {
+    text = readFileSync(file, 'utf8')
+  } catch (err) {
+    if (err?.code === 'ENOENT') return []
+    throw err
+  }
+  return GO_TO.exec(text)?.[1].split(', ') ?? []
+}
+
+// scripts/assign-skill.mjs's rules for the roster it saves; the hooks never import scripts/, so a hooks folder alone still runs.
+const SKILL_NAME = /^[a-z0-9][a-z0-9._:-]{0,99}$/i
+const isRoster = data => data !== null && typeof data === 'object' && !Array.isArray(data)
+  && Object.entries(data).every(([id, skills]) => SECTION_IDS.includes(id) && Array.isArray(skills) && skills.every(skill => typeof skill === 'string' && SKILL_NAME.test(skill)))
+
+// The user's ~/.claude/section-team/roster-extra.json, or null when it is missing or not a roster assign-skill could use.
+function userRoster(home) {
+  let data
+  try {
+    data = JSON.parse(readFileSync(join(home, '.claude', 'section-team', 'roster-extra.json'), 'utf8'))
+  } catch {
+    return null // missing, unreadable or not JSON: assign-skill names the problem when the user runs it; a session start cannot fix it
+  }
+  return isRoster(data) ? data : null
+}
+
+// The user's line when ~/.claude/section-team/roster-extra.json names a skill that this plugin's agents/<section>.md lacks (the agent
+// files a plugin update brings start without the user's assignments), or null. It only reads: agents/ is rewritten by the command it names.
+function staleRosterLine(home, pluginRoot) {
+  const user = userRoster(home)
+  if (user === null) return null
+  const missing = Object.entries(user).flatMap(([id, skills]) => {
+    const carried = goToSkills(join(pluginRoot, 'agents', `${id}.md`))
+    return skills.filter(skill => !carried.includes(skill))
+  })
+  if (missing.length === 0) return null
+  return `${missing.length} of your skill assignments in ~/.claude/section-team/roster-extra.json are missing from this plugin's agents, as after a plugin update; to restore them run node "${join(pluginRoot, 'scripts', 'assign-skill.mjs')}" --reapply`
+}
+
 // The brief must reach the session even when a side effect fails (EISDIR, ENOTDIR, EACCES): the failure becomes one stderr line with the details
 // and one warning for the user that names only the error code (or our own one-line message), never a path.
 function attempt(label, fn) {
@@ -150,8 +200,8 @@ function briefStillHeld(source, home, sessionId, hash) {
 // Max or off mode file, .claude settings that set the install switch, HOME or USERPROFILE, a .team/ plan or summary left out), then each failed side effect.
 // sessionId undefined (a direct caller) skips the mode record; any other value is recorded, and a bad one (null from a hook input without an id) becomes a warning.
 // source is the SessionStart source: on 'resume' an unchanged brief is left out; otherwise the full brief goes in and its hash is recorded.
-// now is the clock the prunes compare file times with.
-export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source, now = Date.now() } = {}) {
+// now is the clock the prunes compare file times with; pluginRoot is the plugin whose agents/ the user's roster is checked against.
+export function startContext(cwd, home = homedir(), env = process.env, sessionId, { source, now = Date.now(), pluginRoot = PLUGIN_ROOT } = {}) {
   const root = projectRoot(cwd)
   const setting = readMode(root)
   // The prunes only delete old files under the home folder, so they run in an off project too: a user whose projects are all off still prunes.
@@ -190,7 +240,9 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
   const skillNotice = skillSetting(setting.autoInstallSkills, env, projectEnvSet).notice
   const projectEnvLine = typeof projectEnv.value === 'string' ? projectEnv.value : null
   const vetoes = [committedMode, projectEnvLine, teamLine]
-  const warnings = [setting.problem, skillNotice, retired, ...vetoes, ...stepWarnings, projectEnv.warning, summary.warning, held.warning, recorded.warning].filter(warning => warning !== null)
+  // The user's own roster, told to the user only: the model context stays the same with or without it.
+  const roster = attempt('roster check', () => staleRosterLine(home, pluginRoot))
+  const warnings = [setting.problem, skillNotice, retired, ...vetoes, roster.value, ...stepWarnings, projectEnv.warning, summary.warning, held.warning, recorded.warning, roster.warning].filter(warning => warning !== null)
   return { context, warnings }
 }
 

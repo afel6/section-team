@@ -981,3 +981,68 @@ test('a bench run folder gets the same context as before, on its first session a
     assert.equal(again.context, expected, `${mode}: a later session, with the notes index there`)
   }
 })
+
+// --- a user roster the running plugin's agents do not carry, as after a plugin update ---
+
+const ROSTER_SKILL = 'my-team-skill'
+// A temp home whose ~/.claude/section-team/roster-extra.json holds text (or none when text is undefined).
+const homeWithRoster = text => {
+  const home = tempHome()
+  if (text === undefined) return home
+  mkdirSync(join(home, '.claude', 'section-team'), { recursive: true })
+  writeFileSync(join(home, '.claude', 'section-team', 'roster-extra.json'), text)
+  return home
+}
+// A temp plugin root whose agents/ the real generator wrote, with these user assignments in them.
+const pluginWith = async extra => {
+  const { renderAll } = await import('../scripts/gen-agents.mjs')
+  const root = tempDir()
+  mkdirSync(join(root, 'agents'))
+  for (const [name, text] of Object.entries(renderAll(extra))) writeFileSync(join(root, 'agents', name), text)
+  return root
+}
+const reapplyLine = root => `node "${join(root, 'scripts', 'assign-skill.mjs')}" --reapply`
+const ROSTER = JSON.stringify({ frontend: [ROSTER_SKILL], 'ai-llm': ['foo.bar:baz'] })
+
+test("a user roster naming a skill the plugin's agents lack gives one warning with the real reapply command, and the context does not change", async () => {
+  const stale = await pluginWith({})
+  const dir = repo()
+  const home = homeWithRoster(ROSTER)
+  const withRoster = startContext(dir, home, {}, 'sess-r1', { source: 'startup', pluginRoot: stale })
+  const without = startContext(dir, homeWithRoster(), {}, 'sess-r1', { source: 'startup', pluginRoot: stale })
+  assert.equal(withRoster.context, without.context, 'the model context is byte-identical')
+  assert.deepEqual(without.warnings, [])
+  assert.equal(withRoster.warnings.length, 1)
+  const [line] = withRoster.warnings
+  assert.ok(line.includes('~/.claude/section-team/roster-extra.json') && line.endsWith(reapplyLine(stale)), line)
+  assert.ok(line.includes('2 of your skill assignments'), line)
+  assert.ok(!line.includes(home), 'the home folder is named with ~')
+  assert.ok(!line.includes('\n'))
+  assert.equal(readdirSync(join(stale, 'agents')).length, 16, 'nothing written to agents/')
+})
+
+test('no roster warning when the agents carry every assigned skill, or the user roster is missing or invalid', async () => {
+  const fresh = await pluginWith(JSON.parse(ROSTER))
+  const stale = await pluginWith({})
+  const dir = repo()
+  assert.deepEqual(startContext(dir, homeWithRoster(ROSTER), {}, 'sess-r2', { pluginRoot: fresh }).warnings, [], 'up to date')
+  for (const text of [undefined, '{nope', '[]', '{"no-such-section":["x"]}', '{"frontend":"x"}', '{"frontend":["bad name"]}']) {
+    assert.deepEqual(startContext(dir, homeWithRoster(text), {}, 'sess-r2', { pluginRoot: stale }).warnings, [], String(text))
+  }
+})
+
+test("the spawned hook names its own plugin root in the reapply command, never a CLAUDE_PLUGIN_ROOT from the environment", () => {
+  const home = homeWithRoster(ROSTER)
+  const decoy = tempDir()
+  const result = spawnSync(process.execPath, [SCRIPT], { input: startInput(repo()), encoding: 'utf8', env: { ...HOOK_ENV, HOME: home, USERPROFILE: home, CLAUDE_PLUGIN_ROOT: decoy } })
+  const out = JSON.parse(result.stdout)
+  const ownRoot = fileURLToPath(new URL('..', import.meta.url))
+  assert.ok(out.systemMessage.includes(reapplyLine(ownRoot)), out.systemMessage)
+  assert.ok(!out.systemMessage.includes(decoy))
+  assert.ok(!out.hookSpecificOutput.additionalContext.includes('--reapply'), 'not in the model context')
+})
+
+test("the hook's roster check uses assign-skill's skill-name rule", async () => {
+  const { SKILL_NAME } = await import('../scripts/assign-skill.mjs')
+  assert.ok(readFileSync(SCRIPT, 'utf8').includes(`const SKILL_NAME = /${SKILL_NAME.source}/${SKILL_NAME.flags}`))
+})
