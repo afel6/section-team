@@ -230,3 +230,25 @@ test('SKILL.md says installs ask the user unless SECTION_TEAM_AUTO_INSTALL_SKILL
   assert.ok(skill.includes('empty when the plugin ships'))
   assert.ok(!skill.includes('`anthropics`, `vercel-labs`, `microsoft`'), 'no default owners named')
 })
+
+// --- the folders checked: the project folder, its git top folder and the main checkout ---
+
+test("refusal: a project folder below a linked worktree whose own .claude settings set the switch", () => {
+  const home = homeWith(JSON.stringify(LIST))
+  const main = gitRepo()
+  execFileSync('git', ['-C', main, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  const worktree = join(tempDir('trusted-wt-'), 'wt')
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', worktree])
+  const sub = join(writeFile(worktree, ['.claude', 'settings.json'], JSON.stringify({ env: ON })), 'packages', 'app')
+  mkdirSync(sub, { recursive: true })
+  const r = checkWith('anthropics', { home, dir: sub })
+  assert.equal(r.code, 1)
+  assert.ok(oneLine(r.message) && r.message.includes(VAR), r.message)
+})
+
+test('a .git that git cannot read exits 2 with one line and no path', () => {
+  const dir = writeFile(tempDir('trusted-broken-'), ['.git'], 'gitdir: ./nowhere\n')
+  const r = checkWith('anthropics', { home: homeWith(JSON.stringify(LIST)), dir })
+  assert.equal(r.code, 2)
+  assert.ok(oneLine(r.message) && !r.message.includes(dir), r.message)
+})

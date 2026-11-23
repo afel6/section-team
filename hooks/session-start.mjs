@@ -6,7 +6,7 @@ import { assembleBrief, briefHash } from './lib/brief.mjs'
 import { DEFAULT_MODE, MODE_FILE, OFF_MODE, RETIRED_LINE, modeName, readMode } from './lib/mode.mjs'
 import { isSessionId, modeRecordDir, readBriefHash, recordBriefHash, recordMode } from './lib/mode-record.mjs'
 import { ensureExcluded, ensureNotes, excludeFile, isIgnored, isMainModule, latestSummary, lineOf, projectDirOf, projectRoot, pruneStatus, readStdinJson } from './lib/paths.mjs'
-import { projectFoldersSet, projectHomeVar } from './lib/project-settings.mjs'
+import { settingsVeto } from './lib/project-settings.mjs'
 import { statusDir } from './sessions-model.mjs'
 
 // Opt-in: by default the supervisor asks before installing a skill a section suggested.
@@ -26,12 +26,12 @@ const PROJECT_SETTINGS = "the project's .claude settings"
 const PROJECT_ENV_LINE = `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set; automatic skill installs stay off`
 const projectHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; automatic skill installs stay off`
 
-// The user's line when the project's .claude settings in these folders keep installs off, or false: they set HOME or USERPROFILE (checked
+// The user's line when the project's .claude settings around cwd keep installs off, or false: they set HOME or USERPROFILE (checked
 // first, since they decide which folder is home), or the install switch outside the home folder.
-function projectSettingsLine(folders, home) {
-  const homeVar = projectHomeVar(folders)
-  if (homeVar !== null) return projectHomeLine(homeVar)
-  return projectFoldersSet(folders, AUTO_INSTALL_ENV, home) ? PROJECT_ENV_LINE : false
+function projectSettingsLine(cwd, home) {
+  const name = settingsVeto(cwd, AUTO_INSTALL_ENV, home)
+  if (name === null) return false
+  return name === AUTO_INSTALL_ENV ? PROJECT_ENV_LINE : projectHomeLine(name)
 }
 
 // Whether skill installs are automatic, and where that came from. Only the environment's exact '1' turns them on (any other set value
@@ -162,8 +162,8 @@ export function startContext(cwd, home = homedir(), env = process.env, sessionId
     ...(sessionId === undefined ? [] : [['mode record', () => recordMode(home, sessionId, setting.mode)]]),
   ]
   const stepWarnings = [...pruneWarnings, ...steps.map(([label, fn]) => attempt(label, fn).warning)]
-  // Claude Code reads .claude settings from the session's folder and the repo root; either one setting the variable, HOME or USERPROFILE turns installs off.
-  const projectEnv = attempt('project settings check', () => projectSettingsLine([cwd, root], home))
+  // Claude Code reads .claude settings from the session's folder and the repo root (settingsFolders); any one setting the variable, HOME or USERPROFILE turns installs off.
+  const projectEnv = attempt('project settings check', () => projectSettingsLine(cwd, home))
   const projectEnvSet = projectEnv.value !== false // a check that failed counts as set: refuse rather than guess
   const summary = attempt('summary lookup', () => summaryPath(root))
   const hasPlan = existsSync(join(root, '.team', 'notes', 'plan.md'))

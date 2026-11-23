@@ -875,3 +875,38 @@ test('nothing to load means no line, whatever git says about .team/', () => {
   commitFiles(dir, '.team/mode.json')
   assert.deepEqual(startup(dir).warnings, [])
 })
+
+// --- the folders whose .claude settings are checked: the session folder, its git top folder and the main checkout ---
+
+// A main checkout with one commit and a linked worktree beside it; the worktree's own .claude folder is never committed.
+const linkedWorktree = () => {
+  const main = repo()
+  execFileSync('git', ['-C', main, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  const worktree = join(main, '..', `wt-${Math.random().toString(36).slice(2, 8)}`)
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', worktree])
+  return { main, worktree: realpathSync.native(worktree) }
+}
+
+test("a session in a subfolder of a linked worktree reads the worktree's own .claude settings", () => {
+  const { worktree } = linkedWorktree()
+  withProjectSettings(worktree)
+  const sub = join(worktree, 'packages', 'app')
+  mkdirSync(sub, { recursive: true })
+  const { context, warnings } = startup(sub, ENV_ON)
+  assertInstallsOff(context)
+  assert.deepEqual(warnings, [PROJECT_ENV])
+  const home = startup(join(withProjectSettings(linkedWorktree().worktree, 'settings.json', { HOME: tempDir() }), '.'), ENV_ON)
+  assert.deepEqual(home.warnings, [projectHomeLine('HOME')], 'HOME set in the worktree only')
+})
+
+test('a .git that git cannot read keeps installs off, with one warning that names no path', () => {
+  const dir = join(tempDir(), 'broken')
+  mkdirSync(dir)
+  writeFileSync(join(dir, '.git'), 'gitdir: ./nowhere\n')
+  const { value, lines } = quietStderr(() => startup(dir, ENV_ON))
+  assertInstallsOff(value.context)
+  assert.equal(value.warnings.length, 1)
+  assert.match(value.warnings[0], /^project settings check failed: /)
+  assert.ok(!value.warnings[0].includes(dir), value.warnings[0])
+  assert.equal(lines.length, 1)
+})

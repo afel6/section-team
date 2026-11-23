@@ -1,9 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { projectEnvSets, projectFoldersSet, projectHomeVar } from '../hooks/lib/project-settings.mjs'
+import { projectEnvSets, projectFoldersSet, projectHomeVar, settingsFolders, settingsVeto } from '../hooks/lib/project-settings.mjs'
 
 const VAR = 'SECTION_TEAM_AUTO_INSTALL_SKILLS'
 const tempRoot = () => realpathSync.native(mkdtempSync(join(tmpdir(), 'ct-settings-')))
@@ -76,4 +77,39 @@ test('projectHomeVar names HOME or USERPROFILE when any folder\'s settings set i
   for (const [key, shown] of [['HOME', 'HOME'], ['USERPROFILE', 'USERPROFILE'], ['UserProfile', 'USERPROFILE']]) {
     assert.equal(projectHomeVar([clean, withSettings(tempRoot(), 'settings.local.json', settingsJson({ [key]: clean }))]), shown, key)
   }
+})
+
+const git = (dir, ...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', ...args])
+const sameList = (actual, expected) => assert.deepEqual(actual.map(f => f.toLowerCase()), expected.map(f => f.toLowerCase()))
+
+test('settingsFolders: the folder, its git top folder and the main checkout, each once', () => {
+  const plain = tempRoot()
+  sameList(settingsFolders(plain), [plain])
+  const main = tempRoot()
+  git(main, 'init', '-q')
+  git(main, 'commit', '-q', '--allow-empty', '-m', 'init')
+  sameList(settingsFolders(main), [main])
+  const sub = join(main, 'src', 'deep')
+  mkdirSync(sub, { recursive: true })
+  sameList(settingsFolders(sub), [sub, main])
+  const worktree = join(tempRoot(), 'wt')
+  git(main, 'worktree', 'add', '-q', worktree)
+  const below = join(worktree, 'packages', 'app')
+  mkdirSync(below, { recursive: true })
+  sameList(settingsFolders(below), [below, worktree, main])
+})
+
+test('settingsFolders throws, naming no path, when a .git is there but git cannot name the top folder', () => {
+  const dir = withSettings(tempRoot(), 'settings.json', '{}')
+  writeFileSync(join(dir, '.git'), 'gitdir: ./nowhere\n')
+  assert.throws(() => settingsFolders(dir), err => !String(err.message).includes(dir))
+  assert.throws(() => settingsVeto(dir, VAR, tempRoot()))
+})
+
+test('settingsVeto names HOME or USERPROFILE first, then the variable, else null', () => {
+  const home = tempRoot()
+  assert.equal(settingsVeto(tempRoot(), VAR, home), null)
+  assert.equal(settingsVeto(withSettings(tempRoot(), 'settings.json', settingsJson({ [VAR]: '1' })), VAR, home), VAR)
+  assert.equal(settingsVeto(withSettings(tempRoot(), 'settings.json', settingsJson({ [VAR]: '1', UserProfile: home })), VAR, home), 'USERPROFILE')
+  assert.equal(settingsVeto(withSettings(home, 'settings.json', settingsJson({ [VAR]: '1' })), VAR, home), null, "the home folder's settings are the user's own")
 })

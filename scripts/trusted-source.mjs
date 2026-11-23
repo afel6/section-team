@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { readMode } from '../hooks/lib/mode.mjs'
 import { isMainModule, lineOf, projectRoot } from '../hooks/lib/paths.mjs'
-import { projectFoldersSet, projectHomeVar } from '../hooks/lib/project-settings.mjs'
+import { settingsVeto } from '../hooks/lib/project-settings.mjs'
 
 // CLI contract (add-skill runs it): node scripts/trusted-source.mjs <owner> [<project-root>]
 //   exit 0: the skill may install unattended; exit 1: ask the user (one line says why); exit 2: a usage error or an unusable list
@@ -55,10 +55,11 @@ function projectVeto(dir, home) {
   const folder = resolve(dir)
   const root = projectRoot(folder)
   if (readMode(root).autoInstallSkills === false) return "this project's .team/mode.json sets autoInstallSkills false"
-  const homeVar = projectHomeVar([folder, root])
-  if (homeVar !== null) return `this project's .claude settings set ${homeVar}, which decides where your home folder is`
-  const settingsSet = projectFoldersSet([folder, root], AUTO_INSTALL_ENV, home)
-  return settingsSet ? `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set` : null
+  const name = settingsVeto(folder, AUTO_INSTALL_ENV, home)
+  if (name === null) return null
+  return name === AUTO_INSTALL_ENV
+    ? `this project's .claude settings set ${AUTO_INSTALL_ENV}, which only your own ~/.claude/settings.json may set`
+    : `this project's .claude settings set ${name}, which decides where your home folder is`
 }
 
 // Returns {code, message}: 0 may install unattended, 1 ask (message says why), 2 unusable input (message says what). Nobody is trusted
