@@ -18,13 +18,18 @@ const WORD = /^[A-Z]?[a-z]+$/
 // Anthropic and OpenAI keys (sk-...), GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_), Slack tokens (xoxa-, xoxb-, xoxp-, xoxr-),
 // Google API keys (AIza...), Stripe secret keys (sk_live_, sk_test_) and AWS access key ids (AKIA...).
 const TOKEN = /\b(?:sk-[\w-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|AIza[\w-]{35}|sk_(?:live|test)_[A-Za-z0-9]{16,}|AKIA[A-Z0-9]{16}\b)/g
-// A value that starts with $, % or < is a variable or a placeholder, not a secret: the patterns below that read a value leave it.
-const NOT_A_VALUE = String.raw`(?![$%<])`
+// A whole value of $NAME, $env:NAME, ${NAME}, ${a.b}, ${{ a.b }}, %NAME% or <name> is a variable or a placeholder, not a secret: the
+// patterns below that read a value leave it. Each pattern names what ends its value, so a secret that only starts with $, % or <
+// ("$ecret", a bcrypt hash, "%40bc", "${X:-literal}") is still redacted. In a command the placeholder may close a sentence or a
+// Markdown span first ("--token <value>.", "`--token $TOKEN`").
+const PLACEHOLDER = String.raw`(?:\$(?:[Ee]nv:)?\w+|\$\{[\w.]+\}|\$\{\{[ \t]*[\w.]+[ \t]*\}\}|%\w+%|<[^<>\s]*>)`
+const notAPlaceholder = end => String.raw`(?!${PLACEHOLDER}(?:${end}))`
+const SHELL_END = String.raw`[.,;:!?)\x60]*(?:[\s'"]|$)`
 // The password in scheme://user:password@host; the user and the host stay. Each part is bounded and stops at the first character it cannot use.
-const URL_PASSWORD = new RegExp(String.raw`\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:/?#@"'<>]{1,256}:)${NOT_A_VALUE}[^\s/?#@"'<>]{1,256}@`, 'gi')
+const URL_PASSWORD = new RegExp(String.raw`\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:/?#@"'<>]{1,256}:)${notAPlaceholder('@')}[^\s/?#@"'<>]{1,256}@`, 'gi')
 // A JSON string value whose key ends in a secret word ("password", "api_key", "accessToken"). A key that only holds one ("tokens",
 // "keywords", "key") stays, and so does a value that already holds a mark. Each value character is read one way only.
-const JSON_PAIR = new RegExp(String.raw`"([\w.-]{1,128})"(\s*:\s*)"${NOT_A_VALUE}((?:[^"\\\r\n]|\\.)+)"`, 'g')
+const JSON_PAIR = new RegExp(String.raw`"([\w.-]{1,128})"(\s*:\s*)"${notAPlaceholder('"')}((?:[^"\\\r\n]|\\.)+)"`, 'g')
 const JSON_SECRET_NAME = /(?:password|passwd|secret|token|(?:api|access|auth|client|private|secret)[_-]?key)$/i
 // One command: from its name to the end of the line, the next |, ;, & or backtick (a command quoted in Markdown ends there), or a
 // comma, colon or full stop before a space (prose that names the command goes on to other things). A quoted string is read whole so a
@@ -35,13 +40,13 @@ const QUOTE_START = String.raw`(?<=[\s=]|-[pu])`
 const SEGMENT = String.raw`(?:[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
 // mysql -p<password>, only in a MySQL or MariaDB client's command: elsewhere -p is mkdir -p, cp -pr or a port.
 const MYSQL_COMMAND = new RegExp(String.raw`\b(?:mysql|mariadb)[\w-]*${SEGMENT}`, 'g')
-const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${NOT_A_VALUE}("[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
+const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${notAPlaceholder(SHELL_END)}("[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
 // curl -u user:password or --user user:password, only in a curl command: elsewhere -u is docker run -u 1000:1000 or git push -u.
 const CURL_COMMAND = new RegExp(String.raw`\bcurl\b${SEGMENT}`, 'g')
-const CURL_PASSWORD = new RegExp(String.raw`(\s(?:-u|--user(?![\w-]))(?:[ \t]{1,8}|=)?['"]?[^\s:'"]{1,256}:)${NOT_A_VALUE}([^\s'"]{1,256})`, 'g')
+const CURL_PASSWORD = new RegExp(String.raw`(\s(?:-u|--user(?![\w-]))(?:[ \t]{1,8}|=)?['"]?[^\s:'"]{1,256}:)${notAPlaceholder(SHELL_END)}([^\s'"]{1,256})`, 'g')
 // --password <value> and --token <value>. A value that starts with - is the next flag, one that starts with [ or ( is usage text
 // ("--token [value]"), and a plain word ("the --token flag", "use --token instead.") is prose: all stay.
-const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?![-[(])${NOT_A_VALUE}("[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
+const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?![-[(])${notAPlaceholder(SHELL_END)}("[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
 const PROSE_WORD = /^[A-Za-z]+(?:-[A-Za-z]+)*[.,;:!?)]*$/
 // NAME=value: the name starts where no name character comes before it, so each run of name characters is tried once.
 const ASSIGNMENT = /(?<![\w.-])([\w.-]{1,128})=("[^"]*"|'[^']*'|\S+)/g

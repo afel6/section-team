@@ -125,10 +125,23 @@ test('passwords in mysql -p<value>, curl -u user:pass and --password or --token 
   assert.equal(redact('mysql --password "p@ss word" -u root'), 'mysql --password [redacted] -u root')
 })
 
+const BCRYPT = fake('$2b', '$12$', 'a'.repeat(22), 'b'.repeat(31))
+
+test('a value that only starts like a placeholder is redacted; only a whole placeholder stays', () => {
+  assert.equal(redact('{"password": "$ecretP@ss"}'), '{"password": "[redacted]"}')
+  assert.equal(redact(`{"password": "${BCRYPT}"}`), '{"password": "[redacted]"}')
+  assert.equal(redact('postgres://u:%40bc123@host/db'), 'postgres://u:[redacted]@host/db')
+  assert.equal(redact('gh auth login --token %3Dabc'), 'gh auth login --token [redacted]')
+  assert.equal(redact('mysql -p<abc>def shop'), 'mysql -p[redacted] shop')
+  assert.equal(redact('curl -u admin:%40pw https://x'), 'curl -u admin:[redacted] https://x')
+  assert.equal(redact('--token ${PGPASSWORD:-hunter2} x'), '--token [redacted] x', 'a default value is a literal, not a placeholder')
+})
+
 test('the new patterns stay fast on long runs that almost match', () => {
   const runs = [
     'mysql '.repeat(80 * 1024), 'curl '.repeat(100 * 1024), 'a-'.repeat(256 * 1024), `http://${'x'.repeat(512 * 1024)}`, 'a://b:c '.repeat(64 * 1024),
     '"password":"'.repeat(40 * 1024), `"password": "${'x'.repeat(512 * 1024)}`, 'Authorization: Basic '.repeat(24 * 1024), '--token  '.repeat(56 * 1024),
+    `"password": "$${'x'.repeat(512 * 1024)}`, `mysql${' -p$a'.repeat(80 * 1024)}`, 'a://b:%c%x '.repeat(64 * 1024),
   ]
   const started = performance.now()
   for (const run of runs) redact(run)
@@ -150,6 +163,9 @@ const PLAIN = [
   "With mysql it's easy: run `mkdir -pv data` if it doesn't exist.", "curl's fine, it doesn't matter: docker run -u 1000:1000 img", 'Start mysql. Then run mkdir -pv data.',
   'Authorization: Basic credentials go in base64', '--token [value]', '--password (optional)',
   '{"tokens": 1350, "key": "ctrl+s", "keywords": ["a"], "max_tokens": 4096, "tokenizer": "bpe"}', '{"apiKey": "<YOUR_API_KEY>", "token": "${TOKEN}"}',
+  'Run `gh auth login --token <token>`.', '--token <value>.', '--password <pw>)', 'echo "--token $GH_TOKEN"', 'gh auth login --token $GH_TOKEN; next',
+  'see `--token $TOKEN`', 'mysql -u root -p<password>.', 'mysql -p${{ secrets.DB }} x', 'curl -u a:$env:PASS https://x',
+  'gh auth login --token $env:GH_TOKEN', 'gh auth login --token ${{ secrets.GH_TOKEN }}', '{"password":"${secrets.wrong}"}', 'postgres://u:${db.pass}@h/d',
 ]
 
 test('command lines and prose with no secret come back the same', () => {
