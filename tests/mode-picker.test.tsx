@@ -243,11 +243,11 @@ test('/team mode off saves off, says it applies from the next session, and the p
   seen.disk[MODE_PATH] = '{"mode":"max","autoInstallSkills":false}'
 
   await $.session.start(START)
-  expect(await team($ as never, 'mode off')).toEqual({ text: 'section-team mode: Off (applies from your next session)' })
+  expect(await team($ as never, 'mode off')).toEqual({ text: 'section-team mode: Off (applies from your next session, /clear or /compact)' })
   expect(seen.disk[MODE_PATH]).toBe('{"mode":"off","autoInstallSkills":false}')
   await clock.advance(1000)
   expect((await (await mountStrip($ as never)).find({ key: 'mode' }))?.props.value).toBe('off')
   expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Off', ...MODE_LIST].join('\n') })
   // Back on from off also waits for the next session: this one started without the team brief.
-  expect(await team($ as never, 'mode balanced')).toEqual({ text: 'section-team mode: Balanced (applies from your next session)' })
+  expect(await team($ as never, 'mode balanced')).toEqual({ text: 'section-team mode: Balanced (applies from your next session, /clear or /compact)' })
 })

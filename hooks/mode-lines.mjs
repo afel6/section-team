@@ -25,7 +25,7 @@ export function unknownModeLine(mode) {
 // The line after a save. A switch to off, or from off, applies from the next session: the brief is added only at session start.
 // Throws on an unknown mode.
 export const savedLine = (mode, fromOff = false) =>
-  `section-team mode: ${modeName(mode)} (applies from your next ${mode === OFF_MODE || fromOff ? 'session' : 'message'})`
+  `section-team mode: ${modeName(mode)} (applies from your next ${mode === OFF_MODE || fromOff ? 'session, /clear or /compact' : 'message'})`
 
 // The one line the mobile strip's button shows: the mode, and how to set it.
 export const modeHint = mode => `section-team mode: ${modeName(mode)} · ${HOW_TO_SET}`
