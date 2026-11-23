@@ -486,6 +486,36 @@ test('initProblems on Linux refuses a plugin loaded from this checkout, the live
   ])
 })
 
+// SECTION_TEAM_LIVE_CHECKOUT for one test, restored (or removed) after it.
+function withLiveEnv(t, value) {
+  const before = process.env.SECTION_TEAM_LIVE_CHECKOUT
+  t.after(() => {
+    if (before === undefined) delete process.env.SECTION_TEAM_LIVE_CHECKOUT
+    else process.env.SECTION_TEAM_LIVE_CHECKOUT = before
+  })
+  process.env.SECTION_TEAM_LIVE_CHECKOUT = value
+}
+
+// A pin restored on another machine names the first machine's checkout: this machine's is checked too.
+test('initProblems checks the live checkout this process knows as well as the pin\'s', t => {
+  const root = tempRoot(t)
+  const envLive = join(root, 'env-live')
+  withLiveEnv(t, envLive)
+  const fromEnv = { name: 'other', path: join(envLive, 'plugins', 'other'), source: 'other@builtin' }
+  const pin = { version: '2.1.296', liveCheckouts: [join(root, 'pinned')] }
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromEnv], ...SOLO_LISTS }), { setup: 'solo', pin }),
+    [`loaded from the live checkout ${envLive}: other@builtin`])
+})
+
+test('initProblems names a live checkout once when the pin and the environment both name it', t => {
+  const pinned = join(tempRoot(t), 'live')
+  withLiveEnv(t, `${pinned}/`)
+  const fromLive = { name: 'other', path: join(pinned, 'plugins', 'other'), source: 'other@builtin' }
+  const pin = { version: '2.1.296', liveCheckouts: [pinned] }
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromLive], ...SOLO_LISTS }), { setup: 'solo', pin }),
+    [`loaded from the live checkout ${pinned}: other@builtin`])
+})
+
 test('readPin reads the round pin and names the preflight command when it is missing', t => {
   const results = tempRoot(t)
   const file = join(results, 'preflight-mo.json')
