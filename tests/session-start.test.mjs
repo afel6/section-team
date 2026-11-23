@@ -1006,6 +1006,7 @@ const ROSTER = JSON.stringify({ frontend: [ROSTER_SKILL], 'ai-llm': ['foo.bar:ba
 
 test("a user roster naming a skill the plugin's agents lack gives one warning with the real reapply command, and the context does not change", async () => {
   const stale = await pluginWith({})
+  const agentsBefore = Object.fromEntries(readdirSync(join(stale, 'agents')).map(name => [name, readFileSync(join(stale, 'agents', name), 'utf8')]))
   const dir = repo()
   const home = homeWithRoster(ROSTER)
   const withRoster = startContext(dir, home, {}, 'sess-r1', { source: 'startup', pluginRoot: stale })
@@ -1018,7 +1019,8 @@ test("a user roster naming a skill the plugin's agents lack gives one warning wi
   assert.ok(line.includes('2 of your skill assignments'), line)
   assert.ok(!line.includes(home), 'the home folder is named with ~')
   assert.ok(!line.includes('\n'))
-  assert.equal(readdirSync(join(stale, 'agents')).length, 16, 'nothing written to agents/')
+  const agentsAfter = Object.fromEntries(readdirSync(join(stale, 'agents')).map(name => [name, readFileSync(join(stale, 'agents', name), 'utf8')]))
+  assert.deepEqual(agentsAfter, agentsBefore, 'nothing written to agents/')
 })
 
 test('no roster warning when the agents carry every assigned skill, or the user roster is missing or invalid', async () => {
@@ -1041,6 +1043,17 @@ test("the spawned hook names its own plugin root in the reapply command, never a
   assert.ok(!out.systemMessage.includes(decoy))
   assert.ok(!out.hookSpecificOutput.additionalContext.includes('--reapply'), 'not in the model context')
 })
+
+for (const mode of MODES) {
+  test(`${mode}: the worst session context with the notes line stays within 10,000 characters`, () => {
+    // A tracked note makes teamNotice leave the plan and summary out, so the notes line never comes with them; a retired lean starts as Balanced only.
+    const { problem } = parseModeFile('{"mode":"abcdefghijklmnopqrst","autoInstallSkills":"yes"}')
+    const retired = mode === 'balanced' ? 'lean' : undefined
+    const ctx = composeContext({ mode, autoInstallSkills: null, problem, retired }, ENV_ON, null, false, { notesShipped: true })
+    for (const part of ['Automatic skill installs are on', NOTES_SHIPPED, problem]) assert.ok(ctx.includes(part), `lacks: ${part}`)
+    assert.ok(ctx.length <= 10000, `${mode}: ${ctx.length} characters`)
+  })
+}
 
 test("the hook's roster check uses assign-skill's skill-name rule", async () => {
   const { SKILL_NAME } = await import('../scripts/assign-skill.mjs')
