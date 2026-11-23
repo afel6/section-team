@@ -1,0 +1,17 @@
+{
+  "name": "calc",
+  "version": "1.0.0",
+  "description": "Arithmetic expression library and command-line calculator",
+  "type": "module",
+  "main": "calc.mjs",
+  "bin": {
+    "calc": "calc-cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
