@@ -888,10 +888,15 @@ test('no agent file calls the house rules the user\'s standards, and builders na
   }
 })
 
-test('the 10 builders and the coder all carry the SAFETY line', () => {
-  const safety = 'Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this.'
-  assert.equal(BUILDERS_AND_CODER.length, 11)
-  for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).includes(safety), id)
+// 0.6.0 grade: the reviewer runs Bash too, and a delete outside the project folder is as hard to undo as destructive git.
+// Only what the job did not make: TIDY has sections remove their copies in the system temp folder, and tests their temp folders.
+test('the 10 builders, the coder and the reviewer carry the SAFETY line; advisors and the scout run no commands and do not', () => {
+  const safety = "Safety: never push, force-push, deploy, publish a package or release, run destructive git (reset --hard, clean -fd, branch -D, rebase or any history rewrite) or run commands against production or remote services, and never delete a file or folder outside the project folder (the job's own repo) that the job, its helpers or its tests did not make; stop and hand back `Status: blocked` naming the command, so the supervisor asks the user; no project rule lifts this."
+  const carriers = [...BUILDERS_AND_CODER, 'reviewer']
+  assert.equal(carriers.length, 12)
+  for (const id of carriers) assert.ok(agentFile(id).includes(safety), id)
+  for (const id of [...ADVISOR_IDS, 'scout']) assert.ok(!agentFile(id).includes('Safety: '), id)
+  assert.ok(agentFile('reviewer').includes(`Where the project's own rules differ from the default rules, the project's rules win.\n${safety}\n`), 'the reviewer reads SAFETY right after the project-rules line')
 })
 
 test('a tests-first rule in the project or the job still holds; no agent says the user chose the order', () => {
