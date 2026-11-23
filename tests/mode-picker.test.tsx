@@ -1,17 +1,17 @@
 import { test, expect } from 'claude-code/testing'
 import { MODE_LABELS } from '../hooks/lib/mode.mjs'
 import { MODE_OPTIONS, OFF_LABEL } from '../hooks/mode-lines.mjs'
-import { BAND, mountStrip, slashes, START, world } from './board-world'
+import { BAND, DRIVE, mountStrip, PROJECT, slashes, START, world } from './board-world'
 
 // The project's mode: /team mode and the strip's picker save it to <project root>/.team/mode.json, where the plugin's command hooks read it.
-const MODE_PATH = 'C:/proj/.team/mode.json'
+const MODE_PATH = `${PROJECT}/.team/mode.json`
 const MODE_LIST = [MODE_LABELS.balanced, MODE_LABELS.max, OFF_LABEL, 'Set it with /team mode balanced|max|off']
 const modeWrites = (seen: { writes: { path: string; text: string }[] }) => seen.writes.filter(w => w.path.endsWith('/.team/mode.json'))
 const team = ($: { command: { run: (e: never) => Promise<unknown> } }, args: string) => $.command.run({ command: 'team', args } as never)
 
 test('/team mode max writes {"mode":"max"} at the project root while the session is in a subfolder', async ($, on) => {
   const { seen } = world(on)
-  seen.cwd = 'C:/proj/src/app'
+  seen.cwd = `${PROJECT}/src/app`
 
   await $.session.start(START)
   expect(await team($ as never, 'mode max')).toEqual({ text: 'section-team mode: Max (applies from your next message)' })
@@ -31,7 +31,7 @@ test('/team mode keeps the skill setting already in the file', async ($, on) => 
 test('outside git, /team mode saves at the session project root, not the folder the session moved to', async ($, on) => {
   const { seen } = world(on)
   seen.gitExit = 128
-  seen.cwd = 'C:/proj/sub'
+  seen.cwd = `${PROJECT}/sub`
 
   await $.session.start(START)
   expect(await team($ as never, 'mode max')).toEqual({ text: 'section-team mode: Max (applies from your next message)' })
@@ -88,16 +88,16 @@ test('/team with no arguments opens the board as before, and its description tel
 
 test('a mode that cannot be saved is one line starting "could not save", and the old file stays', async ($, on) => {
   const { seen } = world(on)
-  seen.disk['C:/proj/.team'] = 'a file where the folder should be'
+  seen.disk[`${PROJECT}/.team`] = 'a file where the folder should be'
 
   await $.session.start(START)
   const blocked = (await team($ as never, 'mode max')) as { text: string }
   expect(blocked.text).toBe('section-team mode: could not save .team/mode.json: .team is not a folder')
-  expect(seen.disk['C:/proj/.team']).toBe('a file where the folder should be')
+  expect(seen.disk[`${PROJECT}/.team`]).toBe('a file where the folder should be')
   expect(modeWrites(seen)).toEqual([])
 
   // A refused write: the old file is untouched and the line gives the code, not the message with its path.
-  delete seen.disk['C:/proj/.team']
+  delete seen.disk[`${PROJECT}/.team`]
   seen.disk[MODE_PATH] = '{"mode":"balanced"}'
   seen.denyWrite = "EPERM: operation not permitted, open 'C:\\proj\\.team\\mode.json'"
   expect(await team($ as never, 'mode max')).toEqual({ text: 'section-team mode: could not save .team/mode.json: EPERM' })
@@ -106,7 +106,7 @@ test('a mode that cannot be saved is one line starting "could not save", and the
 
 test('a pick the strip cannot save toasts the one line and leaves the picker on the mode the file still gives', async ($, on) => {
   const { clock, seen } = world(on)
-  seen.disk['C:/proj/.team'] = 'a file where the folder should be'
+  seen.disk[`${PROJECT}/.team`] = 'a file where the folder should be'
 
   await $.session.start(START)
   await clock.advance(1000)
@@ -180,15 +180,15 @@ test('after the session moves to another project, the board, the strip and /team
   expect(seen.runs).toHaveLength(1)
 
   // A /cd into another repository: no event fires, and only the cwd moves.
-  seen.cwd = 'C:/other/src'
-  seen.gitRoot = 'C:/other'
+  seen.cwd = `${DRIVE}/other/src`
+  seen.gitRoot = `${DRIVE}/other`
   await clock.advance(1000)
   expect(seen.runs).toHaveLength(2)
-  expect(slashes(seen.listed)).toMatch(/^C:\/other\/\.team\/reports\//)
+  expect(slashes(seen.listed)).toMatch(new RegExp(String.raw`^${DRIVE}\/other\/\.team\/reports\/`))
   expect(await pickerValue()).toBe('balanced')
 
   await (await mountStrip($ as never)).select({ key: 'mode', value: 'max' })
-  expect(modeWrites(seen).map(w => w.path)).toEqual(['C:/other/.team/mode.json'])
+  expect(modeWrites(seen).map(w => w.path)).toEqual([`${DRIVE}/other/.team/mode.json`])
   await clock.advance(1000)
   expect(await pickerValue()).toBe('max')
   expect(((await team($ as never, 'mode')) as { text: string }).text.split('\n')[0]).toBe('section-team mode: Max')
@@ -198,21 +198,21 @@ test('after the session moves to another project, the board, the strip and /team
 
   // Outside git, a host's directory change moves only the session root: that is followed too.
   seen.gitExit = 128
-  seen.projectRoot = 'C:/third'
+  seen.projectRoot = `${DRIVE}/third`
   await clock.advance(1000)
   expect(seen.runs).toHaveLength(3)
   await team($ as never, 'mode max')
-  expect(modeWrites(seen).map(w => w.path).at(-1)).toBe('C:/third/.team/mode.json')
+  expect(modeWrites(seen).map(w => w.path).at(-1)).toBe(`${DRIVE}/third/.team/mode.json`)
 })
 
 test("/team mode gives the hooks' problem line when .team is not a folder or the file cannot be read, and never a path", async ($, on) => {
   const { seen } = world(on)
-  seen.disk['C:/proj/.team'] = 'a file where the folder should be'
+  seen.disk[`${PROJECT}/.team`] = 'a file where the folder should be'
 
   await $.session.start(START)
   expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Balanced', '.team/mode.json: .team is not a folder, so Balanced is used', ...MODE_LIST].join('\n') })
 
-  delete seen.disk['C:/proj/.team']
+  delete seen.disk[`${PROJECT}/.team`]
   seen.disk[MODE_PATH] = '{"mode":"max"}'
   seen.denyModeRead = "EPERM: operation not permitted, open 'C:\\proj\\.team\\mode.json'"
   expect(await team($ as never, 'mode')).toEqual({ text: ['section-team mode: Balanced', '.team/mode.json: could not be read (EPERM), so Balanced is used', ...MODE_LIST].join('\n') })
