@@ -390,6 +390,13 @@ test('the README describes the hooks as they are now: notices instead of silent 
   }
 })
 
+test('the README says only the saved long message is redacted, not REPORTs or the supervisor summary', () => {
+  for (const hook of ['hooks/subagent-stop.mjs', 'hooks/stop.mjs']) assert.ok(!read(hook).includes('redact'), `${hook} saves its text as written`)
+  const files = read('README.md').split('\n').find(line => line.startsWith('- **Files in each git repo.**')) ?? ''
+  assert.ok(files.includes("every section REPORT and the supervisor's summary as written, and any pasted message of 3000 characters or more with recognised secrets replaced by `[redacted]`"), 'Files line')
+  assert.ok(!files.includes("the supervisor's summary, and any message of 3000 characters or more, with recognised secrets"), 'old sentence calls every saved file redacted')
+})
+
 test('the README says an off project saves no report where git does not ignore .team/, and names a committed Max or off mode file', () => {
   assertIncludes(section(read('README.md'), 'Modes'), [
     'only where git ignores `.team/`; elsewhere nothing is saved and one line says so',
