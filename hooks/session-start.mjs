@@ -15,7 +15,7 @@ const MESSAGE_PREFIX = 'section-team session-start'
 
 const AUTO_INSTALL_NOTE = [
   '## Skill installs',
-  `- Automatic skill installs are on (${AUTO_INSTALL_ENV}=1): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking when the add-skill safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
+  `- Automatic skill installs are on (${AUTO_INSTALL_ENV}=1): install a section's \`Suggested skill:\` with \`section-team:add-skill\` without asking only when add-skill's trusted-source check passes its owner and its safety review finds no red flag. A red flag stops the install and you tell the user. List every skill you installed in your summary.`,
 ].join('\n')
 
 export const FILE_ON_IGNORED = `${MODE_FILE}: autoInstallSkills true is ignored, because a project file cannot turn on automatic skill installs; set ${AUTO_INSTALL_ENV}=1 in your user settings instead`

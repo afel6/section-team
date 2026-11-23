@@ -275,7 +275,7 @@ test("suggested skills are installed only on the user's yes, unless SECTION_TEAM
   const on = buildContext(repo(), home, { SECTION_TEAM_AUTO_INSTALL_SKILLS: '1' })
   assert.ok(on.includes('- Automatic skill installs: on (from SECTION_TEAM_AUTO_INSTALL_SKILLS).'))
   assert.ok(on.includes('Automatic skill installs are on (SECTION_TEAM_AUTO_INSTALL_SKILLS=1)'))
-  assert.ok(on.includes('without asking when the add-skill safety review finds no red flag'))
+  assert.ok(on.includes("without asking only when add-skill's trusted-source check passes its owner and its safety review finds no red flag."))
   assert.ok(on.includes('List every skill you installed in your summary.'))
   assert.ok(on.length < 10000, `brief is ${on.length} chars`)
 })
