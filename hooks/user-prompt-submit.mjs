@@ -25,7 +25,7 @@ function attempt(label, fn) {
 }
 
 const noticeText = (previous, mode) => `Mode is now ${modeName(mode)} (was ${modeName(previous)}). From your next step on:\n${REPLACES}\n\n${modeRules(mode)}`
-const pointerText = path => `The user's message is saved word for word, with any secret in it shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+const pointerText = path => `The user's message is saved word for word, with recognised secrets shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const isLong = prompt => typeof prompt === 'string' && prompt.length >= LONG_PROMPT
 const savable = prompt => isLong(prompt) && !isHarnessFrame(prompt)
 

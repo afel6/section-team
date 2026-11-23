@@ -294,7 +294,8 @@ for (const to of MODES) {
 // --- a long pasted request is saved, so the supervisor points sections to it instead of re-typing it ---
 
 const LONG = `${'a'.repeat(2998)}é\n` // 3000 characters
-const POINTER = path => `The user's message is saved word for word, with any secret in it shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+// "recognised secrets", as README.md says: the redactor knows set shapes, not every secret.
+const POINTER = path => `The user's message is saved word for word, with recognised secrets shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const SAVED_PATH = /`(\.team\/reports\/\d{4}-\d{2}-\d{2}\/\d{6}-user-request\.md)`/
 const gitInit = dir => {
   execFileSync('git', ['-C', dir, 'init', '-q'])
