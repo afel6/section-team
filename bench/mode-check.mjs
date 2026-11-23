@@ -224,6 +224,8 @@ const modelsOtherThanRound = roles => {
   return [...new Set(seen)].map(key => key.split('\u0000')).filter(([, model]) => model !== BENCH_MODEL).map(([role, model]) => ({ role, model }))
 }
 
+const isOpus = model => model === 'opus' || (typeof model === 'string' && model.startsWith('claude-opus'))
+
 // { 'section-team:<name>': model } from the agent files of the plugin the run loaded, or null when they cannot be read.
 function declaredModels(pluginDir) {
   if (typeof pluginDir !== 'string') return null
@@ -232,14 +234,15 @@ function declaredModels(pluginDir) {
   return Object.fromEntries(files.map(name => [`section-team:${name.slice(0, -3)}`, /^model:\s*(\S+)/m.exec(readFileSync(join(pluginDir, 'agents', name), 'utf8'))?.[1] ?? null]))
 }
 
-// V4 checks the opus alias: main and every section whose agent file says opus answer as the round's model. Roles that
-// run another model by design (the coder on sonnet, the scout on haiku, built-in helpers) are reported as otherModels.
+// V4 checks the opus alias: main and every section whose agent file declares an Opus model (the alias opus, or a full id
+// claude-opus-*, as v0.5.1's builders declare) answer as the round's model. Roles that run another model by design (the
+// coder on sonnet, the scout on haiku, built-in helpers) are reported as otherModels.
 // A builder run whose agent files cannot be read leaves V4 unmeasured (offModel null).
 function modelChecks(roles, setup, pluginDir) {
   const declared = setup === 'solo' ? {} : declaredModels(pluginDir)
   const other = modelsOtherThanRound(roles)
   if (declared === null) return { offModel: null, otherModels: other }
-  const held = role => role === 'main' || declared[role] === 'opus'
+  const held = role => role === 'main' || isOpus(declared[role])
   return { offModel: other.filter(o => held(o.role)), otherModels: other.filter(o => !held(o.role)) }
 }
 

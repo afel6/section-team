@@ -639,6 +639,19 @@ test('V4 holds main and the opus-declared sections to the round\'s model, report
   assert.equal(v['h9-team-nx-r2'].offModel, null, 'agent files that cannot be read leave V4 unmeasured')
 })
 
+// v0.5.1's builders declare the full id (model: claude-opus-5-5), and only its reviewer says opus; a full id is held too.
+test('V4 holds a section that declares a claude-opus full id, as v0.5.1\'s builders do', t => {
+  const results = runDir(t)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify(NX_PIN))
+  const dir = runDir(t)
+  const plugin = runDir(t, { 'agents/backend.md': '---\nname: backend\nmodel: claude-opus-5-5\n---\n', 'agents/coder.md': '---\nmodel: sonnet\n---\n' })
+  const backend = helper('b9', 'section-team:backend', SONNET)
+  const coder = helper('k1', 'section-team:coder', SONNET)
+  writeNxRun(results, 'h9-base-nx-r1', { dir, roles: [...viaBackend(), backend, coder], record: 'balanced', commit: 'b51', plugin })
+  const v = modeCheck({ results, round: 'nx' })['h9-base-nx-r1'].validity
+  assert.deepEqual([v.offModel, v.otherModels], [[{ role: 'section-team:backend', model: SONNET }], [{ role: 'section-team:coder', model: SONNET }]])
+})
+
 test('a round without the nx pin in results gets no validity: no pin, or an older pin that names no setups', t => {
   const results = runDir(t)
   const dir = runDir(t)

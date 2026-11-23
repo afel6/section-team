@@ -215,7 +215,7 @@ const VALIDITY_BARS = {
     okLine: 'profile and runs root checked by the preflight; no solo run spawned a non-built-in agent', badLine: 'spawned a non-built-in agent',
   }),
   commits: (bar, w) => validityBar(w, allRuns(w), { test: v => !v.commit.ok, okLine: 'every run\'s commit and version match its ref', badLine: 'commit or version differs from its ref' }),
-  // V4: main and the opus-declared sections on the round's model (mode-check modelChecks); unread agent files miss it.
+  // V4: main and the sections declaring opus or claude-opus-* on the round's model (mode-check modelChecks); unread agent files miss it.
   models: (bar, w) => validityBar(w, allRuns(w), { test: v => v.offModel === null || v.offModel.length > 0, okLine: 'main and every opus section on the round\'s model', badLine: 'a turn on another model, or its agent files unread' }),
   timeLimits: (bar, w) => validityBar(w, allRuns(w), { test: v => v.timedOut, okLine: 'no run past its limit', badLine: 'timed out' }),
 }
