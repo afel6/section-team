@@ -87,13 +87,23 @@ function claimOnce(file) {
   }
 }
 
+// A file's mtimeMs, or undefined when it is missing. Node 20 and 22 throw ENOTDIR for a path under a file even with throwIfNoEntry: false.
+export function mtimeOf(file, stat = statSync) {
+  try {
+    return stat(file).mtimeMs
+  } catch (err) {
+    if (err?.code === 'ENOENT' || err?.code === 'ENOTDIR') return undefined
+    throw err
+  }
+}
+
 // The board-load line once per session, or null. The session's mode record was last written at session start or by the previous prompt;
 // read before this prompt rewrites it, a record at least BOARD_GRACE_MS old means the board has had that long. The marker ends in .json,
 // so the modes folder's weekly prune removes it.
 // ponytail: matches the status file by the hook's session id; if the board's $.session.id() differs, match the newest file whose cwd is the root.
 export function boardCheck(home, sessionId, now = Date.now()) {
   if (!isSessionId(sessionId)) return null
-  const written = statSync(modeRecordFile(home, sessionId), { throwIfNoEntry: false })?.mtimeMs
+  const written = mtimeOf(modeRecordFile(home, sessionId))
   if (written === undefined || now - written < BOARD_GRACE_MS) return null
   if (!claimOnce(join(modeRecordDir(home), `${sessionId}.board-checked.json`))) return null
   return existsSync(join(statusDir(home), `${sessionId}.json`)) ? null : BOARD_LINE
