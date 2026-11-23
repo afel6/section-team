@@ -15,7 +15,7 @@ const JOB_GATE = "Every job message states this mode's gate"
 const NEAR_MISS_RULE = '- The gate also fails while a near-miss copy passes the tests; testing adds tests until each fails.'
 const LITERAL = "- costs $& and $1 and $$ and $'"
 const DIRECT_TIER = '- You write no code, tests or docs yourself, except a direct job: a question, a read, or a change of about 30 lines or less of non-test code in existing code that adds no feature (a reported bug, a typo, a rename, a config value). Load `section-team:direct-build` for it; wake no section. When unsure, wake the builder.'
-const DIRECT_GATE = '- A direct job that changes behaviour gets this gate too: you run `section-team:reviewer` on your changed files (no `model`); docs, rename and config-value edits skip it.'
+const DIRECT_GATE = '- A direct job that changes behaviour gets this gate too: you run `section-team:reviewer` on your changed files (no `model`), fix a fail yourself and re-grade, at most 2 fix rounds, then tell the user what is left; docs, rename and config-value edits skip it.'
 const temps = []
 
 const part = name => readFileSync(join(BRIEF_DIR, `${name}.md`), 'utf8')
@@ -365,6 +365,8 @@ test('balanced carries the direct tier first in its tiers, its gate line, and st
   assert.equal(lines(part('tiers-balanced'))[0], DIRECT_TIER)
   const gate = lines(part('gate-balanced'))
   assert.ok(gate.indexOf(DIRECT_GATE) > 0, 'the direct-job gate line is in gate-balanced.md, after the first line')
+  // A failed direct job stays with the supervisor: a section woken for it would be a builder on a direct job.
+  assert.ok(!DIRECT_GATE.replace('section-team:reviewer', '').includes('section'), 'the direct-job gate hands nothing to a section')
   const balanced = assembleBrief('balanced')
   for (const text of ['except a direct job', 'section-team:direct-build', DIRECT_GATE]) assert.ok(balanced.includes(text), `balanced lacks "${text.slice(0, 60)}"`)
   assert.ok(balanced.length <= 8900, `balanced brief is ${balanced.length} chars`)

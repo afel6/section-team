@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { assignSkill, mergeExtra, removeSkill, userExtraFile, validateExtra, SKILL_NAME } from '../scripts/assign-skill.mjs'
+import { assignSkill, mergeExtra, readExtra, removeSkill, userExtraFile, validateExtra, SKILL_NAME } from '../scripts/assign-skill.mjs'
 import { HELPER_AGENTS, ROSTER, render, writeAgents } from '../scripts/gen-agents.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -110,6 +110,11 @@ describe('mergeExtra', () => {
 
 test('the user file lives under ~/.claude/section-team, outside the plugin folder', () => {
   assert.equal(userExtraFile(join('h')), join('h', '.claude', 'section-team', 'roster-extra.json'))
+})
+
+// Go-to skills are each user's own choice: they live in the home roster, and the plugin ships none.
+test('the shipped roster names no skills', () => {
+  assert.deepEqual(readExtra(), {})
 })
 
 describe('validateExtra', () => {
