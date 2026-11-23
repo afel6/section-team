@@ -8,9 +8,10 @@ import { ADVISOR_HELPERS, ADVISOR_IDS, BUILDER_IDS, HONEST_STATUSES, PREFIX, cla
 import { gradeCheck } from './lib/grade.mjs'
 import { ALLOW, headContextCheck } from './lib/head-context.mjs'
 import { DEFAULT_MODE, GATES, activeMode, readMode } from './lib/mode.mjs'
-import { FRESH_MS, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
+import { FRESH_MS, LIMIT_VAR, MB, limitBytes, listerCommand, parseTable, sessionRoot } from './lib/memory-guard.mjs'
 import { isSessionId, modeRecordDir, readRecord } from './lib/mode-record.mjs'
 import { isMainModule, lineOf, projectDirOf, projectRoot, readStdinJson } from './lib/paths.mjs'
+import { settingsVeto } from './lib/project-settings.mjs'
 
 const MESSAGE_PREFIX = 'section-team pre-tool-use'
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'NotebookEdit'])
@@ -204,8 +205,8 @@ function startGuard(fd, record, e, env, deps, limit) {
   }
 }
 
-// A limit the guard cannot use leaves it off, so its problem line is said on the first call of each session that would have started it.
-// The marker ends in .json so the modes folder's weekly prune removes it.
+// A limit the guard cannot use, or one the project's settings may have set, leaves it off, so its line is said on the first call of each
+// session that would have started it. The marker ends in .json so the modes folder's weekly prune removes it.
 function badLimitOnce(home, sessionId, problem) {
   const dir = modeRecordDir(home)
   mkdirSync(dir, { recursive: true })
@@ -213,6 +214,25 @@ function badLimitOnce(home, sessionId, problem) {
   if (marker === null) return null
   closeSync(marker)
   return problem
+}
+
+const GUARD_OFF = 'the memory guard stays off'
+
+// Why the session's project keeps the guard off, or null. Claude Code hands a project's .claude settings env to the hooks, so a limit set
+// there cannot be told from the user's own, and HOME or USERPROFILE set there choose the home folder whose settings pass for the user's.
+// A check that fails keeps the guard off as well. No project folder is no veto: startGuard then fails with its own line.
+function projectGuardVeto(e, env, home) {
+  const dir = projectDirOf(e, env)
+  if (dir === null) return null
+  try {
+    const name = settingsVeto(dir, LIMIT_VAR, home)
+    if (name === null) return null
+    return name === LIMIT_VAR
+      ? `this project's .claude settings set ${LIMIT_VAR}, which only your own ~/.claude/settings.json may set; ${GUARD_OFF}`
+      : `this project's .claude settings set ${name}, which decides where your home folder is; ${GUARD_OFF}`
+  } catch (err) {
+    return `project settings check failed: ${lineOf(err)}; ${GUARD_OFF}`
+  }
 }
 
 // Starts the session's memory guard when this call should and none runs; never denies. deps carries every effect: home (the record folder's home),
@@ -225,6 +245,9 @@ export function ensureGuard(e, env, deps) {
   const record = nodePath.join(modeRecordDir(deps.home), `${e.session_id}${GUARD_SUFFIX}`)
   const mtime = mtimeOrNull(record)
   if (mtime !== null && deps.now() - mtime < FRESH_MS) return null
+  // ponytail: a vetoed session checks its folders again (a few git calls) on each section shell call; keep a marker here if that shows.
+  const veto = projectGuardVeto(e, env, deps.home)
+  if (veto !== null) return badLimitOnce(deps.home, e.session_id, veto)
   const fd = claim(record, deps.now())
   if (fd === null) return null
   return startGuard(fd, record, e, env, deps, bytes) ?? problem
