@@ -1044,6 +1044,12 @@ test("the spawned hook names its own plugin root in the reapply command, never a
   assert.ok(!out.hookSpecificOutput.additionalContext.includes('--reapply'), 'not in the model context')
 })
 
+test('a committed note whose name git quotes (non-ASCII) still gives the notes line', () => {
+  const dir = writeNote(repo(), 'café.md')
+  commitFiles(dir, '.team/notes')
+  assert.ok(startup(dir).context.includes(NOTES_SHIPPED))
+})
+
 for (const mode of MODES) {
   test(`${mode}: the worst session context with the notes line stays within 10,000 characters`, () => {
     // A tracked note makes teamNotice leave the plan and summary out, so the notes line never comes with them; a retired lean starts as Balanced only.
