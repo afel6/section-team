@@ -1,4 +1,4 @@
-// Test strength (h5, h6, h7): the share of a task's frozen near-miss versions that a solution's OWN tests catch
+// Test strength (h5, h6, h7 and the nx round's h8, h9, h10): the share of a task's frozen near-miss versions that a solution's OWN tests catch
 // (docs/specs/2026-11-01-mode-round-design.md, "Secondary measures"). Each solution test file runs alone, with
 // `node --test <file>`, score.mjs's hidden-test env and a 300 s limit, in a temp folder built from the seed (if the task
 // has one), then the reference without its own test files, then the solution's test files. A file that passes there
@@ -15,7 +15,7 @@ import { hiddenEnv, isTestPath, sameAsSeed } from './score.mjs'
 import { required } from './section-memory.mjs'
 
 export const TIME_LIMIT_MS = 300_000
-const TASKS = ['h5', 'h6', 'h7']
+const TASKS = ['h5', 'h6', 'h7', 'h8', 'h9', 'h10']
 // Node 26 reads every `node --test <file>` argument as a glob, so a path holding one of these could run another file
 // or none: [ ] * ? { }, and the extglobs +( and @(, with which Node 26.2 runs no test and still exits 0.
 const GLOB_CHARS = /[[\]*?{}]|[+@]\(/
@@ -143,8 +143,8 @@ function solutionDirOf(folder) {
   return typeof dir === 'string' ? { dir } : { reason: 'run.json unreadable' }
 }
 
-// The setups whose runs it reads: a round measured before 0.3.0 holds lean runs too.
-const READ_CONDS = ['solo', 'lean', 'team', 'max']
+// The setups whose runs it reads: a round measured before 0.3.0 holds lean runs too, the nx round base (its control arm).
+const READ_CONDS = ['solo', 'lean', 'team', 'max', 'base']
 
 // { [runId]: { task, cond, ...strength } } for every solo, lean, team and max run of those tasks in the round; log(id, row)
 // after each. A run without a readable run.json or solution folder gets an n/a row; only a results/ that cannot be

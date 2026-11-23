@@ -24,11 +24,12 @@ export const FAKE_PID = 2147483647
 // With transcript false it writes no session file, as when the API fails before the first turn is saved. With hang
 // true it streams only the init and runs until it is killed (its streams ended), then closes with code null. A null
 // result writes the init alone and exits; reportedSession is the session id its init claims, for a resume that forks.
-export function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false, reportedSession = null }) {
+// claudeDir: the profile the child's CLAUDE_CONFIG_DIR names, where its transcripts go instead of ~/.claude.
+export function fakeClaude({ home, calls, init, result = { type: 'result', subtype: 'success', is_error: false, result: 'done' }, transcript = true, hang = false, reportedSession = null, claudeDir = null }) {
   return (command, args, options) => {
     calls.push({ command, args, options })
     const sessionId = args[args.indexOf(args.includes('--resume') ? '--resume' : '--session-id') + 1]
-    const project = projectDirFor(options.cwd, home)
+    const project = claudeDir === null ? projectDirFor(options.cwd, home) : join(claudeDir, 'projects', options.cwd.replace(/[^a-zA-Z0-9]/g, '-'))
     mkdirSync(project, { recursive: true })
     if (transcript) writeFileSync(join(project, `${sessionId}.jsonl`), `${JSON.stringify({ type: 'assistant', effort: 'medium', message: { model: 'claude-opus-5-5' } })}\n`)
     const child = Object.assign(new EventEmitter(), { pid: FAKE_PID, stdout: new PassThrough(), stderr: new PassThrough() })

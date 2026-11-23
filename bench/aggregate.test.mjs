@@ -50,6 +50,11 @@ test('opusShare: opus cost over the run total, null when the run has no cost', (
 const gradedRun = (task, fields) => ({ id: `${task}-solo-r1`, task, cond: 'solo', costUSD: 1, wallMs: 60000, tokens: { total: 2e6, output: 3000 }, grade: { total: 50 }, ...fields })
 const rowOf = (table, task) => table.find(row => row.task === task && row.cond === 'solo')
 
+test('reportTable lists the nx tasks after h7, in tier order h8, h9, h10, and all last', () => {
+  const table = reportTable(['h10', 'h8', 'h9', 'h7'].map(task => gradedRun(task, { hidden: { fail: 0, rate: 1 } })))
+  assert.deepEqual(table.map(row => row.task), ['h7', 'h8', 'h9', 'h10', 'all'])
+})
+
 test('reportTable shows mean hidden failures and how many runs are incomplete, and the printed table has them', () => {
   const twoStage = { stage2: { change: null, calls: null } }
   const table = reportTable([

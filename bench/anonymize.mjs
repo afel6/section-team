@@ -2,7 +2,8 @@
 // the condition (.team/, .claude/, .superpowers/, .git, node_modules, databases). For a seeded task it also copies
 // the untouched seed into <pair>/SEED/ so judges see what each run changed. Writes the secret key to
 // results/blind-key.json (or blind-key-<round>.json).
-// Usage: node bench/anonymize.mjs --round=ho --conds=solo-ho,team-ho --tasks=h1,h2,h3 --reps=3
+// Usage: node bench/anonymize.mjs --round=ho --conds=solo-ho,team-ho --tasks=h1,h2,h3 --reps=3 [--task-reps=h1:5,h2:2]
+//        (--task-reps gives some tasks their own count of reps; the others keep --reps)
 //        A round names all three: the folder is emptied first, and flags that do not give the round's key are refused before that.
 //        node bench/anonymize.mjs   (no round: the first rounds' setups, tasks and 2 reps, into ~/bench-judge)
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -54,9 +55,28 @@ export function stagesAskedOf(judgeDir, pair) {
   }
 }
 
+// A task's count of reps: one count for every task, or { task: count }.
+function repsFor(reps, task) {
+  const count = typeof reps === 'number' ? reps : reps?.[task]
+  if (!Number.isSafeInteger(count) || count < 1) throw new RangeError(`reps per task names no count for ${task}`)
+  return count
+}
+
+// --task-reps=h8:5,h9:2 over the --reps count: { task: count } for every task of the round, or reps itself without it.
+export function repsOf(argv, reps, tasks) {
+  const value = argv.find(a => a.startsWith('--task-reps='))?.slice('--task-reps='.length)
+  if (value === undefined) return reps
+  const given = value.split(',').map(entry => {
+    const [task, count] = entry.split(':')
+    if (!tasks.includes(task) || !/^[1-9]\d*$/.test(count ?? '')) throw new RangeError(`--task-reps takes task:count pairs of the round's tasks with whole counts of at least 1, got "${value}"`)
+    return [task, Number(count)]
+  })
+  return { ...Object.fromEntries(tasks.map(task => [task, reps])), ...Object.fromEntries(given) }
+}
+
 // Each pair's labels: the conditions rotated by (t + rep), where t is the task's index in tasks.
 function pairs(conds, tasks, reps) {
-  return tasks.flatMap((task, t) => Array.from({ length: reps }, (_, i) => {
+  return tasks.flatMap((task, t) => Array.from({ length: repsFor(reps, task) }, (_, i) => {
     const rep = i + 1
     const shift = (t + rep) % conds.length
     const order = [...conds.slice(shift), ...conds.slice(0, shift)]
@@ -135,8 +155,9 @@ export function judgeDirFor(round, home = homedir()) {
 function main() {
   // --round=v2 --conds=solo,team-v2,forced-v2 → judges those condition labels into ~/bench-judge-v2, key blind-key-v2.json
   const argv = process.argv.slice(2)
-  const { round, conds, tasks, reps } = parseArgs(argv)
+  const { round, conds, tasks, reps: count } = parseArgs(argv)
   if (round) requireFlags(argv, ['conds', 'tasks', 'reps'])
+  const reps = repsOf(argv, count, tasks)
   const judgeDir = judgeDirFor(round)
   const setups = round ? conds : DEFAULT_CONDS
   const keyPath = join(RESULTS, round ? `blind-key-${round}.json` : 'blind-key.json')

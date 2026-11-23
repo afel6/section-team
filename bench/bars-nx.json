@@ -1,0 +1,25 @@
+{
+  "round": "nx", "kind": "nx", "statDecimals": 2,
+  "setups": { "solo": "solo-nx", "base": "base-nx", "team": "team-nx" },
+  "tasks": { "h8": { "reps": 5 }, "h9": { "reps": 2 }, "h10": { "reps": 2 } },
+  "judge": { "name": "Codex", "round": "nxcx" },
+  "fallback": { "used": false, "reason": null, "tasks": { "h8": "h2b", "h9": "h3", "h10": "h4" } },
+  "bars": [
+    { "id": "C1", "kind": "cost", "task": "h8", "mode": "team", "vs": "base", "maxRatio": 0.75 },
+    { "id": "Q1", "kind": "quality", "task": "h8", "mode": "team", "vs": "base", "minGap": -0.25 },
+    { "id": "H1", "kind": "hidden", "task": "h8", "mode": "team", "atLeast": [{ "vs": "solo", "minus": 0 }, { "vs": "base", "minus": 1 }] },
+    { "id": "T1", "kind": "nearMiss", "task": "h8", "mode": "team", "vs": "base", "minus": 1 },
+    { "id": "V1", "kind": "leverFired", "task": "h8", "setup": "team" },
+    { "id": "V1b", "kind": "controlValid", "task": "h8", "setup": "base" },
+    { "id": "V2", "kind": "plainBaseline", "setup": "solo" },
+    { "id": "V3", "kind": "commits" },
+    { "id": "V4", "kind": "models", "held": "main and every section whose agent file declares opus or claude-opus-* answer as claude-opus-5-5; other roles are reported, not checked" },
+    { "id": "V5", "kind": "timeLimits" },
+    { "id": "V6", "kind": "usableGroups", "min": 8, "task": "h8", "minTask": 4 }
+  ],
+  "keep": ["C1", "Q1", "H1", "T1", "V1", "V2", "V3", "V4", "V5", "V6"],
+  "reported": [
+    { "task": "h9", "mode": "team", "vs": "base", "costRange": [0.85, 1.15], "minGap": -0.30 },
+    { "task": "h10", "mode": "team", "vs": "base", "costRange": [0.85, 1.15], "minGap": -0.30 }
+  ]
+}

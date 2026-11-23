@@ -316,6 +316,20 @@ test('main refuses a round that is not letters and digits; the CLI file says so 
   assert.equal(r.stderr.trim(), 'usage: node bench/test-strength.mjs --round=<tag>   (letters and digits only)')
 })
 
+// The nx round's near-miss bars (T1) read the h8, h9 and h10 runs of every arm, the control arm (base) included.
+test('main measures the nx tasks h8, h9 and h10 for solo, base and team', t => {
+  const root = folder(t, { ...taskFiles('h8'), ...taskFiles('h9'), ...taskFiles('h10') })
+  const solution = folder(t, { 'a.test.mjs': 'lib.mjs=ref' })
+  const runs = ['h8-base-nx-r1', 'h8-team-nx-r1', 'h9-solo-nx-r1', 'h10-base-nx-r2']
+  const results = folder(t, Object.fromEntries(runs.map(id => [`${id}/run.json`, JSON.stringify({ dir: solution })])))
+  const out = runMain(t, ['--round=nx'], { results, root, seeds: folder(t), run: fakeRun() })
+  assert.deepEqual([out.exitCode, out.errors], [undefined, []])
+  assert.deepEqual(out.logs, runs.toSorted().map(id => `${id}  caught 1/3 (0.33)  valid 1/1`))
+  const rows = JSON.parse(readFileSync(join(results, 'test-strength-nx.json'), 'utf8'))
+  assert.deepEqual(Object.fromEntries(Object.entries(rows).map(([id, row]) => [id, [row.task, row.cond]])),
+    { 'h10-base-nx-r2': ['h10', 'base-nx'], 'h8-base-nx-r1': ['h8', 'base-nx'], 'h8-team-nx-r1': ['h8', 'team-nx'], 'h9-solo-nx-r1': ['h9', 'solo-nx'] })
+})
+
 test('main also measures h7 runs, on their final code', t => {
   const root = folder(t, taskFiles('h7'))
   const solution = folder(t, { 'a.test.mjs': 'lib.mjs=ref' })

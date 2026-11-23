@@ -52,15 +52,15 @@ test('plan runs the solo, team and max setups in the order --conds gives them, t
   assert.deepEqual(runs.map(r => r.base), ['team', 'max', 'max', 'team'])
   const repeated = plan({ conds: ['team', 'team'], tasks: ['h1'], reps: 1 }).map(r => r.id)
   assert.deepEqual(repeated, ['h1-team-r1'], 'a repeated setup adds no run')
-  assert.throws(() => plan({ conds: ['lean', 'mxa'], tasks: ['h1'] }), /^RangeError: --conds takes team, solo, forced, lean, max, got "mxa"$/, 'a typo is refused, not silently skipped')
+  assert.throws(() => plan({ conds: ['lean', 'mxa'], tasks: ['h1'] }), /^RangeError: --conds takes team, solo, forced, lean, max, base, got "mxa"$/, 'a typo is refused, not silently skipped')
 })
 
 test('the setups still name lean so old results read; a round without --conds still plans team, solo and forced', () => {
-  assert.deepEqual(CONDITIONS, ['team', 'solo', 'forced', 'lean', 'max'])
+  assert.deepEqual(CONDITIONS, ['team', 'solo', 'forced', 'lean', 'max', 'base'])
   assert.deepEqual(DEFAULT_CONDS, ['team', 'solo', 'forced'])
   assert.deepEqual(parseArgs([]).conds, ['team', 'solo', 'forced'])
   assert.deepEqual(parseArgs(['--conds=solo,team,max']).conds, ['solo', 'team', 'max'])
-  assert.deepEqual(ROUND_CONDS, ['solo', 'team', 'max'])
+  assert.deepEqual(ROUND_CONDS, ['solo', 'team', 'max', 'base'])
 })
 
 test('modeFileFor gives max its mode file, team, solo and forced none, and refuses lean', () => {
@@ -491,7 +491,7 @@ test('publishAtStart checks the sync first, then publishes every run with result
 test('checkConds refuses any setup but solo, team and max (lean included), so a round never runs one initProblems cannot judge', () => {
   assert.doesNotThrow(() => checkConds(['solo', 'team', 'max']))
   assert.doesNotThrow(() => checkConds(['team']))
-  const message = 'a round runs solo, team and max only, got "forced": pass --conds=solo,team,max'
+  const message = 'a round runs solo, team, max and base only, got "forced": pass --conds=solo,team,max'
   assert.throws(() => checkConds(DEFAULT_CONDS), { name: 'RangeError', message }, 'the default setups include forced')
   assert.throws(() => checkConds(['solo', 'forced']), { name: 'RangeError', message })
   assert.throws(() => checkConds(['solo', 'lean']), { name: 'RangeError', message: message.replace('"forced"', '"lean"') })
@@ -613,8 +613,8 @@ function fakeClaudeHome(t) {
 
 test('userListing lists ~/.claude skills and agents without synced/, sorted, and a missing folder as empty', t => {
   const home = fakeClaudeHome(t)
-  assert.deepEqual(userListing(home), ['agents/helper.md', 'skills/tdd', 'skills/tdd/SKILL.md'])
-  assert.deepEqual(userListing(join(home, 'no-such-home')), [])
+  assert.deepEqual(userListing(join(home, '.claude')), ['agents/helper.md', 'skills/tdd', 'skills/tdd/SKILL.md'])
+  assert.deepEqual(userListing(join(home, 'no-such-home', '.claude')), [])
 })
 
 test('watchUserLists stops the batch naming the run when user skills or agents change during or before it; synced/ is ignored', async t => {
