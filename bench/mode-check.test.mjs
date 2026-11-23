@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, wakeUps } from './mode-check.mjs'
+import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, validityOf, wakeUps } from './mode-check.mjs'
 
 const checkRunAt = checkRun
 
@@ -674,6 +674,24 @@ test('V4 holds a section that declares a claude-opus full id, as v0.5.1\'s build
   writeNxRun(results, 'h9-base-nx-r1', { dir, roles: [...viaBackend(), backend, coder], record: 'balanced', commit: 'b51', plugin })
   const v = modeCheck({ results, round: 'nx' })['h9-base-nx-r1'].validity
   assert.deepEqual([v.offModel, v.otherModels], [[{ role: 'section-team:backend', model: SONNET }], [{ role: 'section-team:coder', model: SONNET }]])
+})
+
+// Plan §3 W8 item 5, as whole rows: team on the direct-job tasks (the round's h8, the pilot probe's h5p) with no section
+// woken is faithful at tier direct behind main's own reviewer gate; base there keeps the old rules (no direct tier and
+// no direct-gate rule). Waking only testing is not the direct tier: it is single, and V1's lever check fails.
+test('team\'s direct job on h8 and h5p is a whole faithful row at tier direct; base there keeps the old rules', t => {
+  const dir = runDir(t)
+  const check = (cond, task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+  const noGate = () => [main_(write(1, 'src/server.mjs', 'Edit'))]
+  for (const task of ['h8', 'h5p']) {
+    assert.deepEqual(check('team-nx', task, direct()), { faithful: true, broken: [], tier: 'direct' }, task)
+    assert.deepEqual(check('team-nx', task, noGate()), { faithful: false, broken: ['direct job without the reviewer gate'], tier: 'direct' }, task)
+    assert.deepEqual(check('base-nx', task, direct()), { faithful: true, broken: [], tier: 'small' }, `base on ${task}`)
+    assert.deepEqual(check('base-nx', task, noGate()), { faithful: true, broken: [], tier: 'small' }, `base on ${task} is not held to the direct gate`)
+  }
+  const viaTesting = [main_(wake(1, 'testing')), section('testing', 't1', [userLine(2, 'job'), write(3, 'src/server.mjs', 'Edit'), wake(4, 'reviewer')]), ...reviews('t1', [[5, 9]])]
+  assert.deepEqual(check('team-nx', 'h8', viaTesting), { faithful: true, broken: [], tier: 'single' })
+  assert.equal(validityOf({ setup: 'team', task: 'h8', roles: viaTesting, run: {}, pin: NX_PIN }).leverFired, false)
 })
 
 test('a round without the nx pin in results gets no validity: no pin, or an older pin that names no setups', t => {
