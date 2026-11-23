@@ -111,7 +111,7 @@ test('the how-it-works doc describes the saved request, the short hand-back, the
   const readme = read(HOW_DOC)
   assertIncludes(readme, [
     "Before it says done, the supervisor runs the testing section's one command that prints a PASS or FAIL line per critical flow.",
-    'a pasted message of 3000 characters or more is saved, with recognised secrets replaced by `[redacted]`, to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
+    'any message you send of 3000 characters or more is saved, with recognised secrets replaced by `[redacted]`, to `.team/reports/<date>/<time>-user-request.md` inside a git repo whose `.team/` folder git ignores',
     'so the supervisor points sections to it instead of re-typing it',
     'in a `-details.md` file there and keep at most 5 short lines above their REPORT',
     'a builder hand-back that claims done with more than 1200 characters above its REPORT is refused (partial, blocked and ungraded are not',
@@ -393,7 +393,7 @@ test('the README describes the hooks as they are now: notices instead of silent 
 test('the README says only the saved long message is redacted, not REPORTs or the supervisor summary', () => {
   for (const hook of ['hooks/subagent-stop.mjs', 'hooks/stop.mjs']) assert.ok(!read(hook).includes('redact'), `${hook} saves its text as written`)
   const files = read('README.md').split('\n').find(line => line.startsWith('- **Files in each git repo.**')) ?? ''
-  assert.ok(files.includes("every section REPORT and the supervisor's summary as written, and any pasted message of 3000 characters or more with recognised secrets replaced by `[redacted]`"), 'Files line')
+  assert.ok(files.includes("every section REPORT and the supervisor's summary as written, and any message you send of 3000 characters or more with recognised secrets replaced by `[redacted]`"), 'Files line')
   assert.ok(!files.includes("the supervisor's summary, and any message of 3000 characters or more, with recognised secrets"), 'old sentence calls every saved file redacted')
 })
 
@@ -588,4 +588,28 @@ test('the old review brief, final report and build ledger live in docs/history w
     assert.ok(lines[2].includes('Historical; superseded by the README.'), `${name} banner`)
   }
   assert.ok(read('docs/history/REVIEW-BRIEF.md').includes('`docs/history/build-ledger.md`'), 'the brief points to the ledger where it is now')
+})
+
+test('the held-out and hq data READMEs state the baseline and the printed numbers truthfully', () => {
+  const heldout = read('bench/data/heldout/README.md')
+  assert.ok(heldout.includes(`\`solo-ho\` is ${BASELINE}`), 'solo-ho label')
+  assert.ok(heldout.includes(`${soloReviewerRuns(['bench/data/heldout'])} solo-ho runs spawned`), 'held-out count recomputed from summary.json')
+  assert.ok(!heldout.includes('plain Claude Code'), 'held-out data README')
+  const hq = read('bench/data/hq/README.md')
+  assertIncludes(hq, ['the printed values are the authority', '$11.19', '2.94x', '$3.63', '3.3x'], 'hq known differences')
+  assert.ok(!hq.includes('the doc says'), 'the results doc prints the recomputed values')
+})
+
+test('CONTRIBUTING lists the generated direct-build skill and documents the round harness settings', () => {
+  assertIncludes(read('CONTRIBUTING.md'), [
+    '`skills/direct-build/`', 'SECTION_TEAM_LIVE_CHECKOUT', 'BENCH_RUNS', 'CLAUDE.local.md', 'AGENTS.md', '--config-dir', '--base-plugin', '--base-ref',
+    '--conds', '--task-reps', 'SECTION_TEAM_MEMORY_LIMIT_MB', '2.1.318',
+  ], 'CONTRIBUTING harness')
+})
+
+test('the data README describes the nx folder as it exists: a recompute script, data after the round', () => {
+  assertIncludes(read('bench/data/README.md'), ['[`nx/`](nx/)', 'node bench/data/nx/recompute.mjs'], 'data README nx')
+  const nx = read('bench/data/README.md').split(String.fromCharCode(10)).find((l) => l.includes("[`nx/`](nx/)")) ?? ""
+  assert.ok(nx.includes('plain Claude Code'), 'nx arm is plain Claude Code on the clean profile')
+  assert.ok(!nx.includes('BASELINE') && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
 })

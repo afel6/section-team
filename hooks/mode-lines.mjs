@@ -22,7 +22,7 @@ export function unknownModeLine(mode) {
   }
 }
 
-// The line after a save. A switch to off, or from off, applies from the next session: the brief is added only at session start.
+// The line after a save. A switch to off, or from off, applies from the next session start (a new session, /clear or /compact): the brief is added only at session start.
 // Throws on an unknown mode.
 export const savedLine = (mode, fromOff = false) =>
   `section-team mode: ${modeName(mode)} (applies from your next ${mode === OFF_MODE || fromOff ? 'session, /clear or /compact' : 'message'})`

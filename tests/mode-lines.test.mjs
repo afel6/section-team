@@ -41,7 +41,7 @@ test('the picker offers the two modes in order with their labels, then off, and 
   assert.equal(modeSummary({ mode: 'balanced', problem: null }).split('\n').length, 5)
 })
 
-test('off shows as Off, and switching to or from off applies from the next session', () => {
+test('off shows as Off, and switching to or from off applies from the next session start (a new session, /clear or /compact)', () => {
   assert.equal(modeSummary({ mode: 'balanced', problem: null, off: true }).split('\n')[0], 'section-team mode: Off')
   assert.equal(savedLine('off'), 'section-team mode: Off (applies from your next session, /clear or /compact)')
   assert.equal(savedLine('max', true), 'section-team mode: Max (applies from your next session, /clear or /compact)')
