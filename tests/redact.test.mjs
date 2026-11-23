@@ -146,6 +146,7 @@ const PLAIN = [
   'the --token flag is required', 'use --token instead.', '--password --verbose', 'pass --token <value> or --token $GITHUB_TOKEN',
   'mysql -u root -p<password> shop', 'mysql -p$MYSQL_PWD shop', 'curl -u user:<password> https://x', 'curl -u "$USER:$PASS" https://x',
   'postgres://user:<password>@host/db', 'postgres://user:${PGPASSWORD}@host/db', 'https://user:%PASS%@host/',
+  'Set up `mysql`, then run `mkdir -pv data`.', 'Fetch it with `curl`, then `docker run -u 1000:1000 img`.',
   '{"tokens": 1350, "key": "ctrl+s", "keywords": ["a"], "max_tokens": 4096, "tokenizer": "bpe"}', '{"apiKey": "<YOUR_API_KEY>", "token": "${TOKEN}"}',
 ]
 
