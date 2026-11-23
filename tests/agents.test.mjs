@@ -932,6 +932,21 @@ const DIRECT_STEPS = [
 const DIRECT_SUPERVISOR_ASKS = 'You are the supervisor: ask the user yourself.'
 // A Max session that loads the skill anyway learns it does not apply there; the description stays as the plan wrote it.
 const DIRECT_BALANCED_ONLY = 'Balanced mode only; in Max every job goes to a section.'
+// 0.6.0 grade (L1): the supervisor also holds the user's global CLAUDE.md, which sections skip (omitClaudeMd), so in the skill both win over the defaults.
+const SECTIONS_WIN = "section-team default rules (where the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, the project's rules win): "
+const DIRECT_WIN = "section-team default rules (where the user's global CLAUDE.md in your context or the project's CLAUDE.md, AGENTS.md or .claude/rules say otherwise, those rules win): "
+const DIRECT_RULES = DIRECT_WIN + HOUSE_RULES.slice(SECTIONS_WIN.length)
+
+test("the direct-build skill lets the user's global CLAUDE.md and the project's rules win; sections keep the project-only line (L1)", () => {
+  const body = readFileSync(DIRECT_BUILD, 'utf8').split('\n')
+  assert.ok(HOUSE_RULES.startsWith(SECTIONS_WIN), 'the sections\' default rules open as before')
+  assert.ok(body.includes(DIRECT_RULES), 'the skill carries the default rules with both winning')
+  assert.ok(!body.includes(HOUSE_RULES), "the skill still carries the sections' line")
+  assert.ok(inNoAgent(DIRECT_WIN), 'an agent file carries the skill-only opening')
+  for (const id of BUILDERS_AND_CODER) assert.ok(agentFile(id).split('\n').includes(HOUSE_RULES), `${id} lost the sections' line`)
+  // A headless round keeps the real HOME: a path would point the supervisor at the user's own file outside the clean profile.
+  assert.ok(!body.join('\n').includes('~/.claude'), 'the skill names a home path')
+})
 
 test('the direct-build skill is generated: its frontmatter, six steps, then the safety, default and spec-literal rules verbatim', () => {
   const text = readFileSync(DIRECT_BUILD, 'utf8')
@@ -942,12 +957,11 @@ test('the direct-build skill is generated: its frontmatter, six steps, then the 
   const body = text.split('\n---\n')[1].split('\n')
   assert.equal(body[0], DIRECT_BALANCED_ONLY, 'the body opens with the mode line')
   assert.deepEqual(body.filter(line => /^\d+\. /.test(line)), DIRECT_STEPS)
-  const rules = [SAFETY, HOUSE_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
+  const rules = [SAFETY, DIRECT_RULES, SPEC_LITERAL].map(rule => body.indexOf(rule))
   assert.ok(rules.every((at, i) => at > body.indexOf(DIRECT_STEPS.at(-1)) && (i === 0 || at > rules[i - 1])), `rules out of place: ${rules}`)
   // SAFETY says the supervisor asks the user; the skill's reader is the supervisor, so the next line says who asks. Sections never carry it.
   assert.equal(body[rules[0] + 1], DIRECT_SUPERVISOR_ASKS, 'the line after SAFETY')
   assert.ok(inNoAgent(DIRECT_SUPERVISOR_ASKS), 'an agent file carries the skill-only line')
-  assert.ok(agentFile('coder').split('\n').includes(HOUSE_RULES), 'the skill carries the same default rules as the sections')
   assert.ok(agentFile('backend').includes(SPEC_LITERAL) && agentFile('backend').includes(SAFETY), "the skill carries the builders' spec and safety rules")
 })
 
