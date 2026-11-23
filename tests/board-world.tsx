@@ -3,15 +3,19 @@ import type { On } from 'claude-code'
 
 // The world beneath the plugin the board tests run in, shared by board.test.tsx and mode-picker.test.tsx.
 
+// The engine resolves $.fs paths as the OS does, so fixture roots carry a drive only on Windows ('C:/proj' is relative elsewhere).
+export const DRIVE = /^file:\/\/\/[A-Za-z]:\//.test(import.meta.url) ? 'C:' : ''
+export const PROJECT = `${DRIVE}/proj`
+export const HOME = `${DRIVE}/Users/u`
 // The status file the /chats dashboard reads: one JSON per session id, under the home folder.
-export const STATUS_DIR = 'C:/Users/u/.claude/section-team/sessions'
+export const STATUS_DIR = `${HOME}/.claude/section-team/sessions`
 export const T0 = 1_700_000_000_000
 export const MINUTE = 60 * 1000
 export const slashes = (path: string) => path.replaceAll('\\', '/')
 
 const FILE = { kind: 'file', size: 1, mtimeMs: 1, isLink: false } as const
 const REPORT = '## REPORT · backend\nStatus: done\nJob: /api/login + JWT\nHelpers used: sonnet ×2\n'
-export const START = { cwd: 'C:/proj', surface: 'terminal', isInteractive: true } as const
+export const START = { cwd: PROJECT, surface: 'terminal', isInteractive: true } as const
 export const SECTION = { prompt: 'x', description: 'login form', subagentType: 'section-team:frontend' } as const
 export const OTHER = { prompt: 'x', description: 'login form', subagentType: 'general-purpose' } as const
 
@@ -19,13 +23,13 @@ export const OTHER = { prompt: 'x', description: 'login form', subagentType: 'ge
 export function world(on: On, now = 0) {
   const clock = mock.clock(on, { now })
   const seen = { listed: '', opened: [] as string[], agentList: 0, runs: [] as { argv: readonly string[]; timeoutMs?: number }[], logs: [] as { text: string; to: string }[], denySpawn: false,
-    writes: [] as { path: string; text: string }[], env: { USERPROFILE: 'C:/Users/u' } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined, registered: [] as string[],
+    writes: [] as { path: string; text: string }[], env: { USERPROFILE: HOME } as Record<string, string | undefined>, sessionId: 's1', denyWrite: undefined as string | undefined, registered: [] as string[],
     // The status folder the /chats pane reads: file texts by name (mtimes by name, T0 when not given), a refusal, and what was asked of it.
     chats: { files: {} as Record<string, string>, mtimes: {} as Record<string, number>, deny: undefined as string | undefined, lists: 0, reads: [] as string[] },
     agents: undefined as readonly object[] | undefined, spawnAnswer: undefined as ((e: { subagentType: string; parentAgentId?: string }) => { model: string; agentId?: string }) | undefined, stepUsage: null as unknown,
     // Where the session is, whether git finds a repository there and its root, and the files on disk by path (a path holding text is a file,
     // the folders above it exist); denyModeRead refuses reading any mode.json, denyNamesRead any section-team/names.json.
-    cwd: 'C:/proj', projectRoot: 'C:/proj', gitExit: 0, gitRoot: 'C:/proj', disk: {} as Record<string, string>, denyModeRead: undefined as string | undefined,
+    cwd: PROJECT, projectRoot: PROJECT, gitExit: 0, gitRoot: PROJECT, disk: {} as Record<string, string>, denyModeRead: undefined as string | undefined,
     denyNamesRead: undefined as string | undefined,
     holdModeRead: undefined as Promise<void> | undefined,
     descriptions: {} as Record<string, string | undefined>, toasts: [] as string[] }
