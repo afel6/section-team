@@ -1,4 +1,4 @@
-// Reviewer gate stats for one round's team, lean and max runs: each reviewer call's GRADE with its items (from the
+// Reviewer gate stats for one round's team, base, lean and max runs: each reviewer call's GRADE with its items (from the
 // subagent transcripts), first tries and final grades judged by the run's mode's own mark, fails then re-called,
 // partial/blocked/ungraded REPORTs, hidden tests that fail after a passing gate, and the judges' code quality.
 // Writes results/gate-stats-<round>.json and prints one markdown row per run.
@@ -39,8 +39,9 @@ export function parseGrade(text) {
 // Lean was removed in 0.3.0, but rounds measured before it hold lean runs: their gate stays here so those results still read.
 export const ROUND_GATES = Object.freeze({ lean: Object.freeze({ passOverall: 8, minItem: null, fixRounds: 1 }), ...GATES })
 
-const MODE_OF_COND = { lean: 'lean', team: 'balanced', max: 'max' }
-// A run setup's mode: team runs Balanced; solo (or anything else) has none.
+const MODE_OF_COND = { lean: 'lean', team: 'balanced', max: 'max', base: 'balanced' }
+// A run setup's mode: team runs Balanced, and so does base (the nx round's control arm, an older section-team); solo
+// (or anything else) has none.
 export const modeOfCond = cond => (Object.hasOwn(MODE_OF_COND, cond) ? MODE_OF_COND[cond] : null)
 
 // Whether a review reaches the mode's own mark (ROUND_GATES): overall at least passOverall and, when the mode sets
@@ -195,9 +196,9 @@ function readRunOrReason(read, folder, home) {
   }
 }
 
-// Every team (Balanced), lean and max run of the round; solo runs have no gate. read replaces readRun in tests.
+// Every team and base (Balanced), lean and max run of the round; solo runs have no gate. read replaces readRun in tests.
 export function gateStats({ results = RESULTS, round, home = homedir(), read = readRun }) {
-  const runId = new RegExp(`-(team|lean|max)-${round}-r\\d+$`)
+  const runId = new RegExp(`-(team|lean|max|base)-${round}-r\\d+$`)
   const ids = readdirSync(results, { withFileTypes: true }).filter(d => d.isDirectory() && runId.test(d.name)).map(d => d.name).sort()
   const quality = codeQualityByRun(results, round)
   return ids.map(id => {
