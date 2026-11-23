@@ -67,6 +67,14 @@ test('only the first line of the request, cut to 80 characters, is recorded', ()
   assert.equal(statusRecord({ ...BASE, request: '' }).request, '')
 })
 
+test('the request is redacted before it is cut, so no part of a recognised secret reaches the status file', () => {
+  // Made-up values.
+  assert.equal(statusRecord({ ...BASE, request: 'deploy with API_KEY=abc123 now' }).request, 'deploy with API_KEY=[redacted] now')
+  const straddling = statusRecord({ ...BASE, request: `${'a'.repeat(70)} sk-ant-api03-abcdefghijklmnop` }).request
+  assert.equal(straddling, `${'a'.repeat(70)} [redacted`)
+  assert.ok(!straddling.includes('sk-'), 'the cut does not leave the start of the key')
+})
+
 test('the project is the last segment of the folder, with either slash and a trailing one', () => {
   assert.equal(statusRecord({ ...BASE, cwd: 'C:/x/shop-app' }).project, 'shop-app')
   assert.equal(statusRecord({ ...BASE, cwd: 'C:\\x\\shop-app\\' }).project, 'shop-app')
