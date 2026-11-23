@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { projectRoot } from './paths.mjs'
 
 // The settings files Claude Code reads from a project folder. A cloned repo can commit either one, and Claude Code hands their env to the
 // hooks and to every command, so a value there cannot be told apart from one the user set in ~/.claude/settings.json.
@@ -62,4 +64,40 @@ const HOME_VARS = ['HOME', 'USERPROFILE']
 // committed .claude files pass for the user's own.
 export function projectHomeVar(folders) {
   return HOME_VARS.find(name => folders.some(folder => projectEnvSets(folder, name))) ?? null
+}
+
+// Whether dir or a folder above it holds a .git: a folder, or the file a linked worktree or submodule has.
+const gitAbove = dir => existsSync(join(dir, '.git')) || (dirname(dir) !== dir && gitAbove(dirname(dir)))
+
+// git's location variables. A project's .claude settings env reaches the hook, and with one of these set git answers for another repo.
+const GIT_LOCATION_VARS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_CEILING_DIRECTORIES']
+
+// A copy of the process env without them, in any letter case (Windows reads Git_Dir as GIT_DIR).
+const gitEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !GIT_LOCATION_VARS.includes(key.toUpperCase())))
+
+// The checkout's top folder (in a linked worktree, the worktree itself, which projectRoot never gives), or null with no repository
+// here. Throws one line naming no path when a .git is there but git cannot answer (no git, a timeout, a .git it cannot read): the
+// callers count that as set.
+function topFolder(dir) {
+  try {
+    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, env: gitEnv() }).trim() || null
+  } catch {
+    if (!gitAbove(resolve(dir))) return null // no repository, so no top folder to read settings from
+    throw new Error("git could not name this checkout's top folder")
+  }
+}
+
+// The folders Claude Code may read .claude settings from for a session in cwd: cwd itself, its checkout's top folder and the main
+// checkout, each once. Throws as topFolder does.
+export function settingsFolders(cwd) {
+  const folders = [cwd, topFolder(cwd), projectRoot(cwd)].filter(folder => folder !== null).map(folder => resolve(folder))
+  return folders.filter((folder, i) => folders.findIndex(other => sameFolder(folder, other)) === i)
+}
+
+// The variable for which the project's .claude settings around cwd veto, or null: HOME or USERPROFILE first (they decide which folder
+// is home), then name in any of those folders but the home folder. Throws as settingsFolders and projectEnvSets do; a caller counts a
+// throw as set.
+export function settingsVeto(cwd, name, home) {
+  const folders = settingsFolders(cwd)
+  return projectHomeVar(folders) ?? (projectFoldersSet(folders, name, home) ? name : null)
 }

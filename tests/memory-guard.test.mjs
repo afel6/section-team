@@ -28,10 +28,20 @@ test('limitBytes: the guard is opt-in, so unset or empty is off on every platfor
   }
 })
 
-test('limitBytes: a whole number of MB sets the limit on every platform, with no floor, and 0 turns it off', () => {
+test('limitBytes: a whole number of MB from the 1024 MB floor up sets the limit on every platform, and 0 turns it off', () => {
   for (const platform of ['win32', 'linux', 'darwin']) {
-    assert.deepEqual(limitBytes({ [VAR]: '300' }, 16 * GB, platform), { bytes: 300 * MB, problem: null }, platform)
+    assert.deepEqual(limitBytes({ [VAR]: '12288' }, 16 * GB, platform), { bytes: 12288 * MB, problem: null }, platform)
+    assert.deepEqual(limitBytes({ [VAR]: '1024' }, 16 * GB, platform), { bytes: 1024 * MB, problem: null }, platform)
     assert.deepEqual(limitBytes({ [VAR]: '0' }, 16 * GB, platform), { bytes: null, problem: null }, platform)
+  }
+})
+
+// A limit of 1 MB would stop every process the session starts, a node or git call included.
+test('limitBytes: a value under the 1024 MB floor is raised to the floor, with one line that says so', () => {
+  for (const value of ['1', '300', '1023', '0001']) {
+    const { bytes, problem } = limitBytes({ [VAR]: value }, 16 * GB, 'win32')
+    assert.equal(bytes, 1024 * MB, value)
+    assert.ok(typeof problem === 'string' && problem.includes(VAR) && problem.includes('1024 MB') && !problem.includes('\n'), String(problem))
   }
 })
 

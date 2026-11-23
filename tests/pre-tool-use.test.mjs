@@ -773,9 +773,9 @@ test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an
   }
   // The variable turns it on outside Windows.
   const linux = guardDeps({ platform: 'linux' })
-  ensureGuard(guardEvent(), { [VAR]: '300' }, linux.deps)
+  ensureGuard(guardEvent(), { [VAR]: '2048' }, linux.deps)
   assert.equal(linux.spawned.length, 1)
-  assert.equal(readGuardRecord(linux.deps.home).limit, 300 * GUARD_MB)
+  assert.equal(readGuardRecord(linux.deps.home).limit, 2048 * GUARD_MB)
 })
 
 test('a failed listing and an unknown host write the failure, say so once, and are not retried within 10 minutes', () => {
@@ -835,6 +835,111 @@ test('the said-once marker ends in .json, so the weekly prune of the modes folde
   ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }, deps)
   const names = readdirSync(join(deps.home, '.claude', 'section-team', 'modes'))
   assert.deepEqual(names, ['sess-1.limit-said.json'])
+})
+
+// --- the project's .claude settings cannot turn the guard on, and a tiny limit is raised to the floor ---
+
+const gitIn = (dir, ...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', ...args], { stdio: 'ignore' })
+// A repo that commits .claude/settings.json with this env, as a cloned repo ships it.
+const repoWithSettings = env => {
+  const dir = tempDir()
+  gitIn(dir, 'init', '-q')
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude', 'settings.json'), JSON.stringify({ env }))
+  gitIn(dir, 'add', '.claude/settings.json')
+  gitIn(dir, 'commit', '-q', '-m', 'ship')
+  return dir
+}
+const PROJECT_LIMIT_LINE = "this project's .claude settings set SECTION_TEAM_MEMORY_LIMIT_MB, which only your own ~/.claude/settings.json may set; the memory guard stays off"
+const guardHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; the memory guard stays off`
+
+test("a committed .claude/settings.json that sets the limit, HOME or USERPROFILE keeps the guard off, with one line per session", () => {
+  const cases = [
+    [{ SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, PROJECT_LIMIT_LINE],
+    [{ section_team_memory_limit_mb: '12288' }, PROJECT_LIMIT_LINE],
+    [{ HOME: tempDir() }, guardHomeLine('HOME')],
+    [{ UserProfile: tempDir() }, guardHomeLine('USERPROFILE')],
+  ]
+  for (const [settings, line] of cases) {
+    const cwd = repoWithSettings(settings)
+    const { deps, spawned, listed } = guardDeps()
+    assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), line, JSON.stringify(settings))
+    assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null, 'said once')
+    assert.equal(ensureGuard(guardEvent({ cwd, tool_name: 'PowerShell' }), GUARD_ON, deps), null)
+    assert.equal(spawned.length + listed.length, 0, 'no guard starts')
+    assert.equal(ensureGuard(guardEvent({ cwd, session_id: 'sess-2' }), GUARD_ON, deps), line, 'another session is told too')
+  }
+  // CLAUDE_PROJECT_DIR names the project when the event's cwd is elsewhere.
+  const project = repoWithSettings({ SECTION_TEAM_MEMORY_LIMIT_MB: '12288' })
+  const moved = guardDeps()
+  assert.equal(ensureGuard(guardEvent(), { ...GUARD_ON, CLAUDE_PROJECT_DIR: project }, moved.deps), PROJECT_LIMIT_LINE)
+  assert.equal(moved.spawned.length, 0)
+})
+
+test("the home folder's own .claude/settings.json is the user's, so a session there starts the guard", () => {
+  const { deps, spawned } = guardDeps()
+  mkdirSync(join(deps.home, '.claude'), { recursive: true })
+  writeFileSync(join(deps.home, '.claude', 'settings.json'), JSON.stringify({ env: GUARD_ON }))
+  assert.equal(ensureGuard(guardEvent({ cwd: deps.home }), GUARD_ON, deps), null)
+  assert.equal(spawned.length, 1)
+})
+
+test('project settings that cannot be checked keep the guard off, with one line per session that names no path', () => {
+  const cwd = tempDir()
+  writeFileSync(join(cwd, '.git'), 'gitdir: ./nowhere\n')
+  const { deps, spawned, listed } = guardDeps()
+  const first = ensureGuard(guardEvent({ cwd }), GUARD_ON, deps)
+  assert.match(first ?? '', /^project settings check failed: .+; the memory guard stays off$/)
+  assert.ok(!first.includes(cwd), first)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.equal(spawned.length + listed.length, 0)
+})
+
+test('while a failed start waits its 10 minutes, the project settings are not checked again', () => {
+  const cwd = tempDir()
+  writeFileSync(join(cwd, '.git'), 'gitdir: ./nowhere\n') // a check here would give its line and write the said-once marker
+  const { deps, spawned, listed } = guardDeps()
+  writeGuardRecord(deps.home, { failed: { at: Date.now(), problem: 'ETIMEDOUT' } }, 60 * 1000)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.deepEqual(readdirSync(join(deps.home, '.claude', 'section-team', 'modes')), ['sess-1.guard.json'], 'no check, so no marker')
+  assert.equal(spawned.length + listed.length, 0)
+})
+
+// A bench run folder: a git repo with an 'init' commit, the seed committed on top, .team/mode.json left uncommitted, no .claude/.
+const benchRunFolder = () => {
+  const dir = tempDir()
+  gitIn(dir, 'init', '-q', '-b', 'main')
+  writeFileSync(join(dir, 'README.md'), '# bench project\n')
+  gitIn(dir, 'add', 'README.md')
+  gitIn(dir, 'commit', '-q', '-m', 'init')
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src', 'app.mjs'), 'export const x = 1\n')
+  writeFileSync(join(dir, 'package.json'), '{"name":"seed","type":"module"}\n')
+  gitIn(dir, 'add', '-A')
+  gitIn(dir, 'commit', '-q', '-m', 'seed')
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), '{"mode":"max"}\n')
+  return dir
+}
+
+test("the user's own limit in the process env starts the guard at 12288 MB in a bench run folder, with no line", () => {
+  const cwd = benchRunFolder()
+  const { deps, spawned } = guardDeps()
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.equal(spawned.length, 1)
+  assert.equal(readGuardRecord(deps.home).limit, 12288 * GUARD_MB)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.deepEqual(readdirSync(join(deps.home, '.claude', 'section-team', 'modes')), ['sess-1.guard.json'], 'no said-once marker')
+})
+
+test('a limit of 1 MB is raised to the 1024 MB floor, said once when the guard starts', () => {
+  const { deps, spawned } = guardDeps()
+  const line = ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps)
+  assert.match(line ?? '', /^SECTION_TEAM_MEMORY_LIMIT_MB is 1 MB, under the 1024 MB floor/)
+  assert.ok(!line.includes('\n'))
+  assert.equal(spawned.length, 1)
+  assert.equal(readGuardRecord(deps.home).limit, 1024 * GUARD_MB)
+  assert.equal(ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps), null, 'a running guard says nothing more')
 })
 
 test("decide gives the same answers with a session id on a builder's Bash call", () => {

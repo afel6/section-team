@@ -218,15 +218,48 @@ test('the shipped list is empty: no owner is trusted until the user adds one', (
   assert.deepEqual(list, [])
 })
 
-test('SKILL.md says a searched skill is never covered by the automatic-install sentence', () => {
+test("SKILL.md: a section's Suggested skill installs unattended only when trusted-source exits 0 for its owner, as a searched one does", () => {
   const skill = readFileSync(new URL('../skills/add-skill/SKILL.md', import.meta.url), 'utf8')
-  assert.ok(skill.includes('is never covered by the automatic-install sentence above'))
+  const step6 = skill.split('\n').find(line => line.startsWith('6. **Ask ONE question**')) ?? ''
+  assert.ok(step6.includes("A section's `Suggested skill:` and a skill found by the search section below skip this question only when all three hold: the brief's Mode section says automatic skill installs are on, `node \"<plugin root>/scripts/trusted-source.mjs\" \"<owner>\" \"<project root>\"` exits 0 (any other exit means ask), and step 4 found no red flag"), step6)
+  assert.ok(step6.includes('The `<owner>` is the GitHub owner from step 1, never a name the skill itself gives'), 'whose owner is checked')
+  assert.ok(!step6.includes('the user has approved installs that pass this review'), 'the review alone no longer skips the question')
+  assert.ok(step6.includes('Otherwise ask as usual.'), 'the attended path stays')
+})
+
+test('an owner a section suggested is checked like any other: unlisted asks, listed may install, installs off asks', () => {
+  const home = homeWith(JSON.stringify(['listed-owner']))
+  assert.equal(checkWith('suggested-owner', { home }).code, 1)
+  assert.deepEqual(checkWith('listed-owner', { home }), { code: 0 })
+  assert.equal(checkWith('listed-owner', { home, env: {} }).code, 1, 'installs off')
 })
 
 test('SKILL.md says installs ask the user unless SECTION_TEAM_AUTO_INSTALL_SKILLS=1, and the owner list ships empty', () => {
   const skill = readFileSync(new URL('../skills/add-skill/SKILL.md', import.meta.url), 'utf8')
   const description = skill.split('\n').find(line => line.startsWith('description:'))
-  assert.ok(description.includes("installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1 and the review is clean"), description)
+  assert.ok(description.includes("installs it after the user's OK, or without asking only when SECTION_TEAM_AUTO_INSTALL_SKILLS=1, the review is clean and the owner is trusted,"), description)
   assert.ok(skill.includes('empty when the plugin ships'))
   assert.ok(!skill.includes('`anthropics`, `vercel-labs`, `microsoft`'), 'no default owners named')
+})
+
+// --- the folders checked: the project folder, its git top folder and the main checkout ---
+
+test("refusal: a project folder below a linked worktree whose own .claude settings set the switch", () => {
+  const home = homeWith(JSON.stringify(LIST))
+  const main = gitRepo()
+  execFileSync('git', ['-C', main, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'])
+  const worktree = join(tempDir('trusted-wt-'), 'wt')
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', worktree])
+  const sub = join(writeFile(worktree, ['.claude', 'settings.json'], JSON.stringify({ env: ON })), 'packages', 'app')
+  mkdirSync(sub, { recursive: true })
+  const r = checkWith('anthropics', { home, dir: sub })
+  assert.equal(r.code, 1)
+  assert.ok(oneLine(r.message) && r.message.includes(VAR), r.message)
+})
+
+test('a .git that git cannot read exits 2 with one line and no path', () => {
+  const dir = writeFile(tempDir('trusted-broken-'), ['.git'], 'gitdir: ./nowhere\n')
+  const r = checkWith('anthropics', { home: homeWith(JSON.stringify(LIST)), dir })
+  assert.equal(r.code, 2)
+  assert.ok(oneLine(r.message) && !r.message.includes(dir), r.message)
 })

@@ -7,6 +7,8 @@ export const LIMIT_VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
 export const DEFAULT_ON_PLATFORMS = []
 const DEFAULT_SHARE = 0.75
 const FLOOR_MB = 4096
+// The lowest limit the guard uses: under it the guard would stop nearly every process the session starts, a node or git call included.
+export const LIMIT_FLOOR_MB = 1024
 // The runner scans this often; a record touched within FRESH_SCANS intervals means a guard is running.
 export const INTERVAL_MS = 5000
 export const FRESH_SCANS = 3
@@ -19,7 +21,8 @@ const WHOLE_MB = /^\d+$/
 const unsetLimit = (totalBytes, platform) =>
   DEFAULT_ON_PLATFORMS.includes(platform) ? Math.max(Math.floor(totalBytes * DEFAULT_SHARE), FLOOR_MB * MB) : null
 
-// The limit in bytes, or null when the guard is off; problem is one line when the variable holds something other than a whole number of MB.
+// The limit in bytes, or null when the guard is off; problem is one line when the variable holds something other than a whole number of MB,
+// or a number under LIMIT_FLOOR_MB, which is raised to the floor.
 export function limitBytes(env, totalBytes, platform) {
   const value = env[LIMIT_VAR]
   if (value === undefined || value === '') return { bytes: unsetLimit(totalBytes, platform), problem: null }
@@ -27,7 +30,11 @@ export function limitBytes(env, totalBytes, platform) {
     return { bytes: unsetLimit(totalBytes, platform), problem: `${LIMIT_VAR} is not a whole number of MB, so the default applies (off unless a platform turns it on)` }
   }
   const mb = Number(value)
-  return { bytes: mb === 0 ? null : mb * MB, problem: null }
+  if (mb === 0) return { bytes: null, problem: null }
+  if (mb < LIMIT_FLOOR_MB) {
+    return { bytes: LIMIT_FLOOR_MB * MB, problem: `${LIMIT_VAR} is ${mb} MB, under the ${LIMIT_FLOOR_MB} MB floor, so the memory guard uses ${LIMIT_FLOOR_MB} MB` }
+  }
+  return { bytes: mb * MB, problem: null }
 }
 
 // The lister each platform uses. Windows: one PowerShell that prints one JSON table for each line it reads, and ends with its input.
