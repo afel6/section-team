@@ -13,7 +13,7 @@ The data behind [docs/benchmark-heldout-2026-11.md](../../../docs/benchmark-held
 | `transcripts/<id>/<n>.jsonl` | For `h1-team-ho-r1` and `h3-solo-ho-r1`: the assistant lines of the session transcript (`0.jsonl`) and of each subagent transcript, reduced to `{ type, message: { id, model, usage } }`. `bench/transcript-cost.test.mjs` checks the computed cost against these runs' `costUSD`. |
 | `gate-stats-ho.json` | Per team run: every reviewer-gate call's grade, first-try passes, fails then re-called (field `fixRounds`; not a fix-round count), partial/blocked REPORTs, hidden tests that failed after a passing gate, and the judges' code-quality score. |
 
-Setup names: `solo-ho` is plain Claude Code (plugin off), `team-ho` is section-team `v0.1.1`.
+Setup names: `solo-ho` is Claude Code with the author's setup (plugin off; their CLAUDE.md and other plugins on), and 5 of 9 solo-ho runs spawned the author's own code-reviewer or security-reviewer agent (counted from `summary.json`). `team-ho` is section-team `v0.1.1`.
 
 Re-scoring these runs with the current `bench/score.mjs` reads each run's last result line (the session's true end). For the six runs with several result lines (`h1-team-ho-r2`, `h2-team-ho-r1`, `h2-team-ho-r2`, `h3-team-ho-r1`, `h3-team-ho-r2`, `h3-team-ho-r3`), the re-scored `turns` therefore differs from the committed `summary.json` (wall time is the harness's own clock and does not change); costs and hidden-test results are unchanged.
 
