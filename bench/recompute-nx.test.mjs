@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -47,6 +47,30 @@ test('tablesOf computes cost, wall time, Codex means, hidden tests, near-misses 
   assert.deepEqual(tables.hidden.h9, { solo: 38, base: 40, team: 40, tests: 40 })
   assert.deepEqual(tables.nearMiss.h8, { solo: 2, base: 3, team: 1.5, total: 6, notMeasured: 0 }, 'a suite with no valid test file catches none')
   assert.deepEqual(tables.mainPeak.h8, { solo: 40_000, base: 80_000, team: 60_000 })
+})
+
+// The bars' rule (bars.mjs costBar, meanPassed): a mean over a setup's runs with any value missing is unknown, never 0.
+test('a run with no cost, wall time, hidden count or mainPeak leaves that mean and its ratios unknown, printed as –', t => {
+  const dir = fixture(t)
+  const file = join(dir, 'summary.json')
+  const summary = JSON.parse(readFileSync(file, 'utf8')).map(run => {
+    if (run.id === 'h8-base-nx-r2') return { ...run, costUSD: null }
+    if (run.id === 'h9-team-nx-r1') return Object.fromEntries(Object.entries(run).filter(([k]) => k !== 'wallMs' && k !== 'hidden'))
+    if (run.id === 'h10-solo-nx-r1') return Object.fromEntries(Object.entries(run).filter(([k]) => k !== 'costUSD' && k !== 'mainPeak'))
+    return run
+  })
+  writeFileSync(file, JSON.stringify(summary))
+  const tables = tablesOf(dir)
+  assert.deepEqual(tables.cost.h8, { solo: 0.5, base: null, team: 1, teamSolo: 2, teamBase: null, baseSolo: null }, 'base h8 costs [1.5, null]: not $0.75')
+  assert.deepEqual([tables.cost.equal.base, tables.cost.allRuns.base, tables.cost.allRuns.solo], [null, null, null], 'a missing costUSD key is unknown too, never $NaN')
+  assert.deepEqual(tables.wall.h9, { solo: 20, base: 50, team: null, teamSolo: null, teamBase: null, baseSolo: 2.5 })
+  assert.equal(tables.hidden.h9.team, null)
+  assert.equal(tables.mainPeak.h10.solo, null)
+  const lines = linesOf(tables)
+  const has = pattern => assert.ok(lines.some(line => pattern.test(line)), `${pattern} in\n${lines.join('\n')}`)
+  has(/^ {2}h8 +\$0\.50 +– +\$1\.00 +2\.00× +– +–$/)
+  has(/^ {2}h9 +20\.0 +50\.0 +– +– +– +2\.50×$/)
+  assert.ok(!lines.some(line => /NaN/.test(line)), lines.join('\n'))
 })
 
 test('linesOf prints every table, and the CLI on a folder prints the same lines and reads nothing else', t => {

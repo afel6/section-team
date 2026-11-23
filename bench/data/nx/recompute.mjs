@@ -5,7 +5,9 @@
 // Prints, per tier (h8 direct job, h9 single-area, h10 multi-area) and setup (solo, base = v0.5.1, team = the release):
 // cost per run with team×solo, team×base and base×solo, and overall two ways (the tiers weighted equally, and the round's
 // total spend); wall time; Codex five-dimension means and gaps; hidden tests passed; near-misses caught by each run's own
-// suite (one with no valid test file catches none); mainPeak; and each setup's cost by role.
+// suite (one with no valid test file catches none); mainPeak; and each setup's cost by role. A cost, wall time, hidden
+// count or mainPeak mean with any run's value missing prints –, as the bars read it "not measured"; near-misses and
+// Codex means leave unmeasured runs and groups out and print their count.
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -18,6 +20,10 @@ const FILES = ['summary.json', 'judge-nxcx.json', 'blind-key-nxcx.json', 'test-s
 const condOf = setup => `${setup}-nx`
 const setupOf = cond => cond.split('-')[0]
 const mean = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
+// The bars' rule (bars.mjs costBar, meanPassed): a mean or total over runs is unknown (null, printed –) unless every
+// value is known, so a run with no cost is never priced at $0.
+const known = xs => xs.length > 0 && xs.every(Number.isFinite)
+const meanKnown = xs => (known(xs) ? mean(xs) : null)
 const r2 = n => (n === null ? null : Math.round(n * 100) / 100)
 const ratio = (a, b) => (a === null || b === null || b === 0 ? null : r2(a / b))
 
@@ -35,16 +41,16 @@ const withRatios = values => ({ ...values, teamSolo: ratio(values.team, values.s
 const perSetup = fn => Object.fromEntries(SETUPS.map(setup => [setup, fn(setup)]))
 
 function costTable(summary) {
-  const task = Object.fromEntries(TASKS.map(t => [t, withRatios(perSetup(setup => r2(mean(runsOf(summary, setup, t).map(run => run.costUSD)))))]))
-  const sum = xs => (xs.some(x => x === null) ? null : r2(xs.reduce((a, b) => a + b, 0)))
+  const task = Object.fromEntries(TASKS.map(t => [t, withRatios(perSetup(setup => r2(meanKnown(runsOf(summary, setup, t).map(run => run.costUSD)))))]))
+  const sum = xs => (known(xs) ? r2(xs.reduce((a, b) => a + b, 0)) : null)
   const equal = withRatios(perSetup(setup => sum(TASKS.map(t => task[t][setup]))))
   const allRuns = withRatios(perSetup(setup => sum(summary.filter(run => run.cond === condOf(setup)).map(run => run.costUSD))))
   return { ...task, equal, allRuns }
 }
 
 const wallTable = summary => Object.fromEntries(TASKS.map(t => [t, withRatios(perSetup(setup => {
-  const minutes = mean(runsOf(summary, setup, t).map(run => run.wallMs / 60_000))
-  return minutes === null ? null : Math.round(minutes * 10) / 10
+  const ms = meanKnown(runsOf(summary, setup, t).map(run => run.wallMs))
+  return ms === null ? null : Math.round(ms / 6_000) / 10
 }))]))
 
 // Means over the task's groups judged for every setup, and the mean of the paired group gaps.
@@ -59,7 +65,7 @@ function qualityTable(judge, key) {
 }
 
 const hiddenTable = summary => Object.fromEntries(TASKS.map(t => [t, {
-  ...perSetup(setup => r2(mean(runsOf(summary, setup, t).map(run => run.hidden?.pass).filter(Number.isFinite)))),
+  ...perSetup(setup => r2(meanKnown(runsOf(summary, setup, t).map(run => run.hidden?.pass)))),
   tests: runsOf(summary, 'team', t)[0]?.hidden?.tests ?? null,
 }]))
 
@@ -79,8 +85,8 @@ function nearMissTable(strength) {
 }
 
 const peakTable = summary => Object.fromEntries(TASKS.map(t => [t, perSetup(setup => {
-  const peaks = runsOf(summary, setup, t).map(run => run.mainPeak).filter(Number.isFinite)
-  return peaks.length ? Math.round(mean(peaks)) : null
+  const peak = meanKnown(runsOf(summary, setup, t).map(run => run.mainPeak))
+  return peak === null ? null : Math.round(peak)
 })]))
 
 export function tablesOf(dir) {
