@@ -26,10 +26,13 @@ const URL_PASSWORD = new RegExp(String.raw`\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:/?
 // "keywords", "key") stays, and so does a value that already holds a mark. Each value character is read one way only.
 const JSON_PAIR = new RegExp(String.raw`"([\w.-]{1,128})"(\s*:\s*)"${NOT_A_VALUE}((?:[^"\\\r\n]|\\.)+)"`, 'g')
 const JSON_SECRET_NAME = /(?:password|passwd|secret|token|(?:api|access|auth|client|private|secret)[_-]?key)$/i
-// One command: from its name to the end of the line or the next |, ;, & or backtick (a command quoted in Markdown ends there), with a
-// quoted string read whole so a quoted value may hold them. It always ends where it stops, so each character is read once, and an
-// unclosed quote is read as one character.
-const SEGMENT = String.raw`(?:[^\r\n|;&\x60'"]|'[^'\r\n]*'|"[^"\r\n]*"|['"])*`
+// One command: from its name to the end of the line, the next |, ;, & or backtick (a command quoted in Markdown ends there), or a
+// comma, colon or full stop before a space (prose that names the command goes on to other things). A quoted string is read whole so a
+// quoted value may hold them; a quote opens one only where a shell word starts (after a space, =, -p or -u), so the apostrophes in
+// "it's ... doesn't" are plain characters. It always ends where it stops, so each character is read once, and an unclosed quote is
+// read as one character.
+const QUOTE_START = String.raw`(?<=[\s=]|-[pu])`
+const SEGMENT = String.raw`(?:[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
 // mysql -p<password>, only in a MySQL or MariaDB client's command: elsewhere -p is mkdir -p, cp -pr or a port.
 const MYSQL_COMMAND = new RegExp(String.raw`\b(?:mysql|mariadb)[\w-]*${SEGMENT}`, 'g')
 const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${NOT_A_VALUE}("[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
