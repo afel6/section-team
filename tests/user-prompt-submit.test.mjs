@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { BOARD_GRACE_MS, modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
+import { BOARD_GRACE_MS, modeSwitch, mtimeOf, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
 import { readBriefHash, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
 import { briefHash, modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
@@ -487,6 +487,17 @@ test('hook: the board line is shown word for word, after the hook\'s own warning
   recordedAgo(withWarning, BOARD_GRACE_MS + 1000)
   const both = run(promptInput(project('{not json')), withWarning)
   assert.deepEqual(JSON.parse(both.stdout), { systemMessage: `${PREFIX}mode switch check skipped: .team/mode.json: not valid JSON, so this session stays in Balanced mode ${BOARD_LINE}` })
+})
+
+// Node 20 and 22 throw ENOTDIR for a record under a file even with throwIfNoEntry: false; Windows says ENOENT, so stubs stand in for both.
+test('mtimeOf reads a missing record, or one under a file, as undefined and throws any other error', () => {
+  const failing = code => () => { throw Object.assign(new Error(code), { code }) }
+  assert.equal(mtimeOf('x', failing('ENOENT')), undefined)
+  assert.equal(mtimeOf('x', failing('ENOTDIR')), undefined)
+  assert.throws(() => mtimeOf('x', failing('EACCES')), { code: 'EACCES' })
+  const file = join(tempDir('mtime-'), 'record.json')
+  writeFileSync(file, '{}')
+  assert.equal(mtimeOf(file), statSync(file).mtimeMs)
 })
 
 test('an off project announces nothing, records nothing and saves no long prompt', () => {
