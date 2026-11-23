@@ -137,11 +137,39 @@ test('a value that only starts like a placeholder is redacted; only a whole plac
   assert.equal(redact('--token ${PGPASSWORD:-hunter2} x'), '--token [redacted] x', 'a default value is a literal, not a placeholder')
 })
 
+test('a hyphenated value after --password or --token is a secret, not a prose word', () => {
+  assert.equal(redact('--password correct-horse-battery-staple'), '--password [redacted]')
+  assert.equal(redact('gh auth login --token abc-def x'), 'gh auth login --token [redacted] x')
+})
+
+test('a $( value runs to its matching ) and is redacted whole', () => {
+  assert.equal(redact('--token $(echo hunter2) x'), '--token [redacted] x')
+  assert.equal(redact('gh auth login --token $(gh auth token)'), 'gh auth login --token [redacted]')
+  assert.equal(redact('--token $(cat $(ls ~/k)) x'), '--token [redacted] x', 'one nested $( stays inside')
+  assert.equal(redact('mysql -p$(cat ~/.pw) shop'), 'mysql -p[redacted] shop')
+  assert.equal(redact('curl -u admin:$(cat pw) https://x'), 'curl -u admin:[redacted] https://x')
+  assert.equal(redact('mysql -p$(echo aHVudGVy | base64 -d) shop'), 'mysql -p[redacted] shop', 'a | inside $( does not end the command')
+  assert.equal(redact('curl -u admin:$(echo aHVudGVy | base64 -d) https://x'), 'curl -u admin:[redacted] https://x')
+})
+
+test('a double-quoted variable after a password flag stays, as the bare one does; a quoted literal is redacted', () => {
+  for (const text of ['gh auth login --token "$GH_TOKEN"', 'mysql -p"$MYSQL_PWD" shop', '--password "$DB_PASS" x', '--token "${GH_TOKEN}" x', 'curl -u admin:"$PASS" https://x']) {
+    assert.equal(redact(text), text)
+  }
+  assert.equal(redact('--password "hunter2"'), '--password [redacted]')
+  assert.equal(redact('--password "$ecret pass"'), '--password [redacted]', 'only a whole variable is kept')
+  assert.equal(redact('--token "${X:-hunter2}"'), '--token [redacted]')
+  assert.equal(redact('--token "$(echo hunter2)" x'), '--token [redacted] x')
+  assert.equal(redact("--token '$GH_TOKEN'"), '--token [redacted]', 'only double quotes')
+})
+
 test('the new patterns stay fast on long runs that almost match', () => {
   const runs = [
     'mysql '.repeat(80 * 1024), 'curl '.repeat(100 * 1024), 'a-'.repeat(256 * 1024), `http://${'x'.repeat(512 * 1024)}`, 'a://b:c '.repeat(64 * 1024),
     '"password":"'.repeat(40 * 1024), `"password": "${'x'.repeat(512 * 1024)}`, 'Authorization: Basic '.repeat(24 * 1024), '--token  '.repeat(56 * 1024),
     `"password": "$${'x'.repeat(512 * 1024)}`, `mysql${' -p$a'.repeat(80 * 1024)}`, 'a://b:%c%x '.repeat(64 * 1024),
+    '--token $('.repeat(48 * 1024), `--token $(${'x'.repeat(512 * 1024)}`, `--token $(${' $(y)'.repeat(80 * 1024)}`,
+    `mysql${' -p$('.repeat(80 * 1024)}`, `mysql $(${' $(y)'.repeat(80 * 1024)}`, `curl${' -u a:$('.repeat(64 * 1024)}`,
   ]
   const started = performance.now()
   for (const run of runs) redact(run)

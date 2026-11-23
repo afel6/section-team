@@ -22,9 +22,15 @@ const TOKEN = /\b(?:sk-[\w-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|
 // patterns below that read a value leave it. Each pattern names what ends its value, so a secret that only starts with $, % or <
 // ("$ecret", a bcrypt hash, "%40bc", "${X:-literal}") is still redacted. In a command the placeholder may close a sentence or a
 // Markdown span first ("--token <value>.", "`--token $TOKEN`").
-const PLACEHOLDER = String.raw`(?:\$(?:[Ee]nv:)?\w+|\$\{[\w.]+\}|\$\{\{[ \t]*[\w.]+[ \t]*\}\}|%\w+%|<[^<>\s]*>)`
+const VARIABLE = String.raw`\$(?:[Ee]nv:)?\w+|\$\{[\w.]+\}|\$\{\{[ \t]*[\w.]+[ \t]*\}\}`
+const PLACEHOLDER = String.raw`(?:${VARIABLE}|%\w+%|<[^<>\s]*>)`
 const notAPlaceholder = end => String.raw`(?!${PLACEHOLDER}(?:${end}))`
 const SHELL_END = String.raw`[.,;:!?)\x60]*(?:[\s'"]|$)`
+// In a command the shell expands a variable inside double quotes too, so a double-quoted whole variable stays; a quoted literal does not.
+const NOT_A_SHELL_PLACEHOLDER = String.raw`(?!(?:${PLACEHOLDER}|"(?:${VARIABLE})")(?:${SHELL_END}))`
+// A shell value that starts with $( runs to its matching ), so a literal inside it is read with it, and a command does not end at a |
+// inside it. ponytail: one level of nested parens and no ) inside quotes; deeper or unclosed, the value is read as before.
+const SUBSTITUTION = String.raw`\$\((?:[^()\r\n]|\([^()\r\n]*\))*\)`
 // The password in scheme://user:password@host; the user and the host stay. Each part is bounded and stops at the first character it cannot use.
 const URL_PASSWORD = new RegExp(String.raw`\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:/?#@"'<>]{1,256}:)${notAPlaceholder('@')}[^\s/?#@"'<>]{1,256}@`, 'gi')
 // A JSON string value whose key ends in a secret word ("password", "api_key", "accessToken"). A key that only holds one ("tokens",
@@ -37,17 +43,17 @@ const JSON_SECRET_NAME = /(?:password|passwd|secret|token|(?:api|access|auth|cli
 // "it's ... doesn't" are plain characters. It always ends where it stops, so each character is read once, and an unclosed quote is
 // read as one character.
 const QUOTE_START = String.raw`(?<=[\s=]|-[pu])`
-const SEGMENT = String.raw`(?:[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
+const SEGMENT = String.raw`(?:${SUBSTITUTION}|[^\r\n|;&\x60'",:.]|[,:.](?!\s)|${QUOTE_START}'[^'\r\n]*'|${QUOTE_START}"[^"\r\n]*"|['"])*`
 // mysql -p<password>, only in a MySQL or MariaDB client's command: elsewhere -p is mkdir -p, cp -pr or a port.
 const MYSQL_COMMAND = new RegExp(String.raw`\b(?:mysql|mariadb)[\w-]*${SEGMENT}`, 'g')
-const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${notAPlaceholder(SHELL_END)}("[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
+const MYSQL_PASSWORD = new RegExp(String.raw`(\s-p)${NOT_A_SHELL_PLACEHOLDER}(${SUBSTITUTION}[^\s'"]*|"[^"\r\n]*"|'[^'\r\n]*'|[^\s'"]+)`, 'g')
 // curl -u user:password or --user user:password, only in a curl command: elsewhere -u is docker run -u 1000:1000 or git push -u.
 const CURL_COMMAND = new RegExp(String.raw`\bcurl\b${SEGMENT}`, 'g')
-const CURL_PASSWORD = new RegExp(String.raw`(\s(?:-u|--user(?![\w-]))(?:[ \t]{1,8}|=)?['"]?[^\s:'"]{1,256}:)${notAPlaceholder(SHELL_END)}([^\s'"]{1,256})`, 'g')
+const CURL_PASSWORD = new RegExp(String.raw`(\s(?:-u|--user(?![\w-]))(?:[ \t]{1,8}|=)?['"]?[^\s:'"]{1,256}:)${NOT_A_SHELL_PLACEHOLDER}(${SUBSTITUTION}[^\s'"]*|[^\s'"]{1,256})`, 'g')
 // --password <value> and --token <value>. A value that starts with - is the next flag, one that starts with [ or ( is usage text
 // ("--token [value]"), and a plain word ("the --token flag", "use --token instead.") is prose: all stay.
-const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?![-[(])${notAPlaceholder(SHELL_END)}("[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
-const PROSE_WORD = /^[A-Za-z]+(?:-[A-Za-z]+)*[.,;:!?)]*$/
+const FLAG_VALUE = new RegExp(String.raw`(?<![\w-])(--(?:password|token)[ \t]{1,8})(?![-[(])${NOT_A_SHELL_PLACEHOLDER}(${SUBSTITUTION}[^\s'"]*|"[^"\r\n]{0,256}"|'[^'\r\n]{0,256}'|[^\s'"]+)`, 'g')
+const PROSE_WORD = /^[A-Za-z]+[.,;:!?)]*$/
 // NAME=value: the name starts where no name character comes before it, so each run of name characters is tried once.
 const ASSIGNMENT = /(?<![\w.-])([\w.-]{1,128})=("[^"]*"|'[^']*'|\S+)/g
 const SECRET_NAME = /key|token|secret|password/i
