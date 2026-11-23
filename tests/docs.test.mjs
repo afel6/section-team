@@ -626,6 +626,9 @@ test('the changelog opens with a 0.6.0 section, grouped, with one placeholder fo
   assert.ok(!/direct (?:tier|job)/i.test(next.replace('- (pending the nx round) Balanced direct tier.', '')), 'no other direct-tier line')
   assert.ok(read('scripts/roster-extra.json').trim() === '{}', 'the shipped roster is empty')
   assertIncludes(next, ['`scripts/roster-extra.json`', 'assign-skill.mjs" <skill> <section>', '--reapply', '1024 MB', 'recognised secrets', 'trusted-sources.json', 'linked worktree', '`opus` model alias'], '0.6.0 section')
+  // redact.mjs also keeps a plain word after --password/--token or Authorization: Basic, so only placeholder-like values need to be whole.
+  assert.ok(next.includes('a value that looks like a placeholder is kept only when it is a whole one, such as `$NAME`'), 'narrow placeholder clause')
+  assert.ok(!next.includes('a value is kept only when it is a whole placeholder'), 'old clause overstates what is redacted')
 })
 
 test('the bug report asks for the Plugin: line and the install method, not a commit', () => {
