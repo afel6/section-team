@@ -188,11 +188,12 @@ function loadedOnceProblems(entries, { pluginDir, pluginVersion }) {
   ]
 }
 
-// Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec). The pin records
-// the live checkouts its round named; a pin from before that has only the ones this process knows.
+// Any plugin entry under a live checkout fails, whatever its source (the stricter reading of the spec). Both the pin's
+// live checkouts and the ones this process knows are checked, since a pin restored on another machine names the first's.
 function sectionTeamProblems(plugins, setup, plugin, pin) {
   const entries = plugins.filter(p => p?.source === PLUGIN_KEY)
-  const live = pin.liveCheckouts ?? liveCheckouts(process.platform, process.env.SECTION_TEAM_LIVE_CHECKOUT || null)
+  const named = [...(pin.liveCheckouts ?? []), ...liveCheckouts(process.platform, process.env.SECTION_TEAM_LIVE_CHECKOUT || null)]
+  const live = named.filter((dir, i) => named.findIndex(other => samePath(other, dir)) === i)
   const fromLive = live.flatMap(dir => {
     const live = plugins.filter(p => isUnder(p?.path, dir))
     return live.length > 0 ? [`loaded from the live checkout ${dir}: ${live.map(p => p.source).join(', ')}`] : []
