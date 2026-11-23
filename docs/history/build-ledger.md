@@ -1,5 +1,7 @@
 # SDD ledger — plan: docs/plans/2026-10-12-claude-team-plan.md
 
+> **Historical; superseded by the README.** See [README.md](../../README.md) for the plugin as it is now.
+
 Spec: docs/specs/2026-10-12-claude-team-design.md (v3, approved). Branch: feat/claude-team (main = f27fead docs only).
 
 ## Pre-flight scan

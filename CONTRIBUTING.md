@@ -4,7 +4,8 @@ Thanks for helping. Bug reports and ideas go through the issue forms; code chang
 
 ## Set up
 1. Install Node.js (tested on v26) and Claude Code with plugin support.
-2. Clone the repo and try your copy: `claude --plugin-dir <path-to-section-team>`.
+2. Clone the repo (`git clone https://github.com/afel6/section-team.git`) and try your copy once: `claude --plugin-dir <path-to-section-team>`.
+3. To keep it on, set `env.CLAUDE_CODE_PLUGIN_DIRS` to the clone's path in `~/.claude/settings.json`; new sessions pick it up. To turn it off, set `"section-team@inline": false` under `enabledPlugins`, or remove the env entry.
 
 ## Before you open a pull request
 Run every check and make sure all pass:

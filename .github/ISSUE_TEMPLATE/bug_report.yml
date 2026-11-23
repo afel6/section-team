@@ -41,7 +41,20 @@ body:
     validations:
       required: true
   - type: input
-    id: commit
+    id: plugin-line
     attributes:
-      label: section-team commit
-      placeholder: git -C <path-to-section-team> log -1 --format=%h
+      label: "Plugin: line"
+      description: The last line of any file in `.team/reports/`; it names the plugin version and mode.
+      placeholder: "Plugin: section-team <version>, mode <mode>"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - marketplace
+        - clone
+        - --plugin-dir
+    validations:
+      required: true
