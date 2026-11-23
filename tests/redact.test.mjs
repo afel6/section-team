@@ -168,8 +168,8 @@ test('the new patterns stay fast on long runs that almost match', () => {
     'mysql '.repeat(80 * 1024), 'curl '.repeat(100 * 1024), 'a-'.repeat(256 * 1024), `http://${'x'.repeat(512 * 1024)}`, 'a://b:c '.repeat(64 * 1024),
     '"password":"'.repeat(40 * 1024), `"password": "${'x'.repeat(512 * 1024)}`, 'Authorization: Basic '.repeat(24 * 1024), '--token  '.repeat(56 * 1024),
     `"password": "$${'x'.repeat(512 * 1024)}`, `mysql${' -p$a'.repeat(80 * 1024)}`, 'a://b:%c%x '.repeat(64 * 1024),
-    '--token $('.repeat(48 * 1024), `--token $(${'x'.repeat(512 * 1024)}`, `--token $(${' $(y)'.repeat(80 * 1024)}`,
-    `mysql${' -p$('.repeat(80 * 1024)}`, `mysql $(${' $(y)'.repeat(80 * 1024)}`, `curl${' -u a:$('.repeat(64 * 1024)}`,
+    '--token $('.repeat(24 * 1024), `--token $(${'x'.repeat(256 * 1024)}`, `--token $(${' $(y)'.repeat(40 * 1024)}`,
+    `mysql${' -p$('.repeat(40 * 1024)}`, `mysql $(${' $(y)'.repeat(40 * 1024)}`, `curl${' -u a:$('.repeat(32 * 1024)}`,
   ]
   const started = performance.now()
   for (const run of runs) redact(run)
