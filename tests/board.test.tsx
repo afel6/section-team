@@ -1178,7 +1178,7 @@ test('a new session.start starts the office fresh, so its first poll draws no wa
 })
 
 // The office look: /team office saves it per user beside names.json, and the poll paints the office with it.
-const LOOK_PATH = 'C:/Users/u/.claude/section-team/office.json'
+const LOOK_PATH = `${HOME}/.claude/section-team/office.json`
 
 test('/team office yellow saves the look and the next tick paints the office yellow', async ($, on) => {
   const { clock, seen } = world(on)
