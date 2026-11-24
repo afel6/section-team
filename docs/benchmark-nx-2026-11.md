@@ -1,18 +1,18 @@
 # Round nx: 0.6.0-rc.1 against v0.5.1 and plain Claude Code (2026-11)
 
-Round nx measured the release candidate of section-team 0.6.0 (`v0.6.0-rc.1`) against the previous release (v0.5.1) and against Claude Code without the plugin, on three new tasks. Its bars and keep rule were frozen in the tag [`nx-freeze`](https://github.com/afel6/section-team/tree/nx-freeze), which was pushed before the first paid run. This page is published whatever the round showed.
+Round nx measured the release candidate of section-team 0.6.0 (`v0.6.0-rc.1`) against the previous release (v0.5.1) and against Claude Code without the plugin, on three new tasks. Its bars and keep rule were frozen in the tag [`nx-freeze`](https://github.com/afel6/section-team/tree/nx-freeze), which was pushed before the first run of the round. This page is published whatever the round showed.
 
 ## Summary
 
-- **L1 missed its quality bar.** L1 is the Balanced direct tier that rc.1 added. On h8, the task built for it, team (rc.1) − base (v0.5.1) was -0.38 in Codex's five-dimension mean, 95% range [-1.67, +0.91], over 5 groups, with Codex as the only judge. The bar was at least -0.25. L1 met its cost bar (0.65× base) and the hidden-test, near-miss and validity bars.
+- **L1 missed its quality bar.** L1 is the Balanced direct tier that rc.1 added. On h8, the task built for it, team (rc.1) − base (v0.5.1) was -0.38 in Codex's five-dimension mean, 95% range [-1.67, +0.91], over 5 groups, with Codex as the only judge. The bar was at least -0.25. L1 met its cost bar (0.65× base, 5 runs per setup) and the hidden-test, near-miss and validity bars.
 - **The range includes zero.** The round does not show that the direct tier made worse solutions, and it does not show that it did not. With 5 groups it cannot resolve a difference of a quarter point.
 - **L1 was reverted, as the frozen keep rule requires.** The revert is commit `7dd5bf3`, merged into `next/0.6.0` as `9e76662`.
 - **The released 0.6.0 is rc.1 without L1**, plus docs, data and label changes. No round measured that exact build.
   - On h8 the team numbers belong to the reverted lever. The nearest measured figure for how 0.6.0 handles a task like h8 is base (v0.5.1).
   - On h9 and h10 L1 did not fire, so team (rc.1) is the closest measured build.
 - **Against plain Claude Code** (reported, no bar; Codex, one judge):
-  - base scored +1.00 over solo on h8 at 2.92× solo's cost (5 groups);
-  - team scored +0.55 on h9 at 3.26× and +1.50 on h10 at 12.40× (2 groups each).
+  - base (v0.5.1) scored +1.00 over solo on h8 at 2.92× solo's cost (5 groups), the nearest measured figure for how 0.6.0 handles h8;
+  - h9 and h10 had 2 groups each; their gaps are in [the reported table](#plugin-against-plain-claude-code-reported).
 - **Hidden tests were at ceiling.** Every run of every setup passed all of them (20 on h8, 40 on h9, 42 on h10), so they do not separate the setups.
 - **The round cost $66.21**, above the quoted about $55 (at most about $63). The plugin runs on h10 cost far more than estimated.
 
@@ -20,7 +20,7 @@ Round nx measured the release candidate of section-team 0.6.0 (`v0.6.0-rc.1`) ag
 
 rc.1 added L1, the Balanced direct tier. For a question, or a fix of about 30 lines of non-test code that adds no feature, the supervisor does the job itself and the Opus reviewer grades it. No builder section is woken. The round had three jobs:
 
-1. decide whether L1 ships, by bars frozen before any paid run;
+1. decide whether L1 ships, by bars frozen before the round ran;
 2. give per-tier cost and quality of the candidate against v0.5.1 and plain Claude Code, on tasks the sections were not tuned on;
 3. run one publicly frozen round of the version being released, on unseen tasks.
 
@@ -34,7 +34,7 @@ The third job was meant for the shipping build. L1 was reverted, so the shipping
   - `bench/bars-nx.json` (the bars, the keep rule and the reported ranges);
   - the harness.
 
-  The tag message lists the SHA-256 of each task and hidden-test file. Both tags were pushed to the public repo on 2026-11-23, before the first paid run. The harness commit was checked clean before every run.
+  The tag message lists the SHA-256 of each task and hidden-test file. Both tags were pushed to the public repo on 2026-11-23, before the first run of the round. The harness commit was checked clean before every run.
 - **Setups.** All three ran on one fresh Claude Code profile on one Windows PC.
 
   | Setup | What it is | Ref |
@@ -53,14 +53,17 @@ The third job was meant for the shipping build. L1 was reverted, so the shipping
   - Odd reps ran solo, base, team and even reps ran in reverse, one run at a time, on 2026-11-23 and 24.
   - All 27 exited 0 on the first attempt. None was re-run and none timed out.
   - There was no Max arm.
+  - **Pilot.** Before the freeze, a pilot of 8 runs (on h5, h5p and h6, with the same three setups) checked the harness. Its rows are in `summary.json`, with ids ending `-pnx-r1`. No bar or table on this page reads them.
 
 ### The tasks
 
 | Task | Tier | What it asks | Hidden tests | Near-miss versions | Runs per setup |
 |---|---|---|---|---|---|
 | h8 | direct job (L1's tier) | An existing command-line lending tracker with two user bug reports: an impossible due date is accepted, and a loan number is reused after a delete. Fix both without adding features, and keep old data files working without a migration. | 20 | 6 | 5 |
-| h9 | single-area | An arithmetic expression library and its command-line tool, built from a spec (about 300 lines). | 40 | 11 | 2 |
-| h10 | multi-area | A quick-polls app: an HTTP JSON API, a browser page and one JSON data file (about 500 lines). | 42 | 11 | 2 |
+| h9 | single-area | An arithmetic expression library and its command-line tool, built from a spec (reference solution: 226 lines). | 40 | 11 | 2 |
+| h10 | multi-area | A quick-polls app: an HTTP JSON API, a browser page and one JSON data file (reference solution: 447 lines, 153 of them browser code). | 42 | 11 | 2 |
+
+Reference sizes are raw source lines of the frozen reference solution, without tests, docs and `package.json`. The time limits per run (60, 60 and 120 minutes) are the harness's (`bench/run.mjs`).
 
 All 5 team h8 runs took the direct tier: they spawned only the reviewer. All 5 base h8 runs woke the backend section, its coder and the reviewer.
 
@@ -219,7 +222,7 @@ By dimension, over the same 5 groups:
 | robustness/security | 6.80 | 7.60 | 7.00 | -0.60 |
 | docs/usability | 8.20 | 8.80 | 8.90 | +0.10 |
 
-What Codex's notes say. Codex reported each bug in both mirrored cases of its group. Neither bug is covered by the hidden tests or the near-miss set: every one of these solutions passed 20 of 20 hidden tests.
+What Codex's notes say. Codex reported each bug in both mirrored cases of its group. Neither bug is among h8's six near-miss versions (three wrong date checks and three wrong numbering rules), and every one of these solutions passed 20 of 20 hidden tests.
 
 - **Legacy-delete numbering.** Take a data file saved before the fix, which has no stored counter. Removing its highest loan and then adding one issues the removed number again, which the README forbids.
   - Reported in solo r1, r2, r3 and r5, base r2 and team r3.
@@ -264,7 +267,8 @@ No bar was set for these gaps; they are reported. All quality figures are Codex'
 - **h10 near-misses are reported only and confounded.** Team caught 4.5, base 9.5 and solo 6.0 of 11.
   - The sample is 2 runs per setup.
   - The figures are confounded by layout coupling. Several test files import modules by paths the reference solution does not have (for example `lib/app.mjs`), so they fail alone against the reference and do not count.
-  - `h10-team-nx-r1` was left with one valid file, a helper, and caught 0 of 11. Files of base r1 and team r2 were also dropped this way.
+  - `h10-team-nx-r1` was left with one valid file, a helper, and caught 0 of 11. Its API and server test files failed on such an import; its page test failed two assertions on the reference.
+  - Files of base r1 and team r2 were also dropped for modules the reference does not have.
   - Read none of this as weaker or stronger tests. No conclusion is drawn from it.
 
 ## Validity
@@ -297,9 +301,9 @@ Unfaithful runs count in every figure on this page. Only the faithful-only check
   - the public repo's address;
   - the near-miss files and other run folders.
 
-  There were 0 hits, apart from two uses of the word "near-miss" in a reviewer's grade text in `h10-base-nx-r2`, with no file read behind them. Every run read only its own folder.
+  There were 0 hits, apart from two uses of the word "near-miss" in a reviewer's grade text in `h10-base-nx-r2`, with no file read behind them. No run touched another run's folder.
 - **f3.** f3 is an older task that, like h10, is a polls server. It sits in the rc.1 tree that the team setup loads; it is not in v0.5.1. No run touched f3's task, hidden tests, seed or calibration files, and no run read anything under a plugin's `bench/` folder.
-- **Tell scan before judging.** The scan of the anonymized solutions found no files outside each solution's deliverables, tests and docs. Its only word hits were "section": solo 8, base 14, team 14.
+- **Tell scan before judging.** The scan of the anonymized solutions found no files outside each solution's deliverables, tests and docs. It reported hits of the word "section": solo 8, base 14, team 14.
 - **A subagent saw the harness command line.** In `h10-team-nx-r1`, a subagent ran a process listing that showed the run id and the plugin and base paths. That reveals the arm and that the run was a benchmark. It held no hidden-test content.
 - **Detection, not isolation.** The hidden tests were reachable through git, via the plugin checkout's shared object store. The checks looked afterwards for any read of them; they did not prevent one.
 
@@ -317,7 +321,7 @@ Unfaithful runs count in every figure on this page. Only the faithful-only check
 
 - **One judge.** Codex alone scored the round, with no held-out check of the judge. Its sandbox blocked the suites that spawn a process or make a temp folder (EPERM).
 - **Small n.** Q1 rests on 5 groups, and h9 and h10 on 2 groups each. Q1's range is about ±1.3 wide against a 0.25 margin, so this design cannot resolve a gap of a quarter point.
-- **Hidden tests at ceiling.** All 27 runs passed 100%, as in the mode and held-out rounds. The two h8 bugs Codex found are not in the hidden tests.
+- **Hidden tests at ceiling.** All 27 runs passed 100%, as in the mode and held-out rounds. The two h8 bugs Codex found are in neither the hidden tests nor the near-miss set.
 - **Near-miss sets.** They were at or near the ceiling on h8 and h9, and confounded on h10.
 - **Who wrote the tasks.** h8 to h10 were written by Claude agents this week.
 - **The released build is not itself measured.** 0.6.0 is rc.1 without L1 ([What ships in 0.6.0](#what-ships-in-060)).
