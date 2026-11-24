@@ -55,10 +55,12 @@ test('the Quickstart gives round nx cost, wall time and Codex gaps, naming the b
   const quick = section('Quickstart')
   assertIncludes(quick, [
     `about ${BALANCED}× your normal Claude Code usage in Balanced`,
-    `In round nx (${runsPerSetup('h8')}, ${runsPerSetup('h9')} and ${runsPerSetup('h10')} runs per setup) Balanced cost ${times(c.h8.baseSolo)} plain Claude Code on a small fix (v0.5.1, nearest to 0.6.0 there), ${times(c.h9.teamSolo)} on a single-area task and ${times(c.h10.teamSolo)} on a multi-area one (v0.6.0-rc.1), at ${times(w.h8.baseSolo)}, ${times(w.h9.teamSolo)} and ${times(w.h10.teamSolo)} the wall time`,
-    `In round nx one judge, Codex, put Balanced ${signed(baseSolo('h8'))} over plain Claude Code on the small fix (v0.5.1, ${q.h8.groups} groups), and ${signed(q.h9.teamSolo)} and ${signed(q.h10.teamSolo)} on the other two (v0.6.0-rc.1, ${q.h9.groups} groups each), reported with no pre-set bar.`,
+    `In round nx (${runsPerSetup('h8')}, ${runsPerSetup('h9')} and ${runsPerSetup('h10')} runs per setup) Balanced cost ${times(c.h8.baseSolo)} plain Claude Code on a small fix (v0.5.1, nearest to 0.6.0 there), ${times(c.h9.teamSolo)} on a single-area task and ${times(c.h10.teamSolo)} on a multi-area one (v0.6.0-rc.1), at ${times(w.h8.baseSolo)}, ${times(w.h9.teamSolo)} and ${times(w.h10.teamSolo)} the wall time (reported, no bar;`,
+    `In round nx one judge, Codex, put Balanced ${signed(baseSolo('h8'))} over plain Claude Code on the small fix (v0.5.1, ${q.h8.groups} groups) and ${signed(q.h9.teamSolo)} on the single-area task (v0.6.0-rc.1, ${q.h9.groups} groups), reported with no pre-set bar.`,
   ], 'Quickstart')
   assert.ok(quick.toLowerCase().includes(MAX_LABEL), 'Quickstart Max label')
+  // h10's 2 groups each hold a run the mode check flagged, so its quality gaps are not quoted (docs/launch-copy.md).
+  assert.ok(!quick.includes(signed(q.h10.teamSolo)), 'no h10 quality gap in the Quickstart')
 })
 
 test('the Results round nx paragraph names the setups, the judge, the bars, the revert and the unmeasured release', () => {
@@ -68,18 +70,19 @@ test('the Results round nx paragraph names the setups, the judge, the bars, the 
     'one judge, Codex, scored every group blind (five-dimension means)',
     `L1 met its cost bar (${times(c.h8.teamBase)} base on h8) and missed its quality bar (team - base ${signed(Q1.gap)}, 95% CI [${signed(r2(Q1.lo))}, ${signed(r2(Q1.hi))}] over ${Q1.n} groups; bar at least ${Q1.reading.match(/at least (-?\d+\.\d+)/)[1]})`,
     'pre-registered in the public tag `nx-freeze`', 'no round measured that exact build',
-    `there team scored ${signed(q.h9.teamBase)} and ${signed(q.h10.teamBase)} against base at ${times(reported('h9').costRatio)} and ${times(c.h10.teamBase)} its cost (${times(c.h9.teamBase)} on h9 from cent-rounded means)`,
+    `there team cost ${times(reported('h9').costRatio)} and ${times(c.h10.teamBase)} of base (${times(c.h9.teamBase)} on h9 from cent-rounded means) and scored ${signed(q.h9.teamBase)} against it on h9; h10's quality is not quoted`,
     'Gaps against solo are reported, with no pre-set bar.', 'Every setup passed every hidden test',
     `On h8 the runs' own suites caught ${one(nm.h8.team)} (team), ${one(nm.h8.base)} (base) and ${one(nm.h8.solo)} (solo) of ${nm.h8.total} seeded near-miss bugs on average; h10's counts are confounded`,
     '[docs/benchmark-nx-2026-11.md](docs/benchmark-nx-2026-11.md)', '[`bench/data/nx/`](bench/data/nx/)',
   ], 'Results round nx')
+  assert.ok(!nxBlock.includes(signed(q.h10.teamBase)), 'no h10 quality gap in Results')
   assert.ok(!/lowers quality|\bproves\b/i.test(readme), 'no "lowers quality" or "proves"')
 })
 
 test('the Modes table labels Balanced from round nx and Max with the not re-measured text', () => {
   const modes = section('Modes')
   assertIncludes(modes, [
-    `| Balanced · ~${BALANCED}× usage | Round nx: v0.6.0-rc.1 at ${times(c.equal.teamSolo)} plain Claude Code, three tiers weighted equally; ${times(ESTIMATE)} with v0.5.1's h8 in place of the reverted L1. |`,
+    `| Balanced · ~${BALANCED}× usage | Round nx (reported, ${runsPerSetup('h8') + runsPerSetup('h9') + runsPerSetup('h10')} runs per setup): v0.6.0-rc.1 at ${times(c.equal.teamSolo)} plain Claude Code, three tiers weighted equally; estimated ${times(ESTIMATE)} with v0.5.1's h8 in place of the reverted L1. |`,
     '| Max · ~10× usage |',
   ], 'Modes')
   assert.ok(modes.toLowerCase().includes(MAX_LABEL), 'Modes Max label')

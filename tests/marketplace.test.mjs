@@ -30,7 +30,7 @@ test('package.json, plugin.json and the marketplace entry agree on the version',
 test('the listing says what the plugin does, what it costs and how to turn it off, with keywords and a homepage', () => {
   const plugin = read('../.claude-plugin/plugin.json')
   const marketplace = read('../.claude-plugin/marketplace.json')
-  for (const part of ['supervisor', 'specialist', 'code-review gate', 'Team Board', 'about 5x', '10x', '/team mode off']) assert.ok(plugin.description.includes(part), `plugin description lacks ${part}`)
+  for (const part of ['supervisor', 'specialist', 'code-review gate', 'Team Board', 'about 7x', '10x', '/team mode off']) assert.ok(plugin.description.includes(part), `plugin description lacks ${part}`)
   assert.ok(marketplace.description.includes('supervisor') && marketplace.description.includes('specialist'), marketplace.description)
   assert.ok(Array.isArray(plugin.keywords) && plugin.keywords.includes('multi-agent') && plugin.keywords.includes('code-review'))
   assert.equal(plugin.homepage, 'https://github.com/afel6/section-team#readme')

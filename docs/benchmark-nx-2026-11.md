@@ -53,7 +53,7 @@ The third job was meant for the shipping build. L1 was reverted, so the shipping
   - Odd reps ran solo, base, team and even reps ran in reverse, one run at a time, on 2026-11-23 and 24.
   - All 27 exited 0 on the first attempt. None was re-run and none timed out.
   - There was no Max arm.
-  - **Pilot.** Before the freeze, a pilot of 8 runs (on h5, h5p and h6, with the same three setups) checked the harness. Its rows are in `summary.json`, with ids ending `-pnx-r1`. No bar or table on this page reads them.
+  - **Pilot.** Before the freeze, a pilot of 8 runs (on h5 and h6 with the three setups, and on h5p with base and team) checked the harness. Its rows are in `summary.json`, with ids ending `-pnx-r1`. No bar or table on this page reads them.
 
 ### The tasks
 
@@ -67,7 +67,7 @@ Reference sizes are raw source lines of the frozen reference solution, without t
 
 All 5 team h8 runs took the direct tier: they spawned only the reviewer. All 5 base h8 runs woke the backend section, its coder and the reviewer.
 
-**h8 to h10 were written by Claude agents this week**, for this round. They were not in either plugin version's tree (rc.1 was checked to hold no h8 to h10 file). They come from the same model family that builds and judges them. The round cannot remove that limit.
+**h8 to h10 were written by Claude agents this week**, for this round. They were not in either plugin version's tree (rc.1 was checked to hold no h8 to h10 file). They come from the same model family that builds them (Claude); the judge, Codex, is from another vendor. The round cannot remove that limit.
 
 ### Judging
 

@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "section-team",
-      "description": "Turns each Claude Code session into a supervisor that hands every job to Opus specialist agents (frontend, backend, testing and more) behind an Opus code-review gate, with saved reports and a live Team Board. Costs about 5x plain Claude Code in Balanced and 10x in Max; /team mode off turns it off for one project.",
+      "description": "Turns each Claude Code session into a supervisor that hands every job to Opus specialist agents (frontend, backend, testing and more) behind an Opus code-review gate, with saved reports and a live Team Board. Costs about 7x plain Claude Code in Balanced and 10x in Max; /team mode off turns it off for one project.",
       "source": "./",
       "category": "development"
     }

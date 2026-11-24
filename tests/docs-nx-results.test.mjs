@@ -74,6 +74,12 @@ test('the results doc states the revert, the disclosures and the limits, and mak
   assert.ok(!/Users[\\/]|[\w.+-]+@[\w-]+\.\w|claude-team-cloud|\.superpowers/.test(doc), 'private data')
 })
 
+test('the launch copy dates the freeze to the first run of the round: the paid pilot ran before it', () => {
+  const copy = read('docs/launch-copy.md')
+  assert.ok(!/first paid run|before the runs/.test(copy), 'freeze dated by paid runs')
+  assert.ok(copy.includes('`nx-freeze` before the first run of the round'), 'freeze wording')
+})
+
 test('the data READMEs describe the nx folder as it now is', () => {
   const data = read('bench/data/README.md')
   assert.ok(!data.includes('For now it holds only'), 'stale nx sentence')

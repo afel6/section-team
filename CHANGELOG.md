@@ -53,7 +53,7 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 Round nx measured v0.6.0-rc.1 (`9ec796f`). These commits came after it, newest first; of them, only the revert changes what the plugin does.
 - `fe9900c` Round nx's derived data published in `bench/data/nx/`.
 - `9e76662` Merge of the revert below, as round nx's keep rule requires.
-- `7dd5bf3` Revert of the Balanced direct tier: Balanced's brief and the generated agents go back to waking a section for every job, and `skills/direct-build/` is removed.
+- `7dd5bf3` Revert of the Balanced direct tier: Balanced's brief goes back to waking a section for every job, the generator drops the direct-build skill, and `skills/direct-build/` is removed.
 - `54e50c3` Merge of round nx's tasks, tagged `nx-freeze` with the bars and the keep rule; benchmark files only.
 - `ee3f36a` h10's task text says the body decodes as Buffer toString does and keeps a leading byte order mark (benchmark only).
 - `c6e65fd` h10's hidden tests compare a failed list fetch with the list as loaded and check that a list success keeps `#error` (benchmark only).
