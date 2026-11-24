@@ -1,0 +1,771 @@
+{
+  "h10-base-nx-r1": {
+    "cond": "base-nx",
+    "task": "h10",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:docs",
+        "section-team:frontend",
+        "section-team:plan-advisor",
+        "section-team:reviewer",
+        "section-team:testing"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h10-base-nx-r2": {
+    "cond": "base-nx",
+    "task": "h10",
+    "faithful": false,
+    "broken": [
+      "gate of a44f12166068e08ca ended early"
+    ],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:docs",
+        "section-team:frontend",
+        "section-team:plan-advisor",
+        "section-team:reviewer",
+        "section-team:testing"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h10-solo-nx-r1": {
+    "cond": "solo-nx",
+    "task": "h10",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h10-solo-nx-r2": {
+    "cond": "solo-nx",
+    "task": "h10",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h10-team-nx-r1": {
+    "cond": "team-nx",
+    "task": "h10",
+    "faithful": false,
+    "broken": [
+      "gate of aa65fceb56e8b180e graded again after a pass",
+      "gate of abeb8867a43def12a ended early"
+    ],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:docs",
+        "section-team:frontend",
+        "section-team:plan-advisor",
+        "section-team:reviewer",
+        "section-team:testing"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h10-team-nx-r2": {
+    "cond": "team-nx",
+    "task": "h10",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:docs",
+        "section-team:frontend",
+        "section-team:plan-advisor",
+        "section-team:reviewer",
+        "section-team:testing"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-base-nx-r1": {
+    "cond": "base-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-base-nx-r2": {
+    "cond": "base-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-base-nx-r3": {
+    "cond": "base-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-base-nx-r4": {
+    "cond": "base-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-base-nx-r5": {
+    "cond": "base-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "multi",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h8-solo-nx-r1": {
+    "cond": "solo-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-solo-nx-r2": {
+    "cond": "solo-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-solo-nx-r3": {
+    "cond": "solo-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-solo-nx-r4": {
+    "cond": "solo-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-solo-nx-r5": {
+    "cond": "solo-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-team-nx-r1": {
+    "cond": "team-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "direct",
+    "validity": {
+      "spawned": [
+        "section-team:reviewer"
+      ],
+      "leverFired": true,
+      "wokeBuilder": false,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-team-nx-r2": {
+    "cond": "team-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "direct",
+    "validity": {
+      "spawned": [
+        "section-team:reviewer"
+      ],
+      "leverFired": true,
+      "wokeBuilder": false,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-team-nx-r3": {
+    "cond": "team-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "direct",
+    "validity": {
+      "spawned": [
+        "section-team:reviewer"
+      ],
+      "leverFired": true,
+      "wokeBuilder": false,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-team-nx-r4": {
+    "cond": "team-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "direct",
+    "validity": {
+      "spawned": [
+        "section-team:reviewer"
+      ],
+      "leverFired": true,
+      "wokeBuilder": false,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h8-team-nx-r5": {
+    "cond": "team-nx",
+    "task": "h8",
+    "faithful": true,
+    "broken": [],
+    "tier": "direct",
+    "validity": {
+      "spawned": [
+        "section-team:reviewer"
+      ],
+      "leverFired": true,
+      "wokeBuilder": false,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h9-base-nx-r1": {
+    "cond": "base-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": "single",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h9-base-nx-r2": {
+    "cond": "base-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": "single",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "043e00de832ef7b93b316cb779209a8d61b90d1d",
+        "got": "043e00de832ef7b93b316cb779209a8d61b90d1d"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h9-solo-nx-r1": {
+    "cond": "solo-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h9-solo-nx-r2": {
+    "cond": "solo-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": null,
+    "validity": {
+      "spawned": [],
+      "leverFired": null,
+      "wokeBuilder": false,
+      "nonBuiltin": [],
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": null,
+        "got": null
+      },
+      "offModel": [],
+      "otherModels": [],
+      "timedOut": false
+    }
+  },
+  "h9-team-nx-r1": {
+    "cond": "team-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": "single",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  },
+  "h9-team-nx-r2": {
+    "cond": "team-nx",
+    "task": "h9",
+    "faithful": true,
+    "broken": [],
+    "tier": "single",
+    "validity": {
+      "spawned": [
+        "section-team:backend",
+        "section-team:coder",
+        "section-team:reviewer"
+      ],
+      "leverFired": null,
+      "wokeBuilder": true,
+      "nonBuiltin": null,
+      "void": null,
+      "kept": null,
+      "commit": {
+        "ok": true,
+        "want": "9ec796f0ecbf9a5c31416cbea772d4be9919c363",
+        "got": "9ec796f0ecbf9a5c31416cbea772d4be9919c363"
+      },
+      "offModel": [],
+      "otherModels": [
+        {
+          "role": "section-team:coder",
+          "model": "claude-sonnet-5-5"
+        }
+      ],
+      "timedOut": false
+    }
+  }
+}

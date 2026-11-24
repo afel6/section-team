@@ -1,0 +1,677 @@
+[
+  {
+    "pair": "h9-r2",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No verified implementation defects. A/calc.mjs:252 cleanly separates tokenization, parsing and evaluation; A/calc.mjs:117 and :239 keep long chains iterative; A/calc.mjs:218 safely checks variable ownership. A/calc.test.mjs:98, :263 and :320 provide especially thorough diagnostic precedence tests; A/calc-cli.test.mjs:27 checks exact streams and exit codes. A/README.md:24 and :56 clearly document both interfaces and errors. Own library tests: 63/63 passed with node --test --test-isolation=none calc.test.mjs. Canonical test execution and subprocess CLI tests were blocked by sandbox spawn EPERM, not solution failures. Shared scratch probes: 42,019 reference comparisons, 78 in-process CLI cases and nine size/depth/rounding checks all passed. Minor maintainability issue: defaults implicitly mean exponentiation and chain at A/calc.mjs:214 and :238."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No verified implementation defects. B/calc.mjs:123 and :277 use explicit compilation/evaluation stacks, preserve evaluation order and avoid recursion limits; B/calc.mjs:27 handles rounding boundaries correctly. B/calc-cli.mjs:17 validates bindings safely and in order. B/README.md:21 and :67 document precise CLI/error contracts. Own library tests: 61/61 passed with node --test --test-isolation=none test/calc.test.mjs; B/test/calc.test.mjs:235 covers large inputs. Test gap relative to A: B/test/calc.test.mjs:118 and :129 do not systematically combine unknown calls or arity errors with competing syntax failures. Canonical test execution and subprocess CLI tests were blocked by sandbox spawn EPERM. Shared scratch probes: 42,019 reference comparisons, 78 in-process CLI cases and nine size/depth/rounding checks all passed. More parser state to maintain than the direct grammar implementations."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "No verified implementation defects. C/calc.mjs:235 enforces all three phases; C/calc.mjs:90 and :216 handle long chains; C/calc.mjs:20 and :203 safely handle prototype-sensitive names. Own library tests: 12/12 passed with node --test --test-isolation=none test/calc.test.mjs, including required limits at C/test/calc.test.mjs:162. Coverage is less systematic: C/test/calc.test.mjs:28 omits lone-surrogate diagnostics, and C/test/cli.test.mjs:36 has fewer malformed-binding cases than A/B. C/README.md:50 omits constant overrides; :51 omits explicit function arities. Canonical test execution and subprocess CLI tests were blocked by sandbox spawn EPERM. Shared scratch probes: 42,019 reference comparisons, 78 in-process CLI cases and nine size/depth/rounding checks all passed."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-01",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r2",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "A/lib/rules.mjs:31 correctly validates calendar dates, including leap centuries. A/lib/commands.mjs:36 persists numbering for newly added loans. However, A/lib/commands.mjs:74 removes legacy loans without preserving their highest number: scratch in-memory probes with JSON roundtrips confirmed legacy #1–#3 -> remove #3 -> add reuses #3; removing all restarts at #1, violating README.md:38. A/lib/commands.mjs:26 also permits safe-integer overflow and duplicate IDs. Tests at A/test/commands.test.mjs:97 cover date errors and unchanged data; legacy coverage at :147 misses removal before first add. Ran the own test runner: subprocess spawn EPERM. Retried with --test-isolation=none and scratch TEMP/TMP: 4 rules tests passed, 22 filesystem tests blocked by mkdtemp EPERM. Direct probes confirmed calendar handling and the legacy defect."
+    },
+    "Y": {
+      "correctness": 6,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "B/lib/rules.mjs:25 provides concise, correct date roundtrip validation; 6,006 calendar-oracle cases passed in scratch in-memory probes. B/test/commands.test.mjs:95 checks date rejection and unchanged saved content. Numbering remains incomplete: B/lib/commands.mjs:30 initializes metadata only during add, while :68 discards legacy maximum IDs. Probes confirmed legacy #1–#3 -> remove #3 -> add reuses #3, and deleting all restarts at #1. The legacy test at B/test/commands.test.mjs:122 misses this ordering. B/lib/commands.mjs:18 spreads every loan into Math.max; adding to a valid 150,000-loan store threw RangeError. Allocation at :28 also duplicates IDs beyond the safe-integer limit. Ran npm --prefix B test: spawn EPERM. Isolation-disabled retry passed 3 rules tests; 16 filesystem tests were blocked by mkdtemp EPERM."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "C/lib/rules.mjs:25 correctly rejects impossible dates. C/lib/commands.mjs:18 derives the numbering maximum compatibly, and :70 preserves it before removal, including legacy files. Existing loan records remain unchanged without a migration. C/test/commands.test.mjs:101 specifically covers removing a legacy maximum, alongside date and compatibility tests at :70 and :90. Scratch in-memory probes passed 23 assertions covering deletion patterns, serialized restarts, legacy preservation and calendar boundaries; the 150,000-loan probe also succeeded. Minor limit: allocation at C/lib/commands.mjs:29 permits unsafe integers; two additions after 9007199254740991 both receive 9007199254740992. Ran npm test: spawn EPERM. Isolation-disabled retry passed 4 rules tests; 18 filesystem tests were blocked by mkdtemp EPERM, so full filesystem verification remains unavailable."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r3",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "A/lib/rules.mjs:25 correctly rejects calendar rollover using a concise round-trip check. A/lib/commands.mjs:18 computes numbers without argument-count limits. However, A/lib/commands.mjs:70 removes legacy loans without preserving their highest number: a counterless file containing #1,#2,#3 followed by remove 3 and add produces #3 again, violating A/README.md:38. Removing all legacy loans resets numbering to #1. A/test/commands.test.mjs:115 and :125 test deletion and legacy loading separately, missing their interaction. Normal node --test runs were blocked by sandbox EPERM. Non-isolated rules passed 4/4; command/rules suites with in-memory filesystem simulation passed 19/19. Scratch probes reproduced legacy reuse and successfully added to 150,000 loans. Syntax checks passed. At Number.MAX_SAFE_INTEGER, successive additions also duplicate numbers."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/lib/rules.mjs:35 validates Gregorian dates consistently across commands. B/lib/commands.mjs:74 captures the counter before deletion, correctly handling legacy files even when their highest or final loan is removed. B/test/commands.test.mjs:54 checks legacy reads without rewriting; :64 and :75 cover stale counters and preservation of existing duplicate-number behavior. The README remains clear and applicable. Normal node --test runs were blocked by sandbox EPERM. Non-isolated rules passed 3/3; command/rules suites with in-memory filesystem simulation passed 23/23. Scratch probes confirmed correct legacy deletion numbering and successful addition to 150,000 loans. Syntax checks passed. Minor boundary defect: B/lib/commands.mjs:25 and :35 do not guard increment overflow; with highest number Number.MAX_SAFE_INTEGER, two additions both receive #9007199254740992. Tests also lack the legacy-remove-before-first-add regression."
+    },
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 7,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 9,
+      "overall": 6,
+      "notes": "C/lib/rules.mjs:25 correctly rejects impossible dates, and C/test/commands.test.mjs:79 checks that adding preserves existing loan records. However, C/lib/commands.mjs:70 does not establish a counter when deleting from a legacy file: remove 3 then add on counterless #1,#2,#3 reuses #3; removing every legacy loan resets numbering to #1, contradicting C/README.md:38. C/lib/commands.mjs:19 additionally spreads every loan number into Math.max; a scratch probe with 150,000 valid loans throws RangeError while A and B succeed. Normal node --test runs were blocked by sandbox EPERM. Non-isolated rules passed 4/4; command/rules suites with in-memory filesystem simulation passed 19/19. Syntax checks passed. Tests miss legacy deletion before the first add and the argument-count limit. Like A and B, numbering also duplicates beyond Number.MAX_SAFE_INTEGER."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "h10-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong separation of routing, validation and persistence. Save-before-publish commits and temporary-file replacement protect state and IDs (A/lib/app.mjs:45; A/lib/store.mjs:37). Body buffering is bounded while requests drain fully (A/lib/app.mjs:67); percentages use exact BigInt arithmetic (A/lib/polls.mjs:58). Configuration and API documentation are thorough (A/README.md:29). Defects: unknown-method reconstruction loses bytes from earlier packets (A/lib/raw-http.mjs:196): socket probes returned 405 for an unsplit P request but 400 when its method was split across writes. Browser response guards suppress required errors and successful rendering (A/public/app.js:124; A/public/app.js:181); DOM probes confirmed a missing Open error and a successful create leaving the previous poll shown. Ran its own suites: default node --test encountered spawn EPERM; the no-isolation retry encountered mkdtemp EPERM. Its browser suite passed 46/46 with --test-isolation=none. Independent in-memory API checks passed 53/53."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Immutable mutations run through a queue and publish only after saving (B/lib/store.mjs:11); temporary-file replacement protects previous data (B/lib/data-file.mjs:89). Tests cover API boundaries, persistence, concurrency and browser workflows; usage documentation is comprehensive (B/test/server.test.mjs:494; B/test/e2e.test.mjs:79; B/README.md:28). Defects: packet reconstruction depends on the current rawPacket (B/lib/raw-requests.mjs:116); socket probes returned 405 for unsplit P but 400 when split. Browser guards suppress specified completed-response actions (B/public/app.js:73; B/public/app.js:148), confirmed by missing Open errors and successful creates not displaying their polls. Startup validation accepts polls with zero answers (B/lib/data-file.mjs:34), confirmed by an in-memory validator probe. Its tests incorrectly classify PORT=1 as invalid (B/test/startup.test.mjs:69); a local bind probe succeeded, exposing a test that can wait for a valid server to exit. Own full-suite attempts encountered spawn EPERM and then mkdtemp EPERM. Its browser suite passed 65/65 without process isolation; independent in-memory API checks passed 53/53."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable implementation with correct ordinary routing, validation precedence, percentages and bounded body draining (C/server.mjs:91; C/server.mjs:148; C/server.mjs:250; C/server.mjs:285). Browser completion behavior follows the specified actions, including overlapping replies (C/public/app.js:110; C/public/app.js:164). README covers running, configuration and API usage (C/README.md:6). Main defect: saving overwrites the live file directly (C/server.mjs:85). An injected partial-write ENOSPC failure returned 500 and preserved memory, but corrupted previously saved JSON and caused restart failure. Bare HTTP defaults bypass the application contract (C/server.mjs:309): socket probes returned non-JSON 400 for valid unsupported method P and 417 for a custom Expect header. Invalid PORT values containing newlines produce multiple stderr lines (C/server.mjs:20), confirmed in a VM probe. Own full-suite attempts encountered spawn EPERM and then mkdtemp EPERM. Its browser suite passed 5/5 without process isolation, but covers substantially fewer failure cases than A/B (C/test/page.test.mjs:85). Independent in-memory API checks passed 53/53."
+    },
+    "ranking": [
+      "Z",
+      "Y",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-04",
+    "swapped": true
+  },
+  {
+    "pair": "h10-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong validation, serialized mutations (A/server.mjs:257), plain-text rendering (A/public/app.js:95), and thorough usage/API documentation (A/README.md:6). Original-server probes passed concurrent duplicate voting, 34/33/33 rounding, and failed-save ID rollback. Defects: A/server.mjs:547 only recovers HPE_INVALID_METHOD; PRI /api/polls returns bare 400 instead of JSON 405, even before its declared body finishes. A/server.mjs:271 overwrites the live data file; injected partial-write ENOSPC preserved RAM but corrupted simulated saved JSON, preventing reload. Ran npm --prefix A test: blocked by sandbox spawn EPERM; full no-isolation retry hit mkdtemp EPERM. Its isolated page suite passed 73/73. Native filesystem integration remains unverified."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear API/store/transport separation (B/lib/api.mjs:135, B/lib/store.mjs:79), extensive behavioral tests (B/test/page.test.mjs:1), and detailed configuration/API documentation (B/README.md:5). Core concurrency, rounding, validation precedence and save-failure probes passed. Defects: B/lib/raw-requests.mjs:119 recovers only the current parser-error packet; sending GE then the remaining request after a delay produces bare 400 instead of JSON 405. PRI also bypasses recovery at B/lib/raw-requests.mjs:124. B/lib/store.mjs:86 directly overwrites storage; injected partial-write failure preserved RAM but corrupted simulated persisted JSON. Ran npm --prefix B test: sandbox spawn EPERM; no-isolation integration hit mkdtemp EPERM. Native page tests passed 82/82; another 82/82 original API assertions passed with filesystem/process substitutes and real localhost HTTP. Native filesystem integration remains unverified."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Readable dependency-free implementation with correct rounding (C/server.mjs:105), ordered validation, and useful lifecycle/concurrency tests (C/test/server.test.mjs:68, C/test/server.test.mjs:199). C/README.md:6 supplies concise usage and API instructions. Defects: the ordinary request handler at C/server.mjs:495 leaves Node defaults in control of special requests: BREW returns non-JSON 400, CONNECT closes without a reply, and unsupported Expect returns 417 instead of the applicable API response. C/server.mjs:13 echoes invalid PORT verbatim, so embedded newlines violate the single-stderr-line requirement. C/server.mjs:96 directly overwrites storage; injected partial-write ENOSPC corrupted simulated saved JSON and prevented restart despite RAM rollback. Ran npm --prefix C test: sandbox spawn EPERM; no-isolation retry hit mkdtemp EPERM. Its eight original tests passed under in-memory filesystem/process substitution with real localhost HTTP. Page tests at C/test/server.test.mjs:182 check markup/syntax but omit browser interaction behavior."
+    },
+    "ranking": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-05"
+  },
+  {
+    "pair": "h8-r4",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "A/lib/rules.mjs:31 correctly validates Gregorian dates. A/lib/commands.mjs:18 and A/lib/commands.mjs:72 preserve numbering through deletion and support legacy files without changing saved loans. A/test/cli.test.mjs:32 adds valuable process-persistence coverage; :38 checks invalid dates create no file. Optional metadata is documented at A/lib/store.mjs:1. Ran npm --prefix A test: blocked by sandbox spawn EPERM. Native in-process suite passed four rule tests; filesystem tests were blocked. With an in-memory filesystem, all 21 command/rule tests passed. Scratch probes passed 36,939 calendar inputs plus deletion, JSON-reload, and legacy-preservation checks. Actual CLI rejected February 30 with exit 1. Defects: A/lib/commands.mjs:20 spreads all IDs into Math.max; add/remove threw RangeError with 200,000 valid records, while SEED succeeded. Unchecked allocation at :20 and :33 also repeated 9007199254740992 after a legacy MAX_SAFE_INTEGER ID. Neither boundary is covered."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "B/lib/rules.mjs:25 fixes date rollover with a concise UTC round-trip check. B/lib/commands.mjs:18 and :72 maintain persistent numbering, including deletion from legacy files. B/test/commands.test.mjs:61 covers middle/highest/all deletions; :84 explicitly tests deleting the highest legacy ID; :91 checks date errors leave saved data unchanged. Optional metadata is documented at B/lib/store.mjs:1. Ran npm --prefix B test: blocked by sandbox spawn EPERM. Native rule tests passed 4/4; filesystem tests were blocked. With an in-memory filesystem, all 19 command/rule tests passed. Scratch calendar, deletion, reload, and legacy-preservation probes passed; actual CLI rejected February 30 with exit 1. Defects: B/lib/commands.mjs:21 caused add/remove RangeError with 200,000 valid records, unlike SEED. Allocation at :21 and :33 repeated 9007199254740992 beyond safe integer precision. Tests miss both boundaries and add no CLI regressions, placing B narrowly behind A."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "C/lib/rules.mjs:25 correctly rejects rollover dates. C/lib/commands.mjs:18 uses an iterative maximum, avoiding A/B's argument-limit regression; :30 and :71 preserve numbering across additions and deletions. C/test/commands.test.mjs:61 covers date rejection and unchanged data; :72 covers deletion patterns and correct return targeting; :86 verifies legacy records remain unchanged. Optional metadata is documented at C/lib/store.mjs:1. Ran npm --prefix C test: blocked by sandbox spawn EPERM. Native rule tests passed 4/4; filesystem tests were blocked. With an in-memory filesystem, all 18 command/rule tests passed. Scratch probes passed 36,939 calendar inputs, deletion/reload/legacy checks, and add/remove with 200,000 records. Actual CLI rejected February 30 with exit 1. Remaining extreme boundary defect: unchecked increment at C/lib/commands.mjs:30 issued 9007199254740992 twice after a legacy MAX_SAFE_INTEGER ID. Tests omit numeric exhaustion and new CLI regressions."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-06"
+  },
+  {
+    "pair": "h10-r2",
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 7,
+      "docsUsability": 7,
+      "overall": 7,
+      "notes": "Strengths: clear validation and percentage calculation (A/server.mjs:357, A/server.mjs:105), safe text rendering (A/server.mjs:218), and concise usage instructions (A/README.md:6). Passed 31/31 independent API checks with virtual file I/O, covering concurrency, rollback and reloading saved state. Its embedded browser code also passed 82 checks from B's browser suite. Defects: raw HTTP probes showed unknown methods return bare 400, CONNECT receives no response, and unknown Expect headers produce 417 because protocol events are unhandled (A/server.mjs:495). Boundary probes demonstrated duplicate IDs after the safe-integer limit (A/server.mjs:402). Direct file overwrites can destroy saved data on partial write failure; fault injection confirmed empty saved content despite unchanged memory (A/server.mjs:96). Own tests cover lifecycle and concurrency but browser checks are superficial (A/test/server.test.mjs:68, A/test/server.test.mjs:182). Attempted own suite; sandbox spawn EPERM and then mkdtemp EPERM prevented execution."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strengths: well-separated API, domain, storage and HTTP modules; serialized changes publish memory only after saving (B/lib/store.mjs:79). Explicit protocol handling correctly answered unknown methods, CONNECT and unknown Expect headers in probes (B/lib/http-server.mjs:62). Comprehensive API and browser tests and detailed usage documentation (B/test/api.test.mjs:115, B/test/page.test.mjs:430, B/README.md:5). Own browser suite passed 82/82; independent API checks passed 31/31 with virtual file I/O. Defects: the custom chunk parser limits sizes to 12 hexadecimal digits (B/lib/framing.mjs:6, B/lib/framing.mjs:48). Raw probes using valid size 0000000000001 returned bare 400 for FOO and CONNECT instead of 405; ordinary GET accepted the same framing. Direct overwrites lack disk rollback after partial write failures, confirmed with fault injection (B/lib/store.mjs:86). Attempted complete own suites; sandbox spawn EPERM and temporary-directory restrictions prevented full execution."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Strengths: correct validation ordering, queued mutations and memory rollback (C/server.mjs:225, C/server.mjs:257). Browser behavior is carefully implemented and tested, including pending requests and overlapping replies (C/public/app.js:125, C/test/page.test.mjs:664). Thorough usage documentation (C/README.md:25). Own browser suite passed 73/73; independent API checks passed 31/31 with virtual file I/O. Basic unknown-method, CONNECT and Expect probes passed. Defects: fragmented chunk-size lines exceeding 4096 bytes are rejected prematurely (C/server.mjs:458). Raw probes with a valid 5000-character chunk extension produced bare 400 before the body arrived for FOO and CONNECT, while ordinary GET accepted identical framing. Direct overwrites can corrupt saved data on partial write failure, confirmed by fault injection (C/server.mjs:271). The large server module combines storage, domain and protocol machinery (C/server.mjs:69, C/server.mjs:387). Attempted complete own suites; sandbox spawn EPERM and temporary-directory restrictions prevented full execution."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-07",
+    "swapped": true
+  },
+  {
+    "pair": "h9-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "A/calc.mjs:264 correctly separates full tokenization, parsing and evaluation; :135 keeps long arithmetic chains flat. A/README.md:24 documents variables, syntax and errors thoroughly. Direct node A/test/calc.test.mjs passed 47/47; unchanged CLI tests passed 12/12 with an in-memory subprocess adapter. Independent scratch probes passed 65 CLI cases and size/nesting boundaries. No confirmed correctness defects. A/calc.mjs:249 spreads call arguments, an engine-dependent robustness tradeoff; the 49,997-argument probe passed. A/test/calc.test.mjs:360 lacks large function-argument coverage."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "B/calc.mjs:86 separates parsing from evaluation, :185 checks own variable properties, and :218 folds min/max without argument spreading. Direct node B/test/calc.test.mjs passed 11/11; unchanged CLI tests passed 4/4 with an in-memory subprocess adapter. Independent scratch probes passed 65 CLI cases and size/nesting boundaries. No confirmed correctness defects. Coverage is less comprehensive: B/test/calc.test.mjs:75-117 samples error precedence, while B/test/cli.test.mjs:28 tests relatively few malformed assignments. B/README.md:48 omits the own-property and nonmutation contracts."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "C/calc.mjs:282 preserves tokenization/parsing/evaluation ordering; :154 uses flat chains, :247 restricts variable lookup to own properties, and :43 avoids large argument spreading. C/calc.test.mjs:330 thoroughly exercises long inputs and nesting. Direct node C/calc.test.mjs passed 241/241; unchanged CLI tests passed 10/10 with an in-memory subprocess adapter. Independent scratch probes passed 65 CLI cases and size/nesting boundaries. C/README.md:24 documents CLI validation and :55 explains errors. No confirmed correctness defects; strongest overall regression coverage."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-08"
+  },
+  {
+    "pair": "h8-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Best coverage of both fixes. A/lib/rules.mjs:25 rejects rollover dates consistently for add, edit and list while accepting leap days. A/lib/commands.mjs:65 preserves the next number before deleting, including legacy files; serialized command probes produced #4 after removing legacy #3 and #2 after deleting the only legacy #1. A/lib/store.mjs:12 uses a reduction and handled 150,000 loans. A/test/commands.test.mjs:99 checks failed dates leave data unchanged; :149 covers legacy highest-number deletion; :155 covers unchanged read-only files. Minor limit: A/lib/store.mjs:8 accepts unsafe integers, and :13 plus A/lib/commands.mjs:26 can repeat #9007199254740992 with an injected boundary counter. README.md:38 and :50 remain clear and accurate for normal use. Ran node --test \"test/*.test.mjs\": blocked by spawn EPERM. With --test-isolation=none, 3 rule tests passed and 23 file-backed tests were blocked by mkdtemp EPERM. Rule-only run passed 3/3. In-memory command probes verified both reported fixes and input-store immutability."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Fixes both reported scenarios and legacy deletion: B/lib/rules.mjs:25 rejects impossible dates, and B/lib/commands.mjs:72 records the counter before losing the highest loan. Serialized command probes confirmed #4 after removing legacy #3, continued numbering after emptying a legacy store, and correct return targeting. B/test/commands.test.mjs:95 covers date errors without changing existing data; :105 covers deletions; :132 catches legacy highest-number reuse. Defects: B/lib/commands.mjs:21 spreads every number into Math.max; add and remove with 150,000 valid loans threw RangeError, whereas SEED and A succeeded. B/lib/commands.mjs:20 and B/lib/store.mjs:23 do not validate the new counter: injected -1 and 0 counters generated inaccessible #-1 and #0, while invalid nonintegers silently reset numbering. README.md:38 and :59 retain clear behavior and error documentation. Ran node --test \"test/*.test.mjs\": blocked by spawn EPERM. With --test-isolation=none, 4 rule tests passed and 17 file-backed tests were blocked by mkdtemp EPERM. Rule-only run passed 4/4."
+    },
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 7,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 7,
+      "overall": 6,
+      "notes": "C/lib/rules.mjs:25 correctly fixes calendar validation; C/lib/commands.mjs:29 persists numbering for newly created stores, and probes passed the original middle-deletion scenario. Major compatibility defect: C/lib/commands.mjs:67 deletes without first preserving the highest number. With legacy loans #1,#2,#3, remove 3 followed by add produced #3 again; deleting the only legacy #1 followed by add reused #1. This violates README.md:38 and the requirement that existing files work without migration. C/test/commands.test.mjs:84 only tests legacy add before deletion, so it misses this failure. C/lib/commands.mjs:20 also introduces an argument-spread limit: adding to 150,000 valid loans threw RangeError; SEED and A succeeded. C/lib/store.mjs:25 validates persisted counters but does not guard allocation overflow. Ran node --test \"test/*.test.mjs\": blocked by spawn EPERM. With --test-isolation=none, 4 rule tests passed and 17 file-backed tests were blocked by mkdtemp EPERM. Rule-only run passed 4/4; serialized command probes reproduced the legacy reuse defects."
+    },
+    "ranking": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-09"
+  },
+  {
+    "pair": "h9-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No confirmed functional defects. A/calc.mjs:154 keeps operator chains flat; :198 checks calls during parsing; :246 safely resolves own properties; :282 separates tokenization, parsing and evaluation. Variadic functions use folds at :43. Minor maintainability weakness: numerous single-symbol Sets at :23 add ceremony. A/README.md:24 documents validation, formatting and exit codes. Ran node calc.test.mjs in A: 241/241 passed. Unchanged CLI assertions passed 10/10 through an in-memory subprocess substitute, covering 52 invocations; direct CLI execution printed 0.3 correctly. Independent generated-expression and exact-error probes passed all 6013 cases. Broad limit regressions appear at A/calc.test.mjs:330."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "No confirmed functional defects. B/calc.mjs:90 and :191 handle long chains iteratively; :71 implements precise halfway rounding; :138 and :185 protect function and variable lookups; :219 folds large argument lists safely. B/package.json:6 provides exports and CLI packaging. Main limitations are less comprehensive regression coverage and documentation: B/test/cli.test.mjs:28 checks fewer malformed argument forms, while B/README.md:43 omits explicit precedence levels and detailed error ordering. Ran node test/calc.test.mjs in B: 11/11 passed. Unchanged CLI assertions passed 4/4 through an in-memory subprocess substitute. Direct CLI checks passed. Independent probes passed 50000-term chains, 49997-argument calls, 500-level nesting, and all 6013 generated-expression/error cases."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "No confirmed functional defects. C/calc.mjs:69, :186 and :262 preserve required error precedence; :134 flattens long chains; :219 checks arithmetic failures; :226 uses own-property lookup. C/test/calc.test.mjs:360 provides extensive limit regressions, and C/README.md:23 clearly documents grammar and errors. C/calc.mjs:249 spreads variadic arguments; this passed all tested task limits, although A's fold avoids dependence on argument-count limits. Ran library tests with --test-isolation=none: 47/47 passed. Unchanged CLI assertions passed 12/12 through an in-memory subprocess substitute, covering 53 invocations. Direct CLI execution passed. Independent probes passed 49997-argument calls, combined 500-call/99899-character inputs, and all 6013 generated-expression/error cases. Stronger regression coverage and documentation place it above B."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-10",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r5",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "A/lib/rules.mjs:25 correctly rejects calendar rollover. A/lib/commands.mjs:71 preserves the highest issued number before deletion, including legacy files. A/test/commands.test.mjs:97 explicitly covers legacy highest-number removal. Defect: A/lib/commands.mjs:20 spreads every number into Math.max; a 200,000-loan probe caused uncaught RangeError on both add and remove, while SEED succeeded. Native rule tests passed 4/4; unchanged command/rule tests with in-memory filesystem I/O passed 19/19. Full native suites encountered sandbox EPERM. Calendar probes checked 6,006 inputs without mismatches; legacy preservation and ordinary deletion sequences passed."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "B/lib/rules.mjs:25 correctly validates real calendar dates, and B/lib/commands.mjs:32 persists numbering after additions. However, B/lib/commands.mjs:70 does not capture the highest legacy number before removal. Probes starting with old-format loans #1–#3, removing #3, then adding produced #3 again; removing the sole legacy loan also reused #1. This violates B/README.md:38. B/test/commands.test.mjs:91 adds before testing legacy compatibility, missing that sequence. Native rule tests passed 4/4; unchanged command/rule tests with in-memory filesystem I/O passed 18/18. Full native suites encountered sandbox EPERM. All 6,006 calendar probes matched expectations."
+    },
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "C/lib/rules.mjs:32 correctly validates Gregorian dates. C/lib/store.mjs:12 derives the highest issued number before commands run, preserving numbering through legacy highest/all deletions without modifying existing loan records. C/test/commands.test.mjs:97 covers rejected-date preservation; :160 covers legacy deletion and :166 existing duplicate IDs. Native rule tests passed 3/3; unchanged command/rule tests with in-memory filesystem I/O passed 23/23. Full native suites encountered sandbox EPERM. Calendar probes checked 6,006 inputs without mismatches; legacy preservation and 200,000-loan operations passed. Extreme limitation: C/lib/commands.mjs:25 lacks integer-exhaustion protection; starting at Number.MAX_SAFE_INTEGER produced repeated #9007199254740992 IDs."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-11"
+  },
+  {
+    "pair": "h8-r3",
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "A/lib/rules.mjs:21 correctly rejects impossible dates; 184,800 calendar probes passed. A/lib/commands.mjs:32 initializes nextNumber only on add; remove at A/lib/commands.mjs:70 loses legacy numbering history: starting with legacy #1-#3, remove 3 then add reissues #3. A/test/commands.test.mjs:79 misses deletion before the first legacy add. A/lib/commands.mjs:19 additionally throws RangeError on 150,000 valid loans; SEED succeeds. Ran npm --prefix A test: sandbox spawn EPERM. No-isolation execution passed four rule tests; 17 filesystem tests were blocked. All 19 own command/rule assertions passed with a virtual filesystem. Actual CLI invalid-date check exited 1 with the documented error; physical persistence remains unverified."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/lib/rules.mjs:35 correctly validates Gregorian dates; 184,800 calendar probes passed. B/lib/commands.mjs:23 allocates above existing numbers and the stored counter; B/lib/commands.mjs:74 preserves the counter before legacy removal. Inline probes passed legacy highest/sole removal and stale counters. B/test/commands.test.mjs:10 and B/test/commands.test.mjs:75 cover failed-date immutability and preservation of existing duplicate loans. Minor limit: B/lib/commands.mjs:24 has no integer-exhaustion guard; after #9007199254740991, two adds issue #9007199254740992. Ran npm --prefix B test: sandbox spawn EPERM. No-isolation execution passed three rule tests; 22 filesystem tests were blocked. All 23 own command/rule assertions passed with a virtual filesystem. Actual CLI invalid-date check exited 1 correctly; physical persistence remains unverified."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "C/lib/rules.mjs:21 correctly rejects impossible dates; 184,800 calendar probes passed. C/lib/commands.mjs:20 uses reduce and successfully added to 200,000 loans. However, C/lib/commands.mjs:32 initializes lastNumber only on add; remove at C/lib/commands.mjs:70 loses the highest legacy number. Inline probes showed legacy #1-#3, remove 3, add reissues #3; deleting the sole legacy loan similarly reissues #1. C/test/commands.test.mjs:125 tests legacy loading but misses removal before the first add. Ran npm --prefix C test: sandbox spawn EPERM. No-isolation execution passed four rule tests; 17 filesystem tests were blocked. All 19 own command/rule assertions passed with a virtual filesystem. Actual CLI invalid-date check exited 1 correctly; physical persistence remains unverified."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-12",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r2",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "A/lib/rules.mjs:25 rejects rolled-over dates with a UTC round-trip check. A/lib/commands.mjs:70 preserves the highest issued number before removing a legacy loan; serialized remove-highest and remove-all probes both correctly allocated #4. Existing records remained unchanged. A/test/commands.test.mjs:101 explicitly covers legacy highest-number removal. Minor theoretical limit: A/lib/commands.mjs:29 allows safe-integer exhaustion; two additions after 9007199254740991 duplicate the next number. Ran node --test --test-isolation=none A/test/*.test.mjs: 4 rules tests passed; 18 filesystem-dependent tests were blocked by sandbox mkdtemp EPERM. An inline in-memory filesystem rerun passed all 16 command tests; actual disk/CLI behavior remains unverified. Calendar probe: 5,544 cases, zero mismatches."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "B/lib/rules.mjs:25 correctly rejects impossible dates, and B/lib/commands.mjs:30 persists numbering after additions without changing existing records. However, B/lib/commands.mjs:68 removes legacy loans without retaining their maximum: serialized legacy [1,2,3] -> remove 3 -> add reused #3; removing all then adding restarted at #1, violating B/README.md:38. B/test/commands.test.mjs:122 tests legacy addition but misses legacy removal first. B/lib/commands.mjs:19 spreads every number into Math.max; a 150,000-loan probe crashed with RangeError while SEED, A and C succeeded. Ran node --test --test-isolation=none B/test/*.test.mjs: 3 rules tests passed; 16 filesystem-dependent tests were blocked by sandbox mkdtemp EPERM. In-memory filesystem rerun: 14 command tests passed; disk/CLI unverified. Calendar probe: 5,544 cases, zero mismatches."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "C/lib/rules.mjs:31 correctly validates calendar dates and Gregorian leap years. C/lib/commands.mjs:25 uses a scalable maximum scan; additions preserve existing records. However, C/lib/commands.mjs:74 discards a legacy maximum before lastNumber exists: serialized legacy [1,2,3] -> remove 3 -> add reused #3; deleting all then adding restarted at #1, violating C/README.md:38. C/test/commands.test.mjs:131 covers highest deletion only after new-format additions; its broader tests at lines 147, 153 and 159 cover legacy loading, duplicate preservation and counter retention but miss legacy deletion first. Ran node --test --test-isolation=none C/test/*.test.mjs: 4 rules tests passed; 22 filesystem-dependent tests were blocked by sandbox mkdtemp EPERM. In-memory filesystem rerun passed all 24 rules/command tests; disk/CLI unverified. Calendar probe: 5,544 cases, zero mismatches."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-13"
+  },
+  {
+    "pair": "h9-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 10,
+      "docsUsability": 8,
+      "overall": 9,
+      "notes": "No confirmed specification defect. A/calc.mjs:90 flattens operator chains; A/calc.mjs:235 separates parsing from evaluation; A/calc.mjs:203 correctly checks own properties. npm --prefix A test was blocked by sandbox spawn EPERM. With isolation disabled, 12/12 library tests passed; an in-memory subprocess adapter passed all 5 CLI test groups, comprising 28 invocations. Independent probes passed 500-level nesting, 50000-number sums and large calls. A/test/calc.test.mjs:162 covers limits, but coverage is narrower than B/C. A/README.md:3 omits the minimum Node version, and A/README.md:53 provides fewer error details."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No confirmed specification defect. B/calc.mjs:123 and B/calc.mjs:277 use explicit compiler/evaluator stacks, preserving precedence and evaluation order without recursive stack dependence. B/calc.mjs:27 handles rounding boundaries correctly; B/calc-cli.mjs:19 safely supports special variable names. npm --prefix B test was blocked by sandbox spawn EPERM. With isolation disabled, 61/61 library tests passed; an in-memory subprocess adapter passed 49/49 CLI tests. A separate recursive-descent reference matched 130000 generated cases exactly. B/test/calc.test.mjs:235 covers limits extensively. B/README.md:3 declares the runtime; B/README.md:67 documents exact errors. Ranked first for stack safety and documentation."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No confirmed specification defect. C/calc.mjs:117 keeps long chains flat; C/calc.mjs:252 separates parsing from evaluation; C/calc.mjs:219 correctly guards variable lookup. npm --prefix C test was blocked by sandbox spawn EPERM. With isolation disabled, 63/63 library tests passed; an in-memory subprocess adapter passed 63/63 CLI tests. Independent probes passed 500 nested calls, 50000-number sums and a 100000-character max call containing 49998 arguments. C/calc.test.mjs:263 thoroughly checks error timing; C/calc.test.mjs:523 covers limits. C/README.md:70 explains errors clearly, but C/README.md:3 omits the minimum Node version. Close second."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-14"
+  },
+  {
+    "pair": "h10-r1",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "Readable implementation with correct validation precedence, percentages and ordinary API behavior (A/server.mjs:179, A/server.mjs:209); clear usage documentation (A/README.md:6). Major defects: saving directly overwrites the live file (A/server.mjs:85); an injected partial-write failure preserved memory but corrupted persisted data, preventing restart. ID allocation lacks an overflow guard (A/server.mjs:198): starting at MAX_SAFE_INTEGER produced duplicate IDs and a saved state rejected by its own startup validator. Native HTTP handling lacks CONNECT/custom-method/Expect handling (A/server.mjs:309): loopback probes received no CONNECT reply, 400 for FOO instead of 405, and 417 for an otherwise routable POST. Ran its declared node --test command: blocked by sandbox spawn EPERM. With isolation disabled, the unchanged browser suite passed 5/5. Its server suite passed 13/13 with filesystem and child processes substituted in memory. Existing tests cover ordinary concurrency and rollback (A/test/server.test.mjs:211, A/test/server.test.mjs:269), but miss these defects."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong modular implementation. Serialized mutations publish state only after saving (B/lib/store.mjs:11); temporary-file replacement protects persisted data (B/lib/data-file.mjs:91). Body handling drains requests while bounding retained data (B/lib/body.mjs:22). Comprehensive usage and API documentation (B/README.md:12, B/README.md:74). Browser request tickets depart from literal per-reply instructions: an older successful Open can fail to replace the displayed poll or clear a newer error (B/public/app.js:73, B/public/app.js:144); harness probes reproduced both, and tests encode the suppression (B/test/page.test.mjs:599). Startup validation also accepts zero-answer polls and duplicate normalized voters (B/lib/data-file.mjs:28). Ran npm test: blocked by sandbox spawn EPERM. The unchanged browser suite passed 65/65 with isolation disabled. Original server assertions passed 208/208 with in-memory filesystem/process substitutes; original protocol tests passed 30/30 with filesystem substitutes and real loopback sockets. Spawned startup and actual disk persistence remain unverified."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Well-structured implementation with immutable save-before-publish changes (C/lib/app.mjs:45), temporary-file replacement (C/lib/store.mjs:37), exact BigInt percentages (C/lib/polls.mjs:58), bounded body retention and thorough documentation (C/README.md:13). Browser filtering discards older replies, including required errors: after a newer Open succeeded, an older 404 left the error empty (C/public/app.js:124); its tests explicitly expect this (C/test/page.test.mjs:496). Create and Vote remain disabled until JSON parsing finishes (C/public/app.js:46, C/public/app.js:145, C/public/app.js:173), a modest timing departure under the interpretation that request settlement means fetch settlement. Persisted-state validation accepts vote totals without corresponding voters and duplicate voters (C/lib/polls.mjs:30), confirmed by direct probes. Ran npm test: blocked by sandbox spawn EPERM. The unchanged browser suite passed 46/46 with isolation disabled. Original API and raw HTTP tests passed 209/209 with filesystem operations substituted in memory and real loopback HTTP. Spawned startup and actual disk persistence remain unverified."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-15"
+  },
+  {
+    "pair": "h8-r4",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "A/lib/rules.mjs:25 correctly rejects normalized impossible dates. A/lib/commands.mjs:20,32,71 preserves numbering across legacy files and middle/highest/all deletions without changing existing loan rows. Its iterative maximum also handles large stores. A/test/commands.test.mjs:61,72,86 adds meaningful regression and compatibility coverage, although no new CLI regression tests were added. Ran node --test and its single-process variant: four rule tests passed; filesystem/process tests were blocked by sandbox EPERM. Unchanged command/rule tests passed 18/18 with in-memory filesystem backing. Independent probes passed 6,930 calendar cases, legacy/deletion scenarios, and add/remove with 200,000 loans. Extreme boundary defect: A/lib/commands.mjs:30 lacks an integer-exhaustion guard; starting with number 9007199254740991, two additions receive 9007199254740992. README.md:38,50 remains consistent with the ordinary fixed behavior."
+    },
+    "Y": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "B/lib/rules.mjs:25 fixes calendar validation centrally. B/lib/commands.mjs:18,33,72 persists numbering and preserves the pre-deletion maximum, including legacy files. B/test/commands.test.mjs:61,76,86,93 covers number reuse, legacy highest deletion, and invalid dates without changing saved data. Ran node --test and its single-process variant: four rule tests passed; filesystem/process tests were blocked by sandbox EPERM. Unchanged command/rule tests passed 19/19 with in-memory filesystem backing. Independent probes passed ordinary deletion/compatibility scenarios and 6,930 calendar cases. Confirmed regression: B/lib/commands.mjs:21 spreads all numbers into Math.max; add and remove throw an uncaught RangeError with 200,000 valid loans, while SEED succeeds. B/lib/commands.mjs:21,33 also permits duplicate numbers beyond the safe-integer boundary. Neither boundary is covered by its tests. README.md:38,50 accurately describes the intended behavior."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "C/lib/rules.mjs:24,35 correctly implements Gregorian leap years and month lengths. C/lib/commands.mjs:18,33,72 preserves numbering and legacy loan rows through deletions. C/test/commands.test.mjs:95,116,127 provides strong date/deletion/compatibility coverage; C/test/cli.test.mjs:32,38 additionally checks separate runs and failed-add file creation. Ran node --test and its single-process variant: four rule tests passed; filesystem/process tests were blocked by sandbox EPERM, so CLI execution remains unverified. Unchanged command/rule tests passed 21/21 with in-memory filesystem backing. Independent probes passed ordinary scenarios and 6,930 calendar cases. Confirmed regression: C/lib/commands.mjs:20 spreads all numbers into Math.max, causing uncaught RangeError on add/remove with 200,000 valid loans; SEED succeeds. C/lib/commands.mjs:20,33 also permits duplicate numbers at safe-integer exhaustion. README.md:38,50 remains accurate. Stronger regression coverage places C ahead of B."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-16",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r5",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strongest solution. A/lib/rules.mjs:32 validates Gregorian dates centrally; A/lib/store.mjs:12 and :33 initialize the persistent maximum before any mutation, preserving numbering through legacy highest/all-loan deletion without changing existing loans. A/test/commands.test.mjs:97, :161 and :167 cover failed-date nonwrites, legacy deletion and duplicate IDs. README.md:38 and :50 already describe the corrected behavior. Ran node --test A/test/*.test.mjs and --test-isolation=none: sandbox EPERM blocked native integration tests; 3 rule tests passed. Command/rule suites passed 23/23 with an in-memory filesystem adapter. Public-run probes passed the reported collision, legacy deletion, unchanged saved-record checks, 6,006 calendar cases and a 150,000-loan add. Minor boundary defect: A/lib/commands.mjs:25 lacks an exhaustion guard; consecutive adds after an existing Number.MAX_SAFE_INTEGER ID both allocate 9007199254740992."
+    },
+    "Y": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 7,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "B/lib/rules.mjs:25 uses a small, correct UTC round-trip check, and B/lib/commands.mjs:30 fixes the reported collision while retaining existing loan records. However, B/lib/commands.mjs:70 removes legacy loans before preserving their maximum; public-run probes on an old file containing #1,#2,#3 showed remove 3 then add returns #3, and removing all then adding returns #1. Both violate README.md:38. The legacy test at B/test/commands.test.mjs:84 adds first and misses this upgrade sequence. Ran node --test B/test/*.test.mjs and --test-isolation=none: sandbox EPERM blocked native integration tests; 4 rule tests passed. Command/rule suites passed 18/18 with an in-memory filesystem adapter. Probes passed 6,006 calendar cases, saved-record preservation and a 150,000-loan add. B/lib/commands.mjs:30 also duplicates IDs at the safe-integer boundary."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "C/lib/rules.mjs:25 correctly rejects rolled-over dates, and C/lib/commands.mjs:71 preserves legacy numbering before deletion. Existing records remain unchanged. C/test/commands.test.mjs:70 and :97 cover deletion history and the legacy delete-first case missed by B; README.md:38 and :50 remain appropriate. Ran node --test C/test/*.test.mjs and --test-isolation=none: sandbox EPERM blocked native integration tests; 4 rule tests passed. Command/rule suites passed 19/19 with an in-memory filesystem adapter. Public-run probes passed the reported collision, legacy deletion, saved-record preservation and 6,006 calendar cases. Boundary regression: C/lib/commands.mjs:20 spreads every ID into Math.max; a valid 150,000-loan store makes add throw uncaught RangeError instead of returning the documented result. Use an iterative maximum. C/lib/commands.mjs:30 also duplicates IDs after Number.MAX_SAFE_INTEGER; neither boundary is tested."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-17",
+    "swapped": true
+  },
+  {
+    "pair": "h8-r1",
+    "Z": {
+      "correctness": 6,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 6,
+      "notes": "A/lib/rules.mjs:25 correctly rejects impossible dates across all date-taking commands. However, A/lib/commands.mjs:67 removes legacy loans without preserving their highest number; the fallback at :20 then reuses numbers. In-memory run() probes confirmed legacy #1–#3 -> remove #3 -> add assigns #3, and removing all assigns #1. A/test/commands.test.mjs:84 misses this because adding first installs metadata. The spread at A/lib/commands.mjs:20 also crashes on 200,000 valid loans, while SEED succeeds. At numeric exhaustion, :27 writes an unsafe counter that A/lib/store.mjs:25 subsequently rejects. npm --prefix A test was blocked by sandbox spawn EPERM; unchanged command/rules suites passed 19/19 with an in-memory filesystem. Direct CLI invalid-date/list checks returned the expected exit codes 1/0. README remains clear, but its never-reuse promise is not fully implemented."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "B/lib/rules.mjs:25 correctly validates calendar dates. B/lib/commands.mjs:18 allocates from persisted metadata and existing numbers, while :72 preserves the counter before deletion, including legacy files. B/test/commands.test.mjs:95 tests unchanged data after rejected dates; :105 and :132 cover number reuse and legacy maximum deletion. In-memory run() probes confirmed legacy highest/all deletions continue at #4 and rejected dates leave data unchanged. Defects: the spread at B/lib/commands.mjs:21 crashes add/remove on large valid stores; a 150,000-loan probe fails where SEED succeeds. Lines :21 and :33 also permit precision overflow, eventually assigning duplicate #9007199254740992 values. npm --prefix B test was blocked by sandbox spawn EPERM; unchanged command/rules suites passed 19/19 with an in-memory filesystem. Direct CLI invalid-date/list checks returned expected exit codes 1/0. Existing records and clear README behavior are preserved."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "C/lib/rules.mjs:25 correctly rejects rollover dates. C/lib/store.mjs:11 uses a reduction to allocate after existing numbers without an argument-count limit; C/lib/commands.mjs:65 retains the counter before legacy deletion. In-memory run() probes confirmed correct numbering after highest/all deletions, unchanged data after invalid dates, and successful addition with 200,000 saved loans. C/test/commands.test.mjs:99, :149, :155 and :172 provide strong coverage of error atomicity, legacy deletion, read-only behavior and stale counters. One extreme defect remains: C/lib/store.mjs:8 accepts unsafe integers, and :13 plus C/lib/commands.mjs:26 allow precision overflow; successive additions after MAX_SAFE_INTEGER duplicate #9007199254740992. npm --prefix C test was blocked by sandbox spawn EPERM; unchanged command/rules suites passed 24/24 with an in-memory filesystem. Direct CLI invalid-date/list checks returned expected exit codes 1/0. Clear documentation remains accurate for ordinary use, and existing loan records remain unchanged."
+    },
+    "ranking": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-18",
+    "swapped": true
+  }
+]

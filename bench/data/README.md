@@ -2,7 +2,7 @@
 
 The data behind [docs/benchmark-2026-10-24.md](../../docs/benchmark-2026-10-24.md), rounds 1–17. Later rounds have their own folders: [`heldout/`](heldout/) (the held-out round), [`modes/`](modes/) (the mode round), [`p1/`](p1/) (the p1 rounds and their recompute script), [`ph/`](ph/) and [`py/`](py/) (two more p1 rounds in p1's layout), [`hq/`](hq/) and [`fx/`](fx/). [`hq/README.md`](hq/README.md) explains hq, fx, ph and py and how to recompute them.
 
-[`nx/`](nx/) is for round nx (v0.6.0-rc.1 against v0.5.1 and plain Claude Code (plugin off, on the round's clean profile), on h8 to h10). For now it holds only its recompute script, `bench/data/nx/recompute.mjs`. The round's data arrives after the round: `summary.json`, `judge-nxcx.json` and `blind-key-nxcx.json` (Codex, the primary judge), `test-strength-nx.json`, `cost-by-role-nx.json`, `mode-check-nx.json`, `bars-nx.json` and `preflight-nx.json`. Then `node bench/data/nx/recompute.mjs` prints the round's tables from that folder alone.
+[`nx/`](nx/) is for round nx (v0.6.0-rc.1 against v0.5.1 and plain Claude Code (plugin off, on the round's clean profile), on h8 to h10). It holds the round's run summary, Codex's verdicts and blind key (Codex was the round's only judge), test strength, cost by role, the mode check, the bars' result and the recompute script; [`nx/README.md`](nx/README.md) lists each file. `node bench/data/nx/recompute.mjs` prints the round's tables from that folder alone. The preflight's pin file is not published (it holds a local home path). The results are in [docs/benchmark-nx-2026-11.md](../../docs/benchmark-nx-2026-11.md).
 
 | File | What it holds |
 |---|---|

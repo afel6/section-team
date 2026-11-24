@@ -1,0 +1,139 @@
+{
+  "bars": {
+    "C1": {
+      "kind": "cost",
+      "status": "met",
+      "reading": "h8 cost team/base 0.65× (at most 0.75×): $0.72 vs $1.11",
+      "ratio": 0.65
+    },
+    "Q1": {
+      "kind": "quality",
+      "status": "missed",
+      "reading": "h8 team − base -0.38 [-1.67, +0.91] over 5 groups (at least -0.25)",
+      "gap": -0.38,
+      "lo": -1.6653809296858273,
+      "hi": 0.9053809296858263,
+      "n": 5
+    },
+    "H1": {
+      "kind": "hidden",
+      "status": "met",
+      "reading": "h8 hidden passed team 20.00 vs solo 20.00, base 20.00 − 1",
+      "mode": 20,
+      "others": [
+        {
+          "vs": "solo",
+          "minus": 0,
+          "value": 20
+        },
+        {
+          "vs": "base",
+          "minus": 1,
+          "value": 20
+        }
+      ]
+    },
+    "T1": {
+      "kind": "nearMiss",
+      "status": "met",
+      "reading": "h8 near-misses caught team 6.00 vs base 4.80 − 1",
+      "mode": 6,
+      "vs": 4.8
+    },
+    "V1": {
+      "kind": "leverFired",
+      "status": "met",
+      "reading": "all 5 team h8 runs spawned only the reviewer and built-ins",
+      "runs": []
+    },
+    "V1b": {
+      "kind": "controlValid",
+      "status": "met",
+      "reading": "no base h8 void is owed a rerun",
+      "runs": []
+    },
+    "V2": {
+      "kind": "plainBaseline",
+      "status": "met",
+      "reading": "profile and runs root checked by the preflight; no solo run spawned a non-built-in agent",
+      "runs": []
+    },
+    "V3": {
+      "kind": "commits",
+      "status": "met",
+      "reading": "every run's commit and version match its ref",
+      "runs": []
+    },
+    "V4": {
+      "kind": "models",
+      "status": "met",
+      "reading": "main and every opus section on the round's model",
+      "runs": []
+    },
+    "V5": {
+      "kind": "timeLimits",
+      "status": "met",
+      "reading": "no run past its limit",
+      "runs": []
+    },
+    "V6": {
+      "kind": "usableGroups",
+      "status": "met",
+      "reading": "9 of 9 groups usable (at least 8), 5 of 5 on h8 (at least 4)",
+      "usable": 9,
+      "onTask": 5
+    }
+  },
+  "keep": {
+    "decision": "revert L1 (merge revert/l1)",
+    "missed": [
+      "Q1"
+    ]
+  },
+  "reported": [
+    {
+      "task": "h9",
+      "costRatio": 0.92,
+      "gap": -0.05,
+      "costRange": [
+        0.85,
+        1.15
+      ],
+      "minGap": -0.3,
+      "costInRange": true,
+      "gapOk": true,
+      "hidden": {
+        "solo": 40,
+        "base": 40,
+        "team": 40
+      },
+      "nearMisses": {
+        "solo": 10.5,
+        "base": 11,
+        "team": 11
+      }
+    },
+    {
+      "task": "h10",
+      "costRatio": 0.88,
+      "gap": 0.1,
+      "costRange": [
+        0.85,
+        1.15
+      ],
+      "minGap": -0.3,
+      "costInRange": true,
+      "gapOk": true,
+      "hidden": {
+        "solo": 42,
+        "base": 42,
+        "team": 42
+      },
+      "nearMisses": {
+        "solo": 6,
+        "base": 9.5,
+        "team": 4.5
+      }
+    }
+  ]
+}
