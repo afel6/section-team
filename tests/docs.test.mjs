@@ -614,16 +614,29 @@ test('the docs say the status file redacts recognised secrets in the request it 
   assert.ok(read(HOW_DOC).includes('the first line of your latest request (recognised secrets replaced by `[redacted]`, cut to 80 characters)'), 'how-it-works')
 })
 
-// Docs pass 2 fills or drops the direct-tier placeholder: change the two placeholder pins below then, red first.
-test('the changelog opens with a 0.6.0 section, grouped, with one placeholder for the direct tier', () => {
+// Round nx's keep rule reverted the direct tier (bar Q1 missed): the 0.6.0 notes say so first, with the bars' numbers, and end with the
+// commits after the measured rc.1 (`git log --oneline v0.6.0-rc.1..` before docs pass 2; pinned here because CI clones have no tags).
+const DIRECT_TIER = '**Balanced direct tier (reverted: missed bar Q1)**'
+const AFTER_RC1 = '**Changed after the measured commit v0.6.0-rc.1**'
+const AFTER_RC1_COMMITS = ['fe9900c', '9e76662', '7dd5bf3', '54e50c3', 'ee3f36a', 'c6e65fd', '9cd74e7', '28fe0a9', 'f0a0efc', '486f01d']
+test('the changelog opens with a 0.6.0 section, grouped: the reverted direct tier first, the commits after rc.1 last', () => {
   const log = read('CHANGELOG.md')
   const headings = log.split('\n').filter(line => line.startsWith('## '))
   assert.ok(headings[0].startsWith('## 0.6.0 ('), headings[0])
   assert.equal(headings[1], '## 0.5.1 (2026-11-22)')
   const next = log.split(`\n${headings[0]}\n`)[1].split('\n## ')[0]
   for (const group of ['Safety and trust', 'Behaviour', 'Board', 'Install and updates', 'Benchmark']) assert.ok(next.includes(`\n**${group}**\n`), group)
-  assert.equal(next.split('\n').filter(line => line === '- (pending the nx round) Balanced direct tier.').length, 1, 'one placeholder line')
-  assert.ok(!/direct (?:tier|job)/i.test(next.replace('- (pending the nx round) Balanced direct tier.', '')), 'no other direct-tier line')
+  assert.ok(!next.includes('(pending'), 'no placeholder left')
+  const order = [DIRECT_TIER, '\n**Safety and trust**\n', 'tests-first rule in the project', AFTER_RC1].map(needle => next.indexOf(needle))
+  assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `direct tier, trust, tests first, after rc.1: ${order}`)
+  assert.equal(next.split(DIRECT_TIER).length, 2, 'one direct-tier group')
+  const tier = next.slice(order[0], order[1])
+  assertIncludes(tier, ['0.65×', '$0.72', '$1.11', '-0.38', '[-1.67, +0.91]', '5 groups', '5 runs', 'Codex', 'missed its quality bar', 'No round measured'], 'direct tier')
+  assert.ok(!/lowers? (?:the )?quality/i.test(next), 'the interval includes zero: never "lowers quality"')
+  assert.ok(!/direct (?:tier|job)/i.test(next.slice(order[1], order[3])), 'no direct-tier line outside its group and the commit list')
+  const after = next.slice(order[3])
+  for (const commit of AFTER_RC1_COMMITS) assert.equal(after.split(`\n- \`${commit}\` `).length, 2, commit)
+  assert.ok(after.includes('\n- Docs pass 2 '), 'docs pass 2 line')
   assert.ok(read('scripts/roster-extra.json').trim() === '{}', 'the shipped roster is empty')
   assertIncludes(next, ['`scripts/roster-extra.json`', 'assign-skill.mjs" <skill> <section>', '--reapply', '1024 MB', 'recognised secrets', 'trusted-sources.json', 'linked worktree', '`opus` model alias'], '0.6.0 section')
   // redact.mjs also keeps a plain word after --password/--token or Authorization: Basic, so only placeholder-like values need to be whole.
