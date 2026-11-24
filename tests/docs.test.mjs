@@ -59,8 +59,8 @@ test('the README opens with the cost and the gain, and the results doc keeps the
   const results = read(RESULTS_DOC)
   for (const text of [readme, results]) assert.ok(!STALE_COST_MULTIPLE.test(text), 'no stale 3.6 multiple')
   const quickstart = readme.split('\n## Quickstart\n')[1].split('\n## ')[0]
-  assertIncludes(quickstart, ['about 5× your normal Claude Code usage in Balanced', 'about 10× in Max, up to 13× on platform-sized tasks', 'blind judges scored the plugin\'s code higher, the largest part (42-44% in the mode round) for bigger test suites', '/plugin install section-team --marketplace afel6/section-team', '/team mode off', 'claude plugin disable section-team@section-team', 'claude plugin uninstall section-team@section-team'], 'Quickstart')
-  assertIncludes(readme, ['Lean, the third, was removed in 0.3.0', 'Measured on v0.2.1'], 'README')
+  assertIncludes(quickstart, ['about 7× your normal Claude Code usage in Balanced', 'in Max, about 10×, measured on 0.3.0+ rounds; 0.6.0 changes Max only in trust text and the model alias, not re-measured', 'blind judges scored the plugin\'s code higher, the largest part (42-44% in the mode round) for bigger test suites', '/plugin install section-team --marketplace afel6/section-team', '/team mode off', 'claude plugin disable section-team@section-team', 'claude plugin uninstall section-team@section-team'], 'Quickstart')
+  assertIncludes(readme, ['Lean, the third, was removed in 0.3.0', '| Picker label | Usage behind the label | Reviewer gate |'], 'README')
   const needles = ['about 2.2 to 5.2 times', 'about 7.5 to 9.7 times in Max', 'section-team (round 17)', 'with tests the largest part of the gap (42 to 44% in the mode round)', 'depending on the tasks and the setup', 'mode round only', 'Lean 4.5, Balanced 7.0 and Max 13.4 times plain Claude Code', "plugin off, author's setup"]
   assertIncludes(results, needles, 'results doc')
   assert.ok(!readme.includes('cleaner, better-tested and more robust'))
@@ -295,7 +295,7 @@ test('the Quickstart says what you get without overstating it, with the wall tim
   assertIncludes(quickstart, [
     'No meaningful correctness gain has been measured: hidden tests tied in most rounds, the plugin passed fewer in the first three p1 rounds, and at most 2 more of 148 on one hq task (2 runs).',
     "On seeded near-miss bugs (mode round) its suites caught about as many as solo's: 21 and 19 against 20 of 24 on h6, and all 18 on h5",
-    'about 3 to 6× the wall time in Balanced and 6 to 12× in Max',
+    'Max took 6 to 12× the wall time in earlier rounds.',
   ], 'Quickstart')
   for (const old of ['never came out ahead', 'mostly tests', 'mostly for its tests']) assert.ok(!readme.includes(old), `old sentence: ${old}`)
 })
@@ -423,7 +423,7 @@ test('the held-out and p1 baselines are labelled the author\'s setup, with revie
   assert.equal(soloReviewerRuns(['bench/data/modes']).split(' of ')[0], '0', 'the clean mode round spawned none')
   assertIncludes(section(readme, 'Results'), [
     BASELINE, `${heldout} held-out solo runs and ${p1} solo runs in \`bench/data/p1/\` spawned the author's code-reviewer or security-reviewer agent`,
-    "Only the mode round's baseline was plain Claude Code on a clean machine.", 'For rounds hq, fx, py and ph the machine setup was not recorded',
+    'Only the mode round (on a clean machine) and round nx (on a clean profile) used plain Claude Code.', 'For rounds hq, fx, py and ph the machine setup was not recorded',
   ], 'README Results')
   const results = read(RESULTS_DOC)
   assert.equal(results.split('\n').filter(line => line.startsWith(`| ${BASELINE} |`)).length, 4, 'the four main-machine p1 tables')
