@@ -33,6 +33,8 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 - When the Team Board does not load, one line says so once per session and that `.team/mode.json` still sets the mode.
 - An off project's strip polls every 10 s while neither board pane is open.
 - A rename re-reads `names.json` first, so names another chat saved are kept, and a poll tick is skipped while the last one still runs.
+- `/team office yellow` paints the Team Board office yellow for you (saved in `~/.claude/section-team/office.json`); `/team office night` brings back the dark office.
+- On desktop and mobile, press a creature to squish it and click it to fling it. The office is now drawn as an interactive picture, still with no script in it.
 
 **Install and updates**
 - The plugin ships an empty roster (`scripts/roster-extra.json`), so sections lose the extra go-to skills 0.5.1's roster gave them and any assignment you made under 0.5.1 (the skills stay installed in `~/.claude/skills/`); to keep one, assign it again once with `node "<plugin root>/scripts/assign-skill.mjs" <skill> <section>`.
@@ -50,7 +52,8 @@ Each release's full notes are on the [GitHub releases page](https://github.com/a
 
 **Changed after the measured commit v0.6.0-rc.1**
 
-Round nx measured v0.6.0-rc.1 (`9ec796f`). These commits came after it, newest first; of them, only the revert changes what the plugin does.
+Round nx measured v0.6.0-rc.1 (`9ec796f`). These commits came after it, newest first; of them, only the revert changes how the team works, and `656316c` changes the board.
+- `656316c` Merge of PR 25 from `main`: `/team office yellow` and the squish-and-fling office (board only).
 - `fe9900c` Round nx's derived data published in `bench/data/nx/`.
 - `9e76662` Merge of the revert below, as round nx's keep rule requires.
 - `7dd5bf3` Revert of the Balanced direct tier: Balanced's brief goes back to waking a section for every job, the generator drops the direct-build skill, and `skills/direct-build/` is removed.

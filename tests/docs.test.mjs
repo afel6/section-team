@@ -699,3 +699,9 @@ test('the data README describes the nx folder as it exists: a recompute script, 
   assert.ok(nx.includes('plain Claude Code'), 'nx arm is plain Claude Code on the clean profile')
   assert.ok(!nx.includes(BASELINE) && !nx.includes("author's setup"), 'nx is not the author-setup baseline')
 })
+
+test('the README tells how to paint the office yellow and fling the creatures', () => {
+  const board = read('README.md').split('\n## Team Board\n')[1].split('\n## ')[0]
+  assertIncludes(board, ['/team office yellow', '/team office night', 'office.json', 'squish', 'fling'], 'Team Board section')
+  assertIncludes(read('README.md'), ['`~/.claude/section-team/office.json`'], 'README')
+})
