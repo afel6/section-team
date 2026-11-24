@@ -4,9 +4,34 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  BENCH_EFFORT, BENCH_MODEL, LIVE_CHECKOUT, PLUGIN_KEY, SECTION_TEAM_VERSION, advisorProblems, childEnv, cleanSettings, commonArgs, compacted,
-  effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckouts, outputMessages, pluginVersionOf, readPin, resultOf,
+  BENCH_EFFORT, BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION, advisorProblems, checkLiveCheckout, checkRoundSettings, childEnv, cleanSettings,
+  commonArgs, compacted, effortProblems, envNames, initOf, initProblems, installedPluginKeys, isUnder, liveCheckoutOf, liveCheckouts, memoryLimitOf,
+  outputMessages, pluginVersionOf, readPin, resultOf,
 } from './clean-run.mjs'
+
+// The user's own checkout in these tests (SECTION_TEAM_LIVE_CHECKOUT on a real round).
+const LIVE_CHECKOUT = 'C:/Users/Asus/claude-team'
+
+// A batch runs on what its preflight pinned: the same profile, memory limit, run-folder root and setups.
+test('checkRoundSettings holds a batch to the pin\'s profile, memory limit, runs root and setups; an older pin to none of them', () => {
+  const pin = { conds: ['solo', 'base', 'team'], configDir: 'C:/bench-profile-nx', memoryLimitMb: '12288', runsRoot: 'C:/bench-runs-nx' }
+  const batch = { conds: ['solo', 'base', 'team'], configDir: 'C:/Bench-Profile-NX/', memoryLimitMb: '12288', runsRoot: 'C:/bench-runs-nx' }
+  assert.doesNotThrow(() => checkRoundSettings(batch, pin))
+  assert.doesNotThrow(() => checkRoundSettings({ ...batch, conds: ['team'] }, pin), 'a batch may run some of the pinned setups')
+  const cases = [
+    [{ configDir: null }, '--config-dir= is not the profile the round pinned (C:/bench-profile-nx): pass --config-dir=C:/bench-profile-nx'],
+    [{ configDir: 'C:/other' }, '--config-dir=C:/other is not the profile the round pinned (C:/bench-profile-nx): pass --config-dir=C:/bench-profile-nx'],
+    [{ memoryLimitMb: null }, 'SECTION_TEAM_MEMORY_LIMIT_MB is unset, but the round pinned 12288: set it as the preflight had it'],
+    [{ memoryLimitMb: '8192' }, 'SECTION_TEAM_MEMORY_LIMIT_MB is 8192, but the round pinned 12288: set it as the preflight had it'],
+    [{ runsRoot: 'C:/Users/me/bench-runs' }, 'the run folders\' root is C:/Users/me/bench-runs, but the round pinned C:/bench-runs-nx: set BENCH_RUNS as the preflight had it'],
+    [{ conds: ['solo', 'max'] }, '--conds names max, which the round\'s preflight did not run'],
+  ]
+  for (const [change, message] of cases) assert.throws(() => checkRoundSettings({ ...batch, ...change }, pin), { message }, message)
+  const older = { binary: 'b' }
+  assert.doesNotThrow(() => checkRoundSettings({ conds: ['solo', 'team', 'max'], configDir: null, memoryLimitMb: null, runsRoot: 'C:/anywhere' }, older))
+  assert.throws(() => checkRoundSettings({ conds: ['team'], configDir: 'C:/p', memoryLimitMb: null, runsRoot: 'C:/r' }, older),
+    { message: '--config-dir=C:/p is not the profile the round pinned (none): leave --config-dir out' })
+})
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {
@@ -26,7 +51,7 @@ const TEAM_LISTS = { agents: ['general-purpose', 'section-team:backend'], skills
 const SOLO_LISTS = { agents: ['general-purpose'], skills: ['tdd-workflow'] }
 const PIN = {
   version: '2.1.296', binary: 'C:/Users/Asus/bench-runs/claude-2.1.296.exe', apiKeySource: 'none', builtins: BUILTINS.map(p => p.source), pluginDir: PLUGIN_DIR,
-  setups: { solo: SOLO_LISTS, lean: TEAM_LISTS, team: TEAM_LISTS, max: TEAM_LISTS },
+  setups: { solo: SOLO_LISTS, lean: TEAM_LISTS, team: TEAM_LISTS, max: TEAM_LISTS, base: TEAM_LISTS }, liveCheckouts: [LIVE_CHECKOUT],
 }
 
 // A team init as Claude Code 2.1.296 writes it, with any fields replaced.
@@ -134,8 +159,7 @@ test('cleanSettings: every installed key and plugin-authoring off, synced off, s
 test('commonArgs pins the model, effort, verbose output, no MCP config and the session id; the round constants', () => {
   assert.deepEqual(commonArgs({ sessionId: 'abc' }),
     ['--model', 'claude-opus-5-5', '--effort', 'medium', '--verbose', '--strict-mcp-config', '--session-id', 'abc'])
-  assert.deepEqual([PLUGIN_KEY, BENCH_MODEL, BENCH_EFFORT, SECTION_TEAM_VERSION, LIVE_CHECKOUT],
-    ['section-team@inline', 'claude-opus-5-5', 'medium', '0.2.1', 'C:/Users/Asus/claude-team'])
+  assert.deepEqual([PLUGIN_KEY, BENCH_MODEL, BENCH_EFFORT, ROUND_CLI_VERSION], ['section-team@inline', 'claude-opus-5-5', 'medium', '2.1.318'])
   assert.throws(() => commonArgs({}), { message: 'commonArgs needs a sessionId' })
 })
 
@@ -197,6 +221,9 @@ test('initProblems accepts a team init (built-ins with path builtin) and names e
     [{ agents: ['general-purpose'] }, ['agents differ from the pin (extra: none; missing: section-team:backend)']],
   ]
   for (const [fields, expected] of cases) assert.deepEqual(initProblems(init(fields), ctx), expected, JSON.stringify(fields))
+  // The control arm (base) is held to the same rules, from its own worktree.
+  assert.deepEqual(initProblems(init(), { ...ctx, setup: 'base' }), [])
+  assert.deepEqual(initProblems(init({ plugins: BUILTINS }), { ...ctx, setup: 'base' }), ['expected 1 section-team plugin, found 0'])
   assert.deepEqual(initProblems(null, ctx), ['no init message'])
   assert.deepEqual(initProblems(init(), { ...ctx, setup: 'max', pin: { ...PIN, setups: { solo: SOLO_LISTS } } }), ['the pin has no max setup'])
   assert.throws(() => initProblems(init(), { ...ctx, setup: 'forced' }), RangeError)
@@ -248,7 +275,7 @@ test('initProblems for solo and judge refuses section-team and anything from the
     assert.deepEqual(initProblems(init(SOLO_LISTS), { setup, pin: PIN, pluginDir: PLUGIN_DIR }), [`section-team loaded in ${setup}`])
   }
   const fromLive = { name: 'other', path: 'C:/Users/Asus/claude-team/plugins/other', source: 'other@builtin' }
-  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromLive], ...SOLO_LISTS }), { setup: 'solo', pin: { version: '2.1.296' } }),
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromLive], ...SOLO_LISTS }), { setup: 'solo', pin: { version: '2.1.296', liveCheckouts: [LIVE_CHECKOUT] } }),
     ['loaded from the live checkout C:/Users/Asus/claude-team: other@builtin'])
 })
 
@@ -365,10 +392,76 @@ test('installedPluginKeys on Linux reads a missing file as no installed plugins'
 })
 
 // On Linux the harness's own checkout is the live checkout: the plugin files in it are the user's, not the pinned worktree.
-test('liveCheckouts: the Windows live checkout everywhere, plus this checkout on Linux', () => {
+test('liveCheckouts: the named live checkout everywhere, plus this checkout on Linux', () => {
   const repo = dirname(import.meta.dirname)
-  assert.deepEqual(liveCheckouts('win32'), [LIVE_CHECKOUT])
-  assert.deepEqual(liveCheckouts('linux'), [LIVE_CHECKOUT, repo])
+  assert.deepEqual(liveCheckouts('win32', LIVE_CHECKOUT), [LIVE_CHECKOUT])
+  assert.deepEqual(liveCheckouts('linux', LIVE_CHECKOUT), [LIVE_CHECKOUT, repo])
+  assert.deepEqual(liveCheckouts('linux', null), [repo])
+  assert.deepEqual(liveCheckouts('win32', null), [])
+})
+
+// The live checkout is the user's, so the repo names no default: SECTION_TEAM_LIVE_CHECKOUT is required on Windows.
+test('liveCheckoutOf reads SECTION_TEAM_LIVE_CHECKOUT, required and absolute on Windows, optional on Linux', () => {
+  assert.equal(liveCheckoutOf({ SECTION_TEAM_LIVE_CHECKOUT: 'D:/me/section-team' }, 'win32'), 'D:/me/section-team')
+  assert.equal(liveCheckoutOf({ SECTION_TEAM_LIVE_CHECKOUT: '/home/me/section-team' }, 'linux'), '/home/me/section-team')
+  assert.equal(liveCheckoutOf({}, 'linux'), null)
+  const missing = /set SECTION_TEAM_LIVE_CHECKOUT to the absolute path of your own section-team checkout/
+  for (const env of [{}, { SECTION_TEAM_LIVE_CHECKOUT: '' }]) assert.throws(() => liveCheckoutOf(env, 'win32'), { message: missing })
+  assert.throws(() => liveCheckoutOf({ SECTION_TEAM_LIVE_CHECKOUT: 'claude-team' }, 'win32'), { message: 'SECTION_TEAM_LIVE_CHECKOUT takes an absolute path, got "claude-team"' })
+})
+
+test('checkLiveCheckout refuses a plugin worktree that is the live checkout or inside it', () => {
+  const live = 'D:/me/claude-team'
+  assert.doesNotThrow(() => checkLiveCheckout(live, ['D:/me/claude-team-cloud/wt/v0.5.1', 'E:/claude-team']))
+  assert.doesNotThrow(() => checkLiveCheckout(null, [live]))
+  for (const worktree of [live, 'D:\\me\\Claude-Team', 'D:/me/claude-team/.claude/worktrees/rc']) {
+    assert.throws(() => checkLiveCheckout(live, ['C:/elsewhere', worktree]),
+      { message: `${worktree} is the live checkout ${live} (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` }, worktree)
+  }
+})
+
+// The plugin's memory guard reads SECTION_TEAM_MEMORY_LIMIT_MB; the strip removes every SECTION_TEAM_ variable, so the
+// round's value is set again after it, in the environment and in --settings, for every setup alike.
+test('memoryLimitOf takes a plain whole number of megabytes, or nothing', () => {
+  assert.equal(memoryLimitOf({ SECTION_TEAM_MEMORY_LIMIT_MB: '12288' }), '12288')
+  for (const env of [{}, { SECTION_TEAM_MEMORY_LIMIT_MB: '' }]) assert.equal(memoryLimitOf(env), null)
+  for (const bad of ['0', '12GB', '12288 ', '12,288', '-1', '1.5', '012288']) {
+    assert.throws(() => memoryLimitOf({ SECTION_TEAM_MEMORY_LIMIT_MB: bad }),
+      { name: 'RangeError', message: `SECTION_TEAM_MEMORY_LIMIT_MB takes a whole number of megabytes such as 12288, got "${bad}"` }, bad)
+  }
+})
+
+test('childEnv sets the round\'s memory limit and config dir after the strip, whatever the parent set', () => {
+  const parent = { PATH: '/bin', SECTION_TEAM_MEMORY_LIMIT_MB: '999', CLAUDE_CONFIG_DIR: 'C:/Users/me/.claude', claude_config_dir: 'x' }
+  const child = childEnv(parent, { pluginDir: 'C:/w', memoryLimitMb: '12288', configDir: 'C:/bench-profile-nx' })
+  assert.equal(child.SECTION_TEAM_MEMORY_LIMIT_MB, '12288')
+  assert.equal(child.CLAUDE_CONFIG_DIR, 'C:/bench-profile-nx')
+  assert.deepEqual(Object.keys(child).filter(name => /^claude_config_dir$/i.test(name)), ['CLAUDE_CONFIG_DIR'])
+  const plain = childEnv(parent, { pluginDir: 'C:/w' })
+  assert.equal('SECTION_TEAM_MEMORY_LIMIT_MB' in plain, false, 'without a round limit the parent\'s is stripped')
+  assert.equal('CLAUDE_CONFIG_DIR' in plain, false, 'without a config dir the parent\'s is stripped')
+  const settings = cleanSettings({ installedKeys: [], sectionTeam: true, pluginDir: 'C:/w', memoryLimitMb: '12288' })
+  assert.equal(settings.env.SECTION_TEAM_MEMORY_LIMIT_MB, '12288')
+  assert.equal('CLAUDE_CONFIG_DIR' in settings.env, false, 'the config dir goes in the environment only')
+  assert.equal('SECTION_TEAM_MEMORY_LIMIT_MB' in cleanSettings({ installedKeys: [], sectionTeam: true, pluginDir: 'C:/w' }).env, false)
+})
+
+// The default ref only serves pins from before --plugin-ref, which name no ref of their own (the mode round's).
+test('SECTION_TEAM_VERSION stays the mode round\'s tag', () => {
+  assert.equal(SECTION_TEAM_VERSION, '0.2.1')
+})
+
+// A fresh profile (CLAUDE_CONFIG_DIR) has never installed a plugin: its keys come from that folder, and a missing file is none.
+test('installedPluginKeys reads a config dir\'s installed plugins, and a missing file there as none, on Windows too', t => {
+  const home = tempRoot(t)
+  const configDir = join(home, 'profile')
+  assert.deepEqual(installedPluginKeys(home, { platform: 'win32', configDir }), [])
+  const file = join(configDir, 'plugins', 'installed_plugins.json')
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, JSON.stringify({ version: 2, plugins: { 'caveman@caveman': [] } }))
+  assert.deepEqual(installedPluginKeys(home, { platform: 'win32', configDir }), ['caveman@caveman'])
+  writeFileSync(file, '{')
+  assert.throws(() => installedPluginKeys(home, { platform: 'win32', configDir }), { message: `cannot read installed plugins: ${file} (SyntaxError)` })
 })
 
 const LINUX_PLUGIN_DIR = '/root/section-team-v0.2.1'
@@ -391,6 +484,36 @@ test('initProblems on Linux refuses a plugin loaded from this checkout, the live
     `loaded from the live checkout ${repo}: section-team@local`,
     'plugins differ from the pin (extra: section-team@local; missing: none)',
   ])
+})
+
+// SECTION_TEAM_LIVE_CHECKOUT for one test, restored (or removed) after it.
+function withLiveEnv(t, value) {
+  const before = process.env.SECTION_TEAM_LIVE_CHECKOUT
+  t.after(() => {
+    if (before === undefined) delete process.env.SECTION_TEAM_LIVE_CHECKOUT
+    else process.env.SECTION_TEAM_LIVE_CHECKOUT = before
+  })
+  process.env.SECTION_TEAM_LIVE_CHECKOUT = value
+}
+
+// A pin restored on another machine names the first machine's checkout: this machine's is checked too.
+test('initProblems checks the live checkout this process knows as well as the pin\'s', t => {
+  const root = tempRoot(t)
+  const envLive = join(root, 'env-live')
+  withLiveEnv(t, envLive)
+  const fromEnv = { name: 'other', path: join(envLive, 'plugins', 'other'), source: 'other@builtin' }
+  const pin = { version: '2.1.296', liveCheckouts: [join(root, 'pinned')] }
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromEnv], ...SOLO_LISTS }), { setup: 'solo', pin }),
+    [`loaded from the live checkout ${envLive}: other@builtin`])
+})
+
+test('initProblems names a live checkout once when the pin and the environment both name it', t => {
+  const pinned = join(tempRoot(t), 'live')
+  withLiveEnv(t, `${pinned}/`)
+  const fromLive = { name: 'other', path: join(pinned, 'plugins', 'other'), source: 'other@builtin' }
+  const pin = { version: '2.1.296', liveCheckouts: [pinned] }
+  assert.deepEqual(initProblems(init({ plugins: [...BUILTINS, fromLive], ...SOLO_LISTS }), { setup: 'solo', pin }),
+    [`loaded from the live checkout ${pinned}: other@builtin`])
 })
 
 test('readPin reads the round pin and names the preflight command when it is missing', t => {

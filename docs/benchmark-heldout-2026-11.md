@@ -17,7 +17,7 @@ Everything was fixed in one commit before the first paid run: **freeze commit [`
 ## Setup
 
 - **Plugin:** section-team frozen at `v0.1.1`; `git diff v0.1.1 -- agents hooks skills brief .claude-plugin scripts types` was empty at the freeze, after the runs and at publishing.
-- **Setups:** *solo* (plugin off, plain Claude Code) and *team* (plugin on, the supervisor decides when to delegate). Same prompt prefix, tools, model and global setup as round 17.
+- **Setups:** *solo* (Claude Code with the author's setup (plugin off; their CLAUDE.md and other plugins on); 5 of its 9 runs spawned the author's code-reviewer agent) and *team* (plugin on, the supervisor decides when to delegate). Same prompt prefix, tools, model and global setup as round 17.
 - **Runs:** 3 tasks × 2 setups × 3 runs = 18 headless `claude -p` runs, on 2026-10-31.
 - **Judging:** 9 blind X/Y pairs, 2 Opus judges each, scoring correctness, code quality, tests, robustness/security, docs/usability and overall from 1 to 10, plus a ranking. *Judge quality* is the mean of the five dimension scores (overall is reported beside it).
 
@@ -53,7 +53,7 @@ A review of the harness before the freeze found ways the round could have been s
 
 ## Results
 
-| Task | Way | Cost $ | Minutes | Hidden tests | Judge quality /10 | Judge 1st places |
+| Task | Way (solo: Claude Code with the author's setup (plugin off; their CLAUDE.md and other plugins on)) | Cost $ | Minutes | Hidden tests | Judge quality /10 | Judge 1st places |
 |---|---|---|---|---|---|---|
 | h1 | solo | **0.87** | **3.3** | 100% | 8.30 | 0 of 6 |
 | h1 | team | 2.09 | 9.0 | 100% | **8.93** | **6 of 6** |

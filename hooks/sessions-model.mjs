@@ -1,3 +1,5 @@
+import { redact } from './lib/redact.mjs'
+
 export const IDLE_MS = 30 * 60 * 1000
 export const HIDE_MS = 24 * 60 * 60 * 1000
 
@@ -40,14 +42,15 @@ export function dashboardCards(records, now) {
 
 const REQUEST_MAX = 80
 
-// What one session tells the /chats dashboard. Only the first line of the request, cut short, ever leaves the session.
+// What one session tells the /chats dashboard. Only the first line of the request, its recognised secrets redacted before the cut
+// (so the cut never keeps the start of one), ever leaves the session.
 export function statusRecord({ sessionId, cwd, request, board, turnActive, startedAt, now, ended = false }) {
   const awake = board.cards.filter(c => c.state !== 'asleep')
   return {
     sessionId,
     cwd,
     project: cwd.split(/[\\/]+/).filter(Boolean).at(-1) ?? '',
-    request: request.split(/\r?\n/, 1)[0].slice(0, REQUEST_MAX),
+    request: redact(request).split(/\r?\n/, 1)[0].slice(0, REQUEST_MAX),
     state: sessionState({ turnActive, anyRunning: awake.some(c => c.state === 'running' || c.state === 'waiting'), updatedAt: now, now }),
     sections: awake.map(c => ({ id: c.id, state: c.state })),
     helpers: board.team.helpers,

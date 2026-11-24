@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, wakeUps } from './mode-check.mjs'
+import { BUILDERS, HEADS, checkRun, gates, main, modeCheck, nearMissState, reviewerCalls, toolUses, validityOf, wakeUps } from './mode-check.mjs'
 
 const checkRunAt = checkRun
 
@@ -547,6 +547,20 @@ test('h7 is held to the rules of h4, the other multi-area task', t => {
   assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'])
 })
 
+// The nx round's other tasks: h9 is single-area (a library and a CLI, like h6), h10 multi-area (an API, a page and a
+// JSON file, like h4). Each gets its kind's rules, for the control arm base as for team (h9's are further down).
+test('h10 is held to the rules of h4 and h7, the multi-area tasks, for team and base', t => {
+  const dir = runDir(t)
+  for (const cond of ['team-nx', 'base-nx']) {
+    const check = roles => checkRun({ cond, task: 'h10', roles, runDir: dir, record: 'balanced' })
+    assert.deepEqual(check(teamH4(dir)), { faithful: true, broken: [], tier: 'multi' }, cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'docs'])).broken, ['testing not woken'], cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'testing', 'docs'])).broken, ['main did not wake frontend'], cond)
+    assert.deepEqual(check(teamH4(dir, [], ['backend', 'frontend', 'testing'])).broken, ['docs not woken'], cond)
+    assert.deepEqual(check(teamH4(dir, [write(20, `${dir}/server.mjs`)])).broken, ['main wrote server.mjs'], cond)
+  }
+})
+
 test('a round under any tag is checked: the setup comes from the part before the tag', t => {
   const dir = runDir(t)
   assert.deepEqual(checkRun({ cond: 'team-sm', task: 'h7', roles: teamH4(dir), runDir: dir, record: 'balanced' }), { faithful: true, broken: [], tier: 'multi' })
@@ -555,4 +569,193 @@ test('a round under any tag is checked: the setup comes from the part before the
   const results = runDir(t)
   writeRun(results, 'h7-team-sm-r1', { dir, roles: teamH4(dir), record: 'balanced' })
   assert.deepEqual(modeCheck({ results, round: 'sm' }), { 'h7-team-sm-r1': { cond: 'team-sm', task: 'h7', faithful: true, broken: [], tier: 'multi' } })
+})
+
+// The nx round: solo, base (v0.5.1, the control arm) and team (the release candidate with the direct tier, L1).
+const direct = (extra = []) => [main_(write(1, 'src/server.mjs', 'Edit'), wake(2, 'reviewer'), ...extra), ...reviews(null, [[3, 9]])]
+const viaBackend = () => [
+  main_(wake(1, 'backend')),
+  section('backend', 'b1', [userLine(2, 'job'), write(3, 'src/server.mjs', 'Edit'), wake(4, 'reviewer')]),
+  ...reviews('b1', [[5, 9]]),
+]
+
+test('base is held to Balanced\'s rules like team; on h8 team\'s direct job is faithful with the reviewer gate and named tier direct', t => {
+  const dir = runDir(t)
+  const check = (cond, roles, record = 'balanced') => checkRun({ cond, task: 'h8', roles, runDir: dir, record })
+  assert.deepEqual(check('base-nx', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(check('base-nx', viaBackend(), null).broken, ['mode record is missing, not balanced'])
+  assert.deepEqual(check('team-nx', direct()), { faithful: true, broken: [], tier: 'direct' })
+  assert.deepEqual(check('team-nx', [main_(write(1, 'src/server.mjs', 'Edit'))]), { faithful: false, broken: ['direct job without the reviewer gate'], tier: 'direct' })
+  assert.equal(check('base-nx', [main_(write(1, 'src/server.mjs', 'Edit'))]).tier, 'small', 'base keeps the old rules and labels on h8')
+  assert.equal(checkRun({ cond: 'team-nx', task: 'h9', roles: direct(), runDir: dir, record: 'balanced' }).tier, 'small', 'the direct tier is h8\'s')
+  assert.equal(checkRun({ cond: 'team-pnx', task: 'h5p', roles: direct(), runDir: dir, record: 'balanced' }).tier, 'direct', 'and the pilot probe\'s, h5p')
+})
+
+// The nx round and its pilot pnx: both arms' Balanced brief (brief/tiers-balanced.md, the same lines at v0.5.1) says a
+// small or single-area task wakes the matching builder section and no other builder section. There h5, h6 and h9 are
+// faithful when main woke exactly one builder, at tier single; testing, docs, security and advisors are allowed.
+const twoBuilders = () => [
+  main_(wake(1, 'backend'), wake(2, 'frontend')),
+  section('backend', 'b1', [userLine(3, 'job'), wake(4, 'reviewer')]),
+  section('frontend', 'f1', [userLine(3, 'job'), wake(4, 'reviewer')]),
+  ...reviews('b1', [[5, 9]]), ...reviews('f1', [[6, 9]]),
+]
+
+test('nx and pnx hold Balanced on h5, h6 and h9 to one builder woken by main, at tier single, for base and team', t => {
+  const dir = runDir(t)
+  for (const cond of ['base-nx', 'team-nx', 'base-pnx', 'team-pnx']) {
+    for (const task of ['h5', 'h6', 'h9']) {
+      const check = roles => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+      const at_ = `${cond} ${task}`
+      assert.deepEqual(check(viaBackend()), { faithful: true, broken: [], tier: 'single' }, at_)
+      assert.deepEqual(check(twoBuilders()), { faithful: false, broken: [`${task} woke backend, frontend (one builder allowed)`], tier: 'multi' }, at_)
+      assert.deepEqual(check(teamH6()), { faithful: false, broken: ['no builder woken'], tier: 'single' }, `${at_}: testing alone is no builder`)
+      assert.deepEqual(check([main_()]), { faithful: false, broken: ['no builder woken'], tier: 'small' }, at_)
+    }
+  }
+})
+
+test('the one-builder rule allows testing, docs, security and advisors, counts a builder woken twice once, and reads only main\'s wake-ups', t => {
+  const dir = runDir(t)
+  const check = roles => checkRun({ cond: 'base-nx', task: 'h9', roles, runDir: dir, record: 'balanced' })
+  const others = [wake(6, 'testing'), wake(7, 'docs'), wake(8, 'security'), wake(9, 'ai-engineer')]
+  assert.deepEqual(check(viaBackend().map(r => (r.role === 'main' ? main_(...r.messages, ...others) : r))), { faithful: true, broken: [], tier: 'single' })
+  assert.deepEqual(check([main_(wake(1, 'backend'), wake(9, 'backend')), ...viaBackend().slice(1)]), { faithful: true, broken: [], tier: 'single' })
+  const sectionWoke = [main_(wake(1, 'backend')), section('backend', 'b1', [userLine(2, 'job'), wake(3, 'frontend'), wake(4, 'reviewer')]), ...reviews('b1', [[5, 9]])]
+  assert.deepEqual(check(sectionWoke), { faithful: true, broken: [], tier: 'single' }, 'a builder a section woke is not the supervisor\'s choice')
+})
+
+test('every round before nx keeps the mode round\'s rule on h5, h6 and h9; max and h8, h5p and h10 rows are unchanged in nx', t => {
+  const dir = runDir(t)
+  for (const cond of ['team-mo', 'team-sm']) {
+    const check = (task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+    assert.deepEqual(check('h5', teamH6()), { faithful: true, broken: [], tier: 'single' }, `${cond}: testing alone is still faithful`)
+    assert.deepEqual(check('h9', viaBackend()), { faithful: false, broken: ['testing not woken', 'h9 woke backend (only testing allowed)'], tier: 'multi' }, cond)
+  }
+  const max = checkRun({ cond: 'max-pnx', task: 'h5', roles: maxH5(), runDir: maxDir(t), record: 'max' })
+  assert.deepEqual(max, { faithful: true, broken: [], tier: 'single' }, 'max keeps its own rule')
+  const nx = (cond, task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+  assert.deepEqual(nx('base-nx', 'h8', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(nx('base-pnx', 'h5p', viaBackend()), { faithful: true, broken: [], tier: 'multi' })
+  assert.deepEqual(nx('team-nx', 'h10', [...teamH4(dir, [], ['backend', 'testing', 'docs'])]), { faithful: false, broken: ['main did not wake frontend'], tier: 'multi' })
+})
+
+test('modeCheck applies the one-builder rule by the round it reads: --round=pnx does, --round=mo does not', t => {
+  const results = runDir(t)
+  const dir = runDir(t)
+  writeRun(results, 'h5-base-pnx-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  writeRun(results, 'h6-team-pnx-r1', { dir, roles: teamH6(), record: 'balanced' })
+  writeRun(results, 'h5-team-mo-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  writeRun(results, 'h6-team-mo-r1', { dir, roles: teamH6(), record: 'balanced' })
+  assert.deepEqual(modeCheck({ results, round: 'pnx' }), {
+    'h5-base-pnx-r1': { cond: 'base-pnx', task: 'h5', faithful: true, broken: [], tier: 'single' },
+    'h6-team-pnx-r1': { cond: 'team-pnx', task: 'h6', faithful: false, broken: ['no builder woken'], tier: 'single' },
+  })
+  assert.deepEqual(modeCheck({ results, round: 'mo' }), {
+    'h5-team-mo-r1': { cond: 'team-mo', task: 'h5', faithful: false, broken: ['testing not woken', 'h5 woke backend (only testing allowed)'], tier: 'multi' },
+    'h6-team-mo-r1': { cond: 'team-mo', task: 'h6', faithful: true, broken: [], tier: 'single' },
+  })
+})
+
+// A pin with solo's built-in agents and each arm's commit, and a run.json as run.mjs writes it.
+const NX_PIN = { conds: ['solo', 'base', 'team'], pluginCommit: 'rc1', base: { pluginCommit: 'b51' }, setups: { solo: { agents: ['general-purpose', 'Explore'] } } }
+// A plugin worktree whose agent files declare their models: the reviewer opus, the coder sonnet, the scout haiku.
+const pluginWith = t => runDir(t, { 'agents/reviewer.md': '---\nname: reviewer\nmodel: opus\n---\n', 'agents/coder.md': '---\nname: coder\nmodel: sonnet\n---\n', 'agents/scout.md': '---\nmodel: haiku\n---\n' })
+function writeNxRun(results, id, { dir, roles, record, commit, version = '0.5.1', timedOut = false, reruns = [], plugin = null }) {
+  writeRun(results, id, { dir, roles, record, version: id.includes('-solo-') ? undefined : version })
+  const file = join(results, id, 'run.json')
+  const run = JSON.parse(readFileSync(file, 'utf8'))
+  const sectionTeam = run.sectionTeam && plugin ? { sectionTeam: { ...run.sectionTeam, path: plugin } } : {}
+  writeFileSync(file, JSON.stringify({ ...run, ...sectionTeam, pluginCommit: commit, pluginVersion: id.includes('-solo-') ? null : '0.5.1', timedOut, attempt: 1 + reruns.length }))
+  if (reruns.length) writeFileSync(join(results, id, 'attempts.json'), JSON.stringify(reruns.map(reason => ({ kind: 'harness-bug', reason, at: at(0) }))))
+}
+const helper = (agentId, type, model = OPUS) => ({ role: type, agentId, parentId: null, start: at(9), messages: [{ type: 'assistant', timestamp: at(9), message: { model, content: [] } }] })
+
+test('with the round\'s pin, each row says V1 to V5: lever fired, builder woken, non-built-in spawns, commit, models and time limit', t => {
+  const results = runDir(t)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify(NX_PIN))
+  const dir = runDir(t)
+  const plugin = pluginWith(t)
+  writeNxRun(results, 'h8-team-nx-r1', { dir, roles: direct(), record: 'balanced', commit: 'rc1', plugin })
+  writeNxRun(results, 'h8-team-nx-r2', { dir, roles: viaBackend(), record: 'balanced', commit: 'rc1', timedOut: true, plugin })
+  writeNxRun(results, 'h8-base-nx-r1', { dir, roles: viaBackend(), record: 'balanced', commit: 'b51', plugin })
+  writeNxRun(results, 'h8-base-nx-r2', { dir, roles: direct(), record: 'balanced', commit: 'rc1', plugin })
+  writeNxRun(results, 'h8-base-nx-r3', { dir, roles: direct(), record: 'balanced', commit: 'b51', reruns: ['V1b'], plugin })
+  writeNxRun(results, 'h8-solo-nx-r1', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('e1', 'Explore')], commit: null })
+  writeNxRun(results, 'h8-solo-nx-r2', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('c1', 'code-reviewer', SONNET)], commit: null })
+  writeNxRun(results, 'h8-solo-nx-r3', { dir, roles: [main_(write(1, 'src/server.mjs')), helper('c1', 'code-reviewer')], commit: null, reruns: ['V2'] })
+  const v = Object.fromEntries(Object.entries(modeCheck({ results, round: 'nx' })).map(([id, row]) => [id, row.validity]))
+  assert.deepEqual(v['h8-team-nx-r1'], {
+    spawned: ['section-team:reviewer'], leverFired: true, wokeBuilder: false, nonBuiltin: null, void: null, kept: null,
+    commit: { ok: true, want: 'rc1', got: 'rc1' }, offModel: [], otherModels: [], timedOut: false,
+  })
+  assert.deepEqual([v['h8-team-nx-r2'].leverFired, v['h8-team-nx-r2'].timedOut, v['h8-team-nx-r2'].void], [false, true, null], 'a team run that woke backend is reported, never voided')
+  assert.deepEqual([v['h8-base-nx-r1'].wokeBuilder, v['h8-base-nx-r1'].void, v['h8-base-nx-r1'].leverFired], [true, null, null])
+  assert.deepEqual([v['h8-base-nx-r2'].void, v['h8-base-nx-r2'].commit], ['V1b', { ok: false, want: 'b51', got: 'rc1' }])
+  assert.deepEqual([v['h8-base-nx-r3'].void, v['h8-base-nx-r3'].kept], [null, 'V1b'], 'after its one rerun a base run that again woke no builder is kept')
+  assert.deepEqual([v['h8-solo-nx-r1'].nonBuiltin, v['h8-solo-nx-r1'].void, v['h8-solo-nx-r1'].commit], [[], null, { ok: true, want: null, got: null }])
+  assert.deepEqual([v['h8-solo-nx-r2'].nonBuiltin, v['h8-solo-nx-r2'].void, v['h8-solo-nx-r2'].offModel, v['h8-solo-nx-r2'].otherModels],
+    [['code-reviewer'], 'V2', [], [{ role: 'code-reviewer', model: SONNET }]], 'V4 holds main and the opus sections; any other role is reported')
+  assert.deepEqual([v['h8-solo-nx-r3'].void, v['h8-solo-nx-r3'].kept], [null, 'V2'])
+})
+
+// V4 checks the opus alias: main and every section whose agent file says opus must answer as claude-opus-5-5. The coder
+// (sonnet) and scout (haiku) run another model by design, so their lines are reported, never a miss.
+test('V4 holds main and the opus-declared sections to the round\'s model, reports the rest, and cannot be read without the agent files', t => {
+  const results = runDir(t)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify(NX_PIN))
+  const dir = runDir(t)
+  const plugin = pluginWith(t)
+  const coder = helper('k1', 'section-team:coder', SONNET)
+  const scout = helper('s1', 'section-team:scout', 'claude-haiku-5-5')
+  writeNxRun(results, 'h9-base-nx-r1', { dir, roles: [...viaBackend(), coder, scout], record: 'balanced', commit: 'b51', plugin })
+  writeNxRun(results, 'h9-base-nx-r2', { dir, roles: [...viaBackend().slice(0, 2), ...reviews('b1', [[5, 9]], SONNET)], record: 'balanced', commit: 'b51', plugin })
+  writeNxRun(results, 'h9-team-nx-r1', { dir, roles: [main_(write(1, 'x.mjs'), { type: 'assistant', timestamp: at(2), message: { model: SONNET, content: [] } })], record: 'balanced', commit: 'rc1', plugin })
+  writeNxRun(results, 'h9-team-nx-r2', { dir, roles: direct(), record: 'balanced', commit: 'rc1', plugin: join(dir, 'no-such-plugin') })
+  const v = Object.fromEntries(Object.entries(modeCheck({ results, round: 'nx' })).map(([id, row]) => [id, row.validity]))
+  assert.deepEqual([v['h9-base-nx-r1'].offModel, v['h9-base-nx-r1'].otherModels], [[], [{ role: 'section-team:coder', model: SONNET }, { role: 'section-team:scout', model: 'claude-haiku-5-5' }]])
+  assert.deepEqual(v['h9-base-nx-r2'].offModel, [{ role: 'section-team:reviewer', model: SONNET }], 'the reviewer says opus: a Sonnet reviewer is a miss')
+  assert.deepEqual(v['h9-team-nx-r1'].offModel, [{ role: 'main', model: SONNET }])
+  assert.equal(v['h9-team-nx-r2'].offModel, null, 'agent files that cannot be read leave V4 unmeasured')
+})
+
+// v0.5.1's builders declare the full id (model: claude-opus-5-5), and only its reviewer says opus; a full id is held too.
+test('V4 holds a section that declares a claude-opus full id, as v0.5.1\'s builders do', t => {
+  const results = runDir(t)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify(NX_PIN))
+  const dir = runDir(t)
+  const plugin = runDir(t, { 'agents/backend.md': '---\nname: backend\nmodel: claude-opus-5-5\n---\n', 'agents/coder.md': '---\nmodel: sonnet\n---\n' })
+  const backend = helper('b9', 'section-team:backend', SONNET)
+  const coder = helper('k1', 'section-team:coder', SONNET)
+  writeNxRun(results, 'h9-base-nx-r1', { dir, roles: [...viaBackend(), backend, coder], record: 'balanced', commit: 'b51', plugin })
+  const v = modeCheck({ results, round: 'nx' })['h9-base-nx-r1'].validity
+  assert.deepEqual([v.offModel, v.otherModels], [[{ role: 'section-team:backend', model: SONNET }], [{ role: 'section-team:coder', model: SONNET }]])
+})
+
+// Plan §3 W8 item 5, as whole rows: team on the direct-job tasks (the round's h8, the pilot probe's h5p) with no section
+// woken is faithful at tier direct behind main's own reviewer gate; base there keeps the old rules (no direct tier and
+// no direct-gate rule). Waking only testing is not the direct tier: it is single, and V1's lever check fails.
+test('team\'s direct job on h8 and h5p is a whole faithful row at tier direct; base there keeps the old rules', t => {
+  const dir = runDir(t)
+  const check = (cond, task, roles) => checkRun({ cond, task, roles, runDir: dir, record: 'balanced' })
+  const noGate = () => [main_(write(1, 'src/server.mjs', 'Edit'))]
+  for (const task of ['h8', 'h5p']) {
+    assert.deepEqual(check('team-nx', task, direct()), { faithful: true, broken: [], tier: 'direct' }, task)
+    assert.deepEqual(check('team-nx', task, noGate()), { faithful: false, broken: ['direct job without the reviewer gate'], tier: 'direct' }, task)
+    assert.deepEqual(check('base-nx', task, direct()), { faithful: true, broken: [], tier: 'small' }, `base on ${task}`)
+    assert.deepEqual(check('base-nx', task, noGate()), { faithful: true, broken: [], tier: 'small' }, `base on ${task} is not held to the direct gate`)
+  }
+  const viaTesting = [main_(wake(1, 'testing')), section('testing', 't1', [userLine(2, 'job'), write(3, 'src/server.mjs', 'Edit'), wake(4, 'reviewer')]), ...reviews('t1', [[5, 9]])]
+  assert.deepEqual(check('team-nx', 'h8', viaTesting), { faithful: true, broken: [], tier: 'single' })
+  assert.equal(validityOf({ setup: 'team', task: 'h8', roles: viaTesting, run: {}, pin: NX_PIN }).leverFired, false)
+})
+
+test('a round without the nx pin in results gets no validity: no pin, or an older pin that names no setups', t => {
+  const results = runDir(t)
+  const dir = runDir(t)
+  writeRun(results, 'h8-base-nx-r1', { dir, roles: viaBackend(), record: 'balanced' })
+  const plain = { 'h8-base-nx-r1': { cond: 'base-nx', task: 'h8', faithful: true, broken: [], tier: 'multi' } }
+  assert.deepEqual(modeCheck({ results, round: 'nx' }), plain)
+  writeFileSync(join(results, 'preflight-nx.json'), JSON.stringify({ binary: 'b', setups: { solo: { agents: [] } } }))
+  assert.deepEqual(modeCheck({ results, round: 'nx' }), plain, 'the mode round\'s pin has no conds')
 })

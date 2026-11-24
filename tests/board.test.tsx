@@ -2,7 +2,7 @@ import { test, expect } from 'claude-code/testing'
 import { boardModel } from '../hooks/board-model.mjs'
 import { UNREADABLE_LINE } from '../hooks/lib/names.mjs'
 import { register } from '../hooks/register'
-import { BAND, MINUTE, mountStrip, OTHER, SECTION, slashes, START, STATUS_DIR, T0, world } from './board-world'
+import { BAND, DRIVE, HOME, MINUTE, mountStrip, OTHER, PROJECT, SECTION, slashes, START, STATUS_DIR, T0, world } from './board-world'
 
 const DATA = boardModel({
   agents: [
@@ -53,7 +53,7 @@ test('the poll turns agents, saved reports and the request into cards, and only 
   expect(seen.opened).toEqual(['team-board'])
 
   await clock.advance(1000)
-  expect(seen.listed).toMatch(/^C:[\\/]proj[\\/]\.team[\\/]reports[\\/]\d{4}-\d{2}-\d{2}$/)
+  expect(seen.listed).toMatch(new RegExp(String.raw`^${DRIVE}[\\/]proj[\\/]\.team[\\/]reports[\\/]\d{4}-\d{2}-\d{2}$`))
   const ui = await $.ui.mount({ plugin: 'section-team', surface: 'terminal', component: 'Pane', requestId: 'team-board', props: PROPS as never })
   expect((await ui.find({ key: 'supervisor' }))?.text).toContain('Task: add login')
   expect((await ui.find({ key: 'supervisor' }))?.text).toContain('last summary 14:02')
@@ -87,6 +87,29 @@ test('two session.start events leave one poll: exactly one agent.list per tick',
   expect(seen.agentList).toBe(1)
   await clock.advance(1000)
   expect(seen.agentList).toBe(2)
+})
+
+const MODE_PATH = `${PROJECT}/.team/mode.json`
+
+test('a tick still running when the next one is due makes that one skip, so ticks never overlap', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = '{"mode":"max"}'
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  // A slow disk: this tick's mode read answers only on release, three ticks later.
+  let release = () => {}
+  seen.holdModeRead = new Promise<void>(resolve => { release = resolve })
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  await clock.advance(3000)
+  expect(seen.agentList).toBe(2)
+
+  release()
+  await clock.settle()
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(3)
 })
 
 test('the git root is looked up on the first refresh, not at session.start or /team, with a 5 s limit', async ($, on) => {
@@ -400,7 +423,7 @@ test('a session writes its status file: working while its turn runs, needs-you o
   expect(seen.writes).toHaveLength(1)
   expect(seen.writes[0].text).not.toContain('second line')
   expect(statusOf(seen, 's1')[0]).toEqual({
-    sessionId: 's1', cwd: 'C:/proj', project: 'proj', request: 'add login', state: 'working',
+    sessionId: 's1', cwd: PROJECT, project: 'proj', request: 'add login', state: 'working',
     sections: [{ id: 'backend', state: 'done' }], helpers: 0, tokens: 0, startedAt: 1000, updatedAt: 1000, ended: false,
   })
 
@@ -531,11 +554,11 @@ test('with no USERPROFILE or HOME nothing is written and nothing is logged', asy
 
 test('HOME serves when USERPROFILE is unset or empty', async ($, on) => {
   const { clock, seen } = world(on)
-  seen.env = { USERPROFILE: '', HOME: 'C:/Users/h' }
+  seen.env = { USERPROFILE: '', HOME: `${DRIVE}/Users/h` }
 
   await $.session.start(START)
   await clock.advance(1000)
-  expect(seen.writes.map(w => w.path)).toEqual(['C:/Users/h/.claude/section-team/sessions/s1.json'])
+  expect(seen.writes.map(w => w.path)).toEqual([`${DRIVE}/Users/h/.claude/section-team/sessions/s1.json`])
 })
 
 test('a failed status write is retried on the next tick, logged once to the debug log, and never holds the board back', async ($, on) => {
@@ -558,9 +581,82 @@ test('a failed status write is retried on the next tick, logged once to the debu
   expect(seen.logs).toHaveLength(1)
 })
 
+// A project set to off: the poll slows to every 10 s while no pane is open, and the status file /chats and the hooks read is still written.
+const OFF = '{"mode":"off"}'
+
+test('in an off project the poll runs every 10 s, and the status file is still written, its heartbeat included', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = OFF
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(1)
+  expect(statusOf(seen, 's1')).toHaveLength(1)
+  await clock.advance(9000)
+  expect(seen.agentList).toBe(1)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  // A working chat's 60 s heartbeat lands on the slow tick due with it.
+  await clock.advance(50000)
+  expect(seen.agentList).toBe(7)
+  expect(statusOf(seen, 's1').map(s => s.updatedAt)).toEqual([1000, 61000])
+})
+
+// The contract the hooks' board-load check reads: <home>/.claude/section-team/sessions/<$.session.id()>.json, in an off project too.
+const SESSION_ID = '0f6c2b1e-8d3a-4c5e-9b7f-2a1d3e4f5a6b'
+for (const [mode, text] of [['balanced', '{"mode":"balanced"}'], ['off', OFF]]) {
+  test(`the status file stays <home>/.claude/section-team/sessions/<session id>.json when the project is ${mode}`, async ($, on) => {
+    const { clock, seen } = world(on)
+    seen.sessionId = SESSION_ID
+    seen.disk[MODE_PATH] = text
+
+    await $.session.start(START)
+    await clock.advance(1000)
+    expect(seen.writes.map(w => w.path)).toEqual([`${HOME}/.claude/section-team/sessions/${SESSION_ID}.json`])
+    expect(statusOf(seen, SESSION_ID)[0].sessionId).toBe(SESSION_ID)
+  })
+}
+
+const FAST_AGAIN: Record<string, ($: never) => Promise<unknown>> = {
+  'the Team Board opens': $ => team($, ''),
+  "the strip's Board button opens it": async $ => (await mountStrip($)).press({ key: 'open-board' }),
+  'the Chats pane opens': $ => ($ as { command: { run: (e: never) => Promise<unknown> } }).command.run({ command: 'chats' } as never),
+  'the project is set back to balanced': $ => team($, 'mode balanced'),
+}
+
+for (const [what, act] of Object.entries(FAST_AGAIN)) {
+  test(`an off project polls every second again once ${what}`, async ($, on) => {
+    const { clock, seen } = world(on)
+    seen.disk[MODE_PATH] = OFF
+
+    await $.session.start(START)
+    await clock.advance(2000)
+    expect(seen.agentList).toBe(1)
+    await act($ as never)
+    await clock.advance(2000)
+    expect(seen.agentList).toBe(3)
+  })
+}
+
+test('a new session in an off project polls on its first tick, then every 10 s', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[MODE_PATH] = OFF
+
+  await $.session.start(START)
+  await clock.advance(2000)
+  expect(seen.agentList).toBe(1)
+  seen.sessionId = 's2'
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(seen.agentList).toBe(2)
+  expect(statusOf(seen, 's2')).toHaveLength(1)
+  await clock.advance(9000)
+  expect(seen.agentList).toBe(2)
+})
+
 // The /chats dashboard: the status folder is answered beneath the plugin by world(), from seen.chats.
 const chat = (sessionId: string, change: object = {}) =>
-  JSON.stringify({ sessionId, cwd: `C:/x/${sessionId}`, project: sessionId, request: `job ${sessionId}`, state: 'needs-you', sections: [], helpers: 0, tokens: 0, startedAt: T0 - 5 * MINUTE, updatedAt: T0 - MINUTE, ended: false, ...change })
+  JSON.stringify({ sessionId, cwd: `${DRIVE}/x/${sessionId}`, project: sessionId, request: `job ${sessionId}`, state: 'needs-you', sections: [], helpers: 0, tokens: 0, startedAt: T0 - 5 * MINUTE, updatedAt: T0 - MINUTE, ended: false, ...change })
 
 type Drawn = { find: (q: { key: string }) => Promise<{ text: string; props: Record<string, unknown>; children: unknown[] } | undefined>; unmount: () => Promise<void> }
 const mountChats = ($: { ui: { mount: (t: never) => Promise<Drawn> } }) =>
@@ -600,7 +696,7 @@ test('closing the Chats pane stops the poll reading the status folder, and /chat
   const reads = { lists: 0 }
   const $ = {
     clock: { every: (_ms: number, run: () => void) => { tick = run; return {} }, now: async () => T0 },
-    env: { get: async (name: string) => (name === 'USERPROFILE' ? 'C:/Users/u' : undefined) },
+    env: { get: async (name: string) => (name === 'USERPROFILE' ? HOME : undefined) },
     fs: { list: async () => { reads.lists += 1; return [] }, read: async () => '' },
     ui: { open: async () => ({ isPlaced: true }), log: () => {} },
   }
@@ -608,8 +704,8 @@ test('closing the Chats pane stops the poll reading the status folder, and /chat
   const onClose = hookFor('ui.close', { id: 'team-chats' })
   expect(chatsRun).toBeDefined()
   expect(onClose).toBeDefined()
-  // Only the Chats pane has a close hook: closing the Team Board leaves the poll alone.
-  expect(registered.filter(r => r.event === 'ui.close')).toHaveLength(1)
+  // Each pane has its own close hook: closing the Team Board leaves the status folder alone (it only slows an off project's poll).
+  expect(registered.filter(r => r.event === 'ui.close').map(r => r.matcher)).toEqual([{ id: 'team-board' }, { id: 'team-chats' }])
 
   await chatsRun!($, { command: 'chats' })
   const opened = reads.lists
@@ -635,6 +731,55 @@ test('closing the Chats pane stops the poll reading the status folder, and /chat
   tick()
   await flush()
   expect(reads.lists).toBeGreaterThan(reopened)
+})
+
+test('closing the Team Board in an off project slows the poll to every 10 s again, and /team brings the 1 s poll back', async () => {
+  const registered: Registered[] = []
+  register(((event: string, matcher: unknown, hook?: Registered['hook']) => {
+    registered.push(hook ? { event, matcher, hook } : { event, matcher: undefined, hook: matcher as Registered['hook'] })
+  }) as never)
+  const hookFor = (event: string, matcher: unknown) => registered.find(r => r.event === event && JSON.stringify(r.matcher) === JSON.stringify(matcher))?.hook
+  let tick = () => {}
+  let now = T0
+  const polls = { n: 0 }
+  const disk: Record<string, string> = {}
+  // Enough engine for /team mode to save the file and for each poll to list the agents; the rest of a poll fails and is logged.
+  const $ = {
+    clock: { every: (_ms: number, run: () => void) => { tick = run; return {} }, now: async () => now },
+    env: { get: async () => undefined },
+    agent: { list: async () => { polls.n += 1; return [] } },
+    session: { cwd: async () => PROJECT, root: async () => PROJECT },
+    process: { run: async () => ({ exitCode: 128, stdout: '', stderr: '' }) },
+    fs: {
+      stat: async () => { throw new Error('ENOENT') },
+      exists: async (path: string) => path in disk,
+      read: async (path: string) => disk[path],
+      write: async (path: string, text: string) => { disk[path] = text },
+      list: async () => [],
+    },
+    ui: { open: async () => ({ isPlaced: true }), log: () => {} },
+  }
+  const second = async () => { now += 1000; tick(); await flush() }
+  const teamRun = hookFor('command.run', { command: 'team' })
+  const onClose = hookFor('ui.close', { id: 'team-board' })
+
+  await teamRun!($, { command: 'team', args: 'mode off' })
+  expect(disk[`${PROJECT}/.team/mode.json`]).toBe(OFF)
+  await teamRun!($, { command: 'team' })
+  await second()
+  await second()
+  expect(polls.n).toBe(2)
+
+  const event = { id: 'team-board', origin: { kind: 'person' } }
+  expect(await onClose!($, event, async () => 'next-result')).toBe('next-result')
+  for (let i = 0; i < 9; i++) await second()
+  expect(polls.n).toBe(2)
+  await second()
+  expect(polls.n).toBe(3)
+
+  await teamRun!($, { command: 'team' })
+  await second()
+  expect(polls.n).toBe(4)
 })
 
 test('the Chats pane draws one card per good file, needs-you first, and skips a file cut off mid-write', async ($, on) => {
@@ -746,7 +891,7 @@ test('a message from another session does not replace the task line, and a first
 })
 
 // Builder names: /team name saves them per user in the home names file, and the poll puts them on the builder cards.
-const NAMES_PATH = 'C:/Users/u/.claude/section-team/names.json'
+const NAMES_PATH = `${HOME}/.claude/section-team/names.json`
 const team = ($: { command: { run: (e: never) => Promise<unknown> } }, args: string) => $.command.run({ command: 'team', args } as never)
 const teamText = async ($: never, args: string) => ((await team($, args)) as { text: string }).text
 const cardText = async ($: never, id: string) => {
@@ -873,6 +1018,34 @@ test('a names file with bad entries keeps its good names, and a rename saves the
   expect(await teamText($ as never, 'name frontend Kit')).toBe('Iris is now Kit (frontend).')
   expect(seen.disk[NAMES_PATH]).toBe('{"v":1,"names":{"frontend":"Kit","backend":"Nova"}}')
 })
+
+// Another chat saves names.json while this one renames: the disk world() reads from swaps the file right after this chat's first
+// read of it, as a save landing between that read and the write would. (A test may not hook fs.read a second time.)
+const RACES = [
+  ['a rename it saved is kept', '{"v":1,"names":{"backend":"Kit"}}', 'Iris is now Nova (frontend).', '{"v":1,"names":{"frontend":"Nova","backend":"Kit"}}'],
+  ['a name it just took is refused', '{"v":1,"names":{"backend":"Nova"}}', 'Nova is taken by backend; pick another name.', undefined],
+  ['a file it left unreadable is not overwritten', '{"v":1,"names":{"backend":"No', 'Name not saved: names.json could not be read.', undefined],
+] as const
+
+for (const [what, other, line, saved] of RACES) {
+  test(`names.json is read again just before a rename is saved: ${what}`, async ($, on) => {
+    const { seen } = world(on)
+    const disk: Record<string, string> = { [NAMES_PATH]: '{"v":1,"names":{}}' }
+    let reads = 0
+    seen.disk = new Proxy(disk, {
+      get: (target, key: string) => {
+        const text = target[key]
+        if (key === NAMES_PATH && ++reads === 1) target[NAMES_PATH] = other
+        return text
+      },
+    })
+
+    await $.session.start(START)
+    expect(await teamText($ as never, 'name frontend Nova')).toBe(line)
+    expect(reads).toBeGreaterThan(0)
+    expect(disk[NAMES_PATH]).toBe(saved ?? other)
+  })
+}
 
 test('a names file that cannot be written says the name was not saved, and nothing is saved', async ($, on) => {
   const { seen } = world(on)
@@ -1005,7 +1178,7 @@ test('a new session.start starts the office fresh, so its first poll draws no wa
 })
 
 // The office look: /team office saves it per user beside names.json, and the poll paints the office with it.
-const LOOK_PATH = 'C:/Users/u/.claude/section-team/office.json'
+const LOOK_PATH = `${HOME}/.claude/section-team/office.json`
 
 test('/team office yellow saves the look and the next tick paints the office yellow', async ($, on) => {
   const { clock, seen } = world(on)

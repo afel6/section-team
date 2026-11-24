@@ -2,10 +2,69 @@
 
 Each release's full notes are on the [GitHub releases page](https://github.com/afel6/section-team/releases).
 
-## Unreleased
+## 0.6.0 (unreleased)
 
+**Balanced direct tier (reverted: missed bar Q1)**
+- The release candidate v0.6.0-rc.1 let Balanced's supervisor do a direct job itself (a question, a read, or a fix of about 30 lines or less of non-test code that adds no feature), and, when it changed behaviour, wrote a failing test first and had the reviewer grade it, instead of waking a section. Round nx measured rc.1 against v0.5.1 on h8, a small fix task, with 5 runs per setup and Codex as the one blind judge. It met its cost bar C1 at 0.65× v0.5.1's cost ($0.72 against $1.11 per run) and missed its quality bar Q1: rc.1 − v0.5.1 was -0.38 on Codex's five-dimension mean, 95% CI [-1.67, +0.91] over 5 groups, where the bar was at least -0.25. H1, T1 and the validity checks V1 to V6 were met. The keep rule pre-registered in tag `nx-freeze` reverts the tier on a missed bar, so 0.6.0 ships without it: every job goes to a section, as in 0.5.1. No round measured the exact 0.6.0 build. Details: [docs/benchmark-nx-2026-11.md](docs/benchmark-nx-2026-11.md).
+
+**Safety and trust**
+- A project's `.claude/settings.json` or `settings.local.json` (in the session's folder, a linked worktree's own folder or the main checkout) that sets `SECTION_TEAM_AUTO_INSTALL_SKILLS` keeps automatic skill installs off, one that sets `SECTION_TEAM_MEMORY_LIMIT_MB` keeps the memory guard off, and one that sets `HOME` or `USERPROFILE` keeps both off, a key in any letter case included, each with one line.
+- The memory guard raises a limit under 1024 MB to 1024 MB, with one line, and names a limit that is not a whole number once per session instead of never.
+- The memory guard stops a process with SIGTERM, then SIGKILL if it is still running 5 seconds later (on Windows any stop signal ends it at once).
+- Saved long prompts and the memory-guard log replace recognised secrets with `[redacted]`: private-key blocks, bearer and Basic auth values, provider tokens, URL passwords, JSON secret values, password and token flags and `NAME=value` secrets; a value that looks like a placeholder is kept only when it is a whole one, such as `$NAME`, `${NAME}`, `%NAME%` or `<name>`.
+- Each chat's status file redacts the request it keeps (its first 80 characters) the same way, and the supervisor's pointer to a saved prompt says recognised secrets are shown as `[redacted]`.
+- With automatic installs on, a section's `Suggested skill:` installs without asking only when its GitHub owner is in `~/.claude/section-team/trusted-sources.json` and add-skill's review finds no red flag, as a searched skill already did.
+- add-skill's review also flags bidi isolates, inline commands and frontmatter hooks; hooks or allowed-tools in the frontmatter, executable files and network calls turn an unattended install into the question; and the trusted-owner check asks when the project turns installs off.
+- The supervisor is told that `.team/notes/` a repo commits are not your approved decisions until you confirm them, and sections take a committed `foundation.md` as approved only once you say so.
+- A `.team/` plan or last summary that a repo ships in git, or that git does not ignore, is not loaded as instructions, with one line; a committed `.team/mode.json` that sets Max or off is named in one line at session start.
+- In an off project whose `.team/` git does not ignore, no REPORT or team summary is saved, with one line.
+- Builders, the coder and the reviewer carry a safety rule no project rule lifts: no push, force-push, deploy, publish, destructive git, command against production or remote services, or delete outside the project of what the job did not make; the supervisor asks you first.
+- The supervisor asks you before it runs an MCP write, send or delete for a section.
+- An advisor's write is refused when the advisor check itself fails.
+- `SECURITY.md` says private vulnerability reporting is not enabled yet, gives the interim route and lists the known limits.
+
+**Behaviour**
+- Sections and the reviewer use the `opus` model alias, so they follow your session's Opus version or the alias default.
+- A section transcript the context guard or the grade check cannot read is named in one line, where before it was allowed in silence.
+- The off line says `/team mode balanced` turns section-team back on from your next session, `/clear` or `/compact`, and the mode save line says a switch to or from off applies from then.
+- Session start prunes old status files and mode records in an off project too.
+
+**Board**
+- When the Team Board does not load, one line says so once per session and that `.team/mode.json` still sets the mode.
+- An off project's strip polls every 10 s while neither board pane is open.
+- A rename re-reads `names.json` first, so names another chat saved are kept, and a poll tick is skipped while the last one still runs.
 - `/team office yellow` paints the Team Board office yellow for you (saved in `~/.claude/section-team/office.json`); `/team office night` brings back the dark office.
 - On desktop and mobile, press a creature to squish it and click it to fling it. The office is now drawn as an interactive picture, still with no script in it.
+
+**Install and updates**
+- The plugin ships an empty roster (`scripts/roster-extra.json`), so sections lose the extra go-to skills 0.5.1's roster gave them and any assignment you made under 0.5.1 (the skills stay installed in `~/.claude/skills/`); to keep one, assign it again once with `node "<plugin root>/scripts/assign-skill.mjs" <skill> <section>`.
+- Your skill assignments are saved in `~/.claude/section-team/roster-extra.json`, outside the plugin folder: after a later `claude plugin update`, `node "<plugin root>/scripts/assign-skill.mjs" --reapply` restores them, and session start shows that exact command when the agents lack one.
+- add-skill no longer commits in the plugin folder.
+
+**Rule precedence**
+- The sections' and the reviewer's section-team default rules give way where the project's CLAUDE.md, AGENTS.md or `.claude/rules` say otherwise; in 0.5.1 they were called the user's standards.
+- Projects with a tests-first rule now get tests first. In Balanced, builders write the code first and its tests after it, from the spec; a tests-first rule in the project's CLAUDE.md or AGENTS.md now holds over that order, as a job message that asks for tests first already did. In 0.5.1 such a rule gave way. Max still writes tests first.
+
+**Benchmark**
+- Raw data of rounds hq, fx, py and ph is published, with recompute scripts.
+- Round fx's tasks f1 to f3 and their hidden tests are published.
+- The harness can run a base arm at its own ref, pins the profile, the Claude Code version and the memory limit per batch, and checks the clean profile and the instruction files above the runs folder.
+
+**Changed after the measured commit v0.6.0-rc.1**
+
+Round nx measured v0.6.0-rc.1 (`9ec796f`). These commits came after it, newest first; of them, only the revert changes how the team works, and `656316c` changes the board.
+- `656316c` Merge of PR 25 from `main`: `/team office yellow` and the squish-and-fling office (board only).
+- `fe9900c` Round nx's derived data published in `bench/data/nx/`.
+- `9e76662` Merge of the revert below, as round nx's keep rule requires.
+- `7dd5bf3` Revert of the Balanced direct tier: Balanced's brief goes back to waking a section for every job, the generator drops the direct-build skill, and `skills/direct-build/` is removed.
+- `54e50c3` Merge of round nx's tasks, tagged `nx-freeze` with the bars and the keep rule; benchmark files only.
+- `ee3f36a` h10's task text says the body decodes as Buffer toString does and keeps a leading byte order mark (benchmark only).
+- `c6e65fd` h10's hidden tests compare a failed list fetch with the list as loaded and check that a list success keeps `#error` (benchmark only).
+- `9cd74e7` h9's task text says a long flat chain of operators must evaluate (benchmark only).
+- `28fe0a9` Held-out task h10, a polls app with an API, a page and a JSON file, its hidden tests and 11 near-misses (benchmark only).
+- `f0a0efc` Held-out fix task h8, a loans CLI seed with two bugs, its hidden tests and 6 near-misses (benchmark only).
+- `486f01d` Held-out task h9, an expression calculator, its hidden tests and 11 near-misses (benchmark only).
+- Docs pass 2 lands in this release after these commits: the README, the docs and these notes take round nx's numbers, and the Balanced picker label becomes `Balanced · ~7× usage` (was `~5×`). It rounds rc.1's cost over plain Claude Code on h8 to h10 with the three tasks weighted equally, 7.26× (reported, no bar; 9 runs per setup: 5 on h8, 2 each on h9 and h10); with h8 taken from v0.5.1, which routes it as 0.6.0 does, the estimate is 7.5×.
 
 ## 0.5.1 (2026-11-22)
 

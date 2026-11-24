@@ -32,13 +32,13 @@ test('pluginCommitOf refuses a missing or relative --plugin and a worktree not a
   const calls = []
   const gitWith = ({ head, tagged }) => args => { calls.push(args); return args.includes('HEAD') ? head : tagged }
   for (const bad of ['', 'section-team-v0.2.1', './w']) {
-    assert.throws(() => pluginCommitOf(bad, { git: gitWith({}) }), { message: `--plugin= takes the absolute path of the v0.2.1 worktree, got "${bad}"` })
+    assert.throws(() => pluginCommitOf(bad, { git: gitWith({}) }), { message: `--plugin= takes the absolute path of the ${DEFAULT_PLUGIN_REF} worktree, got "${bad}"` })
   }
   assert.deepEqual(calls, [], 'refused before any git call')
-  assert.throws(() => pluginCommitOf(worktree, { git: gitWith({ head: 'aaa', tagged: 'bbb' }) }), { message: `${worktree} is at aaa, not at v0.2.1 (bbb)` })
+  assert.throws(() => pluginCommitOf(worktree, { git: gitWith({ head: 'aaa', tagged: 'bbb' }) }), { message: `${worktree} is at aaa, not at ${DEFAULT_PLUGIN_REF} (bbb)` })
   calls.length = 0
   assert.equal(pluginCommitOf(worktree, { git: gitWith({ head: 'bbb', tagged: 'bbb' }) }), 'bbb')
-  assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', 'v0.2.1^{commit}']])
+  assert.deepEqual(calls, [['-C', worktree, 'rev-parse', 'HEAD'], ['rev-parse', `${DEFAULT_PLUGIN_REF}^{commit}`]])
 })
 
 test('the default plugin ref stays the tag of the round version', () => {
@@ -135,14 +135,14 @@ test('checkPluginWorktree accepts the clean worktree root, whatever its slashes 
   const plugin = 'C:\\Users\\Asus\\Section-Team-v0.2.1\\'
   const git = args => { calls.push(args); return args.includes('--show-toplevel') ? 'C:/Users/Asus/section-team-v0.2.1' : '' }
   assert.doesNotThrow(() => checkPluginWorktree(plugin, { git }))
-  assert.deepEqual(calls, [['-C', plugin, 'rev-parse', '--show-toplevel'], ['-C', plugin, 'status', '--porcelain'], ['-C', plugin, 'diff', '--stat', 'v0.2.1']])
+  assert.deepEqual(calls, [['-C', plugin, 'rev-parse', '--show-toplevel'], ['-C', plugin, 'status', '--porcelain'], ['-C', plugin, 'diff', '--stat', DEFAULT_PLUGIN_REF]])
 })
 
 test('pluginCommitOf and checkPluginWorktree take a Linux worktree path and compare it case for case', { skip: process.platform === 'win32' && 'Linux paths' }, () => {
   const top = '/root/section-team-v0.2.1'
-  const git = args => (args.includes('--show-toplevel') ? top : args.includes('HEAD') || args.includes('v0.2.1^{commit}') ? 'bbb' : '')
+  const git = args => (args.includes('--show-toplevel') ? top : args.includes('HEAD') || args.includes(`${DEFAULT_PLUGIN_REF}^{commit}`) ? 'bbb' : '')
   assert.equal(pluginCommitOf(top, { git }), 'bbb')
-  assert.throws(() => pluginCommitOf('\\rooted', { git }), { message: '--plugin= takes the absolute path of the v0.2.1 worktree, got "\\rooted"' })
+  assert.throws(() => pluginCommitOf('\\rooted', { git }), { message: `--plugin= takes the absolute path of the ${DEFAULT_PLUGIN_REF} worktree, got "\\rooted"` })
   assert.doesNotThrow(() => checkPluginWorktree(`${top}/`, { git }))
   assert.throws(() => checkPluginWorktree('/root/Section-Team-v0.2.1', { git }),
     { message: `--plugin= must be the worktree's root folder ${top}, got /root/Section-Team-v0.2.1` })
@@ -153,8 +153,8 @@ test('checkPluginWorktree refuses a subfolder, uncommitted changes and a diff fr
   const gitWith = ({ status = '', diff = '' }) => args => (args.includes('--show-toplevel') ? top : args.includes('status') ? status : diff)
   const cases = [
     [`${top}/agents`, {}, `--plugin= must be the worktree's root folder ${top}, got ${top}/agents`],
-    [top, { status: '?? stray.md' }, `${top} has uncommitted changes: a batch needs a clean v0.2.1 worktree`],
-    [top, { diff: ' agents/backend.md | 2 +-' }, `${top} differs from v0.2.1: a batch needs a clean v0.2.1 worktree`],
+    [top, { status: '?? stray.md' }, `${top} has uncommitted changes: a batch needs a clean ${DEFAULT_PLUGIN_REF} worktree`],
+    [top, { diff: ' agents/backend.md | 2 +-' }, `${top} differs from ${DEFAULT_PLUGIN_REF}: a batch needs a clean ${DEFAULT_PLUGIN_REF} worktree`],
   ]
   for (const [plugin, out, message] of cases) assert.throws(() => checkPluginWorktree(plugin, { git: gitWith(out) }), { message }, message)
 })
@@ -170,7 +170,7 @@ function refusingCli(t) {
   mkdirSync(results)
   mkdirSync(join(home, '.claude', 'plugins'), { recursive: true })
   writeFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), '{"plugins":{}}')
-  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, BENCH_RESULTS: results }
+  const env = { PATH: bare, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, BENCH_RESULTS: results, SECTION_TEAM_LIVE_CHECKOUT: join(home, 'live') }
   const run = (script, ...args) => spawnSync(process.execPath, [join(import.meta.dirname, script), ...args], { cwd: home, env, encoding: 'utf8', windowsHide: true, timeout: 30_000 })
   return { home, results, run }
 }

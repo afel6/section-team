@@ -1,0 +1,35 @@
+// Input rules shared by every command: each parser returns the clean value or throws a UserError.
+export class UserError extends Error {}
+
+const ITEM_MAX = 100
+const PERSON_MAX = 40
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+const NUMBER = /^[1-9]\d*$/
+
+export const DATE_MESSAGE = 'due date must be a real date as YYYY-MM-DD'
+
+const text = (value, max, message) => {
+  const trimmed = value.trim()
+  if (trimmed.length < 1 || trimmed.length > max) throw new UserError(message)
+  return trimmed
+}
+
+export const parseItem = value => text(value, ITEM_MAX, `item must be 1 to ${ITEM_MAX} characters`)
+export const parsePerson = value => text(value, PERSON_MAX, `person must be 1 to ${PERSON_MAX} characters`)
+
+// A date as YYYY-MM-DD; used by add --due, edit --due and list --due-before.
+export function parseDate(value) {
+  if (!DATE.test(value)) throw new UserError(DATE_MESSAGE)
+  const date = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) throw new UserError(DATE_MESSAGE)
+  // Keep the month that was typed: a day past its end becomes its last day.
+  const [year, month, day] = value.split('-').map(Number)
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return `${value.slice(0, 8)}${String(Math.min(day, last)).padStart(2, '0')}`
+}
+
+// A loan number: a whole number written in digits, such as 3.
+export function parseNumber(value) {
+  if (!NUMBER.test(value)) throw new UserError('loan number must be a whole number like 3')
+  return Number(value)
+}

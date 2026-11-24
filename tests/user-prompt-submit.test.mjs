@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { modeSwitch, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
+import { BOARD_GRACE_MS, modeSwitch, mtimeOf, promptCheck, saveRequest } from '../hooks/user-prompt-submit.mjs'
 import { readBriefHash, recordBriefHash, recordMode } from '../hooks/lib/mode-record.mjs'
 import { briefHash, modeRules } from '../hooks/lib/brief.mjs'
 import { MODES, modeName } from '../hooks/lib/mode.mjs'
@@ -89,6 +89,7 @@ test('an unusable mode announces nothing, keeps and refreshes the record, and th
   const h = tempHome()
   const file = recordPath(h, 's1')
   recordMode(h, 's1', 'max')
+  boardLoaded(h) // the aged record would otherwise also bring the board-load line
   const dir = project('{not json')
   const e = event(dir)
   const cases = [
@@ -293,7 +294,8 @@ for (const to of MODES) {
 // --- a long pasted request is saved, so the supervisor points sections to it instead of re-typing it ---
 
 const LONG = `${'a'.repeat(2998)}é\n` // 3000 characters
-const POINTER = path => `The user's message is saved word for word in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
+// "recognised secrets", as README.md says: the redactor knows set shapes, not every secret.
+const POINTER = path => `The user's message is saved word for word, with recognised secrets shown as [redacted], in \`${path}\`: point sections to that file instead of re-typing it, and quote only the lines a job needs.`
 const SAVED_PATH = /`(\.team\/reports\/\d{4}-\d{2}-\d{2}\/\d{6}-user-request\.md)`/
 const gitInit = dir => {
   execFileSync('git', ['-C', dir, 'init', '-q'])
@@ -319,6 +321,15 @@ test('a 3000-character prompt in a git repo with .team/ is saved word for word a
   assert.equal(readFileSync(join(dir, path), 'utf8'), LONG)
   assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request.md')
   assert.equal(saveRequest(dir, LONG, true, new Date(2026, 10, 10, 12, 0, 0)), '.team/reports/2026-11-10/120000-user-request-2.md')
+})
+
+test('a saved long prompt has its secrets redacted; the rest stays word for word', () => {
+  const dir = gitProject()
+  // Made-up values.
+  const prompt = `${LONG}Deploy with DEPLOY_TOKEN=abc123def and this key:\n-----BEGIN PRIVATE KEY-----\nMIIEvQ\n-----END PRIVATE KEY-----\nthen run it.\n`
+  const r = promptCheck(withPrompt(dir, prompt), tempHome())
+  const saved = readFileSync(join(dir, SAVED_PATH.exec(r.notice)[1]), 'utf8')
+  assert.equal(saved, `${LONG}Deploy with DEPLOY_TOKEN=[redacted] and this key:\n[redacted]\nthen run it.\n`)
 })
 
 test('a long prompt that is a harness frame (a hand-back, a task notification) is not saved as a user request', () => {
@@ -416,6 +427,77 @@ test('hook: the prompt from the hook input is saved and pointed to', () => {
 test('hooks.json runs the hook on UserPromptSubmit like the other hooks', () => {
   const hooks = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')).hooks
   assert.deepEqual(hooks.UserPromptSubmit, [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.mjs"' }] }])
+})
+
+// The board-load notice: a session whose Team Board never wrote its status file is told once, after the board had BOARD_GRACE_MS to write it.
+const BOARD_LINE = "section-team: the Team Board did not load in this session (Claude Code's early-access Mods API); /team and the Mode picker are unavailable, and .team/mode.json still sets the mode."
+const statusFile = (home, id) => join(home, '.claude', 'section-team', 'sessions', `${id}.json`)
+const markerFile = (home, id) => join(home, '.claude', 'section-team', 'modes', `${id}.board-checked.json`)
+const boardLoaded = (home, id = 's1') => {
+  mkdirSync(dirname(statusFile(home, id)), { recursive: true })
+  writeFileSync(statusFile(home, id), '{}')
+}
+// The session's record as session start (or the last prompt) left it, ms ago.
+const recordedAgo = (home, ms, id = 's1') => {
+  recordMode(home, id, 'balanced')
+  const at = new Date(Date.now() - ms)
+  utimesSync(recordPath(home, id), at, at)
+}
+
+test('a session whose board wrote no status file is told once, after the grace', () => {
+  assert.equal(BOARD_GRACE_MS, 30000)
+  const home = tempHome()
+  const dir = project()
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [BOARD_LINE] })
+  assert.ok(existsSync(markerFile(home, 's1')), 'the marker ends in .json, so the weekly prune removes it')
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [] }, 'once per session')
+  recordedAgo(home, BOARD_GRACE_MS + 1000, 's2')
+  assert.deepEqual(promptCheck(event(dir, 's2'), home), { notice: null, warnings: [BOARD_LINE] }, 'another session is told too')
+})
+
+test('no board line inside the grace, with a status file, without a record or without a usable session id', () => {
+  const home = tempHome()
+  const dir = project()
+  recordedAgo(home, 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [] }, 'inside the grace')
+  assert.equal(existsSync(markerFile(home, 's1')), false, 'a check that waits claims nothing, so a later prompt checks')
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), home), { notice: null, warnings: [BOARD_LINE] })
+
+  const loaded = tempHome()
+  boardLoaded(loaded)
+  recordedAgo(loaded, BOARD_GRACE_MS + 1000)
+  assert.deepEqual(promptCheck(event(dir), loaded), { notice: null, warnings: [] }, 'the board wrote its file')
+  assert.ok(existsSync(markerFile(loaded, 's1')), 'checked once either way')
+
+  assert.deepEqual(promptCheck(event(dir, 'fresh'), tempHome()), { notice: null, warnings: [] }, 'no record yet')
+  assert.deepEqual(promptCheck(event(dir, '../s1'), home), { notice: null, warnings: [NO_ID] })
+})
+
+test('hook: the board line is shown word for word, after the hook\'s own warnings', () => {
+  const home = tempHome()
+  recordedAgo(home, BOARD_GRACE_MS + 1000)
+  const alone = run(promptInput(project()), home)
+  assert.equal(alone.status, 0)
+  assert.equal(alone.stderr, '')
+  assert.deepEqual(JSON.parse(alone.stdout), { systemMessage: BOARD_LINE })
+  const withWarning = tempHome()
+  recordedAgo(withWarning, BOARD_GRACE_MS + 1000)
+  const both = run(promptInput(project('{not json')), withWarning)
+  assert.deepEqual(JSON.parse(both.stdout), { systemMessage: `${PREFIX}mode switch check skipped: .team/mode.json: not valid JSON, so this session stays in Balanced mode ${BOARD_LINE}` })
+})
+
+// Node 20 and 22 throw ENOTDIR for a record under a file even with throwIfNoEntry: false; Windows says ENOENT, so stubs stand in for both.
+test('mtimeOf reads a missing record, or one under a file, as undefined and throws any other error', () => {
+  const failing = code => () => { throw Object.assign(new Error(code), { code }) }
+  assert.equal(mtimeOf('x', failing('ENOENT')), undefined)
+  assert.equal(mtimeOf('x', failing('ENOTDIR')), undefined)
+  assert.throws(() => mtimeOf('x', failing('EACCES')), { code: 'EACCES' })
+  const file = join(tempDir('mtime-'), 'record.json')
+  writeFileSync(file, '{}')
+  assert.equal(mtimeOf(file), statSync(file).mtimeMs)
 })
 
 test('an off project announces nothing, records nothing and saves no long prompt', () => {

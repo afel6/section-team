@@ -1,0 +1,14 @@
+{
+  "name": "quick-polls",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Quick polls: a JSON API and a page, with the data in one JSON file.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.2"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

@@ -1,5 +1,7 @@
 # section-team — review brief for an external grader
 
+> **Historical; superseded by the README.** See [README.md](../../README.md) for the plugin as it is now.
+
 Repo: `<path-to-section-team>` (branch `feat/claude-team`, 26 commits on top of `main`). Platform: Claude Code 2.1.295/2.1.296, Claude desktop app (Code tab) and CLI, native Windows 11, Node 26.
 
 ## 1. What it is
@@ -92,7 +94,7 @@ You ◄── combined summary (also saved)
 - **Usage numbers** are counted inside the session from model-step usage; they are not reconciled with the account's billing view, and the counting maps are not pruned during very long sessions.
 - **Agent-id map lost** after `/clear` or compaction: the supervisor is told to start fresh sections for later jobs, as it is for every new job since 0.2.3 (long-term memory survives). The limitation: the section's in-session context is lost, and a job in progress cannot be continued by message.
 - **Model cost:** all 12 heads are pinned to Opus 5.5 (user choice).
-- Deferred minor items and every controller ruling are listed in `docs/build-ledger.md` (lines marked `minor (deferred)` and `Ruling`).
+- Deferred minor items and every controller ruling are listed in `docs/history/build-ledger.md` (lines marked `minor (deferred)` and `Ruling`).
 
 ## 8. Expected outcomes vs a single session (author's assessment, unmeasured)
 

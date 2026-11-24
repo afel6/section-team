@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpath
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
+import { check, decide, ensureGuard, ensureScratch, gateReasons, isInMemory } from '../hooks/pre-tool-use.mjs'
 import { GATES, MODES } from '../hooks/lib/mode.mjs'
 import { recordMode } from '../hooks/lib/mode-record.mjs'
 
@@ -347,13 +347,30 @@ test('a hook input that is not a JSON object gives one systemMessage line and de
   }
 })
 
-test('a rule that throws gives one systemMessage line and denies nothing', () => {
-  // Reading tool_input throws inside the advisor rule (a getter planted by --import); any rule that throws would do.
+test('a rule that throws gives one systemMessage line and denies nothing, except an advisor write, which is refused', () => {
+  // Reading tool_input throws inside the rules (a getter planted by --import); any rule that throws would do.
   const PLANT = "data:text/javascript,Object.defineProperty(Object.prototype,'tool_input',{get(){throw Object.assign(new Error('planted'),{code:'EPLANTED'})}})"
-  const run = spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: '{"agent_type":"section-team:ai-engineer","tool_name":"Write","cwd":"x"}', encoding: 'utf8', env: hookEnv(tempDir()) })
-  assert.equal(run.status, 0)
-  assert.equal(run.stderr, '')
-  assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: EPLANTED' })
+  const planted = input => spawnSync(process.execPath, ['--import', PLANT, SCRIPT], { input: JSON.stringify(input), encoding: 'utf8', env: hookEnv(tempDir()) })
+  const failOpen = [
+    { agent_type: 'section-team:ai-engineer', tool_name: 'Agent', cwd: 'x' },
+    { agent_type: 'section-team:plan-advisor', tool_name: 'Agent', cwd: 'x' },
+    { tool_name: 'SendMessage', cwd: 'x' },
+    { agent_type: 'section-team:ai-engineer', tool_name: 'SendMessage', cwd: 'x' },
+  ]
+  for (const input of failOpen) {
+    const run = planted(input)
+    assert.equal(run.status, 0, JSON.stringify(input))
+    assert.equal(run.stderr, '')
+    assert.deepEqual(JSON.parse(run.stdout), { systemMessage: 'section-team pre-tool-use: no rule was checked: EPLANTED' }, JSON.stringify(input))
+  }
+  for (const id of ['ai-engineer', 'data-scientist', 'plan-advisor']) {
+    for (const tool of ['Write', 'Edit', 'MultiEdit']) {
+      const run = planted({ agent_type: `section-team:${id}`, tool_name: tool, cwd: 'x' })
+      assert.equal(run.status, 0)
+      assert.equal(run.stderr, '')
+      assert.deepEqual(JSON.parse(run.stdout), { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'section-team: the advisor check failed (EPLANTED), so this write was refused.' } }, `${id} ${tool}`)
+    }
+  }
   // A numeric cwd is ignored now, so it no longer throws: the write is denied as outside the memory folder.
   const numeric = spawnHook('{"agent_type":"section-team:ai-engineer","tool_name":"Write","tool_input":{"file_path":"x.md"},"cwd":5}')
   assert.equal(numeric.status, 0)
@@ -581,6 +598,22 @@ test('a graded handback whose transcript cannot be found allows', () => {
   assert.equal(decide({ ...e, agent_id: 'nobody' }, {}, tempDir()), null)
 })
 
+test('a transcript the hook cannot read allows the call and tells the user, in the spawned hook and in check', () => {
+  const handback = gradedHandback([readCall], DONE_AT('9/10 (reviewer)'))
+  const unreadHandback = { ...handback, agent_id: 'nobody' }
+  assert.deepEqual(check(unreadHandback, {}, tempDir()), { reason: null, notice: "section-team: could not read the section's transcript; this hand-back was not checked." })
+  const ran = spawnHook(JSON.stringify(unreadHandback))
+  assert.equal(ran.status, 0)
+  assert.deepEqual(JSON.parse(ran.stdout), { systemMessage: "section-team: could not read the section's transcript; this hand-back was not checked." })
+  const unreadMessage = sendMessageTo('section-team:backend', '{not json')
+  const sent = spawnHook(JSON.stringify(unreadMessage))
+  assert.equal(sent.status, 0)
+  assert.deepEqual(JSON.parse(sent.stdout), { systemMessage: "section-team: could not read the section's transcript; this message was not checked." })
+  // A message to a target that is no section of this session (main, a teammate) stays silent.
+  const toMain = spawnHook(JSON.stringify({ ...unreadMessage, tool_input: { to: 'main', message: 'hi' } }))
+  assert.equal(toMain.stdout, '')
+})
+
 test('the spawned hook denies a grade above the reviewer and stays silent on an honest one', () => {
   const refused = spawnHook(JSON.stringify(gradedHandback(REVIEW_FORMS.attachment(8), DONE_AT('9/10 (reviewer)'))))
   assert.equal(refused.status, 0)
@@ -598,7 +631,8 @@ test('the spawned hook denies resuming a finished oversized head and stays silen
   const out = JSON.parse(refused.stdout).hookSpecificOutput
   assert.equal(out.permissionDecision, 'deny')
   assert.match(out.permissionDecisionReason, /the backend section has finished at 450K tokens/)
-  for (const input of [sendMessageTo('section-team:backend', '{not json'), sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
+  // A transcript that is not JSON is allowed with a notice (the test above).
+  for (const input of [sendMessageTo('section-team:backend', OVER_LIMIT_WORKING), { tool_name: 'SendMessage', tool_input: { to: 'main' } }]) {
     const allowed = spawnHook(JSON.stringify(input))
     assert.equal(allowed.status, 0)
     assert.equal(allowed.stdout, '')
@@ -730,7 +764,6 @@ test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an
     [guardEvent(), { [VAR]: '0' }, {}],
     [guardEvent(), {}, {}],
     [guardEvent(), {}, { platform: 'linux' }],
-    [guardEvent(), { [VAR]: '12GB' }, {}],
   ]
   for (const [e, env, over] of cases) {
     const { deps, spawned, listed } = guardDeps(over)
@@ -740,9 +773,9 @@ test('the supervisor, an advisor, a Write call, a bad session id, limit 0 and an
   }
   // The variable turns it on outside Windows.
   const linux = guardDeps({ platform: 'linux' })
-  ensureGuard(guardEvent(), { [VAR]: '300' }, linux.deps)
+  ensureGuard(guardEvent(), { [VAR]: '2048' }, linux.deps)
   assert.equal(linux.spawned.length, 1)
-  assert.equal(readGuardRecord(linux.deps.home).limit, 300 * GUARD_MB)
+  assert.equal(readGuardRecord(linux.deps.home).limit, 2048 * GUARD_MB)
 })
 
 test('a failed listing and an unknown host write the failure, say so once, and are not retried within 10 minutes', () => {
@@ -773,6 +806,140 @@ test('a spawn error is a failed start', () => {
   const broken = guardDeps({ spawn: () => { throw Object.assign(new Error('spawn failed'), { code: 'EPERM' }) } })
   assert.match(ensureGuard(guardEvent(), GUARD_ON, broken.deps), /memory guard.*EPERM/)
   assert.ok(readGuardRecord(broken.deps.home).failed)
+})
+
+// The 0.5.1 regression: the guard became opt-in, and a bad value then returned before its problem line, so a user's typo turned the guard off in silence.
+test('a bad limit value is said once per session, starts no guard, and unset or 0 stay silent', () => {
+  const VAR = 'SECTION_TEAM_MEMORY_LIMIT_MB'
+  for (const bad of ['12GB', '12288 ', '12,288']) {
+    const { deps, spawned, listed } = guardDeps()
+    const env = { [VAR]: bad }
+    const first = ensureGuard(guardEvent(), env, deps)
+    assert.match(first ?? '', new RegExp(`^${VAR} is not a whole number of MB`), JSON.stringify(bad))
+    assert.ok(!first.includes('\n'))
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, `${JSON.stringify(bad)} is said once`)
+    assert.equal(ensureGuard(guardEvent({ tool_name: 'PowerShell' }), env, deps), null)
+    assert.equal(spawned.length + listed.length, 0, 'no guard starts on a bad value')
+    // Another session is told too.
+    assert.match(ensureGuard(guardEvent({ session_id: 'sess-2' }), env, deps) ?? '', new RegExp(VAR))
+  }
+  for (const env of [{}, { [VAR]: '' }, { [VAR]: '0' }]) {
+    const { deps } = guardDeps()
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, JSON.stringify(env))
+    assert.equal(ensureGuard(guardEvent(), env, deps), null, JSON.stringify(env))
+  }
+})
+
+test('the said-once marker ends in .json, so the weekly prune of the modes folder removes it', () => {
+  const { deps } = guardDeps()
+  ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '12GB' }, deps)
+  const names = readdirSync(join(deps.home, '.claude', 'section-team', 'modes'))
+  assert.deepEqual(names, ['sess-1.limit-said.json'])
+})
+
+// --- the project's .claude settings cannot turn the guard on, and a tiny limit is raised to the floor ---
+
+const gitIn = (dir, ...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=x', '-c', 'user.email=x@example.invalid', ...args], { stdio: 'ignore' })
+// A repo that commits .claude/settings.json with this env, as a cloned repo ships it.
+const repoWithSettings = env => {
+  const dir = tempDir()
+  gitIn(dir, 'init', '-q')
+  mkdirSync(join(dir, '.claude'))
+  writeFileSync(join(dir, '.claude', 'settings.json'), JSON.stringify({ env }))
+  gitIn(dir, 'add', '.claude/settings.json')
+  gitIn(dir, 'commit', '-q', '-m', 'ship')
+  return dir
+}
+const PROJECT_LIMIT_LINE = "this project's .claude settings set SECTION_TEAM_MEMORY_LIMIT_MB, which only your own ~/.claude/settings.json may set; the memory guard stays off"
+const guardHomeLine = name => `this project's .claude settings set ${name}, which decides where your home folder is; the memory guard stays off`
+
+test("a committed .claude/settings.json that sets the limit, HOME or USERPROFILE keeps the guard off, with one line per session", () => {
+  const cases = [
+    [{ SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, PROJECT_LIMIT_LINE],
+    [{ section_team_memory_limit_mb: '12288' }, PROJECT_LIMIT_LINE],
+    [{ HOME: tempDir() }, guardHomeLine('HOME')],
+    [{ UserProfile: tempDir() }, guardHomeLine('USERPROFILE')],
+  ]
+  for (const [settings, line] of cases) {
+    const cwd = repoWithSettings(settings)
+    const { deps, spawned, listed } = guardDeps()
+    assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), line, JSON.stringify(settings))
+    assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null, 'said once')
+    assert.equal(ensureGuard(guardEvent({ cwd, tool_name: 'PowerShell' }), GUARD_ON, deps), null)
+    assert.equal(spawned.length + listed.length, 0, 'no guard starts')
+    assert.equal(ensureGuard(guardEvent({ cwd, session_id: 'sess-2' }), GUARD_ON, deps), line, 'another session is told too')
+  }
+  // CLAUDE_PROJECT_DIR names the project when the event's cwd is elsewhere.
+  const project = repoWithSettings({ SECTION_TEAM_MEMORY_LIMIT_MB: '12288' })
+  const moved = guardDeps()
+  assert.equal(ensureGuard(guardEvent(), { ...GUARD_ON, CLAUDE_PROJECT_DIR: project }, moved.deps), PROJECT_LIMIT_LINE)
+  assert.equal(moved.spawned.length, 0)
+})
+
+test("the home folder's own .claude/settings.json is the user's, so a session there starts the guard", () => {
+  const { deps, spawned } = guardDeps()
+  mkdirSync(join(deps.home, '.claude'), { recursive: true })
+  writeFileSync(join(deps.home, '.claude', 'settings.json'), JSON.stringify({ env: GUARD_ON }))
+  assert.equal(ensureGuard(guardEvent({ cwd: deps.home }), GUARD_ON, deps), null)
+  assert.equal(spawned.length, 1)
+})
+
+test('project settings that cannot be checked keep the guard off, with one line per session that names no path', () => {
+  const cwd = tempDir()
+  writeFileSync(join(cwd, '.git'), 'gitdir: ./nowhere\n')
+  const { deps, spawned, listed } = guardDeps()
+  const first = ensureGuard(guardEvent({ cwd }), GUARD_ON, deps)
+  assert.match(first ?? '', /^project settings check failed: .+; the memory guard stays off$/)
+  assert.ok(!first.includes(cwd), first)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.equal(spawned.length + listed.length, 0)
+})
+
+test('while a failed start waits its 10 minutes, the project settings are not checked again', () => {
+  const cwd = tempDir()
+  writeFileSync(join(cwd, '.git'), 'gitdir: ./nowhere\n') // a check here would give its line and write the said-once marker
+  const { deps, spawned, listed } = guardDeps()
+  writeGuardRecord(deps.home, { failed: { at: Date.now(), problem: 'ETIMEDOUT' } }, 60 * 1000)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.deepEqual(readdirSync(join(deps.home, '.claude', 'section-team', 'modes')), ['sess-1.guard.json'], 'no check, so no marker')
+  assert.equal(spawned.length + listed.length, 0)
+})
+
+// A bench run folder: a git repo with an 'init' commit, the seed committed on top, .team/mode.json left uncommitted, no .claude/.
+const benchRunFolder = () => {
+  const dir = tempDir()
+  gitIn(dir, 'init', '-q', '-b', 'main')
+  writeFileSync(join(dir, 'README.md'), '# bench project\n')
+  gitIn(dir, 'add', 'README.md')
+  gitIn(dir, 'commit', '-q', '-m', 'init')
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src', 'app.mjs'), 'export const x = 1\n')
+  writeFileSync(join(dir, 'package.json'), '{"name":"seed","type":"module"}\n')
+  gitIn(dir, 'add', '-A')
+  gitIn(dir, 'commit', '-q', '-m', 'seed')
+  mkdirSync(join(dir, '.team'))
+  writeFileSync(join(dir, '.team', 'mode.json'), '{"mode":"max"}\n')
+  return dir
+}
+
+test("the user's own limit in the process env starts the guard at 12288 MB in a bench run folder, with no line", () => {
+  const cwd = benchRunFolder()
+  const { deps, spawned } = guardDeps()
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.equal(spawned.length, 1)
+  assert.equal(readGuardRecord(deps.home).limit, 12288 * GUARD_MB)
+  assert.equal(ensureGuard(guardEvent({ cwd }), GUARD_ON, deps), null)
+  assert.deepEqual(readdirSync(join(deps.home, '.claude', 'section-team', 'modes')), ['sess-1.guard.json'], 'no said-once marker')
+})
+
+test('a limit of 1 MB is raised to the 1024 MB floor, said once when the guard starts', () => {
+  const { deps, spawned } = guardDeps()
+  const line = ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps)
+  assert.match(line ?? '', /^SECTION_TEAM_MEMORY_LIMIT_MB is 1 MB, under the 1024 MB floor/)
+  assert.ok(!line.includes('\n'))
+  assert.equal(spawned.length, 1)
+  assert.equal(readGuardRecord(deps.home).limit, 1024 * GUARD_MB)
+  assert.equal(ensureGuard(guardEvent(), { SECTION_TEAM_MEMORY_LIMIT_MB: '1' }, deps), null, 'a running guard says nothing more')
 })
 
 test("decide gives the same answers with a session id on a builder's Bash call", () => {

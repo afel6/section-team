@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick polls</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+  textarea { width: 100%; }
+  #error { color: #b00020; }
+  li { margin: 0.25rem 0; }
+  li button { margin-left: 0.5rem; }
+</style>
+</head>
+<body>
+<h1>Quick polls</h1>
+<form id="poll-form" novalidate>
+  <p><label for="question">Question</label> <input type="text" id="question" name="question"></p>
+  <p><label for="answers">Answers, one per line</label><br><textarea id="answers" name="answers" rows="5"></textarea></p>
+  <p><button type="submit" id="create">Create poll</button></p>
+</form>
+<p id="error" role="alert"></p>
+<ul id="poll-list"></ul>
+<div>
+  <h2 id="poll-question"></h2>
+  <ul id="results"></ul>
+  <p><label for="voter">Your name</label> <input type="text" id="voter"></p>
+  <p><button type="button" id="close-poll" disabled>Close poll</button></p>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

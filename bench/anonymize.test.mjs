@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlink
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { anonymize, judgeDirFor, missingRuns, stagesAskedOf } from './anonymize.mjs'
+import { anonymize, judgeDirFor, missingRuns, repsOf, stagesAskedOf } from './anonymize.mjs'
 
 // Fresh results/, judge/ and seeds/ folders under one temp root, removed after the test.
 function sandbox(t) {
@@ -47,6 +47,26 @@ test('two setups, three reps', t => {
     'h1-r2': { X: 'solo-ho', Y: 'team-ho' },
     'h1-r3': { X: 'team-ho', Y: 'solo-ho' },
   })
+})
+
+// The nx round runs h8 five times and h9 and h10 twice: reps may be given per task.
+test('reps per task: h8 five groups, h9 and h10 two each, three labels rotated as before', t => {
+  const { results, judgeDir, seeds } = sandbox(t)
+  const conds = ['solo-nx', 'base-nx', 'team-nx']
+  const key = anonymize({ conds, tasks: ['h8', 'h9', 'h10'], reps: { h8: 5, h9: 2, h10: 2 }, results, judgeDir, seeds })
+  assert.deepEqual(Object.keys(key), ['h8-r1', 'h8-r2', 'h8-r3', 'h8-r4', 'h8-r5', 'h9-r1', 'h9-r2', 'h10-r1', 'h10-r2'])
+  assert.deepEqual(key['h8-r1'], { X: 'base-nx', Y: 'team-nx', Z: 'solo-nx' })
+  assert.deepEqual(key['h9-r1'], { X: 'team-nx', Y: 'solo-nx', Z: 'base-nx' })
+  assert.deepEqual(key, anonymize({ conds, tasks: ['h8', 'h9', 'h10'], reps: { h8: 5, h9: 2, h10: 2 }, results, judgeDir, seeds }), 'the same flags give the same key')
+  assert.throws(() => anonymize({ conds, tasks: ['h8', 'h9'], reps: { h8: 5 }, results, judgeDir, seeds }), { name: 'RangeError', message: 'reps per task names no count for h9' })
+})
+
+test('repsOf reads --task-reps=h8:5,h9:2 over the --reps count, and refuses a task it does not name or a bad count', () => {
+  assert.equal(repsOf([], 2, ['h1']), 2)
+  assert.deepEqual(repsOf(['--task-reps=h8:5,h9:2,h10:2'], 2, ['h8', 'h9', 'h10']), { h8: 5, h9: 2, h10: 2 })
+  assert.deepEqual(repsOf(['--task-reps=h8:5'], 2, ['h8', 'h9']), { h8: 5, h9: 2 }, 'a task it does not name keeps --reps')
+  assert.throws(() => repsOf(['--task-reps=h8:0'], 2, ['h8']), { message: '--task-reps takes task:count pairs of the round\'s tasks with whole counts of at least 1, got "h8:0"' })
+  assert.throws(() => repsOf(['--task-reps=h7:2'], 2, ['h8']), { message: '--task-reps takes task:count pairs of the round\'s tasks with whole counts of at least 1, got "h7:2"' })
 })
 
 test('seeded task gets SEED and hides team traces', t => {

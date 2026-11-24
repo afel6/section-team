@@ -1,0 +1,47 @@
+{
+  "h8-r1": {
+    "X": "base-nx",
+    "Y": "team-nx",
+    "Z": "solo-nx"
+  },
+  "h8-r2": {
+    "X": "team-nx",
+    "Y": "solo-nx",
+    "Z": "base-nx"
+  },
+  "h8-r3": {
+    "X": "solo-nx",
+    "Y": "base-nx",
+    "Z": "team-nx"
+  },
+  "h8-r4": {
+    "X": "base-nx",
+    "Y": "team-nx",
+    "Z": "solo-nx"
+  },
+  "h8-r5": {
+    "X": "team-nx",
+    "Y": "solo-nx",
+    "Z": "base-nx"
+  },
+  "h9-r1": {
+    "X": "team-nx",
+    "Y": "solo-nx",
+    "Z": "base-nx"
+  },
+  "h9-r2": {
+    "X": "solo-nx",
+    "Y": "base-nx",
+    "Z": "team-nx"
+  },
+  "h10-r1": {
+    "X": "solo-nx",
+    "Y": "base-nx",
+    "Z": "team-nx"
+  },
+  "h10-r2": {
+    "X": "base-nx",
+    "Y": "team-nx",
+    "Z": "solo-nx"
+  }
+}

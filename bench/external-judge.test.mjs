@@ -225,6 +225,63 @@ test('importRound refuses a mode-round import that no outside judge names, or be
   assert.ok(imported())
 })
 
+// The nx round: three setups per group (solo, base, team), 9 groups, two mirrored orders each: 18 cases.
+test('planCases gives nine three-label groups 18 cases, the second of each group in the mirrored order', () => {
+  const groups = [1, 2, 3, 4, 5].map(r => `h8-r${r}`).concat(['h9-r1', 'h9-r2', 'h10-r1', 'h10-r2'])
+  const cases = planCases(groups, ['Z', 'X', 'Y'])
+  assert.equal(cases.length, 18)
+  for (const group of groups) {
+    const maps = cases.filter(c => c.pair === group).sort((a, b) => a.judge - b.judge).map(c => c.map)
+    assert.deepEqual(maps, [{ A: 'X', B: 'Y', C: 'Z' }, { A: 'Z', B: 'Y', C: 'X' }], group)
+  }
+})
+
+// A judged nx round: two three-setup groups and their four cases, with no inside judge's verdicts.
+function primaryRound(t) {
+  const box = sandbox(t)
+  const results = join(box.root, 'results')
+  mkdirSync(results)
+  const key = { 'h8-r1': { X: 'team-nx', Y: 'solo-nx', Z: 'base-nx' }, 'h8-r2': { X: 'base-nx', Y: 'team-nx', Z: 'solo-nx' } }
+  writeFileSync(join(results, 'blind-key-nx.json'), JSON.stringify(key))
+  const cases = planCases(['h8-r1', 'h8-r2'], ['X', 'Y', 'Z'], keep)
+  writeFileSync(join(results, 'external-key-nx.json'), JSON.stringify(cases))
+  for (const c of cases) mkdirSync(join(box.out, c.case), { recursive: true })
+  const hand = (name, text) => writeFileSync(join(box.out, name, 'verdict.json'), text)
+  const verdict = JSON.stringify({ A: scores(9), B: scores(7), C: scores(8), ranking: ['A', 'C', 'B'] })
+  return { ...box, results, hand, verdict }
+}
+const NX_JUDGE = { name: 'Codex', round: 'nxcx' }
+
+test('a primary judge\'s import needs no inside judge or held-out check, and keeps only groups whose two mirrored cases are usable', t => {
+  const r = primaryRound(t)
+  for (const name of ['case-01', 'case-02', 'case-03']) r.hand(name, r.verdict)
+  const lines = []
+  const summary = importRound({ round: 'nx', out: r.out, as: 'nxcx', results: r.results, primary: NX_JUDGE, log: line => lines.push(line) })
+  assert.deepEqual(summary, { same: 0, pairs: 1, groups: 1, dropped: ['h8-r2'] })
+  const rows = JSON.parse(readFileSync(join(r.results, 'judge-nxcx.json'), 'utf8'))
+  assert.deepEqual(rows.map(row => [row.pair, row.judge, Object.keys(row).filter(k => /^[A-Z]$/.test(k)).sort(), row.ranking]), [
+    ['h8-r1', 1, ['X', 'Y', 'Z'], ['X', 'Z', 'Y']], ['h8-r1', 2, ['X', 'Y', 'Z'], ['Z', 'X', 'Y']],
+  ], 'each case back under the round\'s own labels (the mirrored case\'s A is Z), h8-r2 left out')
+  assert.deepEqual(JSON.parse(readFileSync(join(r.results, 'outside-usable-nxcx.json'), 'utf8')),
+    { usable: 3, total: 4, problems: ['case-04: no verdict.json'], groups: { usable: 1, total: 2, dropped: ['h8-r2'] } })
+  assert.match(lines.join('\n'), /no inside judge to compare with/)
+})
+
+// Without a primary passed in, the round's committed bars name it: nx imports Codex as nxcx with no inside judge.
+test('the nx round\'s committed bars make Codex its primary judge, importing as nxcx', t => {
+  const r = primaryRound(t)
+  for (const name of ['case-01', 'case-02', 'case-03', 'case-04']) r.hand(name, r.verdict)
+  assert.deepEqual(importRound({ round: 'nx', out: r.out, as: 'nxcx', results: r.results, log: () => {} }), { same: 0, pairs: 2, groups: 2, dropped: [] })
+})
+
+test('a primary judge\'s import with no complete group writes nothing', t => {
+  const r = primaryRound(t)
+  r.hand('case-01', r.verdict)
+  assert.throws(() => importRound({ round: 'nx', out: r.out, as: 'nxcx', results: r.results, primary: NX_JUDGE, log: () => {} }),
+    { message: /^no group has both its cases usable, nothing written:\n  case-02: no verdict\.json/ })
+  assert.equal(existsSync(join(r.results, 'judge-nxcx.json')), false)
+})
+
 test('import writes outside-usable even when a case is unusable', t => {
   const r = judgedRound(t)
   const usable = () => JSON.parse(readFileSync(join(r.results, 'outside-usable-hoag.json'), 'utf8'))

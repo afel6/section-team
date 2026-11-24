@@ -1,5 +1,7 @@
 # section-team: final report (2026-10-26)
 
+> **Historical; superseded by the README.** See [README.md](../../README.md) for the plugin as it is now.
+
 Everything is finished, committed and tested (155 tests, 36 board tests and plugin validation all pass). No benchmark is running.
 
 ## Result

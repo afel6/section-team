@@ -122,6 +122,139 @@ export function bars({ config, quals, summary, modeCheck }) {
   }]))
 }
 
+// ---- The nx round (bench/bars-nx.json, kind "nx"): team against base, point estimates on the bar's task. ----
+// A bar that cannot be measured is missed, never met (plan §4).
+const met = (ok, reading, extra = {}) => ({ status: ok ? 'met' : 'missed', reading, ...extra })
+const unmeasured = why => ({ status: 'missed', reading: `not measured (${why})` })
+const taskOfGroup = group => group.slice(0, group.lastIndexOf('-r'))
+const runsOf = ({ summary, config }, setup, task) => summary.filter(run => run.cond === config.setups[setup] && (task === undefined || run.task === task))
+const fixed = x => x.toFixed(2)
+
+function costBar(bar, w) {
+  const [mode, vs] = [bar.mode, bar.vs].map(setup => runsOf(w, setup, bar.task).map(run => run.costUSD))
+  if (mode.length === 0 || vs.length === 0 || ![...mode, ...vs].every(Number.isFinite) || !(mean(vs) > 0)) return unmeasured('a cost is unknown')
+  const ratio = tieSafeRound(mean(mode) / mean(vs), w.config.statDecimals)
+  return met(ratio <= bar.maxRatio, `${bar.task} cost ${bar.mode}/${bar.vs} ${fixed(ratio)}× (at most ${fixed(bar.maxRatio)}×): $${fixed(mean(mode))} vs $${fixed(mean(vs))}`, { ratio })
+}
+
+// The bar's task's group gaps of the five-dimension means (bars-common qualities), mode minus vs, where both are judged.
+function groupGaps(w, task, mode, vs) {
+  const [m, v] = [mode, vs].map(setup => w.config.setups[setup])
+  return Object.keys(w.quals).filter(group => taskOfGroup(group) === task).sort()
+    .flatMap(group => (Number.isFinite(w.quals[group][m]?.quality) && Number.isFinite(w.quals[group][v]?.quality) ? [w.quals[group][m].quality - w.quals[group][v].quality] : []))
+}
+
+function qualityBar(bar, w) {
+  const gaps = groupGaps(w, bar.task, bar.mode, bar.vs)
+  if (gaps.length === 0) return unmeasured('no judged group')
+  const s = spread(gaps, 0)
+  const gap = round(s.gap, w.config.statDecimals)
+  const range = s.lo === null ? '' : ` [${shown(s.lo)}, ${shown(s.hi)}]`
+  return met(gap >= bar.minGap, `${bar.task} ${bar.mode} − ${bar.vs} ${shown(gap)}${range} over ${gaps.length} groups (at least ${shown(bar.minGap)})`, { gap, lo: s.lo, hi: s.hi, n: gaps.length })
+}
+
+// Mean hidden tests passed (counts, not rates: "base − 1" is one test).
+const meanPassed = (w, setup, task) => {
+  const passed = runsOf(w, setup, task).map(run => run.hidden?.pass)
+  return passed.length > 0 && passed.every(Number.isFinite) ? mean(passed) : null
+}
+
+function hiddenBar(bar, w) {
+  const mode = meanPassed(w, bar.mode, bar.task)
+  const others = bar.atLeast.map(({ vs, minus }) => ({ vs, minus, value: meanPassed(w, vs, bar.task) }))
+  if (mode === null || others.some(o => o.value === null)) return unmeasured('a hidden-test count is missing')
+  const ok = others.every(o => mode >= o.value - o.minus)
+  return met(ok, `${bar.task} hidden passed ${bar.mode} ${fixed(mode)} vs ${others.map(o => `${o.vs} ${fixed(o.value)}${o.minus ? ` − ${o.minus}` : ''}`).join(', ')}`, { mode, others })
+}
+
+// Near-misses its own suite caught (test-strength.mjs). A suite with no valid test file catches none; any other n/a
+// (no run.json, no solution folder) leaves the bar not measured.
+const caughtOf = row => (row?.reason === 'no valid test file' ? 0 : Number.isFinite(row?.caught) ? row.caught : null)
+const meanCaught = (w, setup, task) => {
+  const caught = runsOf(w, setup, task).map(run => caughtOf(w.strength[run.id]))
+  return caught.length > 0 && caught.every(c => c !== null) ? mean(caught) : null
+}
+
+function nearMissBar(bar, w) {
+  const [mode, vs] = [meanCaught(w, bar.mode, bar.task), meanCaught(w, bar.vs, bar.task)]
+  if (mode === null || vs === null) return unmeasured('a near-miss count is missing')
+  return met(mode >= vs - bar.minus, `${bar.task} near-misses caught ${bar.mode} ${fixed(mode)} vs ${bar.vs} ${fixed(vs)} − ${bar.minus}`, { mode, vs })
+}
+
+// Every counted run's validity row (mode-check.mjs with the round's pin); null when one has none.
+const validities = (w, runs) => {
+  const rows = runs.map(run => w.modeCheck[run.id]?.validity)
+  return rows.every(Boolean) ? rows : null
+}
+const idsWhere = (w, runs, test) => runs.filter(run => test(w.modeCheck[run.id].validity)).map(run => run.id)
+
+function validityBar(w, runs, { test, missing, okLine, badLine }) {
+  if (validities(w, runs) === null) return unmeasured('a run has no validity row: run node bench/mode-check.mjs with the round\'s pin in results')
+  if (missing) return unmeasured(missing)
+  const bad = idsWhere(w, runs, test)
+  return met(bad.length === 0, bad.length === 0 ? okLine : `${badLine}: ${bad.join(', ')}`, { runs: bad })
+}
+
+const allRuns = w => Object.keys(w.config.setups).flatMap(setup => runsOf(w, setup))
+
+const VALIDITY_BARS = {
+  leverFired: (bar, w) => {
+    const runs = runsOf(w, bar.setup, bar.task)
+    const want = w.config.tasks[bar.task].reps
+    return validityBar(w, runs, { test: v => v.leverFired !== true, missing: runs.length < want ? `${runs.length} of ${want} ${bar.setup} ${bar.task} runs` : null, okLine: `all ${want} ${bar.setup} ${bar.task} runs spawned only the reviewer and built-ins`, badLine: 'spawned a section' })
+  },
+  controlValid: (bar, w) => {
+    const runs = runsOf(w, bar.setup, bar.task)
+    const kept = validities(w, runs) === null ? [] : idsWhere(w, runs, v => v.kept === 'V1b')
+    const r = validityBar(w, runs, { test: v => v.void === 'V1b', okLine: `no ${bar.setup} ${bar.task} void is owed a rerun`, badLine: 'woke no builder: rerun once' })
+    return kept.length ? { ...r, reading: `${r.reading}; kept after a rerun, reported: ${kept.join(', ')}` } : r
+  },
+  plainBaseline: (bar, w) => validityBar(w, runsOf(w, bar.setup), {
+    test: v => (v.nonBuiltin ?? []).length > 0,
+    missing: w.pin?.configDir && w.pin?.runsRoot ? null : 'the pin records no checked profile and runs root',
+    okLine: 'profile and runs root checked by the preflight; no solo run spawned a non-built-in agent', badLine: 'spawned a non-built-in agent',
+  }),
+  commits: (bar, w) => validityBar(w, allRuns(w), { test: v => !v.commit.ok, okLine: 'every run\'s commit and version match its ref', badLine: 'commit or version differs from its ref' }),
+  // V4: main and the sections declaring opus or claude-opus-* on the round's model (mode-check modelChecks); unread agent files miss it.
+  models: (bar, w) => validityBar(w, allRuns(w), { test: v => v.offModel === null || v.offModel.length > 0, okLine: 'main and every opus section on the round\'s model', badLine: 'a turn on another model, or its agent files unread' }),
+  timeLimits: (bar, w) => validityBar(w, allRuns(w), { test: v => v.timedOut, okLine: 'no run past its limit', badLine: 'timed out' }),
+}
+
+// Groups judged for every setup of the round, overall and on the bar's task.
+function usableBar(bar, w) {
+  const conds = Object.values(w.config.setups)
+  const usable = Object.keys(w.quals).filter(group => conds.every(cond => Number.isFinite(w.quals[group][cond]?.quality)))
+  const onTask = usable.filter(group => taskOfGroup(group) === bar.task).length
+  const total = Object.values(w.config.tasks).reduce((sum, task) => sum + task.reps, 0)
+  const taskTotal = w.config.tasks[bar.task].reps
+  return met(usable.length >= bar.min && onTask >= bar.minTask, `${usable.length} of ${total} groups usable (at least ${bar.min}), ${onTask} of ${taskTotal} on ${bar.task} (at least ${bar.minTask})`, { usable: usable.length, onTask })
+}
+
+const BAR_KINDS = { cost: costBar, quality: qualityBar, hidden: hiddenBar, nearMiss: nearMissBar, usableGroups: usableBar, ...VALIDITY_BARS }
+
+// h9 and h10: reported checks of the unchanged paths (team against base), never a bar.
+function reportedCheck(entry, w) {
+  const cost = costBar({ ...entry, maxRatio: Infinity }, w)
+  const quality = qualityBar({ ...entry, minGap: -Infinity }, w)
+  const costRatio = cost.ratio ?? null
+  const gap = quality.gap ?? null
+  return {
+    task: entry.task, costRatio, gap, costRange: entry.costRange, minGap: entry.minGap,
+    costInRange: costRatio === null ? null : costRatio >= entry.costRange[0] && costRatio <= entry.costRange[1],
+    gapOk: gap === null ? null : gap >= entry.minGap,
+    hidden: Object.fromEntries(Object.keys(w.config.setups).map(setup => [setup, meanPassed(w, setup, entry.task)])),
+    nearMisses: Object.fromEntries(Object.keys(w.config.setups).map(setup => [setup, meanCaught(w, setup, entry.task)])),
+  }
+}
+
+// { bars: { [id]: { status, reading, ... } }, keep: { decision, missed }, reported: [...] } for the nx round. w holds
+// the config, summary.json rows, the judge's qualities, mode-check rows (with validity), test-strength rows and the pin.
+export function barsNx(w) {
+  const out = Object.fromEntries(w.config.bars.map(bar => [bar.id, { kind: bar.kind, ...BAR_KINDS[bar.kind](bar, w) }]))
+  const missed = w.config.keep.filter(id => out[id].status !== 'met')
+  return { bars: out, keep: { decision: missed.length === 0 ? 'keep L1' : 'revert L1 (merge revert/l1)', missed }, reported: w.config.reported.map(entry => reportedCheck(entry, w)) }
+}
+
 const INPUTS = roundTag => [
   ['summary.json', 'node bench/score.mjs', 'array'],
   [`judge-${roundTag}.json`, `node bench/judge.mjs --round=${roundTag}`, 'array'],
@@ -136,6 +269,31 @@ function lineOf(name, kind, r) {
   const ceiling = r.ceiling && `${r.ceiling.setup} mean ${r.ceiling.mean === null ? '–' : round(r.ceiling.mean, 2).toFixed(2)} (scale ceiling above ${r.ceiling.above.toFixed(2)})`
   const extra = [r.usage?.reading, ceiling].filter(Boolean).map(text => `  ${text}`).join('')
   return `${head}  n ${r.n}  gap ${shown(r.gap)}${range}  hidden ${r.hidden.mode} vs ${r.hidden.vs}${extra}`
+}
+
+// The nx round's inputs: the scores, the outside judge's imported verdicts and key, mode-check (with validity), test
+// strength and the round's pin; it writes results/bars-<round>.json and prints a line per bar, the keep decision and
+// the reported checks.
+const NX_INPUTS = (roundTag, judge) => [
+  ['summary.json', 'node bench/score.mjs', 'array'],
+  [`judge-${judge}.json`, `node bench/external-judge.mjs import --round=${roundTag} --out=<case set> --as=${judge}`, 'array'],
+  [`blind-key-${judge}.json`, `node bench/external-judge.mjs import --round=${roundTag} --out=<case set> --as=${judge}`, 'object'],
+  [`mode-check-${roundTag}.json`, `node bench/mode-check.mjs --round=${roundTag}`, 'object'],
+  [`test-strength-${roundTag}.json`, `node bench/test-strength.mjs --round=${roundTag}`, 'object'],
+  [`preflight-${roundTag}.json`, `node bench/preflight.mjs --round=${roundTag}`, 'object'],
+]
+
+function nxMain(roundTag, config, results) {
+  const [summary, judgeRows, key, modeCheck, strength, pin] = NX_INPUTS(roundTag, config.judge.round).map(([file, step, shape]) => readInput(join(results, file), `run ${step} first`, shape))
+  const out = barsNx({ config, summary, quals: qualities(judgeRows, key), modeCheck, strength, pin })
+  writeFileSync(join(results, `bars-${roundTag}.json`), JSON.stringify(out, null, 2) + '\n')
+  for (const [id, bar] of Object.entries(out.bars)) console.log(`${id.padEnd(5)}${bar.status.padEnd(8)}${bar.reading}`)
+  console.log(`keep rule: ${out.keep.decision}${out.keep.missed.length ? ` (missed ${out.keep.missed.join(', ')})` : ''}`)
+  for (const r of out.reported) {
+    const cost = r.costRatio === null ? 'cost not measured' : `cost ${fixed(r.costRatio)}× base${r.costInRange ? '' : ` (outside ${r.costRange.join('-')})`}`
+    const gap = r.gap === null ? 'quality not measured' : `quality ${shown(r.gap)}${r.gapOk ? '' : ` (below ${shown(r.minGap)})`}`
+    console.log(`reported ${r.task}: ${cost}, ${gap}`)
+  }
 }
 
 // The committed held-out round, for its "more test lines" agreement.
@@ -154,6 +312,7 @@ export function main(argv = process.argv.slice(2), { results, heldout = HELDOUT 
   }
   try {
     const config = readInput(configPath(roundTag), `round ${roundTag} has no pre-registered bars`, 'object')
+    if (config.kind === 'nx') return nxMain(roundTag, config, results)
     const [summary, judgeRows, key, modeCheck] = INPUTS(roundTag).map(([file, step, shape]) => readInput(join(results, file), `run ${step} first`, shape))
     const out = bars({ config, quals: qualities(judgeRows, key), summary, modeCheck })
     const judges = outsideJudges({ config, results })

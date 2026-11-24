@@ -1,0 +1,13 @@
+{
+  "name": "timelog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A command-line tool that reports the time logged per project in a plain text time log.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

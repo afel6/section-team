@@ -5,10 +5,35 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { modeRecordFile, recordMode } from '../hooks/lib/mode-record.mjs'
-import { BENCH_MODEL, PLUGIN_KEY, SECTION_TEAM_VERSION } from './clean-run.mjs'
+import { BENCH_MODEL, PLUGIN_KEY, ROUND_CLI_VERSION, SECTION_TEAM_VERSION, liveCheckouts } from './clean-run.mjs'
 import { builderArgs } from './run.mjs'
-import { ROUND_CLI_VERSION } from './clean-run.mjs'
-import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
+import { copyBinary, npmClaude, pinFor, pinInstalled, preflight, preflightProblems, profileProblems, publishPin, syncedListing, versionOf } from './preflight.mjs'
+
+// The round's clean profile (CLAUDE_CONFIG_DIR) holds a login and nothing that would shape a run: no user CLAUDE.md, no
+// skills, agents or commands of the user's, no plugin installed or enabled, no hooks.
+test('profileProblems passes a fresh logged-in profile and names everything that would shape a run', t => {
+  const profile = join(tempRoot(t), 'bench-profile-nx')
+  assert.deepEqual(profileProblems(profile), [`profile ${profile}: the folder does not exist: log in there first (CLAUDE_CONFIG_DIR=${profile} claude)`])
+  writeFile(join(profile, '.credentials.json'), '{}')
+  mkdirSync(join(profile, 'skills'))
+  writeFile(join(profile, 'settings.json'), JSON.stringify({ enabledPlugins: { 'a@market': false }, hooks: {} }))
+  assert.deepEqual(profileProblems(profile), [], 'an empty skills folder and plugins left off are clean')
+  writeFile(join(profile, 'CLAUDE.md'), 'rules')
+  for (const file of ['skills/tdd/SKILL.md', 'agents/helper.md', 'commands/go.md']) writeFile(join(profile, file), 'x')
+  writeFile(join(profile, 'settings.json'), JSON.stringify({ enabledPlugins: { 'a@market': true }, hooks: { Stop: [{ hooks: [] }] } }))
+  writeFile(join(profile, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'b@market': [] } }))
+  assert.deepEqual(profileProblems(profile), [
+    `profile ${profile}: holds CLAUDE.md`,
+    `profile ${profile}: holds skills/`,
+    `profile ${profile}: holds agents/`,
+    `profile ${profile}: holds commands/`,
+    `profile ${profile}: plugins installed: b@market`,
+    `profile ${profile}: plugins enabled in settings.json: a@market`,
+    `profile ${profile}: settings.json sets hooks`,
+  ])
+  writeFile(join(profile, 'settings.json'), '{')
+  assert.throws(() => profileProblems(profile), { message: `cannot read ${join(profile, 'settings.json')} (SyntaxError)` })
+})
 
 // A temp folder removed after the test, even when the test fails.
 function tempRoot(t) {
@@ -23,7 +48,7 @@ const writeFile = (file, text) => {
 }
 
 const sha256 = text => createHash('sha256').update(text).digest('hex')
-const VERSION = '2.1.296'
+const VERSION = ROUND_CLI_VERSION
 const PLUGIN_DIR = 'C:/Users/Asus/section-team-v0.2.1'
 const BUILTINS = [
   { name: 'cc-plugin-agents-md', path: 'builtin', source: 'cc-plugin-agents-md@builtin' },
@@ -63,7 +88,8 @@ test('each setup\'s expected mode record', () => {
   assert.deepEqual(problemsOf('team', { record: null }), ['team: mode record none, expected balanced'])
   assert.deepEqual(problemsOf('team', { record: 'max' }), ['team: mode record max, expected balanced'])
   assert.deepEqual(problemsOf('max', { record: 'balanced' }), ['max: mode record balanced, expected max'])
-  assert.throws(() => problemsOf('forced'), { message: 'preflightProblems takes a setup of solo, team, max, got "forced"' })
+  assert.deepEqual(problemsOf('base', { record: null }), ['base: mode record none, expected balanced'])
+  assert.throws(() => problemsOf('forced'), { message: 'preflightProblems takes a setup of solo, team, max, base, got "forced"' })
 })
 
 test('a stray plugin, an MCP server or plugin-authoring fails', () => {
@@ -74,7 +100,7 @@ test('a stray plugin, an MCP server or plugin-authoring fails', () => {
   assert.deepEqual(problemsOf('max', { initMessage: init('max', { plugins: [...BUILTINS, SECTION_TEAM, authoring] }) }), ['max: cc-plugin-plugin-authoring@builtin is loaded'])
   assert.deepEqual(problemsOf('team', { initMessage: init('team', { plugins: BUILTINS }) }), ['team: expected 1 section-team plugin, found 0'])
   assert.deepEqual(problemsOf('team', { initMessage: init('team', { model: 'claude-haiku-5-5', claude_code_version: '2.1.297' }) }), [
-    'team: model claude-haiku-5-5, expected claude-opus-5-5', 'team: claude_code_version 2.1.297, expected 2.1.296',
+    'team: model claude-haiku-5-5, expected claude-opus-5-5', `team: claude_code_version 2.1.297, expected ${VERSION}`,
   ])
 })
 
@@ -176,11 +202,11 @@ test('publishPin pushes the round\'s pin file under results/ on the sync branch,
 
 test('syncedListing lists both synced folders, sorted, and treats a missing folder as empty', t => {
   const home = tempRoot(t)
-  assert.deepEqual(syncedListing(home), [])
+  assert.deepEqual(syncedListing(join(home, '.claude')), [])
   writeFile(join(home, '.claude', 'skills', 'synced', 'b-skill', 'SKILL.md'), 'b')
   writeFile(join(home, '.claude', 'plugins', 'synced', 'b', 'plugin.json'), '{}')
   writeFile(join(home, '.claude', 'plugins', 'synced', 'a', 'plugin.json'), '{}')
-  assert.deepEqual(syncedListing(home), [
+  assert.deepEqual(syncedListing(join(home, '.claude')), [
     'plugins/synced/a', 'plugins/synced/a/plugin.json', 'plugins/synced/b', 'plugins/synced/b/plugin.json',
     'skills/synced/b-skill', 'skills/synced/b-skill/SKILL.md',
   ])
@@ -214,6 +240,13 @@ test('built-in sets that differ between setups fail', () => {
   assert.deepEqual(pinFor({ ...BASE, inits: { ...INITS, solo: null } }).problems, [], 'a setup without an init is reported by its own check')
 })
 
+// The nx round's control arm: v0.5.1 from a worktree of its own.
+const BASE_DIR = 'C:/wt/section-team-v0.5.1'
+const BASE_INIT = { plugins: [...BUILTINS, { ...SECTION_TEAM, path: 'C:\\wt\\section-team-v0.5.1' }] }
+// A git where every worktree is its own root, clean, at 'tagged'.
+const ownRoots = args => (args.includes('--show-toplevel') ? args[1] : args.includes('rev-parse') ? 'tagged' : '')
+const NX = { round: 'nx', plugin: PLUGIN_DIR, pluginRef: 'v0.6.0-rc.1', basePlugin: BASE_DIR, baseRef: 'v0.5.1', conds: ['solo', 'base', 'team'] }
+
 // The git of a plugin worktree at v0.2.1 (head 'tagged'), or at another commit.
 const gitAt = head => args => {
   if (args.includes('--show-toplevel')) return PLUGIN_DIR
@@ -238,14 +271,16 @@ function fakeRound(t, { initFields = {}, during = {} } = {}) {
     const on = JSON.parse(args[args.indexOf('--settings') + 1]).enabledPlugins[PLUGIN_KEY]
     const modeFile = join(options.cwd, '.team', 'mode.json')
     const mode = existsSync(modeFile) ? JSON.parse(readFileSync(modeFile, 'utf8')).mode : 'balanced'
-    const setup = on ? { balanced: 'team' }[mode] ?? mode : 'solo'
+    const base = options.env.CLAUDE_CODE_PLUGIN_DIRS === BASE_DIR
+    const setup = on ? (base ? 'base' : { balanced: 'team' }[mode] ?? mode) : 'solo'
     if (on) recordMode(home, sessionId, mode)
     if (during[setup]) return during[setup]({ home, sessionId })
     const stdout = [init(setup, initFields[setup]), answer('NO')].map(m => JSON.stringify(m)).join('\n')
     return { status: 0, stdout: `${stdout}\n`, stderr: '' }
   }
   const runs = join(root, 'runs')
-  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs, readVersion: () => '0.2.1' }
+  // found: no instruction file above the temp run folders (the machine's own above the temp folder are not the test's).
+  const deps = { git: gitAt('tagged'), run, spawn, folder: r => join(runs, r.id), root: runs, readVersion: () => '0.2.1', found: () => [] }
   return { home, results: join(root, 'results'), calls, deps, binary: join(home, 'bench-runs', `claude-${VERSION}.exe`) }
 }
 
@@ -256,7 +291,7 @@ test('preflight runs the three setups on the copied binary with the builders\' a
   assert.equal(file, join(results, 'preflight-mo.json'))
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), pin)
   assert.deepEqual({ version: pin.version, binary: pin.binary, sha256: pin.sha256 }, { version: VERSION, binary, sha256: sha256('claude bytes') })
-  assert.deepEqual(calls.run, [['claude', ['--version']], [binary, ['--version']]])
+  assert.deepEqual(calls.run, [[binary, ['--version']]], 'the round\'s version is pinned from the versions folder, never read from PATH')
   assert.equal(calls.spawn.length, 3)
   for (const [i, { binary: command, args, options }] of calls.spawn.entries()) {
     const sessionId = args[args.indexOf('--session-id') + 1]
@@ -280,7 +315,10 @@ test('preflight on Linux without a versions folder pins the npm-installed CLI in
   const { problems, pin } = preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, which: () => installed, platform: 'linux' })
   assert.deepEqual(problems, [])
   assert.deepEqual({ binary: pin.binary, sha256: pin.sha256, npmPackage: pin.npmPackage }, { binary: installed, sha256: sha256('npm claude bytes'), npmPackage: `@anthropic-ai/claude-code@${VERSION}` })
-  assert.deepEqual(Object.keys(pin), ['version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups'])
+  assert.deepEqual(Object.keys(pin), [
+    'version', 'binary', 'sha256', 'npmPackage', 'apiKeySource', 'builtins', 'pluginDir', 'pluginRef', 'pluginCommit', 'setups',
+    'conds', 'configDir', 'memoryLimitMb', 'runsRoot', 'liveCheckouts',
+  ])
   assert.deepEqual(calls.run, [[installed, ['--version']]], 'claude on PATH is never asked')
   assert.deepEqual(calls.spawn.map(s => s.binary), [installed, installed, installed])
   assert.equal(existsSync(join(home, 'bench-runs')), false, 'nothing is copied')
@@ -310,10 +348,10 @@ test('preflight on Windows still copies from the versions folder, and a missing 
 test('preflight refuses a plugin worktree that is not at v0.2.1 before any spawn', t => {
   const { home, results, calls, deps } = fakeRound(t)
   assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: gitAt('other') }),
-    { message: `${PLUGIN_DIR} is at other, not at v0.2.1 (tagged)` })
+    { message: `${PLUGIN_DIR} is at other, not at v${SECTION_TEAM_VERSION} (tagged)` })
   const dirty = args => (args.includes('status') ? ' M agents/backend.md' : gitAt('tagged')(args))
   assert.throws(() => preflight({ round: 'mo', plugin: PLUGIN_DIR, home, results }, { ...deps, git: dirty }),
-    { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v0.2.1 worktree` })
+    { message: `${PLUGIN_DIR} has uncommitted changes: a batch needs a clean v${SECTION_TEAM_VERSION} worktree` })
   assert.throws(() => preflight({ round: '', plugin: PLUGIN_DIR, home, results }, deps), { message: '--round= names the round in letters and digits, e.g. --round=mo' })
   assert.deepEqual(calls, { run: [], spawn: [] })
 })
@@ -420,4 +458,41 @@ test('preflight reports every problem, one line each, and writes no pin', t => {
     'max: mode record unreadable (mode record is not valid), expected max',
   ])
   assert.equal(existsSync(file), false)
+})
+
+test('preflight runs the round\'s setups, base on its own worktree, on the profile with the memory limit, and pins both refs and the settings', t => {
+  const { home, results, calls, deps } = fakeRound(t, { initFields: { base: BASE_INIT } })
+  const configDir = join(dirname(home), 'bench-profile-nx')
+  writeFile(join(configDir, '.credentials.json'), '{}')
+  const { problems, pin, file } = preflight({ ...NX, configDir, memoryLimitMb: '12288', live: 'D:/live', home, results }, { ...deps, git: ownRoots })
+  assert.deepEqual(problems, [])
+  assert.deepEqual(calls.spawn.map(s => s.options.env.CLAUDE_CODE_PLUGIN_DIRS), [PLUGIN_DIR, BASE_DIR, PLUGIN_DIR])
+  for (const { args, options } of calls.spawn) {
+    assert.equal(options.env.CLAUDE_CONFIG_DIR, configDir)
+    assert.equal(options.env.SECTION_TEAM_MEMORY_LIMIT_MB, '12288')
+    const settings = JSON.parse(args[args.indexOf('--settings') + 1])
+    assert.equal(settings.env.SECTION_TEAM_MEMORY_LIMIT_MB, '12288')
+    assert.equal(Object.hasOwn(settings.enabledPlugins, 'caveman@caveman'), false, 'the profile has no installed plugins; ~/.claude\'s are not its')
+  }
+  assert.deepEqual(Object.keys(pin.setups), ['solo', 'base', 'team'])
+  assert.deepEqual(pin.base, { pluginDir: BASE_DIR, pluginRef: 'v0.5.1', pluginCommit: 'tagged' })
+  assert.deepEqual([pin.pluginRef, pin.pluginCommit, pin.conds, pin.configDir, pin.memoryLimitMb, pin.runsRoot, pin.liveCheckouts],
+    ['v0.6.0-rc.1', 'tagged', ['solo', 'base', 'team'], configDir, '12288', deps.root, liveCheckouts(process.platform, 'D:/live')])
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), pin)
+})
+
+test('preflight refuses before any spawn: no base ref, one folder for both arms, a worktree in the live checkout, an instruction file above the runs, a profile that is not clean', t => {
+  const { home, results, calls, deps } = fakeRound(t, { initFields: { base: BASE_INIT } })
+  const configDir = join(dirname(home), 'bench-profile-nx')
+  const at = (change, extraDeps = {}) => () => preflight({ ...NX, home, results, ...change }, { ...deps, git: ownRoots, ...extraDeps })
+  assert.throws(at({ baseRef: '' }), { message: '--base-ref= names the ref the base worktree is at: a round with base pins both refs' })
+  assert.throws(at({ basePlugin: PLUGIN_DIR }), { message: `--base-plugin= and --plugin= name one folder, ${PLUGIN_DIR}: each arm needs its own worktree` })
+  assert.throws(at({ live: 'C:/Users' }), { message: `${PLUGIN_DIR} is the live checkout C:/Users (SECTION_TEAM_LIVE_CHECKOUT) or inside it: a round loads the plugin from a worktree outside it` })
+  assert.throws(at({}, { found: () => ['C:/Users/me/AGENTS.md'] }), { message: /^C:\/Users\/me\/AGENTS\.md sits above the run folders, and Claude Code reads it as instructions in every run/ })
+  assert.throws(at({ configDir }), { message: `profile ${configDir}: the folder does not exist: log in there first (CLAUDE_CONFIG_DIR=${configDir} claude)` })
+  writeFile(join(configDir, 'CLAUDE.md'), 'rules')
+  writeFile(join(configDir, 'agents', 'helper.md'), 'x')
+  assert.throws(at({ configDir }), { message: `profile ${configDir}: holds CLAUDE.md; profile ${configDir}: holds agents/` })
+  assert.throws(at({ conds: ['solo', 'forced'] }), { name: 'RangeError' })
+  assert.deepEqual(calls, { run: [], spawn: [] })
 })

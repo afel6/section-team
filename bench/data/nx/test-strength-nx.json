@@ -1,0 +1,1429 @@
+{
+  "h10-base-nx-r1": {
+    "task": "h10",
+    "cond": "base-nx",
+    "files": [
+      "test/e2e.test.mjs",
+      "test/helpers/page-harness.mjs",
+      "test/helpers/server-process.mjs",
+      "test/page.test.mjs",
+      "test/protocol.test.mjs",
+      "test/server.test.mjs",
+      "test/startup.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/e2e.test.mjs",
+      "test/helpers/page-harness.mjs",
+      "test/helpers/server-process.mjs",
+      "test/server.test.mjs",
+      "test/startup.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": true
+      },
+      {
+        "name": "async-save",
+        "caught": true
+      },
+      {
+        "name": "close-rewrites",
+        "caught": true
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": true
+      },
+      {
+        "name": "nextid-max",
+        "caught": true
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": true
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": false
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": true
+      },
+      {
+        "name": "percent-round",
+        "caught": true
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": true
+      },
+      {
+        "name": "voter-case",
+        "caught": true
+      }
+    ],
+    "caught": 10,
+    "total": 11,
+    "share": 0.9090909090909091,
+    "reason": null
+  },
+  "h10-base-nx-r2": {
+    "task": "h10",
+    "cond": "base-nx",
+    "files": [
+      "test/e2e.test.mjs",
+      "test/helpers/fake-dom.mjs",
+      "test/helpers/fake-fetch.mjs",
+      "test/helpers/html-parse.mjs",
+      "test/helpers/page-harness.mjs",
+      "test/helpers/server.mjs",
+      "test/page.test.mjs",
+      "test/server-protocol.test.mjs",
+      "test/server-startup.test.mjs",
+      "test/server.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/helpers/fake-dom.mjs",
+      "test/helpers/fake-fetch.mjs",
+      "test/helpers/html-parse.mjs",
+      "test/helpers/page-harness.mjs",
+      "test/helpers/server.mjs",
+      "test/page.test.mjs",
+      "test/server.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": true
+      },
+      {
+        "name": "async-save",
+        "caught": false
+      },
+      {
+        "name": "close-rewrites",
+        "caught": false
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": true
+      },
+      {
+        "name": "nextid-max",
+        "caught": true
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": true
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": true
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": true
+      },
+      {
+        "name": "percent-round",
+        "caught": true
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": true
+      },
+      {
+        "name": "voter-case",
+        "caught": true
+      }
+    ],
+    "caught": 9,
+    "total": 11,
+    "share": 0.8181818181818182,
+    "reason": null
+  },
+  "h10-solo-nx-r1": {
+    "task": "h10",
+    "cond": "solo-nx",
+    "files": [
+      "test/helpers.mjs",
+      "test/page.test.mjs",
+      "test/server.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/helpers.mjs",
+      "test/server.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": true
+      },
+      {
+        "name": "async-save",
+        "caught": true
+      },
+      {
+        "name": "close-rewrites",
+        "caught": false
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": false
+      },
+      {
+        "name": "nextid-max",
+        "caught": true
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": false
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": false
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": false
+      },
+      {
+        "name": "percent-round",
+        "caught": true
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": true
+      },
+      {
+        "name": "voter-case",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 11,
+    "share": 0.5454545454545454,
+    "reason": null
+  },
+  "h10-solo-nx-r2": {
+    "task": "h10",
+    "cond": "solo-nx",
+    "files": [
+      "test/server.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/server.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": true
+      },
+      {
+        "name": "async-save",
+        "caught": true
+      },
+      {
+        "name": "close-rewrites",
+        "caught": false
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": false
+      },
+      {
+        "name": "nextid-max",
+        "caught": true
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": false
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": false
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": false
+      },
+      {
+        "name": "percent-round",
+        "caught": true
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": true
+      },
+      {
+        "name": "voter-case",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 11,
+    "share": 0.5454545454545454,
+    "reason": null
+  },
+  "h10-team-nx-r1": {
+    "task": "h10",
+    "cond": "team-nx",
+    "files": [
+      "test/api.test.mjs",
+      "test/helpers.mjs",
+      "test/http.test.mjs",
+      "test/page-harness.mjs",
+      "test/page.test.mjs",
+      "test/server.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/page-harness.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": false
+      },
+      {
+        "name": "async-save",
+        "caught": false
+      },
+      {
+        "name": "close-rewrites",
+        "caught": false
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": false
+      },
+      {
+        "name": "nextid-max",
+        "caught": false
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": false
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": false
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": false
+      },
+      {
+        "name": "percent-round",
+        "caught": false
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": false
+      },
+      {
+        "name": "voter-case",
+        "caught": false
+      }
+    ],
+    "caught": 0,
+    "total": 11,
+    "share": 0,
+    "reason": null
+  },
+  "h10-team-nx-r2": {
+    "task": "h10",
+    "cond": "team-nx",
+    "files": [
+      "test/api.test.mjs",
+      "test/helpers.mjs",
+      "test/page.test.mjs",
+      "test/protocol.test.mjs",
+      "test/server.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/api.test.mjs",
+      "test/helpers.mjs",
+      "test/page.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "answers-case",
+        "caught": true
+      },
+      {
+        "name": "async-save",
+        "caught": false
+      },
+      {
+        "name": "close-rewrites",
+        "caught": false
+      },
+      {
+        "name": "closed-after-dup",
+        "caught": true
+      },
+      {
+        "name": "nextid-max",
+        "caught": true
+      },
+      {
+        "name": "page-blank-lines",
+        "caught": true
+      },
+      {
+        "name": "page-cr-kept",
+        "caught": true
+      },
+      {
+        "name": "page-no-refresh",
+        "caught": true
+      },
+      {
+        "name": "percent-round",
+        "caught": true
+      },
+      {
+        "name": "percent-tie-later",
+        "caught": true
+      },
+      {
+        "name": "voter-case",
+        "caught": true
+      }
+    ],
+    "caught": 9,
+    "total": 11,
+    "share": 0.8181818181818182,
+    "reason": null
+  },
+  "h8-base-nx-r1": {
+    "task": "h8",
+    "cond": "base-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": false
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": false
+      },
+      {
+        "name": "number-old-length",
+        "caught": false
+      }
+    ],
+    "caught": 3,
+    "total": 6,
+    "share": 0.5,
+    "reason": null
+  },
+  "h8-base-nx-r2": {
+    "task": "h8",
+    "cond": "base-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-base-nx-r3": {
+    "task": "h8",
+    "cond": "base-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": false
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": false
+      },
+      {
+        "name": "number-old-length",
+        "caught": false
+      }
+    ],
+    "caught": 3,
+    "total": 6,
+    "share": 0.5,
+    "reason": null
+  },
+  "h8-base-nx-r4": {
+    "task": "h8",
+    "cond": "base-nx",
+    "files": [
+      "test/cli.test.mjs",
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/cli.test.mjs",
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-base-nx-r5": {
+    "task": "h8",
+    "cond": "base-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-solo-nx-r1": {
+    "task": "h8",
+    "cond": "solo-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": false
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": false
+      },
+      {
+        "name": "number-old-length",
+        "caught": false
+      }
+    ],
+    "caught": 3,
+    "total": 6,
+    "share": 0.5,
+    "reason": null
+  },
+  "h8-solo-nx-r2": {
+    "task": "h8",
+    "cond": "solo-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-solo-nx-r3": {
+    "task": "h8",
+    "cond": "solo-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-solo-nx-r4": {
+    "task": "h8",
+    "cond": "solo-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-solo-nx-r5": {
+    "task": "h8",
+    "cond": "solo-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-team-nx-r1": {
+    "task": "h8",
+    "cond": "team-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-team-nx-r2": {
+    "task": "h8",
+    "cond": "team-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-team-nx-r3": {
+    "task": "h8",
+    "cond": "team-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-team-nx-r4": {
+    "task": "h8",
+    "cond": "team-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h8-team-nx-r5": {
+    "task": "h8",
+    "cond": "team-nx",
+    "files": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/commands.test.mjs",
+      "test/rules.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "date-add-only",
+        "caught": true
+      },
+      {
+        "name": "date-clamp",
+        "caught": true
+      },
+      {
+        "name": "date-leap-4",
+        "caught": true
+      },
+      {
+        "name": "number-max-plus-one",
+        "caught": true
+      },
+      {
+        "name": "number-old-from-1",
+        "caught": true
+      },
+      {
+        "name": "number-old-length",
+        "caught": true
+      }
+    ],
+    "caught": 6,
+    "total": 6,
+    "share": 1,
+    "reason": null
+  },
+  "h9-base-nx-r1": {
+    "task": "h9",
+    "cond": "base-nx",
+    "files": [
+      "calc-cli.test.mjs",
+      "calc.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "calc-cli.test.mjs",
+      "calc.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": true
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 11,
+    "total": 11,
+    "share": 1,
+    "reason": null
+  },
+  "h9-base-nx-r2": {
+    "task": "h9",
+    "cond": "base-nx",
+    "files": [
+      "test/calc-cli.test.mjs",
+      "test/calc.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/calc-cli.test.mjs",
+      "test/calc.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": true
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 11,
+    "total": 11,
+    "share": 1,
+    "reason": null
+  },
+  "h9-solo-nx-r1": {
+    "task": "h9",
+    "cond": "solo-nx",
+    "files": [
+      "test/calc.test.mjs",
+      "test/cli.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/calc.test.mjs",
+      "test/cli.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": false
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 10,
+    "total": 11,
+    "share": 0.9090909090909091,
+    "reason": null
+  },
+  "h9-solo-nx-r2": {
+    "task": "h9",
+    "cond": "solo-nx",
+    "files": [
+      "test/calc.test.mjs",
+      "test/cli.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/calc.test.mjs",
+      "test/cli.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": true
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 11,
+    "total": 11,
+    "share": 1,
+    "reason": null
+  },
+  "h9-team-nx-r1": {
+    "task": "h9",
+    "cond": "team-nx",
+    "files": [
+      "test/calc-cli.test.mjs",
+      "test/calc.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "test/calc-cli.test.mjs",
+      "test/calc.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": true
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 11,
+    "total": 11,
+    "share": 1,
+    "reason": null
+  },
+  "h9-team-nx-r2": {
+    "task": "h9",
+    "cond": "team-nx",
+    "files": [
+      "calc-cli.test.mjs",
+      "calc.test.mjs"
+    ],
+    "skipped": [],
+    "valid": [
+      "calc-cli.test.mjs",
+      "calc.test.mjs"
+    ],
+    "nearMisses": [
+      {
+        "name": "arity-at-eval",
+        "caught": true
+      },
+      {
+        "name": "cli-last-wins",
+        "caught": true
+      },
+      {
+        "name": "cli-raw",
+        "caught": true
+      },
+      {
+        "name": "half-surrogate",
+        "caught": true
+      },
+      {
+        "name": "inherited-var",
+        "caught": true
+      },
+      {
+        "name": "lazy-tokens",
+        "caught": true
+      },
+      {
+        "name": "mod-zero",
+        "caught": true
+      },
+      {
+        "name": "neg-zero",
+        "caught": true
+      },
+      {
+        "name": "pow-left",
+        "caught": true
+      },
+      {
+        "name": "round-math",
+        "caught": true
+      },
+      {
+        "name": "sign-tight",
+        "caught": true
+      }
+    ],
+    "caught": 11,
+    "total": 11,
+    "share": 1,
+    "reason": null
+  }
+}

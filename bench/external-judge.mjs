@@ -26,7 +26,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../hooks/lib/paths.mjs'
 import { judgeScores } from './aggregate.mjs'
-import { readBars } from './bars-common.mjs'
+import { configPath, readBars } from './bars-common.mjs'
 import { judgeDirFor, stagesAskedOf } from './anonymize.mjs'
 import { checkLeakScan, fillPrompt, parseVerdict, subfolders, taskTextOf } from './judge.mjs'
 import { NAME, RESULTS } from './run.mjs'
@@ -226,33 +226,63 @@ function refuseBeforeCheck({ round, as, results, outside }) {
   if (!existsSync(join(results, `outside-check-ho-${judge.heldOut}.json`))) throw new Error(`run node bench/external-judge.mjs check --as=${judge.heldOut} first`)
 }
 
+// The round's primary outside judge, when its bars (bench/bars-<round>.json, kind nx) name one importing as `as`: the
+// nx round has no inside judge, so there is no held-out check and no inside winner to compare with.
+function primaryJudgeOf(round, as) {
+  const path = configPath(round)
+  if (!existsSync(path)) return null
+  const config = readBars(path)
+  return config.kind === 'nx' && config.judge?.round === as ? config.judge : null
+}
+
+// A primary judge's import keeps the groups whose cases all imported (both mirrored orders: one order alone carries
+// its position bias); the bars count them (V6). Returns the rows kept and the groups left out.
+function completeGroups(rows, cases) {
+  const casesOf = pair => cases.filter(c => c.pair === pair).length
+  const rowsOf = pair => rows.filter(row => row.pair === pair).length
+  const pairs = [...new Set(cases.map(c => c.pair))]
+  const dropped = pairs.filter(pair => rowsOf(pair) < casesOf(pair))
+  return { kept: rows.filter(row => !dropped.includes(row.pair)), dropped, total: pairs.length }
+}
+
 // Reads everything first, writes verdicts only when every case is usable and the order holds, and never over an
 // existing round. The usable count goes to outside-usable-<as>.json on every import, so a refused import still says
-// how far it got. outside: the bars config's outside judges (read from bench/bars-mo.json when not given).
-export function importRound({ round, out, as, results, outside, log = console.log } = {}) {
+// how far it got. outside: the bars config's outside judges (read from bench/bars-mo.json when not given). primary: the
+// round's primary judge (read from its bars when not given); its import writes the complete groups only.
+export function importRound({ round, out, as, results, outside, primary = primaryJudgeOf(round, as), log = console.log } = {}) {
   required({ results })
   const targets = [join(results, `judge-${as}.json`), join(results, `blind-key-${as}.json`)]
   const taken = targets.find(existsSync)
   if (taken) throw new Error(`${taken}: importing as round ${as} would overwrite it; pick another --as`)
   const keyPath = join(results, `blind-key-${round}.json`)
   const key = readJson(keyPath)
-  const inside = pairWinners(readJson(join(results, `judge-${round}.json`)), key)
+  const inside = primary ? null : pairWinners(readJson(join(results, `judge-${round}.json`)), key)
   const cases = readJson(join(results, `external-key-${round}.json`))
   const { rows, problems } = importVerdicts({ out, cases })
   const unknown = rows.filter(row => !key[row.pair]).map(row => `${row.case}: ${row.pair} is not in ${keyPath}`)
   const all = [...problems, ...unknown]
-  writeFileSync(join(results, `outside-usable-${as}.json`), JSON.stringify({ usable: cases.length - all.length, total: cases.length, problems: all }, null, 2) + '\n')
-  refuseBeforeCheck({ round, as, results, outside })
-  if (all.length > 0) throw new Error(`${all.length} case(s) not usable, nothing written:\n  ${all.join('\n  ')}`)
-  const winners = pairWinners(rows, key)
-  writeFileSync(targets[0], JSON.stringify(rows, null, 2) + '\n')
+  const groups = primary ? completeGroups(rows.filter(row => key[row.pair]), cases) : null
+  const groupNote = groups ? { groups: { usable: groups.total - groups.dropped.length, total: groups.total, dropped: groups.dropped } } : {}
+  writeFileSync(join(results, `outside-usable-${as}.json`), JSON.stringify({ usable: cases.length - all.length, total: cases.length, problems: all, ...groupNote }, null, 2) + '\n')
+  if (!primary) refuseBeforeCheck({ round, as, results, outside })
+  if (!primary && all.length > 0) throw new Error(`${all.length} case(s) not usable, nothing written:\n  ${all.join('\n  ')}`)
+  if (primary && groups.kept.length === 0) throw new Error(`no group has both its cases usable, nothing written:\n  ${all.join('\n  ')}`)
+  const kept = primary ? groups.kept : rows
+  writeFileSync(targets[0], JSON.stringify(kept, null, 2) + '\n')
   writeFileSync(targets[1], JSON.stringify(key, null, 2) + '\n')
+  return reportImport({ rows: kept, key, inside, as, groups, log })
+}
+
+// The import's lines; the agreement with the round's own judges when it has them.
+function reportImport({ rows, key, inside, as, groups, log }) {
+  const winners = pairWinners(rows, key)
   const pairs = Object.keys(winners)
-  const same = pairs.filter(pair => winners[pair] === inside[pair]).length
-  log(`${rows.length} verdicts imported as round ${as}. Same pair winner as the round's own judges: ${same} of ${pairs.length}.`)
-  for (const pair of pairs) log(`  ${pair}: outside ${winners[pair]}, inside ${inside[pair] ?? '–'}`)
+  const same = inside === null ? 0 : pairs.filter(pair => winners[pair] === inside[pair]).length
+  if (inside === null) log(`${rows.length} verdicts imported as round ${as} (${pairs.length} complete groups; left out: ${groups.dropped.join(', ') || 'none'}); no inside judge to compare with.`)
+  else log(`${rows.length} verdicts imported as round ${as}. Same pair winner as the round's own judges: ${same} of ${pairs.length}.`)
+  for (const pair of pairs) log(`  ${pair}: outside ${winners[pair]}${inside === null ? '' : `, inside ${inside[pair] ?? '–'}`}`)
   log(`Scores: node bench/aggregate.mjs --round=${as}`)
-  return { same, pairs: pairs.length }
+  return groups ? { same, pairs: pairs.length, groups: groups.total - groups.dropped.length, dropped: groups.dropped } : { same, pairs: pairs.length }
 }
 
 // Copies a case set once for the second judge. Refuses a target that holds anything, and a set where a judge has

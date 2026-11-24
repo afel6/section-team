@@ -1,0 +1,32 @@
+{
+  "f1-r1": {
+    "X": "team-fx",
+    "Y": "team-fy",
+    "Z": "solo-fx"
+  },
+  "f1-r2": {
+    "X": "team-fy",
+    "Y": "solo-fx",
+    "Z": "team-fx"
+  },
+  "f2-r1": {
+    "X": "team-fy",
+    "Y": "solo-fx",
+    "Z": "team-fx"
+  },
+  "f2-r2": {
+    "X": "solo-fx",
+    "Y": "team-fx",
+    "Z": "team-fy"
+  },
+  "f3-r1": {
+    "X": "solo-fx",
+    "Y": "team-fx",
+    "Z": "team-fy"
+  },
+  "f3-r2": {
+    "X": "team-fx",
+    "Y": "team-fy",
+    "Z": "solo-fx"
+  }
+}

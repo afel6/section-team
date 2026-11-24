@@ -1,0 +1,452 @@
+[
+  {
+    "pair": "f3-r1",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Readable immutable operations and save-before-publish commits (A/src/app.mjs:80); clear configuration and route documentation (A/README.md:7). Ran npm --prefix A test: worker creation blocked by sandbox spawn EPERM. No-isolation retry passed six pure unit tests; filesystem and HTTP tests were blocked by mkdtemp EPERM. Passed all 149 independent HTTP checks with injected persistence. Raw TCP probes found BREW /polls returns non-JSON 400, CONNECT /polls gets no reply, and an unknown Expect causes empty 417 instead of the required route response (A/src/main.mjs:33). Loader accepts empty questions, duplicate options, invalid voters and impossible counters (A/src/store.mjs:57). A/src/store.mjs:94 ignores writeSync's returned byte count: an in-memory short-write stub still caused rename and reported success. Existing tests miss these defects (A/test/unit.test.mjs:84; A/test/http.test.mjs:99)."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Serializes immutable changes and rolls back failed saves (B/src/service.mjs:15), flushes data before atomic replacement (B/src/store.mjs:93), and bounds body memory with strict UTF-8 decoding (B/src/body.mjs:8). Broad API, concurrency and raw HTTP tests (B/test/votes-api.test.mjs:365; B/test/edge.test.mjs:65), plus complete route documentation (B/README.md:18). Ran npm --prefix B test: sandbox spawn EPERM. Retried API and edge suites with --test-isolation=none: 104 passed, zero failed; 15 process tests remained blocked by mkdtemp/spawn EPERM. Passed all 149 independent HTTP checks with injected persistence and 19 additional raw-method/pipeline probes. Inline validators confirmed B/src/store.mjs:47 accepts question:null because the invalid-value sentinel also equals null; B/src/store.mjs:54 accepts impossible id gaps and nextId counters. These invalid files should prevent startup. HTTP fallback code is substantial but its handling passed the probes that exposed A and C failures."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 7,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear modules, serialized save-before-publish changes (C/src/app.mjs:36), flushed atomic persistence (C/src/store.mjs:92), comprehensive route/configuration docs (C/README.md:12), and broad boundary/concurrency tests (C/test/http.test.mjs:148; C/test/votes.test.mjs:246). Ran npm --prefix C test: sandbox spawn EPERM; a no-isolation retry registered 177 tests but temporary-directory creation was blocked by mkdtemp EPERM. Passed all 149 independent HTTP checks with injected persistence. Inline validators confirmed question:null is accepted (C/src/store.mjs:42), as are impossible id gaps/counters (C/src/store.mjs:50). A single TCP write containing POST /polls with a body followed by BREW /polls produces 201 then 400 instead of 201 then 405: request-line recovery includes the preceding body (C/src/raw-requests.mjs:78). Malformed chunk framing also produced no response before timeout because error handling waits on the unfinished request (C/src/raw-requests.mjs:99). Own tests omit these cases."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-01"
+  },
+  {
+    "pair": "f3-r1",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Clear immutable operations and save-before-commit serialization (A/src/polls.mjs:21; A/src/app.mjs:36), synced atomic replacement (A/src/store.mjs:110), and complete route/error docs (A/README.md:19). Confirmed startup-validation defects: A/src/store.mjs:42 accepts question:null because null is also the validation-failure sentinel; A/src/store.mjs:50 accepts impossible nextId/ID gaps. HEAD errors lack the JSON body required literally by the task (A/src/reply.mjs:11; A/test/http.test.mjs:108 expects the empty body). Ran all four own node:test files: child spawning and scratch-directory creation were blocked by sandbox EPERM, so a full pass is unverified. Tests meaningfully cover byte boundaries, restart persistence, rollback and concurrency (A/test/http.test.mjs:148; A/test/startup.test.mjs:154; A/test/votes.test.mjs:246). All 35 independent in-memory API checks passed, including simultaneous votes and save rollback; whole and split FOO requests correctly returned 405 JSON."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strong separation of HTTP and service logic, serialized immutable changes committed after saving (B/src/service.mjs:15), and synced atomic persistence (B/src/store.mjs:93). Useful usage/routes documentation (B/README.md:5). Confirmed startup-validation defects: B/src/store.mjs:47 accepts question:null through a null-sentinel comparison; B/src/store.mjs:54 permits impossible nextId/ID gaps. HEAD errors contain JSON headers but no body (B/src/reply.mjs:19), contrary to the task's literal non-204 body rule. Custom socket/framing handling adds complexity (B/src/edge.mjs:65). Ran all own tests without process isolation: 104 passed; 15 were blocked by sandbox filesystem/child-process EPERM, so full persistence testing remains unverified. Meaningful save-failure and concurrent-vote coverage (B/test/votes-api.test.mjs:311; B/test/votes-api.test.mjs:365). All 35 independent in-memory API checks passed, including body boundaries, error precedence, capacity, duplicate votes and rollback."
+    },
+    "X": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 6,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Readable modular handlers, immutable state, synchronous save-before-publication (C/src/app.mjs:80), strict UTF-8/field parsing (C/src/validation.mjs:21), and thorough usage/routes docs (C/README.md:7). Confirmed persistence defect: C/src/store.mjs:94 ignores writeSync's byte count; an injected 10-byte short write still returned success and renamed truncated JSON. C/src/store.mjs:57 accepts impossible stored states, including empty questions, duplicate options, invalid voters and inconsistent nextId. C/src/main.mjs:33 lacks special-method handling: raw FOO /polls returned bare 400 without JSON; CONNECT /polls closed without a reply, rather than required 405 JSON. Attempted all own node:test files; sandbox EPERM blocked runner/setup operations. Six pure unit tests passed in-process; full integration/persistence results remain unverified. Meaningful concurrency, rollback and restart tests exist (C/test/http.test.mjs:163; C/test/http.test.mjs:174; C/test/process.test.mjs:36). All 35 independent in-memory API checks passed."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-02",
+    "swapped": true
+  },
+  {
+    "pair": "f2-r1",
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Readable parser and efficient bounded calendar search (A/cron.mjs:35, A/cron.mjs:138, A/cron.mjs:169); correct CLI validation precedence (A/cron-cli.mjs:80); thorough syntax, examples and exit-code documentation (A/README.md:10, A/README.md:20, A/README.md:58). Defect: A/cron.mjs:122 and A/cron.mjs:174 trust overridden Date methods: a valid 2026 Date with getTime=()=>0 returns a 1970 run; Object.create(Date.prototype) leaks 'this is not a Date object.' instead of the required validation message. Own 82 library tests passed with --test-isolation=none; all 63 CLI tests passed using an in-memory VM subprocess substitute. npm test was blocked by sandbox spawn EPERM, not a code failure. Independent probes passed 800 valid and 165 invalid parser cases plus 120 scheduling comparisons; sparse/impossible searches completed below 4 ms. Date-method cases are absent from the otherwise extensive tests."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Clear parser, correct day matching and efficient bounded search (B/cron.mjs:29, B/cron.mjs:109, B/cron.mjs:143); pure CLI run() makes behavior easy to test (B/cron-cli.mjs:65). Defect: B/cron.mjs:122 and B/cron.mjs:145 trust overridden Date methods; Object.create(Date.prototype) throws the wrong TypeError message, and overridden getTime can produce runs before the actual from time. Own 13 library tests passed with --test-isolation=none; all 8 CLI tests passed with spawnSync adapted in memory to run(). npm test was blocked by sandbox spawn EPERM. Actual CLI entry-point probes confirmed success and error exit codes. Independent probes passed 800 valid and 165 invalid parser cases plus 120 scheduling comparisons. Test gap: B/test/cron.test.mjs:110 never checks a day-of-month-only OR match because its 13th is already Friday. B/README.md:35 omits numeric field bounds and single-value step semantics; library error contracts are also undocumented."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "Correct modular parsing, day semantics and bounded day-by-day enumeration (C/cron.mjs:36, C/cron.mjs:127, C/cron.mjs:141). C/cron.mjs:111 reads the intrinsic Date value and safely rejects Date-prototype impostors, avoiding A/B's validation defect. CLI preserves required argument consumption and error precedence (C/cron-cli.mjs:31, C/cron-cli.mjs:82). Own 101 library tests passed with --test-isolation=none; all 80 CLI tests passed using an in-memory VM subprocess substitute. npm test was blocked by sandbox spawn EPERM. Actual entry-point probes confirmed success and exit codes 1/2/3. Independent probes passed 800 valid and 165 invalid parser cases plus 120 scheduling comparisons. Strong tests cover malformed Dates, the complete final allowed year, year 9899 and performance (C/test/cron.test.mjs:380, C/test/cron.test.mjs:569, C/test/cron.test.mjs:610). No functional defect found. C/README.md:7 explains syntax but omits the useful single-value step-to-maximum example."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-03"
+  },
+  {
+    "pair": "f2-r2",
+    "X": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 7,
+      "notes": "A/cron.mjs:57 and A/cron.mjs:110 implement steps, Sunday folding and day matching correctly; A/README.md:5 gives clear CLI usage and exit codes. Defect: the trimming regex at A/cron.mjs:89 exceeded a 2.5-second VM cutoff on a valid expression containing 200,000 interior separator blanks, violating the two-second limit. A/cron.mjs:134 leaks the native 'this is not a Date object.' error for Object.create(Date.prototype), instead of the required validation message. A/cron-cli.mjs:88 emits multiple stderr lines for newline-containing invalid values. Ran npm test: environment blocked test-worker spawning with EPERM. Retried using node --test --test-isolation=none: all 15 library tests and 7 direct CLI/helper tests passed; 3 process tests remained blocked by spawning restrictions. A/test/cron.test.mjs:183 misses the long-separator performance case. Additional probes passed 120 reference schedule cases and 10 ordinary CLI cases; newline probes confirmed multiline diagnostics."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/cron.mjs:37 splits blanks efficiently; B/cron.mjs:117 uses the intrinsic Date getter and normalizes invalid Date impostors correctly; B/cron.mjs:159 computes bounded daily searches correctly. B/cron-cli.mjs:21 preserves argument consumption and validation precedence, while B/cron-cli.mjs:86 handles output errors. B/README.md:93 documents quoting, options and exit behavior thoroughly. Caveat: B/cron-cli.mjs:74 escapes CR/LF in errors, satisfying the single-line requirement but changing literal value/message text; B/test/cli.test.mjs:258 checks line count without checking that exact diagnostic. Ran npm test: environment blocked test-worker spawning with EPERM. With node --test --test-isolation=none, all 82 library tests passed; 69 CLI/process tests remained blocked by spawning restrictions. Additional probes passed 120 reference schedule cases and 10 ordinary CLI cases; a 200,000-blank expression completed in about 1 ms, and newline diagnostics stayed on one line. No scheduling defect found."
+    },
+    "Z": {
+      "correctness": 8,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "C/cron.mjs:45 handles separators linearly; C/cron.mjs:139 and C/cron.mjs:157 provide clear, correct day matching and bounded daily search. C/README.md:54 and C/README.md:101 document the API and CLI comprehensively. Defects: C/cron.mjs:127 leaks the native 'this is not a Date object.' error for Object.create(Date.prototype), instead of the required validation message. C/cron-cli.mjs:103 and C/cron-cli.mjs:107 print raw embedded newlines, violating the single-line stderr requirement. Ran npm test: environment blocked test-worker spawning with EPERM. With node --test --test-isolation=none, all 105 library tests passed; 71 CLI tests remained blocked by spawning restrictions. C/cron.test.mjs:592 meaningfully covers long separator runs, but C/cron-cli.test.mjs:97 omits newline-containing option values. Additional probes passed 120 reference schedule cases and 10 ordinary CLI cases; a 200,000-blank expression completed in about 1 ms, and newline probes confirmed multiline diagnostics."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 1,
+    "case": "case-04"
+  },
+  {
+    "pair": "f3-r2",
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 9,
+      "tests": 7,
+      "robustnessSecurity": 5,
+      "docsUsability": 9,
+      "overall": 7,
+      "notes": "Clear immutable operations and save-before-commit handling (A/src/service.mjs:25); complete documentation (A/README.md:7). Major defect: A/src/store.mjs:77 overwrites the live file. In-memory partial-write fault injection produced 500 while corrupting previously acknowledged data, preventing reload. Protocol probes found CONNECT receives no reply and BREW receives an empty 400 instead of JSON 405 (A/src/http.mjs:40). Own suites were attempted but blocked by sandbox spawn/mkdtemp EPERM; separately, all four unit tests passed with --test-isolation=none. Persistence tests cover pre-write failure but miss partial-write corruption (A/test/persistence.test.mjs:72). The in-memory 20-check HTTP and 120-concurrent-vote probe passed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Sound mutation serialization and commit-after-save behavior (B/app.mjs:37); flushed temporary-file replacement protects existing data (B/store.mjs:89). Comprehensive routes/configuration documentation (B/README.md:11). Confirmed defect: persisted question:null passes validation because the invalid-value sentinel equals the input (B/store.mjs:42). A native HTTP parser probe splitting GE from the remaining request returned 400 instead of required 405 because earlier method bytes are lost (B/raw-requests.mjs:50). Own suites were attempted but blocked by sandbox EPERM; the in-memory 20-check HTTP and 120-concurrent-vote probe passed. Broad regression coverage includes killing immediately after each acknowledged change and rollback for every mutation (B/test/process.test.mjs:202, B/test/process.test.mjs:256), giving B the narrow lead."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 8,
+      "notes": "Well-separated validation, decisions and serialized persistence (C/src/poll-service.mjs:12); synced temporary-file replacement preserves prior data on save failure (C/src/data-file.mjs:107). Clear configuration and route documentation (C/README.md:7). Confirmed defect: stored question:null is accepted through a null-sentinel comparison (C/src/data-file.mjs:45). A native HTTP parser probe splitting GE from the remaining request returned 400 instead of 405 because reconstruction uses only the current packet (C/src/protocol-edges.mjs:114). Own suites were attempted but blocked by sandbox EPERM; the in-memory 20-check HTTP and 120-concurrent-vote probe passed. Meaningful concurrency, restart and rollback tests exist, but corrupt-file fixtures omit nested invalid fields (C/tests/startup-persistence.test.mjs:69), and protocol tests omit fragmented method tokens (C/tests/protocol.test.mjs:60)."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-05",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 7,
+      "docsUsability": 10,
+      "overall": 8,
+      "notes": "Correct report fixes at A/lib/parse.mjs:33, A/lib/report.mjs:4 and A/lib/format.mjs:7. Overlap ordering, counting and truncation are correct; A/test/check.test.mjs:35 covers exactly 50 pairs and accumulator trimming. A/README.md:47 documents the required command behavior. Main weakness: A/lib/check.mjs:26 enumerates every overlapping pair despite displaying only 50, giving quadratic time on dense logs. Checking 10,000 identical entries took approximately 1231 ms, versus B's 1.7 ms. Ran node --test test/*.test.mjs; sandbox EPERM prevented execution. Selected tests with --test-isolation=none passed 15/15. Also passed 250 randomized oracle comparisons, six entry-point probes using in-memory file fixtures, and three direct CLI usage/read-error probes. No changed-code functional defect found."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "B/lib/check.mjs:28 counts overlaps efficiently using sorted endpoints, while B/lib/check.mjs:40 stops collecting pairs at the output limit. B/lib/cli.mjs:9 safely recognizes options with a Map. B/test/check.test.mjs:44 covers touching, overnight, year-end, leap-day and containment cases; B/test/check.test.mjs:104 covers limit boundaries, and B/test/check.test.mjs:123 covers large sparse and dense logs. Required documentation is complete at B/README.md:47. No changed-code functional defect found. Ran node --test test/*.test.mjs; sandbox EPERM prevented execution. In-process parse/report tests and the checkLines test passed 12/12. Also passed 250 randomized oracle comparisons, six entry-point probes using in-memory file fixtures, and three direct CLI error probes. The 10,000-entry dense overlap check took approximately 1.7 ms and collected only 50 pair objects."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "C/lib/check.mjs:28 and C/lib/check.mjs:55 count overlaps efficiently and correctly. Tests cover calendar boundaries at C/test/check.test.mjs:125 and exact output limits at C/test/check.test.mjs:132. C/README.md:47 fully documents check. Main weakness: C/lib/check.mjs:41 scans the entire remaining row and collects every matching pair before truncating at C/lib/check.mjs:46. For 10,000 identical entries it unnecessarily created 9,999 pair objects, compared with B's 50; output remained correct. Ran node --test test/*.test.mjs; sandbox EPERM prevented execution. In-process parse/report tests and the checkLines test passed 13/13. Also passed 250 randomized oracle comparisons, six entry-point probes using in-memory file fixtures, and three direct CLI error probes. The dense overlap check took approximately 2.5 ms. No changed-code functional defect found."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 2,
+    "case": "case-06",
+    "swapped": true
+  },
+  {
+    "pair": "f3-r2",
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "A/src/poll-service.mjs:12 and :32 serialize changes and commit only after saving; A/src/data-file.mjs:107 flushes a temporary file before replacement. A/src/request-body.mjs:40 correctly enforces strict UTF-8/BOM handling. A/README.md:13 and :28 document configuration and all routes. Defects: A/src/data-file.mjs:45 accepts a stored null question because the validator also returns null for invalid input; an in-memory loader probe confirmed acceptance. A/src/protocol-edges.mjs:110 and :114 lose earlier method bytes: raw HTTP probes sending M followed by GET /polls returned 400 instead of the required 405. Ran npm --prefix A test: sandbox spawn EPERM prevented worker startup. Running API and protocol files separately with --test-isolation=none passed 55 and 19 tests. Persistence/process suites remained blocked by scratch-directory EPERM. Common in-memory validation/concurrency probes passed; simulated partial-write failure preserved the previous saved file."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "B/app.mjs:40 and :54 serialize check/save/commit operations; B/store.mjs:89 flushes a temporary file and renames it, preserving the prior committed data on failure. B/handlers.mjs:49 follows the required vote-check order. B/test/api.test.mjs:626 exercises creation races, capacity, duplicates, closes and withdrawals; B/test/process.test.mjs:202 covers immediate hard kills. B/README.md:11 and :33 clearly document configuration, routes and limits. Defect: B/store.mjs:42 treats null as a valid stored question because normalizeQuestion(null) equals null; a loader-validation probe confirmed this foreign state is accepted. Ran npm --prefix B test: sandbox spawn EPERM blocked startup; disabling worker isolation reached scratch-directory EPERM. With unchanged test sources and an in-memory filesystem adapter, all 142 API and 16 raw-request tests passed. Common validation/concurrency probes passed; fragmented-method probes returned the correct 405, and simulated partial writes left committed data intact. Real filesystem/process tests could not be completed."
+    },
+    "Z": {
+      "correctness": 7,
+      "codeQuality": 8,
+      "tests": 6,
+      "robustnessSecurity": 5,
+      "docsUsability": 9,
+      "overall": 6,
+      "notes": "C/src/service.mjs:44 commits memory only after save succeeds, and C/src/body.mjs:14 handles request JSON decoding strictly. C/README.md:19 and :34 clearly describe routes and field rules. Major defect: C/src/store.mjs:77 overwrites the live file directly. A simulated partial write after an acknowledged creation returned 500 and preserved live memory, but corrupted the saved file so reloading failed. C/test/persistence.test.mjs:72 only tests a missing directory and misses this failure. C/src/http.mjs:41 leaves protocol exceptions to Node: in-memory raw HTTP probes produced a bodyless 400 for FOO /polls, no CONNECT reply, and a non-JSON 417 for an unexpected Expect header. C/src/store.mjs:58 also replaces malformed UTF-8; a corrupted-file probe was accepted. Ran npm --prefix C test: sandbox spawn EPERM blocked workers; disabling isolation reached scratch-directory EPERM. The standalone unit file passed 4/4 tests. Common in-memory validation, 150-vote concurrency and normal reload probes passed; real filesystem/process suites remained unverified."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-07"
+  },
+  {
+    "pair": "f2-r2",
+    "Z": {
+      "correctness": 9,
+      "codeQuality": 8,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Strict grammar, Sunday normalization, day matching and fast day-by-day scheduling are implemented clearly (A/cron.mjs:53, A/cron.mjs:99, A/cron.mjs:139, A/cron.mjs:157). Date validation trusts overridable methods (A/cron.mjs:126, A/cron.mjs:161): a valid 2026-11-20T00:00Z Date whose getTime adds one minute yields 00:02 instead of 00:01; an invalid Date overriding getTime to return 0 incorrectly returns a run instead of throwing. The tests cover syntax, precedence, calendar boundaries and speed, but miss these Date cases (A/cron.test.mjs:366, A/cron.test.mjs:573). npm --prefix A test encountered sandbox spawn EPERM; rerunning library tests with --test-isolation=none passed 105/105, and evaluating the original CLI tests through an in-memory subprocess adapter passed 71/71. The 100,000-space scheduling probe took 0.9 ms. Thorough API and CLI documentation (A/README.md:54, A/README.md:101)."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "No confirmed functional defect. Precise space/tab splitting, readable field expansion, intrinsic Date validation and bounded daily scanning satisfy the difficult cases (B/cron.mjs:37, B/cron.mjs:60, B/cron.mjs:117, B/cron.mjs:159). CLI validation preserves the required precedence and validates real calendar dates (B/cron-cli.mjs:21, B/cron-cli.mjs:45). Newline escaping keeps diagnostics on one line; the task's simultaneous verbatim-value requirement is ambiguous for these inputs (B/cron-cli.mjs:72). npm --prefix B test encountered sandbox spawn EPERM; in-process library tests passed 82/82, and adapted CLI tests passed 68, with the closed-stdout subprocess test unverified. Independent probes passed 1,000 generated parsing cases and 120 scheduling comparisons against a minute-by-minute oracle; impossible schedules took at most 3.3 ms. Strong boundary, precedence and performance coverage (B/test/cron.test.mjs:339, B/test/cron.test.mjs:458, B/test/cli.test.mjs:174). Complete syntax, API and CLI documentation (B/README.md:12, B/README.md:50, B/README.md:93)."
+    },
+    "X": {
+      "correctness": 8,
+      "codeQuality": 8,
+      "tests": 7,
+      "robustnessSecurity": 6,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Correct ordinary parsing, day semantics, calendar scheduling and CLI precedence; exported pure CLI helpers make behavior easy to test (C/cron.mjs:29, C/cron.mjs:110, C/cron.mjs:142, C/cron-cli.mjs:68). The unanchored trailing-whitespace regex causes quadratic work (C/cron.mjs:89): nextRuns('0'+' '.repeat(100000)+'0 * * *', new Date('2026-01-01T00:00Z'), 1) took 2811 ms, exceeding the two-second requirement; another run took 4477 ms. Date validation also trusts overridden methods (C/cron.mjs:134, C/cron.mjs:145): the valid-Date override probe returned 00:02 instead of 00:01, and an invalid Date overriding getTime returned [] instead of throwing. npm --prefix C test encountered sandbox spawn EPERM; all 15 library and seven pure CLI tests passed in-process, while three subprocess tests remained blocked. Direct CLI-entry probes verified success, expression-error and insufficient-run replies. Four hundred generated parser/schedule comparisons passed. Existing performance coverage misses long internal whitespace (C/test/cron.test.mjs:183). README explains usage and day matching, but is less complete about strict syntax and error contracts (C/README.md:11, C/README.md:35, C/README.md:42)."
+    },
+    "ranking": [
+      "Y",
+      "Z",
+      "X"
+    ],
+    "judge": 2,
+    "case": "case-08",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r1",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 9,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Correct overnight arithmetic, inclusive --to and H:MM formatting (A/lib/parse.mjs:42, A/lib/report.mjs:4, A/lib/format.mjs:8). Efficient exact overlap counting and correct ordered truncation (A/lib/check.mjs:28, A/lib/check.mjs:52); minor allocation issue: firstPairs collects an entire row and copies its tail before truncating to 50 (A/lib/check.mjs:41, A/lib/check.mjs:46). Comprehensive boundary/error tests and complete documentation (A/test/check.test.mjs:51, A/test/check.test.mjs:125, A/test/check.test.mjs:132, A/README.md:47, A/README.md:52). Ran npm --prefix A test: sandbox spawn EPERM blocked it; isolation-disabled unit runs passed 13 tests. Independent checks passed 26 entry-point cases with in-memory file bytes, 2,000 randomized overlap-oracle cases, and 100,000 identical entries with the exact 4,999,950,000 pair count. No functional defect found."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "Fully implements the report fixes and shared validation path (B/lib/parse.mjs:35, B/lib/report.mjs:4, B/lib/format.mjs:7, B/lib/cli.mjs:76). Counts overlaps without enumerating every pair and bounds retained output pairs at 50 (B/lib/check.mjs:28, B/lib/check.mjs:36); Map option lookup also closes an inherited unknown-option gap (B/lib/cli.mjs:9). Strong error, boundary and large-log regression coverage; complete check documentation (B/test/check.test.mjs:17, B/test/check.test.mjs:104, B/test/check.test.mjs:123, B/README.md:47, B/README.md:52). Ran npm --prefix B test: sandbox spawn EPERM blocked it; isolation-disabled execution passed 12 tests, with 31 file/process tests blocked by mkdtemp EPERM. Independent checks passed 26 entry-point cases with in-memory file bytes, 2,000 randomized overlap-oracle cases, and 100,000 sparse/dense entries with exact counts. No material defect found."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "Correct report fixes, check arity, timeline arithmetic, endpoint handling and pair ordering (C/lib/parse.mjs:33, C/lib/report.mjs:4, C/lib/format.mjs:7, C/lib/cli.mjs:30, C/lib/check.mjs:20). Main limitation is dense-log scaling: every overlapping pair is enumerated even though only 50 are displayed (C/lib/check.mjs:26); retained candidate memory is bounded (C/lib/check.mjs:30). The 5,000-identical-entry probe correctly counted 12,497,500 pairs but took about 352 ms versus under 2 ms for A/B; this is an efficiency concern, not a specified performance failure. Good regression tests and complete documentation (C/test/check.test.mjs:16, C/test/check.test.mjs:35, C/test/fixes.test.mjs:27, C/README.md:47, C/README.md:52). Ran npm --prefix C test: sandbox spawn EPERM blocked it; isolation-disabled subsets passed 15 tests. Independent checks passed 26 entry-point cases with in-memory file bytes and 100 randomized dense 400-entry datasets against brute force. No introduced functional defect found; inherited OPTIONS property lookup at C/lib/cli.mjs:36 was not treated as a regression."
+    },
+    "ranking": [
+      "Y",
+      "X",
+      "Z"
+    ],
+    "judge": 1,
+    "case": "case-09"
+  },
+  {
+    "pair": "f2-r1",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 9,
+      "overall": 10,
+      "notes": "No functional defect found. A/cron.mjs:111 reads intrinsic Date time safely; A/cron.mjs:127 and A/cron.mjs:158 correctly implement day matching, validation order, strict minute boundaries and the year limit. A/test/cron.test.mjs:313 and A/test/cli.test.mjs:17 provide extensive ownership, grammar, calendar and CLI checks. A/README.md:7 omits single-value step expansion and digit-width restrictions, although usage and exits are clear at A/README.md:21 and A/README.md:29. Ran npm --prefix A test: sandbox spawn EPERM. With node --test --test-isolation=none, 101 library tests passed; an in-memory subprocess substitute passed all 80 original CLI tests. Independent scratch probes passed 5270 parser cases, 49 scheduling/performance checks and 51 actual CLI module cases. Date impostor/override probes also passed."
+    },
+    "Y": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 9,
+      "docsUsability": 8,
+      "overall": 8,
+      "notes": "Clear parser and efficient month/day search at B/cron.mjs:28 and B/cron.mjs:155; testable CLI architecture at B/cron-cli.mjs:65. Minor Date-input defect at B/cron.mjs:122 and B/cron.mjs:145: a 2026 Date with getTime overridden to return 2027 produces a 2027 run; an invalid Date with that override can return [] or incorrectly reach count validation. Object.create(Date.prototype) throws the native receiver error instead of the required message. B/test/cron.test.mjs:125 misses these cases; its coverage is useful but less thorough than A/C. B/README.md:35 omits field ranges and detailed token rules. Ran npm --prefix B test: sandbox spawn EPERM. With node --test --test-isolation=none, 13 library tests passed; an in-memory subprocess substitute passed all 8 original CLI tests. Independent scratch probes passed 5270 parser cases, 49 scheduling/performance checks and 51 actual CLI module cases; targeted Date probes reproduced the defects."
+    },
+    "X": {
+      "correctness": 9,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 9,
+      "docsUsability": 9,
+      "overall": 9,
+      "notes": "Readable parsing and correct calendar/day semantics at C/cron.mjs:49, C/cron.mjs:138 and C/cron.mjs:169. Thorough boundary/performance tests at C/test/cron-next.test.mjs:114 and C/test/cron-next.test.mjs:156; useful grammar and CLI documentation at C/README.md:18 and C/README.md:43. Minor Date-input defect at C/cron.mjs:122 and C/cron.mjs:174: a 2026 Date with getTime overridden to return 2027 produces a 2027 run; an invalid Date can evade validation, and Date-prototype impostors produce the wrong TypeError message. C/test/cron-next.test.mjs:22 misses these unusual cases. Ran npm --prefix C test: sandbox spawn EPERM. With node --test --test-isolation=none, 82 library tests passed; an in-memory subprocess substitute passed all 63 original CLI tests. Independent scratch probes passed 5270 parser cases, 49 scheduling/performance checks and 51 actual CLI module cases; targeted Date probes reproduced the defects."
+    },
+    "ranking": [
+      "Z",
+      "X",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-10",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r2",
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "A/lib/parse.mjs:30, A/lib/report.mjs:4 and A/lib/format.mjs:8 fix the three report bugs. A/lib/check.mjs:8 correctly handles absolute timelines, touching intervals, ordering and truncation; A/README.md:47 documents the required contract. Main limitation: A/lib/check.mjs:20 enumerates every overlapping pair despite the output cap. A 10,000-identical-entry probe produced the correct 49,995,000-pair count in about 260 ms. npm --prefix A test was blocked by spawn EPERM; without process isolation, 12 tests passed and 20 hit filesystem EPERM. All 32 original test assertions passed using in-memory fixtures and run() instead of child processes; this is not a native process-suite pass. Independent brute-force comparisons passed 1,000 randomized logs, plus calendar boundaries and 27 integrated CLI assertions. No introduced functional defect found."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "B/lib/check.mjs:12 correctly builds absolute intervals; B/lib/cli.mjs:34 enforces check arity and shares report decoding/parsing. All three report fixes are implemented, and B/README.md:47 documents the required command, output and exits. B/lib/check.mjs:24 still enumerates every overlapping pair; periodic trimming at line 28 bounds storage but adds allocation/sorting overhead. The 10,000-identical-entry probe returned the correct result in about 890 ms. B/test/check.test.mjs:44 exercises only 55 pairs, leaving the 1,000-pair trimming branch untested by its suite. npm --prefix B test was blocked by spawn EPERM; without isolation, 12 tests passed and 10 hit filesystem EPERM. All 22 original assertions passed with in-memory fixtures and run() replacing subprocesses. Independent checks passed 300 randomized cases, repeated trimming, calendar boundaries and 27 integrated CLI assertions. No introduced functional defect found."
+    },
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "C/lib/check.mjs:28 counts overlaps without enumerating all pairs; line 45 separately obtains the first 50 in file-line order. This correctly handles touching, containment, midnight and calendar boundaries while scaling well on dense logs. C/lib/cli.mjs:22 also validates option ownership. C/README.md:47 fully documents check. C/test/check.test.mjs:116 covers exact/above-limit output, and line 131 tests 200,000 identical entries. No introduced functional defect found; candidate arrays are still materialized at C/lib/check.mjs:39. npm --prefix C test was blocked by spawn EPERM, and ordinary in-process execution encountered filesystem EPERM. All 36 original assertions passed with in-memory fixtures and run() replacing subprocesses, including the 200,000-entry case. Independent brute-force checks passed 2,000 randomized logs covering 738,780 overlapping pairs, extreme-year cases and 27 integrated CLI assertions. The same 10,000-entry dense probe took about 1.3 ms. Each solution's real entry point also emitted the expected overlap line and exit 1 with an injected in-memory file."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 2,
+    "case": "case-11",
+    "swapped": true
+  },
+  {
+    "pair": "f1-r2",
+    "X": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 10,
+      "robustnessSecurity": 10,
+      "docsUsability": 10,
+      "overall": 10,
+      "notes": "A/lib/parse.mjs:30, A/lib/report.mjs:4 and A/lib/format.mjs:8 correctly fix the three report bugs. A/lib/check.mjs:28 counts overlaps without enumerating every pair; A/lib/check.mjs:45 preserves the required first-50 ordering. A/test/check.test.mjs:116 covers exactly 50 pairs, and A/test/check.test.mjs:131 covers 200,000 entries. A/README.md:47 documents the command and A/README.md:52 its output, limit and exit status. No functional defect found. Ran its full node:test suite: sandbox spawn/mkdtemp EPERM blocked process tests; 13 pure tests passed with isolation disabled. Independent probes passed 400 randomized timeline cases and 200,000 identical entries, returning the exact remainder in about 26 ms for checkLines."
+    },
+    "Y": {
+      "correctness": 10,
+      "codeQuality": 8,
+      "tests": 8,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "B/lib/parse.mjs:23, B/lib/report.mjs:4 and B/lib/format.mjs:7 correctly fix the report bugs. B/lib/check.mjs:18 handles cross-date overlaps and B/lib/check.mjs:31 returns correctly sorted, bounded results. B/README.md:47, B/README.md:52 and B/README.md:60 document the required behavior. No functional defect found. Main limitation: B/lib/check.mjs:24 enumerates and allocates every overlapping pair; 10,000 identical entries took about 1.0 s despite the 50-line output cap. B/test/check.test.mjs:44 reaches only 55 pairs, leaving the 1,000-pair trimming branch at B/lib/check.mjs:28 untested by its own suite. Ran npm test: sandbox spawn/mkdtemp EPERM blocked process tests; 12 pure tests passed with isolation disabled. Independent probes passed 400 randomized cases and a 4,950-pair trimming case."
+    },
+    "Z": {
+      "correctness": 10,
+      "codeQuality": 9,
+      "tests": 9,
+      "robustnessSecurity": 8,
+      "docsUsability": 10,
+      "overall": 9,
+      "notes": "C/lib/parse.mjs:30, C/lib/report.mjs:4 and C/lib/format.mjs:8 correctly fix the report bugs. C/lib/check.mjs:8 handles calendar crossings; C/lib/check.mjs:32 maintains the first 50 pairs in numeric line order with bounded retained memory. C/test/check.test.mjs:66 covers calendar boundaries and C/test/check.test.mjs:119 covers the exact output cap. C/README.md:47, C/README.md:56 and C/README.md:59 document the required command and output. No functional defect found. Main limitation: C/lib/check.mjs:20 enumerates every overlapping pair, giving quadratic dense-input runtime; 10,000 identical entries took about 308 ms and 20,000 about 1,275 ms. Its own cap tests do not cover large logs. Ran npm test: sandbox spawn/mkdtemp EPERM blocked process tests; 12 pure tests passed with isolation disabled. Independent probes passed 400 randomized timeline cases."
+    },
+    "ranking": [
+      "X",
+      "Z",
+      "Y"
+    ],
+    "judge": 1,
+    "case": "case-12"
+  }
+]

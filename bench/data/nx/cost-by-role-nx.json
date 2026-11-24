@@ -1,0 +1,269 @@
+{
+  "h10": {
+    "base": {
+      "runs": 2,
+      "meanUSD": 11.896792200000002,
+      "roles": [
+        {
+          "role": "section-team:backend",
+          "n": 1,
+          "meanUSD": 2.7108751000000004,
+          "share": 0.22786605451509861
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 5,
+          "meanUSD": 2.4135207999999997,
+          "share": 0.2028715606211899
+        },
+        {
+          "role": "section-team:testing",
+          "n": 1,
+          "meanUSD": 2.0112153000000004,
+          "share": 0.1690552601229767
+        },
+        {
+          "role": "section-team:frontend",
+          "n": 1.5,
+          "meanUSD": 1.9865261000000003,
+          "share": 0.16697997801457773
+        },
+        {
+          "role": "section-team:coder",
+          "n": 4.5,
+          "meanUSD": 1.1485724,
+          "share": 0.09654471396079355
+        },
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.9436866999999999,
+          "share": 0.07932278585146672
+        },
+        {
+          "role": "section-team:docs",
+          "n": 1,
+          "meanUSD": 0.38736940000000003,
+          "share": 0.03256082761536341
+        },
+        {
+          "role": "section-team:plan-advisor",
+          "n": 1,
+          "meanUSD": 0.2950264,
+          "share": 0.02479881929853326
+        }
+      ],
+      "missing": []
+    },
+    "solo": {
+      "runs": 2,
+      "meanUSD": 0.8386843999999999,
+      "roles": [
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.8386843999999999,
+          "share": 1
+        }
+      ],
+      "missing": []
+    },
+    "team": {
+      "runs": 2,
+      "meanUSD": 10.42342065,
+      "roles": [
+        {
+          "role": "section-team:backend",
+          "n": 1,
+          "meanUSD": 3.3363025000000004,
+          "share": 0.3200775073775805
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 3.5,
+          "meanUSD": 1.7383584,
+          "share": 0.16677427289668098
+        },
+        {
+          "role": "section-team:frontend",
+          "n": 1,
+          "meanUSD": 1.3516786,
+          "share": 0.1296770652731932
+        },
+        {
+          "role": "section-team:testing",
+          "n": 1,
+          "meanUSD": 1.3132797000000003,
+          "share": 0.12599315945289036
+        },
+        {
+          "role": "section-team:coder",
+          "n": 4,
+          "meanUSD": 1.03185725,
+          "share": 0.09899410996139736
+        },
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.9672589,
+          "share": 0.09279668666159031
+        },
+        {
+          "role": "section-team:docs",
+          "n": 1,
+          "meanUSD": 0.3740283,
+          "share": 0.03588345060217828
+        },
+        {
+          "role": "section-team:plan-advisor",
+          "n": 1,
+          "meanUSD": 0.31065699999999996,
+          "share": 0.02980374777448898
+        }
+      ],
+      "missing": []
+    }
+  },
+  "h8": {
+    "base": {
+      "runs": 5,
+      "meanUSD": 1.10798086,
+      "roles": [
+        {
+          "role": "section-team:backend",
+          "n": 1,
+          "meanUSD": 0.53293944,
+          "share": 0.4810005833494272
+        },
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.25367804,
+          "share": 0.2289552546963672
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 1,
+          "meanUSD": 0.1709092,
+          "share": 0.15425284512586254
+        },
+        {
+          "role": "section-team:coder",
+          "n": 1,
+          "meanUSD": 0.15045418000000002,
+          "share": 0.13579131682834306
+        }
+      ],
+      "missing": []
+    },
+    "solo": {
+      "runs": 5,
+      "meanUSD": 0.37633256,
+      "roles": [
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.37633256,
+          "share": 1
+        }
+      ],
+      "missing": []
+    },
+    "team": {
+      "runs": 5,
+      "meanUSD": 0.71612832,
+      "roles": [
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.5561486,
+          "share": 0.7766046733077111
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 1,
+          "meanUSD": 0.15997972000000002,
+          "share": 0.2233953266922889
+        }
+      ],
+      "missing": []
+    }
+  },
+  "h9": {
+    "base": {
+      "runs": 2,
+      "meanUSD": 2.0144024,
+      "roles": [
+        {
+          "role": "section-team:backend",
+          "n": 1,
+          "meanUSD": 1.152749,
+          "share": 0.5722535874659403
+        },
+        {
+          "role": "section-team:coder",
+          "n": 2,
+          "meanUSD": 0.310632,
+          "share": 0.15420553510063334
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 1,
+          "meanUSD": 0.30172869999999996,
+          "share": 0.1497857131226611
+        },
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.24929270000000003,
+          "share": 0.12375516431076534
+        }
+      ],
+      "missing": []
+    },
+    "solo": {
+      "runs": 2,
+      "meanUSD": 0.5731868,
+      "roles": [
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.5731868,
+          "share": 1
+        }
+      ],
+      "missing": []
+    },
+    "team": {
+      "runs": 2,
+      "meanUSD": 1.85664775,
+      "roles": [
+        {
+          "role": "section-team:backend",
+          "n": 1,
+          "meanUSD": 0.7622890999999999,
+          "share": 0.41057281867279344
+        },
+        {
+          "role": "section-team:coder",
+          "n": 2,
+          "meanUSD": 0.40174305,
+          "share": 0.21638086707615917
+        },
+        {
+          "role": "main",
+          "n": 1,
+          "meanUSD": 0.3502854,
+          "share": 0.18866551288471387
+        },
+        {
+          "role": "section-team:reviewer",
+          "n": 1,
+          "meanUSD": 0.34233020000000003,
+          "share": 0.1843808013663335
+        }
+      ],
+      "missing": []
+    }
+  }
+}
