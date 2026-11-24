@@ -26,7 +26,7 @@ test('modes, the default and the picker labels are exact', () => {
   assert.deepEqual(MODES, ['balanced', 'max'])
   assert.equal(DEFAULT_MODE, 'balanced')
   assert.deepEqual(MODE_LABELS, {
-    balanced: 'Balanced · ~5× usage',
+    balanced: 'Balanced · ~7× usage',
     max: 'Max · ~10× usage',
   })
   // Code points checked apart from the literals: a middle dot and a multiplication sign.
