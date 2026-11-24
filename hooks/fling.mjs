@@ -6,6 +6,7 @@ import { r2 } from './creatures.mjs';
 const HALF_W = 44;
 const MID_Y = 46;
 const FEET_Y = 88;
+const BOX_H = 92.4;
 const ROOM_MID = 500;
 const REACH = 120;
 const MAX_PEAK = 150;
@@ -57,6 +58,9 @@ export function flingMarkup(i, section, box, inner) {
     + `<animateMotion begin="${begin}" dur="${f.dur}s" path="${f.motion}" fill="remove"/>`
     + `<animateTransform attributeName="transform" type="rotate" additive="sum" begin="${begin}" dur="${f.dur}s"`
     + ` values="${f.spin.map((a) => `${a} ${cx} ${cy}`).join(';')}" keyTimes="${f.at}" fill="remove"/>`
+    // A still, unseen hit area: the squish pulls the creature's top out from under a pointer that pressed there, and a release
+    // that lands outside the group would start no flight.
+    + `<rect x="${box.x}" y="${box.y}" width="${HALF_W * 2}" height="${BOX_H}" fill="#000" fill-opacity="0"/>`
     + `<g class="squish">${inner}</g>`
     + `<text class="oops" x="${r2(box.x + 74)}" y="${r2(box.y + 18)}" opacity="0" font-size="22" font-weight="700" font-family="sans-serif" fill="#EF4444">!`
     + `<set attributeName="opacity" to="1" begin="${begin}" dur="${f.dur}s"/></text>`

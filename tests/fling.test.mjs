@@ -34,6 +34,13 @@ test('a top-row flight stays in the room', () => {
   }
 })
 
+test('a press that squishes still lets go on the creature: a still hit area sits outside the squish', () => {
+  const markup = flingMarkup(3, 'testing', { x: 10, y: 20 }, '<path/>')
+  const hit = markup.indexOf('<rect x="10" y="20" width="88" height="92.4" fill="#000" fill-opacity="0"/>')
+  assert.ok(hit > 0, markup)
+  assert.ok(hit < markup.indexOf('<g class="squish">'))
+})
+
 test('the markup is one clickable group with no script', () => {
   const markup = flingMarkup(3, 'testing', { x: 0, y: 0 }, '<path/>')
   assert.ok(markup.startsWith('<g id="fl3" class="grab">'), markup)
