@@ -2,6 +2,11 @@
 
 Each release's full notes are on the [GitHub releases page](https://github.com/afel6/section-team/releases).
 
+## Unreleased
+
+- `/team office yellow` paints the Team Board office yellow for you (saved in `~/.claude/section-team/office.json`); `/team office night` brings back the dark office.
+- On desktop and mobile, press a creature to squish it and click it to fling it. The office is now drawn as an interactive picture, still with no script in it.
+
 ## 0.5.1 (2026-11-22)
 
 Version 0.5.0 was served from `main` for a few hours without the safer defaults below; 0.5.1 is the first release with them. If you installed 0.5.0, update with `claude plugin update section-team@section-team`.

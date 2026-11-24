@@ -2,6 +2,7 @@
 // strolling the corridor between the two rows while it is free.
 import { CREW, buildCreature, r2, join, ell, poly, rrect, bar } from './creatures.mjs';
 import { NAME_RE } from './lib/names.mjs';
+import { flingMarkup } from './fling.mjs';
 
 const CREW_CSS = ".cr-svg{overflow:visible}.cr-svg g,.cr-svg path{transform-box:fill-box}.cr-sit{animation:cr-sit 3.8s ease-in-out infinite;transform-origin:50% 100%}.cr-hover{animation:cr-hover 4.4s ease-in-out infinite}.cr-blink{animation:cr-blink 5.2s infinite;transform-origin:50% 50%}.cr-sway{animation:cr-sway 3.4s ease-in-out infinite;transform-origin:50% 100%}.cr-twitch{animation:cr-twitch 4.6s ease-in-out infinite;transform-origin:50% 100%}.cr-wag{animation:cr-wag 1.6s ease-in-out infinite;transform-origin:0% 100%}.cr-wave{animation:cr-wave 2.8s ease-in-out infinite;transform-origin:50% 0%}.cr-float{animation:cr-float 3.2s ease-in-out infinite}.cr-tilt{animation:cr-tilt 3.6s ease-in-out infinite;transform-origin:30% 30%}.cr-glow{animation:cr-glow 2.4s ease-in-out infinite}.cr-gear{animation:cr-spin 2.4s linear infinite;transform-origin:50% 50%}.cr-dots{animation:cr-glow 1.4s ease-in-out infinite}.cr-spark{animation:cr-twinkle 1.6s ease-in-out infinite;transform-origin:50% 50%}.cr-z{animation:cr-z 3s ease-in-out infinite}.st-running .cr-sit,.st-running .cr-hover{animation-duration:1.1s}.st-waiting .cr-look{animation:cr-look 3.4s ease-in-out infinite}.st-done .cr-sit,.st-done .cr-hover{animation:cr-hop 1.5s ease-in-out infinite;transform-origin:50% 100%}.st-problem .cr-sit,.st-problem .cr-hover{animation:cr-shake 2.6s ease-in-out infinite}.st-asleep .cr-sit,.st-asleep .cr-hover{animation:cr-breathe 5.5s ease-in-out infinite;transform-origin:50% 100%}.st-asleep .cr-blink,.st-done .cr-blink{animation:none}.st-asleep{filter:saturate(.45)}@keyframes cr-sit{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-1.2px) scale(.99,1.015)}}@keyframes cr-hover{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}@keyframes cr-blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}@keyframes cr-sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}@keyframes cr-twitch{0%,78%,100%{transform:rotate(0)}84%{transform:rotate(-7deg)}90%{transform:rotate(4deg)}}@keyframes cr-wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}@keyframes cr-wave{0%,100%{transform:skewX(-5deg)}50%{transform:skewX(5deg)}}@keyframes cr-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}@keyframes cr-tilt{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(5deg)}}@keyframes cr-glow{0%,100%{opacity:.35}50%{opacity:1}}@keyframes cr-spin{to{transform:rotate(360deg)}}@keyframes cr-twinkle{0%,100%{transform:scale(.7);opacity:.6}50%{transform:scale(1.15);opacity:1}}@keyframes cr-z{0%{transform:translateY(2px);opacity:0}30%{opacity:1}100%{transform:translateY(-4px);opacity:0}}@keyframes cr-look{0%,100%{transform:translateX(0)}25%,40%{transform:translateX(-2px)}60%,75%{transform:translateX(2px)}}@keyframes cr-hop{0%,60%,100%{transform:translateY(0) scale(1,1)}20%{transform:translateY(-5px) scale(.97,1.04)}40%{transform:translateY(0) scale(1.05,.94)}}@keyframes cr-shake{0%,70%,100%{transform:translateX(0)}74%,82%{transform:translateX(-1.2px)}78%,86%{transform:translateX(1.2px)}}@keyframes cr-breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}@media (prefers-reduced-motion: reduce){.cr-svg *{animation:none !important}}";
 const SCALE = 1.1;
@@ -21,7 +22,10 @@ const CHAIR = {
 const OFFICE_CSS = '.of-glow{animation:cr-glow 1.8s ease-in-out infinite}'
   + '.of-glow2{animation:cr-glow 2.6s ease-in-out -1s infinite}'
   + '.of-step{animation:of-step .37s ease-in-out 6}'
-  + '@keyframes of-step{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}';
+  + '@keyframes of-step{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}'
+  // Poke and fling (fling.mjs): the flight's rotate centre is in room units, so its group keeps the view box, not its own box.
+  + '.cr-svg .grab{cursor:grab;transform-box:view-box;transform-origin:0 0}.cr-svg .grab:active{cursor:grabbing}'
+  + '.squish{transform-origin:50% 100%;transition:transform .12s}.grab:active .squish{transform:scale(1.15,.82)}.grab:active .oops{opacity:1}';
 
 // A name outside the rules, or one holding a token the picture bans, draws the creature's default name.
 const nameOf = (names, id) => (typeof names[id] === 'string' && NAME_RE.test(names[id]) && !/href/i.test(names[id]) ? names[id] : CREW[id].name);
@@ -71,25 +75,32 @@ const seatBox = (section) => {
 };
 const homeBox = (i) => boxAt(homeSpot(i).x, homeSpot(i).feet);
 
-function room() {
+// The room's colours for each look; desks, chairs, props, plants and the clock keep theirs.
+const PALETTES = {
+  night: { wall: '#2C3454', ceil: '#363F63', trim: '#232A45', plank: '#283050', frame: '#4B5683', sky: '#1C2747', stars: '#FDE68A', rug: '#3B4677', rugEdge: '#4A5690' },
+  yellow: { wall: '#FFE9A3', ceil: '#FFD966', trim: '#E8B53A', plank: '#F2D27C', frame: '#E0A82E', sky: '#9ED8FF', stars: '#FFFFFF', rug: '#B8691C', rugEdge: '#FFD966' },
+};
+const LOOKS = Object.keys(PALETTES);
+
+function room(pal) {
   const planks = [120, 170, 220, 420, 470, 520, 570].map((y) => `M0 ${y}H1000`).join('');
   const stars = [[226, 22], [252, 40], [289, 25], [312, 46], [684, 24], [712, 44], [748, 28], [776, 47]]
     .map(([x, y]) => ell(x, y, 1.6, 1.6)).join('');
-  const window = (x) => shape(rrect(x, 12, 124, 46, 6), '#4B5683') + shape(rrect(x + 5, 17, 114, 36, 4), '#1C2747')
-    + shape(`M${x + 60} 17H${x + 64}V53H${x + 60}Z`, '#4B5683');
+  const window = (x) => shape(rrect(x, 12, 124, 46, 6), pal.frame) + shape(rrect(x + 5, 17, 114, 36, 4), pal.sky)
+    + shape(`M${x + 60} 17H${x + 64}V53H${x + 60}Z`, pal.frame);
   const plant = (x) => shape(rrect(x - 11, 46, 22, 20, 4), '#C2703A')
     + shape(join(ell(x - 7, 38, 5, 11, -25), ell(x + 7, 38, 5, 11, 25), ell(x, 33, 5, 13)), '#4E9E33');
-  return shape(rrect(0, 0, ROOM.w, ROOM.h, 22), '#2C3454')
-    + shape('M22 0H978A22 22 0 0 1 1000 22V70H0V22A22 22 0 0 1 22 0Z', '#363F63')
-    + shape('M0 70H1000V76H0Z', '#232A45')
-    + line(planks, '#283050', 2)
-    + window(196) + window(680) + shape(stars, '#FDE68A', ' class="of-glow2"')
+  return shape(rrect(0, 0, ROOM.w, ROOM.h, 22), pal.wall)
+    + shape('M22 0H978A22 22 0 0 1 1000 22V70H0V22A22 22 0 0 1 22 0Z', pal.ceil)
+    + shape('M0 70H1000V76H0Z', pal.trim)
+    + line(planks, pal.plank, 2)
+    + window(196) + window(680) + shape(stars, pal.stars, ' class="of-glow2"')
     + shape(ell(500, 35, 18, 18), '#F1F5F9') + shape(ell(500, 35, 14.5, 14.5), '#E2E8F0')
     + line('M500 35V25', '#334155', 2.4) + line('M500 35L507 39', '#334155', 2.4)
     + line('M500 37V22', '#EF4444', 1.2, ' class="of-hand"')
     + plant(34) + plant(966)
-    + shape(rrect(44, 268, 912, 118, 59), '#3B4677')
-    + line(rrect(56, 278, 888, 98, 49), '#4A5690', 2, ' stroke-dasharray="10 8"');
+    + shape(rrect(44, 268, 912, 118, 59), pal.rug)
+    + line(rrect(56, 278, 888, 98, 49), pal.rugEdge, 2, ' stroke-dasharray="10 8"');
 }
 
 function chair(section) {
@@ -132,7 +143,7 @@ const PROPS = {
     + shape(join(poly([[x - 9, y - 12], [x - 15, y - 6], [x - 6, y - 18]]), poly([[x + 9, y - 12], [x + 15, y - 6], [x + 6, y - 18]])), '#F97316')
     + shape(join(ell(x, y - 30, 8.5, 17), poly([[x - 8.5, y - 30], [x + 8.5, y - 30], [x + 6, y - 14], [x - 6, y - 14]])), '#E2E8F0')
     + shape(ell(x, y - 33, 3.8, 3.8), '#38BDF8'),
-  uiux: (x, y) => shape(join(ell(x, y - 12, 22, 12)), '#F5DEB3') + shape(ell(x + 9, y - 9, 4, 3.2), '#2C3454')
+  uiux: (x, y, pal) => shape(join(ell(x, y - 12, 22, 12)), '#F5DEB3') + shape(ell(x + 9, y - 9, 4, 3.2), pal.wall)
     + shape(ell(x - 12, y - 13, 3.4, 3.4), '#EF4444') + shape(ell(x - 4, y - 18, 3.4, 3.4), '#3B82F6')
     + shape(ell(x + 5, y - 19, 3.4, 3.4), '#22C55E') + shape(ell(x - 11, y - 5, 3, 3), '#FACC15')
     + shape(bar(x + 4, y - 3, x + 20, y - 34, 3), '#92400E') + shape(ell(x + 20.5, y - 35, 2.6, 3.4, 27), '#EFA3FA'),
@@ -174,7 +185,9 @@ function placed(section, state, move, now) {
   const walking = age !== null && age < WALK_S;
   const box = seated ? seatBox(section) : homeBox(i);
   const mood = seated || state === 'done' ? state : 'idle';
-  let body = `<svg x="${box.x}" y="${box.y}" width="${80 * SCALE}" height="${r2(84 * SCALE)}" viewBox="10 10 80 84" overflow="visible">${creatureMarkup(section, mood, -i * 0.37)}</svg>`;
+  // Wrapped for poke and fling first, so a walk or a stroll carries the flight along with the creature.
+  let body = flingMarkup(i, section, box,
+    `<svg x="${box.x}" y="${box.y}" width="${80 * SCALE}" height="${r2(84 * SCALE)}" viewBox="10 10 80 84" overflow="visible">${creatureMarkup(section, mood, -i * 0.37)}</svg>`);
   let css = '';
   if (!seated) {
     const roam = roamCss(i);
@@ -195,21 +208,23 @@ function placed(section, state, move, now) {
 
 // The whole office as one SVG document. states: section -> board state (missing is asleep, so free);
 // names: section -> the name on its desk; moves: section -> { kind: 'arrive' | 'leave', at: epoch ms };
-// now: epoch ms, so walks and strolls carry on where they were when the picture is rebuilt; one that is not finite counts as 0.
-function officeSvg({ states = {}, names = {}, moves = {}, now: clock = 0 } = {}) {
+// now: epoch ms, so walks and strolls carry on where they were when the picture is rebuilt; one that is not finite counts as 0;
+// look: one of LOOKS, anything else draws night.
+function officeSvg({ states = {}, names = {}, moves = {}, now: clock = 0, look = 'night' } = {}) {
   const now = Number.isFinite(clock) ? clock : 0;
+  const pal = Object.hasOwn(PALETTES, look) ? PALETTES[look] : PALETTES.night;
   const plan = ORDER.map((section) => ({ section, ...placed(section, states[section] ?? 'asleep', moves[section], now) }));
   const rowLayer = (r) => ROWS[r].sections.map((section) => {
     const p = plan.find((q) => q.section === section);
     return chair(section) + (p.inDeskLayer ? p.markup : '') + desk(section, nameOf(names, section))
-      + PROPS[section](deskSpot(section).cx - 50, deskSpot(section).base - 6);
+      + PROPS[section](deskSpot(section).cx - 50, deskSpot(section).base - 6, pal);
   }).join('');
   const corridor = plan.filter((p) => !p.inDeskLayer)
     .sort((a, b) => homeSpot(ORDER.indexOf(a.section)).feet - homeSpot(ORDER.indexOf(b.section)).feet)
     .map((p) => p.markup).join('');
   const css = CREW_CSS + OFFICE_CSS + handCss(now) + plan.map((p) => p.css).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" class="cr-svg" width="${ROOM.w}" height="${ROOM.h}" viewBox="0 0 ${ROOM.w} ${ROOM.h}">`
-    + `<style>${css}</style>${room()}${rowLayer(0)}${corridor}${rowLayer(1)}</svg>`;
+    + `<style>${css}</style>${room(pal)}${rowLayer(0)}${corridor}${rowLayer(1)}</svg>`;
 }
 
 // What the office says to a reader who cannot see it.
@@ -221,4 +236,4 @@ function officeAlt({ states = {}, names = {} } = {}) {
     : `The office: ${seated.map(who).join(', ')} at their desks; ${free} free in the corridor.`;
 }
 
-export { ORDER, SEATED, WALK_MS, officeSvg, officeAlt, creatureSvg };
+export { ORDER, SEATED, WALK_MS, LOOKS, officeSvg, officeAlt, creatureSvg };

@@ -935,7 +935,9 @@ test('on desktop the board draws the office picture, with its alt text, in place
   expect(svgs).toHaveLength(1)
   expect(svgs[0].props.alt).toMatch(/^The office:/)
   expect(svgs[0].props.alt).toContain('Iris (frontend) running')
-  for (const prop of ['width', 'height', 'isInteractive']) expect(svgs[0].props[prop]).toBeUndefined()
+  for (const prop of ['width', 'height']) expect(svgs[0].props[prop]).toBeUndefined()
+  // Interactive so a press squishes a creature and a click flings it (no script: CSS :active and SMIL alone).
+  expect(svgs.map(s => s.props.isInteractive)).toEqual([true])
   expect(await ui.find({ key: 'asleep' })).toBeUndefined()
   expect((await ui.find({ key: 'card-frontend' }))?.text).toContain('● Iris · frontend')
 })
@@ -1000,4 +1002,60 @@ test('a new session.start starts the office fresh, so its first poll draws no wa
   await $.session.start(START)
   await clock.advance(1000)
   expect(await officeSource($ as never)).not.toContain('.wk0{')
+})
+
+// The office look: /team office saves it per user beside names.json, and the poll paints the office with it.
+const LOOK_PATH = 'C:/Users/u/.claude/section-team/office.json'
+
+test('/team office yellow saves the look and the next tick paints the office yellow', async ($, on) => {
+  const { clock, seen } = world(on)
+
+  await $.session.start(START)
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).not.toContain('#FFE9A3')
+  expect(await teamText($ as never, 'office')).toBe('The office is night. /team office yellow|night changes it.')
+  expect(await teamText($ as never, 'office yellow')).toBe('The office is yellow now.')
+  expect(seen.disk[LOOK_PATH]).toBe('{"v":1,"look":"yellow"}')
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).toContain('#FFE9A3')
+  expect(await teamText($ as never, 'office yellow')).toBe('The office is already yellow.')
+  expect(await teamText($ as never, 'office pink')).toBe('No office look called pink. Looks: night, yellow.')
+  expect(await teamText($ as never, 'office night')).toBe('The office is night now.')
+  expect(seen.opened).toEqual([])
+})
+
+test('a broken office file draws night and logs once, and /team office yellow mends it', async ($, on) => {
+  const { clock, seen } = world(on)
+  seen.disk[LOOK_PATH] = '{"v":1,"look":'
+
+  await $.session.start(START)
+  for (let i = 0; i < 3; i++) await clock.advance(1000)
+  expect(await officeSource($ as never)).not.toContain('#FFE9A3')
+  const logged = seen.logs.filter(l => l.text.includes('office.json is not valid'))
+  expect(logged.map(l => l.to)).toEqual(['debug'])
+
+  expect(await teamText($ as never, 'office yellow')).toBe('The office is yellow now.')
+  expect(seen.disk[LOOK_PATH]).toBe('{"v":1,"look":"yellow"}')
+  await clock.advance(1000)
+  expect(await officeSource($ as never)).toContain('#FFE9A3')
+})
+
+test('with no USERPROFILE or HOME, /team office yellow says so and saves nothing', async ($, on) => {
+  const { seen } = world(on)
+  seen.env = {}
+
+  await $.session.start(START)
+  expect(await teamText($ as never, 'office yellow')).toBe('The office look needs USERPROFILE or HOME to be set.')
+  expect(seen.writes.filter(w => w.path.endsWith('/office.json'))).toEqual([])
+})
+
+test('a refused office save gives the code alone', async ($, on) => {
+  const { seen } = world(on)
+
+  await $.session.start(START)
+  seen.denyWrite = "EPERM: operation not permitted, open 'C:\\Users\\u\\.claude\\section-team\\office.json'"
+  const text = await teamText($ as never, 'office yellow')
+  expect(text).toBe('Look not saved: EPERM.')
+  expect(text).not.toMatch(/[\/]|Users|office\.json/)
+  expect(LOOK_PATH in seen.disk).toBe(false)
 })
