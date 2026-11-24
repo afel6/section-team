@@ -662,9 +662,9 @@ test('the held-out and hq data READMEs state the baseline and the printed number
   assert.ok(!hq.includes('the doc says'), 'the results doc prints the recomputed values')
 })
 
-test('CONTRIBUTING lists the generated direct-build skill and documents the round harness settings', () => {
+test('CONTRIBUTING documents the round harness settings', () => {
   assertIncludes(read('CONTRIBUTING.md'), [
-    '`skills/direct-build/`', 'SECTION_TEAM_LIVE_CHECKOUT', 'BENCH_RUNS', 'CLAUDE.local.md', 'AGENTS.md', '--config-dir', '--base-plugin', '--base-ref',
+    'SECTION_TEAM_LIVE_CHECKOUT', 'BENCH_RUNS', 'CLAUDE.local.md', 'AGENTS.md', '--config-dir', '--base-plugin', '--base-ref',
     '--conds', '--task-reps', 'SECTION_TEAM_MEMORY_LIMIT_MB', '2.1.318',
   ], 'CONTRIBUTING harness')
 })
