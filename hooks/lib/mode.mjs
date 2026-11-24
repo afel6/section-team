@@ -20,10 +20,11 @@ export const GATES = Object.freeze({
   max: Object.freeze({ passOverall: 9, minItem: 7, fixRounds: 2, reviewerModel: null, nearMiss: false, gradeAll: true }),
 })
 
-// The picker label for each mode: rough usage against plain Claude Code, rounded from the mode round (Balanced 4.3-5.2x, Max 7.5-9.7x)
-// and round hq (5.2x, 10.5x); platform tasks (p1, h7) ran higher, as the README says.
+// The picker label for each mode: rough usage against plain Claude Code. Balanced rounds round nx: v0.6.0-rc.1 over solo on h8-h10
+// with the three tasks weighted equally, 7.26x (7.5x with h8 from v0.5.1, which routes it as 0.6.0 does, the direct tier reverted).
+// Max is about 10x, measured on 0.3.0 and later in rounds p1 and hq; 0.6.0 changes Max only in trust text and the model alias, not re-measured.
 export const MODE_LABELS = Object.freeze({
-  balanced: 'Balanced · ~5× usage',
+  balanced: 'Balanced · ~7× usage',
   max: 'Max · ~10× usage',
 })
 
