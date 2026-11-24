@@ -1,6 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ORDER, SEATED, WALK_MS, officeSvg, officeAlt, creatureSvg } from '../hooks/office.mjs'
+import { ORDER, SEATED, WALK_MS, LOOKS, officeSvg, officeAlt, creatureSvg } from '../hooks/office.mjs'
+import { CREW } from '../hooks/creatures.mjs'
+
+// WCAG contrast ratio between two #RRGGBB colours.
+const luminance = hex => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
 
 const NOW = 100000
 const WALK = '.wk1{animation:wk1 2.2s ease-in-out -1s both}'
@@ -111,4 +122,25 @@ test('alt text', () => {
   assert.equal(officeAlt({}), 'The office: all ten builders are free, strolling the corridor.')
   assert.equal(officeAlt({ states: { backend: 'running', frontend: 'done' }, names: { backend: 'Nova' } }),
     'The office: Nova (backend) running at their desks; 9 free in the corridor.')
+})
+
+// The look: night (the default) or yellow, chosen per user.
+test('night is the default and matches no look', () => {
+  assert.deepEqual(LOOKS, ['night', 'yellow'])
+  const night = officeSvg({ now: 0 })
+  assert.equal(officeSvg({ now: 0, look: 'night' }), night)
+  assert.equal(officeSvg({ now: 0, look: 'pink' }), night)
+})
+
+test('the yellow look paints the room yellow and keeps the desks', () => {
+  const yellow = officeSvg({ now: 0, look: 'yellow' })
+  assert.ok(yellow.includes('fill="#FFE9A3"'))
+  assert.ok(yellow.includes('fill="#B8691C"'))
+  for (const night of ['#2C3454', '#3B4677']) assert.ok(!yellow.includes(night), night)
+  for (const src of [yellow, officeSvg({ now: 0 })]) assert.ok(src.includes('fill="#D9A877"'))
+})
+
+test('Riva stays easy to see on the yellow rug', () => {
+  assert.equal(CREW.testing.fill.body[0], '#FACC15')
+  assert.ok(contrast('#FACC15', '#B8691C') >= 2, String(contrast('#FACC15', '#B8691C')))
 })
