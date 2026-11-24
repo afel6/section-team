@@ -2,6 +2,7 @@
 // strolling the corridor between the two rows while it is free.
 import { CREW, buildCreature, r2, join, ell, poly, rrect, bar } from './creatures.mjs';
 import { NAME_RE } from './lib/names.mjs';
+import { flingMarkup } from './fling.mjs';
 
 const CREW_CSS = ".cr-svg{overflow:visible}.cr-svg g,.cr-svg path{transform-box:fill-box}.cr-sit{animation:cr-sit 3.8s ease-in-out infinite;transform-origin:50% 100%}.cr-hover{animation:cr-hover 4.4s ease-in-out infinite}.cr-blink{animation:cr-blink 5.2s infinite;transform-origin:50% 50%}.cr-sway{animation:cr-sway 3.4s ease-in-out infinite;transform-origin:50% 100%}.cr-twitch{animation:cr-twitch 4.6s ease-in-out infinite;transform-origin:50% 100%}.cr-wag{animation:cr-wag 1.6s ease-in-out infinite;transform-origin:0% 100%}.cr-wave{animation:cr-wave 2.8s ease-in-out infinite;transform-origin:50% 0%}.cr-float{animation:cr-float 3.2s ease-in-out infinite}.cr-tilt{animation:cr-tilt 3.6s ease-in-out infinite;transform-origin:30% 30%}.cr-glow{animation:cr-glow 2.4s ease-in-out infinite}.cr-gear{animation:cr-spin 2.4s linear infinite;transform-origin:50% 50%}.cr-dots{animation:cr-glow 1.4s ease-in-out infinite}.cr-spark{animation:cr-twinkle 1.6s ease-in-out infinite;transform-origin:50% 50%}.cr-z{animation:cr-z 3s ease-in-out infinite}.st-running .cr-sit,.st-running .cr-hover{animation-duration:1.1s}.st-waiting .cr-look{animation:cr-look 3.4s ease-in-out infinite}.st-done .cr-sit,.st-done .cr-hover{animation:cr-hop 1.5s ease-in-out infinite;transform-origin:50% 100%}.st-problem .cr-sit,.st-problem .cr-hover{animation:cr-shake 2.6s ease-in-out infinite}.st-asleep .cr-sit,.st-asleep .cr-hover{animation:cr-breathe 5.5s ease-in-out infinite;transform-origin:50% 100%}.st-asleep .cr-blink,.st-done .cr-blink{animation:none}.st-asleep{filter:saturate(.45)}@keyframes cr-sit{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-1.2px) scale(.99,1.015)}}@keyframes cr-hover{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}@keyframes cr-blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}@keyframes cr-sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}@keyframes cr-twitch{0%,78%,100%{transform:rotate(0)}84%{transform:rotate(-7deg)}90%{transform:rotate(4deg)}}@keyframes cr-wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}@keyframes cr-wave{0%,100%{transform:skewX(-5deg)}50%{transform:skewX(5deg)}}@keyframes cr-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}@keyframes cr-tilt{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(5deg)}}@keyframes cr-glow{0%,100%{opacity:.35}50%{opacity:1}}@keyframes cr-spin{to{transform:rotate(360deg)}}@keyframes cr-twinkle{0%,100%{transform:scale(.7);opacity:.6}50%{transform:scale(1.15);opacity:1}}@keyframes cr-z{0%{transform:translateY(2px);opacity:0}30%{opacity:1}100%{transform:translateY(-4px);opacity:0}}@keyframes cr-look{0%,100%{transform:translateX(0)}25%,40%{transform:translateX(-2px)}60%,75%{transform:translateX(2px)}}@keyframes cr-hop{0%,60%,100%{transform:translateY(0) scale(1,1)}20%{transform:translateY(-5px) scale(.97,1.04)}40%{transform:translateY(0) scale(1.05,.94)}}@keyframes cr-shake{0%,70%,100%{transform:translateX(0)}74%,82%{transform:translateX(-1.2px)}78%,86%{transform:translateX(1.2px)}}@keyframes cr-breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}@media (prefers-reduced-motion: reduce){.cr-svg *{animation:none !important}}";
 const SCALE = 1.1;
@@ -21,7 +22,10 @@ const CHAIR = {
 const OFFICE_CSS = '.of-glow{animation:cr-glow 1.8s ease-in-out infinite}'
   + '.of-glow2{animation:cr-glow 2.6s ease-in-out -1s infinite}'
   + '.of-step{animation:of-step .37s ease-in-out 6}'
-  + '@keyframes of-step{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}';
+  + '@keyframes of-step{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}'
+  // Poke and fling (fling.mjs): the flight's rotate centre is in room units, so its group keeps the view box, not its own box.
+  + '.cr-svg .grab{cursor:grab;transform-box:view-box;transform-origin:0 0}.cr-svg .grab:active{cursor:grabbing}'
+  + '.squish{transform-origin:50% 100%;transition:transform .12s}.grab:active .squish{transform:scale(1.15,.82)}.grab:active .oops{opacity:1}';
 
 // A name outside the rules, or one holding a token the picture bans, draws the creature's default name.
 const nameOf = (names, id) => (typeof names[id] === 'string' && NAME_RE.test(names[id]) && !/href/i.test(names[id]) ? names[id] : CREW[id].name);
@@ -181,7 +185,9 @@ function placed(section, state, move, now) {
   const walking = age !== null && age < WALK_S;
   const box = seated ? seatBox(section) : homeBox(i);
   const mood = seated || state === 'done' ? state : 'idle';
-  let body = `<svg x="${box.x}" y="${box.y}" width="${80 * SCALE}" height="${r2(84 * SCALE)}" viewBox="10 10 80 84" overflow="visible">${creatureMarkup(section, mood, -i * 0.37)}</svg>`;
+  // Wrapped for poke and fling first, so a walk or a stroll carries the flight along with the creature.
+  let body = flingMarkup(i, section, box,
+    `<svg x="${box.x}" y="${box.y}" width="${80 * SCALE}" height="${r2(84 * SCALE)}" viewBox="10 10 80 84" overflow="visible">${creatureMarkup(section, mood, -i * 0.37)}</svg>`);
   let css = '';
   if (!seated) {
     const roam = roamCss(i);

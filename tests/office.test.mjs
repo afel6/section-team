@@ -144,3 +144,31 @@ test('Riva stays easy to see on the yellow rug', () => {
   assert.equal(CREW.testing.fill.body[0], '#FACC15')
   assert.ok(contrast('#FACC15', '#B8691C') >= 2, String(contrast('#FACC15', '#B8691C')))
 })
+
+// Poke and fling: every creature is a clickable group, its id by desk number so no name reaches it.
+test('every creature is flingable, ids by desk number', () => {
+  const src = officeSvg({ now: 0 })
+  ORDER.forEach((_, i) => assert.equal(src.split(`id="fl${i}"`).length - 1, 1, `fl${i}`))
+  assert.equal(src.split('id="fl').length - 1, 10)
+  const odd = officeSvg({ now: 0, names: Object.fromEntries(ORDER.map(id => [id, 'Ri va'])) })
+  assert.deepEqual(odd.match(/id="[^"]*"/g), src.match(/id="[^"]*"/g))
+})
+
+test('a walking creature flies inside its walk', () => {
+  const src = worst()
+  const after = src.slice(src.indexOf('class="wk1"'))
+  const next = after.indexOf('class="wk', 1)
+  assert.ok(after.indexOf('id="fl1"') > 0 && after.indexOf('id="fl1"') < next)
+})
+
+test('the yellow office with ten flights fits the limit and stays plain vector', () => {
+  const src = officeSvg({
+    states: Object.fromEntries(ORDER.map(id => [id, 'problem'])),
+    names: Object.fromEntries(ORDER.map(id => [id, 'ABCDEFGHIJKL'])),
+    moves: Object.fromEntries(ORDER.map(id => [id, { kind: 'arrive', at: NOW - 1000 }])),
+    now: NOW, look: 'yellow',
+  })
+  assert.ok(src.length < 131072)
+  assert.doesNotMatch(src, /url\(|href|data:|<image|\|NaN|undefined|\son\w+=|<script/)
+  assert.doesNotMatch(src, /&(?!amp;|lt;|gt;|quot;)/)
+})
