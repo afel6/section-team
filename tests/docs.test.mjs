@@ -251,3 +251,9 @@ test('the README says how to turn the team off in one project, and that it appli
   const modes = read('README.md').split('\n## Modes\n')[1].split('\n## ')[0]
   assertIncludes(modes, ['**Turn it off in one project:**', '`/team mode off`', '`{"mode": "off"}`', 'applies from your next session', 'no brief'], 'Modes section')
 })
+
+test('the README tells how to paint the office yellow and fling the creatures', () => {
+  const board = read('README.md').split('\n## Team Board\n')[1].split('\n## ')[0]
+  assertIncludes(board, ['/team office yellow', '/team office night', 'office.json', 'squish', 'fling'], 'Team Board section')
+  assertIncludes(read('README.md'), ['`~/.claude/section-team/office.json`'], 'README')
+})

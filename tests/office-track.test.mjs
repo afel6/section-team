@@ -57,3 +57,12 @@ test('prev is never mutated', () => {
   step(prev, { backend: 'running' }, 1000)
   assert.equal(JSON.stringify(prev), snap)
 })
+
+test('a look change rebuilds once', () => {
+  const night = trackOffice(undefined, { states: {}, names: N, look: 'night', now: 0 })
+  const same = trackOffice(night.track, { states: {}, names: N, look: 'night', now: 1000 })
+  assert.equal(same.rebuild, false)
+  const yellow = trackOffice(same.track, { states: {}, names: N, look: 'yellow', now: 2000 })
+  assert.equal(yellow.rebuild, true)
+  assert.equal(trackOffice(yellow.track, { states: {}, names: N, look: 'yellow', now: 3000 }).rebuild, false)
+})
