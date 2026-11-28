@@ -2,6 +2,18 @@
 
 [![test](https://github.com/afel6/section-team/actions/workflows/test.yml/badge.svg)](https://github.com/afel6/section-team/actions/workflows/test.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+## TL;DR
+
+**What:** a Claude Code plugin that turns one session into a supervisor + specialist agents, with an Opus reviewer gate before any code is handed back.
+
+**Install:** `/plugin install section-team --marketplace afel6/section-team` (Claude Code 2.1.275+), then start a new session.
+
+**Cost:** about 5× normal Claude Code usage in Balanced, about 10× in Max.
+
+**Measured result:** blind judges scored it 8.80 vs 8.16 for plain Claude Code on three unseen tasks, at about 2.2× the cost; both passed all hidden tests. See [Results](#results).
+
+**Not for:** quick edits or questions on a tight plan — even a small change wakes a section.
+
 A Claude Code plugin that turns every session into a **supervisor** of a small engineering team. The supervisor plans and routes; every job goes to a specialist builder **section** (frontend, backend, database, testing, security, devops, uiux, docs, ai-llm, mobile), and three advisors (ai-engineer, data-scientist, plan-advisor) give it advice without changing project files. Code goes through a **reviewer gate** before it is handed back, and work that cannot pass is handed back marked partial or ungraded. Each project picks how much the team does with one of two **modes** (Balanced or Max), or turns the team **off**; section reports are saved in the project, and a live **Team Board** shows who is working.
 
 Current version: 0.5.1. What changed: [CHANGELOG.md](CHANGELOG.md).
